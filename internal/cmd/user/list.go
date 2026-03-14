@@ -1,0 +1,104 @@
+package user
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/spf13/cobra"
+)
+
+func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
+	var (
+		status string
+		name   string
+		group  int
+		limit  int
+		offset int
+		format string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "list",
+		Short:   "List users",
+		Aliases: []string{"ls"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := f.ApiClient()
+			if err != nil {
+				return err
+			}
+			printer := f.Printer(format)
+
+			stop := printer.Spinner("Fetching users...")
+			users, total, err := client.Users.List(context.Background(), models.UserFilter{
+				Status:  status,
+				Name:    name,
+				GroupID: group,
+				Limit:   limit,
+				Offset:  offset,
+			})
+			stop()
+			if err != nil {
+				return err
+			}
+
+			switch printer.Format() {
+			case output.FormatJSON:
+				printer.JSON(users)
+			case output.FormatCSV:
+				headers := []string{"ID", "Login", "Name", "Email", "Admin", "Status"}
+				rows := make([][]string, len(users))
+				for i, u := range users {
+					rows[i] = []string{
+						fmt.Sprintf("%d", u.ID), u.Login,
+						u.FirstName + " " + u.LastName,
+						u.Mail, fmt.Sprintf("%t", u.Admin),
+						userStatusName(u.Status),
+					}
+				}
+				printer.CSV(headers, rows)
+			default:
+				headers := []string{"ID", "Login", "Name", "Email", "Admin", "Status"}
+				rows := make([][]string, len(users))
+				for i, u := range users {
+					admin := ""
+					if u.Admin {
+						admin = "yes"
+					}
+					rows[i] = []string{
+						output.StyleID.Render(fmt.Sprintf("%d", u.ID)),
+						u.Login,
+						u.FirstName + " " + u.LastName,
+						u.Mail, admin,
+						userStatusName(u.Status),
+					}
+				}
+				printer.Table(headers, rows)
+				fmt.Fprintf(f.IOStreams.ErrOut, "\nShowing %d of %d users\n", len(users), total)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status (active, registered, locked)")
+	cmd.Flags().StringVar(&name, "name", "", "Filter by name")
+	cmd.Flags().IntVar(&group, "group", 0, "Filter by group ID")
+	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
+	cmdutil.AddOutputFlag(cmd, &format)
+	return cmd
+}
+
+func userStatusName(status int) string {
+	switch status {
+	case 1:
+		return "active"
+	case 2:
+		return "registered"
+	case 3:
+		return "locked"
+	default:
+		return fmt.Sprintf("%d", status)
+	}
+}
