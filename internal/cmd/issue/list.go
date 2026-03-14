@@ -18,6 +18,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 		tracker  int
 		status   string
 		assignee string
+		version  int
 		sort     string
 		limit    int
 		offset   int
@@ -43,13 +44,14 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			filter := models.IssueFilter{
-				ProjectID:    project,
-				TrackerID:    tracker,
-				StatusID:     status,
-				AssignedToID: assignee,
-				Sort:         sort,
-				Limit:        limit,
-				Offset:       offset,
+				ProjectID:      project,
+				TrackerID:      tracker,
+				StatusID:       status,
+				AssignedToID:   assignee,
+				FixedVersionID: version,
+				Sort:           sort,
+				Limit:          limit,
+				Offset:         offset,
 			}
 
 			printer := f.Printer(format)
@@ -110,6 +112,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&tracker, "tracker", 0, "Tracker ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, or status ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
+	cmd.Flags().IntVar(&version, "version", 0, "Filter by version (milestone) ID")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)

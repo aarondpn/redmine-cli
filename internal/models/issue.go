@@ -30,9 +30,10 @@ type IssueFilter struct {
 	TrackerID    int
 	StatusID     string // "open", "closed", "*", or numeric ID
 	AssignedToID string // numeric ID or "me"
-	Sort         string // e.g., "updated_on:desc"
-	Limit        int
-	Offset       int
+	FixedVersionID int
+	Sort           string // e.g., "updated_on:desc"
+	Limit          int
+	Offset         int
 }
 
 // IssueCreate defines fields for creating a new issue.

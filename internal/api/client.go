@@ -25,6 +25,7 @@ type Client struct {
 	Trackers     *TrackerService
 	Statuses     *StatusService
 	Enumerations *EnumerationService
+	Versions     *VersionService
 }
 
 // authTransport applies authentication headers to every request.
@@ -82,6 +83,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	c.Trackers = &TrackerService{client: c}
 	c.Statuses = &StatusService{client: c}
 	c.Enumerations = &EnumerationService{client: c}
+	c.Versions = &VersionService{client: c}
 
 	return c, nil
 }
