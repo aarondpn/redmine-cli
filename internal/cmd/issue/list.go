@@ -71,7 +71,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			case output.FormatJSON:
 				printer.JSON(issues)
 			case output.FormatCSV:
-				headers := []string{"ID", "Tracker", "Status", "Priority", "Subject", "Assignee"}
+				headers := []string{"ID", "Tracker", "Status", "Priority", "Subject", "Assignee", "Version"}
 				rows := make([][]string, len(issues))
 				for i, issue := range issues {
 					rows[i] = []string{
@@ -81,11 +81,12 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 						issue.Priority.Name,
 						issue.Subject,
 						assigneeName(issue.AssignedTo),
+						assigneeName(issue.FixedVersion),
 					}
 				}
 				printer.CSV(headers, rows)
 			default:
-				headers := []string{"ID", "Tracker", "Status", "Priority", "Subject", "Assignee"}
+				headers := []string{"ID", "Tracker", "Status", "Priority", "Subject", "Assignee", "Version"}
 				rows := make([][]string, len(issues))
 				for i, issue := range issues {
 					rows[i] = []string{
@@ -95,6 +96,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 						output.PriorityStyle(issue.Priority.Name).Render(issue.Priority.Name),
 						issue.Subject,
 						assigneeName(issue.AssignedTo),
+						assigneeName(issue.FixedVersion),
 					}
 				}
 				printer.Table(headers, rows)
