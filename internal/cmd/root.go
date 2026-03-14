@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/aarondpn/redmine-cli/internal/cmd/completion"
+	"github.com/aarondpn/redmine-cli/internal/cmd/group"
 	initcmd "github.com/aarondpn/redmine-cli/internal/cmd/initialize"
 	"github.com/aarondpn/redmine-cli/internal/cmd/issue"
 	"github.com/aarondpn/redmine-cli/internal/cmd/project"
@@ -72,6 +73,7 @@ func NewRootCmd(version string) *cobra.Command {
 	// Subcommands
 	cmd.AddCommand(initcmd.NewCmdInit(f))
 	cmd.AddCommand(issue.NewCmdIssue(f))
+	cmd.AddCommand(group.NewCmdGroup(f))
 	cmd.AddCommand(project.NewCmdProject(f))
 	cmd.AddCommand(timecmd.NewCmdTime(f))
 	cmd.AddCommand(user.NewCmdUser(f))
