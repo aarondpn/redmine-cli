@@ -29,6 +29,9 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 	if filter.AssignedToID != "" {
 		params.Set("assigned_to_id", filter.AssignedToID)
 	}
+	if filter.FixedVersionID > 0 {
+		params.Set("fixed_version_id", strconv.Itoa(filter.FixedVersionID))
+	}
 	if filter.Sort != "" {
 		params.Set("sort", filter.Sort)
 	}
