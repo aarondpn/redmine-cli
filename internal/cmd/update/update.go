@@ -3,7 +3,11 @@ package update
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
+	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -65,11 +69,13 @@ func runUpdate(currentVersion string) error {
 	}
 
 	assetName := expectedAssetName()
-	var downloadURL string
+	var downloadURL, checksumsURL string
 	for _, asset := range release.Assets {
-		if asset.Name == assetName {
+		switch asset.Name {
+		case assetName:
 			downloadURL = asset.BrowserDownloadURL
-			break
+		case "checksums.txt":
+			checksumsURL = asset.BrowserDownloadURL
 		}
 	}
 	if downloadURL == "" {
@@ -83,9 +89,21 @@ func runUpdate(currentVersion string) error {
 
 	fmt.Printf("Downloading %s...\n", release.TagName)
 
-	binaryData, err := downloadAndExtract(downloadURL, assetName)
+	archiveData, err := downloadBytes(downloadURL)
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
+	}
+
+	if checksumsURL != "" {
+		fmt.Println("Verifying checksum...")
+		if err := verifyChecksum(archiveData, assetName, checksumsURL); err != nil {
+			return fmt.Errorf("checksum verification failed: %w", err)
+		}
+	}
+
+	binaryData, err := extractBinary(archiveData, assetName)
+	if err != nil {
+		return fmt.Errorf("failed to extract binary: %w", err)
 	}
 
 	if err := replaceBinary(execPath, binaryData); err != nil {
@@ -122,7 +140,7 @@ func expectedAssetName() string {
 	return fmt.Sprintf("redmine-%s-%s%s", runtime.GOOS, runtime.GOARCH, ext)
 }
 
-func downloadAndExtract(url, assetName string) ([]byte, error) {
+func downloadBytes(url string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -133,10 +151,49 @@ func downloadAndExtract(url, assetName string) ([]byte, error) {
 		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	if strings.HasSuffix(assetName, ".zip") {
-		return extractFromZip(resp.Body)
+	return io.ReadAll(resp.Body)
+}
+
+func verifyChecksum(data []byte, assetName, checksumsURL string) error {
+	resp, err := http.Get(checksumsURL)
+	if err != nil {
+		return fmt.Errorf("downloading checksums: %w", err)
 	}
-	return extractFromTarGz(resp.Body)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("checksums download returned status %d", resp.StatusCode)
+	}
+
+	var expectedHash string
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		// GoReleaser format: "<hash>  <filename>"
+		fields := strings.Fields(scanner.Text())
+		if len(fields) == 2 && fields[1] == assetName {
+			expectedHash = fields[0]
+			break
+		}
+	}
+	if expectedHash == "" {
+		return fmt.Errorf("no checksum found for %s", assetName)
+	}
+
+	actualHash := sha256.Sum256(data)
+	actualHex := hex.EncodeToString(actualHash[:])
+
+	if actualHex != expectedHash {
+		return fmt.Errorf("expected %s, got %s", expectedHash, actualHex)
+	}
+	return nil
+}
+
+func extractBinary(archiveData []byte, assetName string) ([]byte, error) {
+	r := bytes.NewReader(archiveData)
+	if strings.HasSuffix(assetName, ".zip") {
+		return extractFromZipReader(r, r.Size())
+	}
+	return extractFromTarGz(r)
 }
 
 func extractFromTarGz(r io.Reader) ([]byte, error) {
@@ -163,25 +220,8 @@ func extractFromTarGz(r io.Reader) ([]byte, error) {
 	return nil, fmt.Errorf("binary not found in archive")
 }
 
-func extractFromZip(r io.Reader) ([]byte, error) {
-	// zip requires random access, so buffer to a temp file
-	tmp, err := os.CreateTemp("", "redmine-update-*.zip")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
-
-	if _, err := io.Copy(tmp, r); err != nil {
-		return nil, err
-	}
-
-	stat, err := tmp.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	zr, err := zip.NewReader(tmp, stat.Size())
+func extractFromZipReader(r io.ReaderAt, size int64) ([]byte, error) {
+	zr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, err
 	}

@@ -38,8 +38,27 @@ URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE}"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
+CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
+
 info "Downloading ${URL}..."
 curl -fsSL -o "${TMPDIR}/${ARCHIVE}" "$URL"
+curl -fsSL -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL"
+
+# Verify checksum
+info "Verifying checksum..."
+EXPECTED=$(grep "  ${ARCHIVE}$" "${TMPDIR}/checksums.txt" | cut -d' ' -f1)
+[ -z "$EXPECTED" ] && error "No checksum found for ${ARCHIVE}"
+
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL=$(sha256sum "${TMPDIR}/${ARCHIVE}" | cut -d' ' -f1)
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL=$(shasum -a 256 "${TMPDIR}/${ARCHIVE}" | cut -d' ' -f1)
+else
+  error "Neither sha256sum nor shasum found — cannot verify checksum"
+fi
+
+[ "$ACTUAL" != "$EXPECTED" ] && error "Checksum mismatch: expected ${EXPECTED}, got ${ACTUAL}"
+info "Checksum verified."
 
 # Extract
 tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
