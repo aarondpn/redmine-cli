@@ -1,0 +1,33 @@
+version: 2
+
+builds:
+  - binary: redmine
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: aarondpn
+    name: redmine-cli
