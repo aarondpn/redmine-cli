@@ -22,6 +22,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		priority       string
 		assignee       string
 		status         string
+		category       string
 		version        string
 		parent         int
 		estimatedHours float64
@@ -43,7 +44,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Create with all fields
   redmine issues create --project myproject --tracker Feature --priority Normal \
     --subject "Add search" --description "Full-text search" \
-    --assignee "John Smith" --version "v2.0" --estimated-hours 8 --private
+    --assignee "John Smith" --category "Development" --version "v2.0" --estimated-hours 8 --private
 
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
@@ -110,6 +111,14 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.StatusID = id
 			}
 
+			if category != "" {
+				id, err := resolver.ResolveCategory(ctx, client, category, projectIdentifier)
+				if err != nil {
+					return err
+				}
+				create.CategoryID = id
+			}
+
 			if version != "" {
 				id, err := resolver.ResolveVersion(ctx, client, version, projectIdentifier)
 				if err != nil {
@@ -158,6 +167,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
+	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")

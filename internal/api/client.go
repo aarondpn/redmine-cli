@@ -26,6 +26,7 @@ type Client struct {
 	Statuses     *StatusService
 	Enumerations *EnumerationService
 	Versions     *VersionService
+	Categories   *CategoryService
 	Groups       *GroupService
 	Search       *SearchService
 }
@@ -86,6 +87,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	c.Statuses = &StatusService{client: c}
 	c.Enumerations = &EnumerationService{client: c}
 	c.Versions = &VersionService{client: c}
+	c.Categories = &CategoryService{client: c}
 	c.Groups = &GroupService{client: c}
 	c.Search = &SearchService{client: c}
 

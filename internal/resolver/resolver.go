@@ -110,6 +110,44 @@ func ResolvePriority(ctx context.Context, client *api.Client, input string) (int
 	return id, err
 }
 
+// ResolveCategory resolves an issue category by name or numeric ID.
+// projectIdentifier is required when resolving by name.
+func ResolveCategory(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {
+	if id, err := strconv.Atoi(input); err == nil {
+		return id, nil
+	}
+
+	if projectIdentifier == "" {
+		return 0, fmt.Errorf("--project is required when filtering by category name")
+	}
+
+	categories, _, err := client.Categories.List(ctx, projectIdentifier)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch issue categories: %w", err)
+	}
+
+	needle := strings.ToLower(input)
+	var matches []models.IssueCategory
+	for _, c := range categories {
+		if strings.ToLower(c.Name) == needle {
+			matches = append(matches, c)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		names := make([]string, len(categories))
+		for i, c := range categories {
+			names[i] = fmt.Sprintf("  - %s (ID: %d)", c.Name, c.ID)
+		}
+		return 0, fmt.Errorf("no category found matching %q. Available categories:\n%s", input, strings.Join(names, "\n"))
+	case 1:
+		return matches[0].ID, nil
+	default:
+		return 0, fmt.Errorf("multiple categories match %q, please use the category ID instead", input)
+	}
+}
+
 // ResolveVersion resolves a version by name or numeric ID.
 // projectIdentifier is required when resolving by name.
 func ResolveVersion(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {

@@ -97,8 +97,8 @@ redmine issues create --project myproject --subject "My task" --assignee me
 # Full example with all fields
 redmine issues create --project myproject --tracker Feature --priority Normal \
   --subject "Add search" --description "Implement full-text search" \
-  --assignee "John Smith" --status "In Progress" --version "v2.0" \
-  --parent 100 --estimated-hours 8 --private
+  --assignee "John Smith" --status "In Progress" --category "Development" \
+  --version "v2.0" --parent 100 --estimated-hours 8 --private
 
 # Numeric IDs still work
 redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"
@@ -107,7 +107,7 @@ redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"
 redmine issues create --project myproject --subject "New bug" --tracker Bug -o json
 ```
 
-Available flags: `--project`, `--tracker`, `--subject` (required), `--description`, `--priority`, `--assignee`, `--status`, `--version`, `--parent`, `--estimated-hours`, `--private`, `-o`.
+Available flags: `--project`, `--tracker`, `--subject` (required), `--description`, `--priority`, `--assignee`, `--status`, `--category`, `--version`, `--parent`, `--estimated-hours`, `--private`, `-o`.
 
 If `--project` is omitted, the configured default project is used.
 
@@ -122,6 +122,9 @@ redmine issues update 123 --status Closed --priority Low
 # Reassign with a note
 redmine issues update 123 --assignee me --note "Taking over"
 
+# Change category
+redmine issues update 123 --category "Development"
+
 # Set version and estimated hours
 redmine issues update 123 --version "v2.0" --estimated-hours 4.5
 
@@ -129,7 +132,7 @@ redmine issues update 123 --version "v2.0" --estimated-hours 4.5
 redmine issues update 123 --private
 ```
 
-Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--priority`, `--assignee`, `--version`, `--parent`, `--estimated-hours`, `--private`, `--done-ratio`, `--note`.
+Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--priority`, `--assignee`, `--category`, `--version`, `--parent`, `--estimated-hours`, `--private`, `--done-ratio`, `--note`.
 
 ### Name resolution errors
 
@@ -196,6 +199,9 @@ redmine users list -o json
 # List trackers (for --tracker filter)
 redmine trackers list -o json
 
+# List issue categories (for --category filter)
+redmine categories list --project myproject -o json
+
 # List statuses (for --status filter)
 redmine statuses list -o json
 
@@ -212,19 +218,20 @@ When you need to specify a project, tracker, version, assignee, priority, or sta
    redmine projects list -o json        # available projects
    redmine trackers list -o json        # available trackers
    redmine statuses list -o json        # available statuses
-   redmine versions list --project X -o json  # available versions
+   redmine categories list -o json              # available categories
+   redmine versions list -o json               # available versions
    redmine users list -o json           # available users
    ```
 2. **Present the options to the user** in a clear, numbered list or selection prompt using your interactive tools (e.g. AskUserQuestion with a formatted list of choices). Let the user pick from the actual available options rather than asking them to type a free-form name.
 3. **Then use the confirmed value** in the create/update command.
 
-This pattern applies broadly — whenever a command requires a value from a fixed set (tracker, status, priority, version, assignee, project), prefer querying and presenting options over asking the user to remember or look up exact names. This makes the experience intuitive and avoids resolution errors.
+This pattern applies broadly — whenever a command requires a value from a fixed set (tracker, status, priority, category, version, assignee, project), prefer querying and presenting options over asking the user to remember or look up exact names. This makes the experience intuitive and avoids resolution errors.
 
 ## Tips
 
 - Always use `-o json` for programmatic access to avoid parsing table formatting.
 - Use `--limit 0` to fetch all results when you need the complete dataset.
-- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--version`) accept human-readable names or numeric IDs.
+- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--category`, `--version`) accept human-readable names or numeric IDs.
 - The `--assignee` flag supports the special value `me` to assign to the current API user.
 - Version status filters (`--open`, `--closed`, `--locked`) are applied client-side.
 - Set a default project with `redmine init` to avoid `--project` on every command.

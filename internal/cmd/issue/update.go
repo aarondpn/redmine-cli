@@ -21,6 +21,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		status         string
 		priority       string
 		assignee       string
+		category       string
 		version        string
 		parent         int
 		estimatedHours float64
@@ -39,6 +40,9 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
   # Reassign to yourself with a note
   redmine issues update 123 --assignee me --note "Taking over this issue"
+
+  # Change category
+  redmine issues update 123 --category "Development"
 
   # Set version and estimated hours
   redmine issues update 123 --version "v2.0" --estimated-hours 4.5
@@ -110,20 +114,29 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				}
 				update.AssignedToID = &aid
 			}
-			if cmd.Flags().Changed("version") {
-				// Need project identifier for version name resolution.
-				// Fetch the issue to get its project.
-				projectIdentifier := ""
-				if _, err := strconv.Atoi(version); err != nil {
-					issue, err := client.Issues.Get(ctx, id, nil)
-					if err != nil {
-						return fmt.Errorf("failed to fetch issue for version resolution: %w", err)
-					}
-					_, projectIdentifier, err = resolver.ResolveProject(ctx, client, strconv.Itoa(issue.Project.ID))
-					if err != nil {
-						return err
-					}
+			needsProject := (cmd.Flags().Changed("category") && func() bool { _, err := strconv.Atoi(category); return err != nil }()) ||
+				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }())
+
+			var projectIdentifier string
+			if needsProject {
+				issue, err := client.Issues.Get(ctx, id, nil)
+				if err != nil {
+					return fmt.Errorf("failed to fetch issue for name resolution: %w", err)
 				}
+				_, projectIdentifier, err = resolver.ResolveProject(ctx, client, strconv.Itoa(issue.Project.ID))
+				if err != nil {
+					return err
+				}
+			}
+
+			if cmd.Flags().Changed("category") {
+				cid, err := resolver.ResolveCategory(ctx, client, category, projectIdentifier)
+				if err != nil {
+					return err
+				}
+				update.CategoryID = &cid
+			}
+			if cmd.Flags().Changed("version") {
 				vid, err := resolver.ResolveVersion(ctx, client, version, projectIdentifier)
 				if err != nil {
 					return err
@@ -150,6 +163,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")

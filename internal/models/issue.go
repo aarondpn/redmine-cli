@@ -1,5 +1,13 @@
 package models
 
+// IssueCategory represents a Redmine issue category.
+type IssueCategory struct {
+	ID         int     `json:"id"`
+	Name       string  `json:"name"`
+	Project    IDName  `json:"project"`
+	AssignedTo *IDName `json:"assigned_to,omitempty"`
+}
+
 // Issue represents a Redmine issue.
 type Issue struct {
 	ID             int                `json:"id"`
@@ -9,6 +17,7 @@ type Issue struct {
 	Priority       IDName             `json:"priority"`
 	Author         IDName             `json:"author"`
 	AssignedTo     *IDName            `json:"assigned_to,omitempty"`
+	Category       *IDName            `json:"category,omitempty"`
 	FixedVersion   *IDName            `json:"fixed_version,omitempty"`
 	Parent         *IDRef             `json:"parent,omitempty"`
 	Subject        string             `json:"subject"`
@@ -46,6 +55,7 @@ type IssueCreate struct {
 	Description    string   `json:"description,omitempty"`
 	AssignedToID   int      `json:"assigned_to_id,omitempty"`
 	ParentIssueID  int      `json:"parent_issue_id,omitempty"`
+	CategoryID     int      `json:"category_id,omitempty"`
 	FixedVersionID int      `json:"fixed_version_id,omitempty"`
 	EstimatedHours float64  `json:"estimated_hours,omitempty"`
 	IsPrivate      *bool    `json:"is_private,omitempty"`
@@ -63,6 +73,7 @@ type IssueUpdate struct {
 	Notes          *string   `json:"notes,omitempty"`
 	DueDate        *string   `json:"due_date,omitempty"`
 	ParentIssueID  *int      `json:"parent_issue_id,omitempty"`
+	CategoryID     *int      `json:"category_id,omitempty"`
 	FixedVersionID *int      `json:"fixed_version_id,omitempty"`
 	EstimatedHours *float64  `json:"estimated_hours,omitempty"`
 	IsPrivate      *bool     `json:"is_private,omitempty"`
