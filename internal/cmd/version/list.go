@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -27,6 +28,9 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 	var (
 		project      string
 		statusFilter string
+		open         bool
+		closed       bool
+		locked       bool
 		limit        int
 		offset       int
 		format       string
@@ -43,6 +47,15 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			// Resolve shorthand status flags
+			if open {
+				statusFilter = "open"
+			} else if closed {
+				statusFilter = "closed"
+			} else if locked {
+				statusFilter = "locked"
+			}
+
 			if project == "" {
 				cfg, err := f.Config()
 				if err == nil && cfg.DefaultProject != "" {
@@ -55,21 +68,34 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching versions...")
-			versions, total, err := client.Versions.List(context.Background(), project, limit)
-			stop()
-			if err != nil {
-				return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
-			}
 
-			// Client-side status filter
+			var versions []models.Version
+			var hasMore bool
 			if statusFilter != "" {
-				filtered := versions[:0]
-				for _, v := range versions {
-					if v.Status == statusFilter {
-						filtered = append(filtered, v)
-					}
+				// Page through the API, collecting only matching versions
+				// until we have enough for offset + limit.
+				need := 0
+				if limit > 0 {
+					need = offset + limit
 				}
-				versions = filtered
+				matched, more, err := client.Versions.ListFiltered(
+					context.Background(), project, need,
+					func(v models.Version) bool { return v.Status == statusFilter },
+				)
+				stop()
+				if err != nil {
+					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
+				}
+				versions = matched
+				hasMore = more
+			} else {
+				fetched, total, err := client.Versions.List(context.Background(), project, limit)
+				stop()
+				if err != nil {
+					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
+				}
+				versions = fetched
+				hasMore = limit > 0 && total > limit+offset
 			}
 
 			// Apply client-side offset
@@ -117,8 +143,8 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if limit > 0 && total > limit+offset {
-				printer.Warning(fmt.Sprintf("Showing %d of %d versions. Use --limit and --offset to paginate.", len(versions), total))
+			if hasMore {
+				printer.Warning("More versions available. Use --limit and --offset to paginate.")
 			}
 
 			return nil
@@ -127,6 +153,13 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier (required)")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status: open, locked, closed")
+	cmd.Flags().BoolVar(&open, "open", false, "Show only open versions")
+	cmd.Flags().BoolVar(&closed, "closed", false, "Show only closed versions")
+	cmd.Flags().BoolVar(&locked, "locked", false, "Show only locked versions")
+	cmd.MarkFlagsMutuallyExclusive("open", "closed", "locked")
+	cmd.MarkFlagsMutuallyExclusive("open", "status")
+	cmd.MarkFlagsMutuallyExclusive("closed", "status")
+	cmd.MarkFlagsMutuallyExclusive("locked", "status")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
