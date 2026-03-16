@@ -36,12 +36,7 @@ func (s *TimeEntryService) List(ctx context.Context, filter models.TimeEntryFilt
 		params.Set("activity_id", strconv.Itoa(filter.ActivityID))
 	}
 
-	limit := filter.Limit
-	if limit == 0 {
-		limit = 25
-	}
-
-	return FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", limit)
+	return FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", filter.Limit)
 }
 
 // Get retrieves a single time entry.

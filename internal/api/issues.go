@@ -36,12 +36,7 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 		params.Set("sort", filter.Sort)
 	}
 
-	limit := filter.Limit
-	if limit == 0 {
-		limit = 25
-	}
-
-	return FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", limit)
+	return FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", filter.Limit)
 }
 
 // Get retrieves a single issue by ID.

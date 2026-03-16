@@ -16,12 +16,7 @@ type GroupService struct {
 
 // List retrieves groups matching the given filter.
 func (s *GroupService) List(ctx context.Context, filter models.GroupFilter) ([]models.Group, int, error) {
-	limit := filter.Limit
-	if limit == 0 {
-		limit = 25
-	}
-
-	return FetchAll[models.Group](ctx, s.client, "/groups.json", nil, "groups", limit)
+	return FetchAll[models.Group](ctx, s.client, "/groups.json", nil, "groups", filter.Limit)
 }
 
 // Get retrieves a single group by ID. includes can contain "users" and/or "memberships".

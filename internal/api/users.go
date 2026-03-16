@@ -36,12 +36,7 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 		params.Set("group_id", strconv.Itoa(filter.GroupID))
 	}
 
-	limit := filter.Limit
-	if limit == 0 {
-		limit = 25
-	}
-
-	return FetchAll[models.User](ctx, s.client, "/users.json", params, "users", limit)
+	return FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
 }
 
 // Get retrieves a single user by ID.

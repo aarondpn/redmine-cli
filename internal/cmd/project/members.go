@@ -16,6 +16,7 @@ import (
 func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 	var (
 		limit  int
+		offset int
 		format string
 	)
 
@@ -34,6 +35,18 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			members, total, err := client.Projects.Members(context.Background(), args[0], limit)
 			if err != nil {
 				return err
+			}
+
+			// Apply client-side offset
+			if offset > 0 && offset < len(members) {
+				members = members[offset:]
+			} else if offset >= len(members) {
+				members = nil
+			}
+
+			if len(members) == 0 {
+				printer.Warning("No members found")
+				return nil
 			}
 
 			if format == output.FormatJSON {
@@ -55,14 +68,17 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				printer.CSV(headers, rows)
 			} else {
 				printer.Table(headers, rows)
-				fmt.Fprintf(cmd.ErrOrStderr(), "Showing %d of %d members\n", len(members), total)
+			}
+
+			if limit > 0 && total > limit+offset {
+				printer.Warning(fmt.Sprintf("Showing %d of %d members. Use --limit and --offset to paginate.", len(members), total))
 			}
 
 			return nil
 		},
 	}
 
-	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of results")
+	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd

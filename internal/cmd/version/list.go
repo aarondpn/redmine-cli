@@ -27,6 +27,8 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 	var (
 		project      string
 		statusFilter string
+		limit        int
+		offset       int
 		format       string
 	)
 
@@ -53,7 +55,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching versions...")
-			versions, _, err := client.Versions.List(context.Background(), project, 0)
+			versions, total, err := client.Versions.List(context.Background(), project, limit)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
@@ -68,6 +70,13 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 					}
 				}
 				versions = filtered
+			}
+
+			// Apply client-side offset
+			if offset > 0 && offset < len(versions) {
+				versions = versions[offset:]
+			} else if offset >= len(versions) {
+				versions = nil
 			}
 
 			if len(versions) == 0 {
@@ -108,12 +117,17 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
+			if limit > 0 && total > limit+offset {
+				printer.Warning(fmt.Sprintf("Showing %d of %d versions. Use --limit and --offset to paginate.", len(versions), total))
+			}
+
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier (required)")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status: open, locked, closed")
+	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd

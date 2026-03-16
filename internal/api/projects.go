@@ -19,9 +19,6 @@ func (s *ProjectService) List(ctx context.Context, includes []string, limit int)
 	if len(includes) > 0 {
 		params.Set("include", joinStrings(includes, ","))
 	}
-	if limit == 0 {
-		limit = 25
-	}
 	return FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", limit)
 }
 
@@ -65,8 +62,5 @@ func (s *ProjectService) Delete(ctx context.Context, identifier string) error {
 
 // Members retrieves project memberships.
 func (s *ProjectService) Members(ctx context.Context, identifier string, limit int) ([]models.Membership, int, error) {
-	if limit == 0 {
-		limit = 100
-	}
 	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", identifier), nil, "memberships", limit)
 }

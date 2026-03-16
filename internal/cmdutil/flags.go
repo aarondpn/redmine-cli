@@ -6,7 +6,7 @@ import (
 
 // AddPaginationFlags adds --limit and --offset flags to a command.
 func AddPaginationFlags(cmd *cobra.Command, limit, offset *int) {
-	cmd.Flags().IntVar(limit, "limit", 25, "Maximum number of results")
+	cmd.Flags().IntVar(limit, "limit", 100, "Maximum number of results (0 for all)")
 	cmd.Flags().IntVar(offset, "offset", 0, "Result offset for pagination")
 }
 
