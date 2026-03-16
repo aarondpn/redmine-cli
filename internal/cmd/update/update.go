@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -51,11 +52,42 @@ func NewCmdUpdate(version string) *cobra.Command {
 	return cmd
 }
 
+// checkHomebrew and upgradeHomebrew are package-level functions to allow
+// test overrides.
+var checkHomebrew = defaultCheckHomebrew
+var upgradeHomebrew = defaultUpgradeHomebrew
+
+// defaultCheckHomebrew checks if redmine is installed via Homebrew by querying brew.
+func defaultCheckHomebrew() bool {
+	if _, err := exec.LookPath("brew"); err != nil {
+		return false
+	}
+	// brew list --cask exits 0 if the cask is installed, non-zero otherwise
+	return exec.Command("brew", "list", "--cask", "redmine").Run() == nil
+}
+
+func defaultUpgradeHomebrew() error {
+	fmt.Println("Installed via Homebrew, running: brew upgrade redmine")
+	cmd := exec.Command("brew", "upgrade", "redmine")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("brew upgrade failed: %w", err)
+	}
+	return nil
+}
+
+var fetchRelease = fetchLatestRelease
+
 func runUpdate(currentVersion string) error {
+	if checkHomebrew() {
+		return upgradeHomebrew()
+	}
+
 	fmt.Printf("Current version: %s\n", currentVersion)
 	fmt.Println("Checking for updates...")
 
-	release, err := fetchLatestRelease()
+	release, err := fetchRelease()
 	if err != nil {
 		return fmt.Errorf("failed to check for updates: %w", err)
 	}

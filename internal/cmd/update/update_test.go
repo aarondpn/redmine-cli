@@ -7,11 +7,83 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+// --- Homebrew detection ---
+
+func stubHomebrew(t *testing.T, isBrew bool, upgradeErr error) {
+	t.Helper()
+	origCheck := checkHomebrew
+	origUpgrade := upgradeHomebrew
+	t.Cleanup(func() {
+		checkHomebrew = origCheck
+		upgradeHomebrew = origUpgrade
+	})
+	checkHomebrew = func() bool { return isBrew }
+	upgradeHomebrew = func() error { return upgradeErr }
+}
+
+func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
+	var brewUpgradeCalled bool
+	origCheck := checkHomebrew
+	origUpgrade := upgradeHomebrew
+	t.Cleanup(func() {
+		checkHomebrew = origCheck
+		upgradeHomebrew = origUpgrade
+	})
+	checkHomebrew = func() bool { return true }
+	upgradeHomebrew = func() error {
+		brewUpgradeCalled = true
+		return nil
+	}
+
+	err := runUpdate("1.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !brewUpgradeCalled {
+		t.Error("expected brew upgrade to be called, but it was not")
+	}
+}
+
+func TestRunUpdate_BrewUpgradeError(t *testing.T) {
+	stubHomebrew(t, true, errors.New("brew is broken"))
+
+	err := runUpdate("1.0.0")
+	if err == nil {
+		t.Fatal("expected error from brew upgrade, got nil")
+	}
+	if !strings.Contains(err.Error(), "brew is broken") {
+		t.Errorf("expected error to contain 'brew is broken', got: %v", err)
+	}
+}
+
+func TestRunUpdate_SkipsBrewWhenNotInstalled(t *testing.T) {
+	// When not a brew install, runUpdate should proceed to check GitHub.
+	// We stub fetchRelease to return a version equal to current,
+	// so it exits with "Already up to date" without downloading.
+	stubHomebrew(t, false, nil)
+
+	origFetch := fetchRelease
+	t.Cleanup(func() { fetchRelease = origFetch })
+	fetchRelease = func() (*githubRelease, error) {
+		return &githubRelease{
+			TagName: "v1.0.0",
+			Assets:  []githubAsset{},
+		}, nil
+	}
+
+	err := runUpdate("1.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
 // --- verifyChecksum ---
 
