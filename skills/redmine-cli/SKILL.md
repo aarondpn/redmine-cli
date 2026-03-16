@@ -83,6 +83,66 @@ redmine issues get 123 --include journals -o json
 redmine issues get 123 --include journals,children,relations -o json
 ```
 
+### Create an issue
+
+All flags that reference other resources (project, tracker, priority, status, assignee, version) accept **names or numeric IDs**. The CLI resolves names automatically.
+
+```bash
+# Create using human-readable names
+redmine issues create --project myproject --tracker Bug --priority High --subject "Fix login page"
+
+# Assign to the current user
+redmine issues create --project myproject --subject "My task" --assignee me
+
+# Full example with all fields
+redmine issues create --project myproject --tracker Feature --priority Normal \
+  --subject "Add search" --description "Implement full-text search" \
+  --assignee "John Smith" --status "In Progress" --version "v2.0" \
+  --parent 100 --estimated-hours 8 --private
+
+# Numeric IDs still work
+redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"
+
+# Output as JSON
+redmine issues create --project myproject --subject "New bug" --tracker Bug -o json
+```
+
+Available flags: `--project`, `--tracker`, `--subject` (required), `--description`, `--priority`, `--assignee`, `--status`, `--version`, `--parent`, `--estimated-hours`, `--private`, `-o`.
+
+If `--project` is omitted, the configured default project is used.
+
+### Update an issue
+
+Same name resolution as create. Only changed flags are sent to the server.
+
+```bash
+# Update status and priority by name
+redmine issues update 123 --status Closed --priority Low
+
+# Reassign with a note
+redmine issues update 123 --assignee me --note "Taking over"
+
+# Set version and estimated hours
+redmine issues update 123 --version "v2.0" --estimated-hours 4.5
+
+# Mark as private
+redmine issues update 123 --private
+```
+
+Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--priority`, `--assignee`, `--version`, `--parent`, `--estimated-hours`, `--private`, `--done-ratio`, `--note`.
+
+### Name resolution errors
+
+If a name doesn't match, the CLI lists available options. Use this to discover valid values:
+
+```bash
+# Will show all available trackers if "NonExistent" doesn't match
+redmine issues create --project myproject --tracker NonExistent --subject "Test"
+
+# Will show matching users if the name is ambiguous
+redmine issues update 123 --assignee "John"
+```
+
 ## Versions
 
 ### List versions
@@ -143,11 +203,30 @@ redmine statuses list -o json
 redmine config
 ```
 
+## Resolving Ambiguous Values Interactively
+
+When you need to specify a project, tracker, version, assignee, priority, or status but are **not sure of the exact name or ID**, do NOT guess. Instead:
+
+1. **Query the available options first** using the appropriate list command:
+   ```bash
+   redmine projects list -o json        # available projects
+   redmine trackers list -o json        # available trackers
+   redmine statuses list -o json        # available statuses
+   redmine versions list --project X -o json  # available versions
+   redmine users list -o json           # available users
+   ```
+2. **Present the options to the user** in a clear, numbered list or selection prompt using your interactive tools (e.g. AskUserQuestion with a formatted list of choices). Let the user pick from the actual available options rather than asking them to type a free-form name.
+3. **Then use the confirmed value** in the create/update command.
+
+This pattern applies broadly — whenever a command requires a value from a fixed set (tracker, status, priority, version, assignee, project), prefer querying and presenting options over asking the user to remember or look up exact names. This makes the experience intuitive and avoids resolution errors.
+
 ## Tips
 
 - Always use `-o json` for programmatic access to avoid parsing table formatting.
 - Use `--limit 0` to fetch all results when you need the complete dataset.
-- The `--version` flag on `issues list` accepts either a version name (string) or numeric ID.
+- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--version`) accept human-readable names or numeric IDs.
+- The `--assignee` flag supports the special value `me` to assign to the current API user.
 - Version status filters (`--open`, `--closed`, `--locked`) are applied client-side.
 - Set a default project with `redmine init` to avoid `--project` on every command.
 - Use `--project` or `-p` to override the default project per-command.
+- If a name doesn't resolve, the CLI shows all available options — use this to discover valid values.

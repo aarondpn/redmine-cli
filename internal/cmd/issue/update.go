@@ -9,19 +9,24 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 // NewCmdUpdate creates the issues update command.
 func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		subject     string
-		description string
-		tracker     int
-		status      int
-		priority    int
-		assignee    int
-		doneRatio   int
-		note        string
+		subject        string
+		description    string
+		tracker        string
+		status         string
+		priority       string
+		assignee       string
+		version        string
+		parent         int
+		estimatedHours float64
+		private        bool
+		doneRatio      int
+		note           string
 	)
 
 	cmd := &cobra.Command{
@@ -29,7 +34,18 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"edit"},
 		Short:   "Update an issue",
 		Long:    "Update fields on an existing issue.",
-		Args:    cobra.ExactArgs(1),
+		Example: `  # Update status and priority by name
+  redmine issues update 123 --status Closed --priority Low
+
+  # Reassign to yourself with a note
+  redmine issues update 123 --assignee me --note "Taking over this issue"
+
+  # Set version and estimated hours
+  redmine issues update 123 --version "v2.0" --estimated-hours 4.5
+
+  # Numeric IDs still work
+  redmine issues update 123 --tracker 1 --status 5`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -41,6 +57,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			ctx := context.Background()
 			update := models.IssueUpdate{}
 
 			if cmd.Flags().Changed("subject") {
@@ -49,28 +66,74 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("description") {
 				update.Description = &description
 			}
-			if cmd.Flags().Changed("tracker") {
-				update.TrackerID = &tracker
-			}
-			if cmd.Flags().Changed("status") {
-				update.StatusID = &status
-			}
-			if cmd.Flags().Changed("priority") {
-				update.PriorityID = &priority
-			}
-			if cmd.Flags().Changed("assignee") {
-				update.AssignedToID = &assignee
-			}
 			if cmd.Flags().Changed("done-ratio") {
 				update.DoneRatio = &doneRatio
 			}
 			if cmd.Flags().Changed("note") {
 				update.Notes = &note
 			}
+			if cmd.Flags().Changed("parent") {
+				update.ParentIssueID = &parent
+			}
+			if cmd.Flags().Changed("estimated-hours") {
+				update.EstimatedHours = &estimatedHours
+			}
+			if cmd.Flags().Changed("private") {
+				update.IsPrivate = &private
+			}
+
+			if cmd.Flags().Changed("tracker") {
+				tid, err := resolver.ResolveTracker(ctx, client, tracker)
+				if err != nil {
+					return err
+				}
+				update.TrackerID = &tid
+			}
+			if cmd.Flags().Changed("status") {
+				sid, err := resolver.ResolveStatus(ctx, client, status)
+				if err != nil {
+					return err
+				}
+				update.StatusID = &sid
+			}
+			if cmd.Flags().Changed("priority") {
+				pid, err := resolver.ResolvePriority(ctx, client, priority)
+				if err != nil {
+					return err
+				}
+				update.PriorityID = &pid
+			}
+			if cmd.Flags().Changed("assignee") {
+				aid, err := resolver.ResolveAssignee(ctx, client, assignee)
+				if err != nil {
+					return err
+				}
+				update.AssignedToID = &aid
+			}
+			if cmd.Flags().Changed("version") {
+				// Need project identifier for version name resolution.
+				// Fetch the issue to get its project.
+				projectIdentifier := ""
+				if _, err := strconv.Atoi(version); err != nil {
+					issue, err := client.Issues.Get(ctx, id, nil)
+					if err != nil {
+						return fmt.Errorf("failed to fetch issue for version resolution: %w", err)
+					}
+					_, projectIdentifier, err = resolver.ResolveProject(ctx, client, strconv.Itoa(issue.Project.ID))
+					if err != nil {
+						return err
+					}
+				}
+				vid, err := resolver.ResolveVersion(ctx, client, version, projectIdentifier)
+				if err != nil {
+					return err
+				}
+				update.FixedVersionID = &vid
+			}
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
-			err = client.Issues.Update(context.Background(), id, update)
+			err = client.Issues.Update(ctx, id, update)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)
@@ -83,10 +146,14 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
-	cmd.Flags().IntVar(&tracker, "tracker", 0, "Tracker ID")
-	cmd.Flags().IntVar(&status, "status", 0, "Status ID")
-	cmd.Flags().IntVar(&priority, "priority", 0, "Priority ID")
-	cmd.Flags().IntVar(&assignee, "assignee", 0, "Assignee user ID")
+	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
+	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
+	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
+	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
+	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
+	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
 
