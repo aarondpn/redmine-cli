@@ -76,20 +76,16 @@ func runUpdate(currentVersion string) error {
 		return fmt.Errorf("no release asset found for %s/%s (expected %s)", runtime.GOOS, runtime.GOARCH, assetName)
 	}
 
+	execPath, err := installPath()
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Downloading %s...\n", release.TagName)
 
 	binaryData, err := downloadAndExtract(downloadURL, assetName)
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
-	}
-
-	execPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find current executable: %w", err)
-	}
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve executable path: %w", err)
 	}
 
 	if err := replaceBinary(execPath, binaryData); err != nil {
@@ -202,6 +198,36 @@ func extractFromZip(r io.Reader) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("binary not found in zip archive")
+}
+
+// installPath returns the resolved path of the current binary, or an error
+// if the directory is not writable by the current user.
+func installPath() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("failed to find current executable: %w", err)
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	dir := filepath.Dir(execPath)
+	tmp, err := os.CreateTemp(dir, ".redmine-write-test-*")
+	if err != nil {
+		return "", fmt.Errorf(
+			"cannot update: %s is not writable\n\n"+
+				"Reinstall to a user-writable location:\n"+
+				"  curl -fsSL https://raw.githubusercontent.com/%s/%s/main/install.sh | bash\n\n"+
+				"Or download manually from:\n"+
+				"  https://github.com/%s/%s/releases/latest",
+			dir, repoOwner, repoName, repoOwner, repoName,
+		)
+	}
+	tmp.Close()
+	os.Remove(tmp.Name())
+
+	return execPath, nil
 }
 
 func replaceBinary(execPath string, newBinary []byte) error {

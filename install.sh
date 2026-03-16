@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="aarondpn/redmine-cli"
 BINARY="redmine"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${REDMINE_INSTALL_DIR:-$HOME/.local/bin}"
 
 info() { printf "\033[1;34m==>\033[0m %s\n" "$*"; }
 error() { printf "\033[1;31merror:\033[0m %s\n" "$*" >&2; exit 1; }
@@ -46,11 +46,14 @@ tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
 chmod +x "${TMPDIR}/${BINARY}"
 
 # Install
-if [ -w "$INSTALL_DIR" ]; then
-  mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-else
-  info "Need sudo to install to ${INSTALL_DIR}"
-  sudo mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-fi
+mkdir -p "$INSTALL_DIR"
+mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 
 info "Installed ${BINARY} ${TAG} to ${INSTALL_DIR}/${BINARY}"
+
+# Check if INSTALL_DIR is in PATH
+case ":$PATH:" in
+  *":${INSTALL_DIR}:"*) ;;
+  *) printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
+     printf "Add this to your shell profile:\n\n  export PATH=\"%s:\$PATH\"\n\n" "$INSTALL_DIR" ;;
+esac
