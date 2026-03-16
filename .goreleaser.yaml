@@ -2,9 +2,10 @@ version: 2
 
 before:
   hooks:
-    - go run . completion bash > completions/redmine.bash
-    - go run . completion zsh > completions/redmine.zsh
-    - go run . completion fish > completions/redmine.fish
+    - mkdir -p completions
+    - sh -c "go run . completion bash > completions/redmine.bash"
+    - sh -c "go run . completion zsh > completions/redmine.zsh"
+    - sh -c "go run . completion fish > completions/redmine.fish"
 
 builds:
   - binary: redmine
