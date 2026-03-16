@@ -1,5 +1,11 @@
 version: 2
 
+before:
+  hooks:
+    - go run . completion bash > completions/redmine.bash
+    - go run . completion zsh > completions/redmine.zsh
+    - go run . completion fish > completions/redmine.fish
+
 builds:
   - binary: redmine
     ldflags:
@@ -23,9 +29,26 @@ archives:
         formats:
           - zip
     name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - completions/*
 
 changelog:
   use: github-native
+
+homebrew_casks:
+  - name: redmine
+    binaries:
+      - redmine
+    completions:
+      bash: completions/redmine.bash
+      zsh: completions/redmine.zsh
+      fish: completions/redmine.fish
+    repository:
+      owner: aarondpn
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/aarondpn/redmine-cli
+    description: CLI tool for interacting with Redmine project management
 
 release:
   github:
