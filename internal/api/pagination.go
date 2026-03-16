@@ -67,6 +67,12 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 			break
 		}
 
+		// If the endpoint returned all items at once (doesn't support
+		// pagination) or returned fewer than requested, stop.
+		if len(items) >= totalCount || len(items) < pageSize {
+			break
+		}
+
 		// Check if there are more pages
 		offset += pageSize
 		if offset >= totalCount {
@@ -123,6 +129,12 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 					return matched[:maxResults], hasMore, nil
 				}
 			}
+		}
+
+		// If the endpoint returned all items at once (doesn't support
+		// pagination) or returned fewer than requested, stop.
+		if len(items) >= totalCount || len(items) < pageSize {
+			break
 		}
 
 		offset += pageSize
