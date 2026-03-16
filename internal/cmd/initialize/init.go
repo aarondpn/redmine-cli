@@ -3,6 +3,7 @@ package initialize
 import (
 	"context"
 	"fmt"
+	"os/exec"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -160,5 +161,31 @@ func runInit(f *cmdutil.Factory) error {
 	}
 
 	printer.Success(fmt.Sprintf("Configuration saved to %s", configPath))
+
+	// Step 6: Offer agent skill installation
+	if _, err := exec.LookPath("npx"); err == nil {
+		var installSkill bool
+		huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Install AI agent skill?").
+					Description("Installs a skill that teaches AI coding agents (Claude Code, Cursor, etc.) how to use redmine-cli effectively.").
+					Value(&installSkill),
+			),
+		).Run()
+
+		if installSkill {
+			stop := printer.Spinner("Installing agent skill...")
+			out, err := exec.Command("npx", "-y", "skills", "add", "aarondpn/redmine-cli", "--skill", "redmine-cli", "-g", "-y").CombinedOutput()
+			stop()
+			if err != nil {
+				printer.Warning(fmt.Sprintf("Could not install agent skill: %s\n%s", err, string(out)))
+				printer.Warning("You can install it manually: npx skills add aarondpn/redmine-cli --skill redmine-cli -g")
+			} else {
+				printer.Success("Agent skill installed globally. AI agents will now know how to use redmine-cli.")
+			}
+		}
+	}
+
 	return nil
 }

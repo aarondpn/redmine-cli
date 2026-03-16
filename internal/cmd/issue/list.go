@@ -30,8 +30,27 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List issues",
-		Long:    "List issues with optional filters for project, tracker, status, and assignee.",
+		Short: "List issues",
+		Long:  "List issues with optional filters for project, tracker, status, and assignee.",
+		Example: `  # List open issues for a project
+  redmine issues list --project myproject
+
+  # List ALL issues with no limit
+  redmine issues list --project myproject --limit 0
+
+  # Page through issues
+  redmine issues list --project myproject --limit 25 --offset 0
+  redmine issues list --project myproject --limit 25 --offset 25
+
+  # Filter by version (name or ID) and output as JSON
+  redmine issues list --project myproject --version "v1.0" -o json
+  redmine issues list --version 42 -o json
+
+  # Closed issues assigned to me, sorted by update date
+  redmine issues list --status closed --assignee me --sort updated_on:desc
+
+  # All issues regardless of status
+  redmine issues list --project myproject --status "*" --limit 0 -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {

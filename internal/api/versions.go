@@ -18,6 +18,17 @@ func (s *VersionService) List(ctx context.Context, projectID string, limit int) 
 	return FetchAll[models.Version](ctx, s.client, path, nil, "versions", limit)
 }
 
+// Get retrieves a single version by ID.
+func (s *VersionService) Get(ctx context.Context, id int) (*models.Version, error) {
+	var resp struct {
+		Version models.Version `json:"version"`
+	}
+	if err := s.client.Get(ctx, fmt.Sprintf("/versions/%d.json", id), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Version, nil
+}
+
 // ListFiltered pages through versions for a project, keeping only those that
 // match the filter function, and returns once need results have been collected
 // (or there are no more pages). If need is 0, all matching versions are returned.

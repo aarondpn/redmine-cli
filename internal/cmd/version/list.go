@@ -21,6 +21,7 @@ func NewCmdVersions(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(newCmdVersionList(f))
+	cmd.AddCommand(newCmdVersionGet(f))
 	return cmd
 }
 
@@ -39,8 +40,23 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List project versions",
-		Long:    "List all versions for a project, optionally filtered by status.",
+		Short: "List project versions",
+		Long:  "List all versions for a project, optionally filtered by status.",
+		Example: `  # List all versions
+  redmine versions list --project myproject
+
+  # List ALL versions with no limit
+  redmine versions list --project myproject --limit 0
+
+  # Page through versions
+  redmine versions list --project myproject --limit 25 --offset 0
+  redmine versions list --project myproject --limit 25 --offset 25
+
+  # Filter by status and output as JSON
+  redmine versions list --project myproject --open -o json
+
+  # Output as CSV
+  redmine versions list --project myproject --closed -o csv`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
