@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+
+	"github.com/aarondpn/redmine-cli/internal/debug"
 )
 
 type testItem struct {
@@ -20,6 +22,7 @@ func newTestClient(ts *httptest.Server) *Client {
 	return &Client{
 		httpClient: ts.Client(),
 		baseURL:    ts.URL,
+		debugLog:   debug.New(nil),
 	}
 }
 

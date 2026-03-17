@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/debug"
 	"github.com/aarondpn/redmine-cli/internal/output"
 	"golang.org/x/term"
 )
@@ -21,9 +22,11 @@ type IOStreams struct {
 // Factory provides lazy access to configuration, API client, and output printer.
 type Factory struct {
 	ConfigPath string
+	Verbose    bool
 	config     *config.Config
 	client     *api.Client
 	printer    output.Printer
+	debugLog   *debug.Logger
 	IOStreams  *IOStreams
 }
 
@@ -40,12 +43,25 @@ func NewFactory() *Factory {
 	}
 }
 
+// DebugLogger returns the debug logger, creating it on first call.
+func (f *Factory) DebugLogger() *debug.Logger {
+	if f.debugLog != nil {
+		return f.debugLog
+	}
+	if f.Verbose {
+		f.debugLog = debug.New(f.IOStreams.ErrOut)
+	} else {
+		f.debugLog = debug.New(nil)
+	}
+	return f.debugLog
+}
+
 // Config returns the loaded configuration (cached after first call).
 func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
-	cfg, err := config.Load(f.ConfigPath)
+	cfg, err := config.Load(f.ConfigPath, f.DebugLogger())
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +78,7 @@ func (f *Factory) ApiClient() (*api.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := api.NewClient(cfg)
+	client, err := api.NewClient(cfg, f.DebugLogger())
 	if err != nil {
 		return nil, err
 	}

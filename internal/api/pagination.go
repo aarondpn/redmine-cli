@@ -32,11 +32,14 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 	var allItems []T
 	offset := 0
 	totalCount := 0
+	page := 1
 
 	for {
 		p := cloneParams(params)
 		p.Set("limit", strconv.Itoa(pageSize))
 		p.Set("offset", strconv.Itoa(offset))
+
+		c.debugLog.Printf("Pagination: fetching %s page %d (offset=%d, limit=%d)", path, page, offset, pageSize)
 
 		var raw map[string]json.RawMessage
 		if err := c.Get(ctx, path, p, &raw); err != nil {
@@ -61,6 +64,8 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 
 		allItems = append(allItems, items...)
 
+		c.debugLog.Printf("Pagination: received %d items (total so far: %d, server total: %d)", len(items), len(allItems), totalCount)
+
 		// Check if we have enough
 		if maxResults > 0 && len(allItems) >= maxResults {
 			allItems = allItems[:maxResults]
@@ -78,6 +83,7 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 		if offset >= totalCount {
 			break
 		}
+		page++
 	}
 
 	return allItems, totalCount, nil
@@ -95,11 +101,14 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 	var matched []T
 	offset := 0
 	totalCount := 0
+	page := 1
 
 	for {
 		p := cloneParams(params)
 		p.Set("limit", strconv.Itoa(pageSize))
 		p.Set("offset", strconv.Itoa(offset))
+
+		c.debugLog.Printf("Pagination (filtered): fetching %s page %d (offset=%d, limit=%d)", path, page, offset, pageSize)
 
 		var raw map[string]json.RawMessage
 		if err := c.Get(ctx, path, p, &raw); err != nil {
@@ -126,10 +135,13 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 				if maxResults > 0 && len(matched) >= maxResults {
 					// We have enough, but there may be more on remaining pages.
 					hasMore := offset+len(items) < totalCount || len(matched) > maxResults
+					c.debugLog.Printf("Pagination (filtered): matched %d items (limit reached)", len(matched))
 					return matched[:maxResults], hasMore, nil
 				}
 			}
 		}
+
+		c.debugLog.Printf("Pagination (filtered): page %d had %d items, %d matched so far (server total: %d)", page, len(items), len(matched), totalCount)
 
 		// If the endpoint returned all items at once (doesn't support
 		// pagination) or returned fewer than requested, stop.
@@ -141,6 +153,7 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 		if offset >= totalCount {
 			break
 		}
+		page++
 	}
 
 	return matched, false, nil

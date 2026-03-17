@@ -108,7 +108,7 @@ func runInit(f *cmdutil.Factory) error {
 	printer := f.Printer("")
 	stop := printer.Spinner("Testing connection...")
 
-	client, err := api.NewClient(cfg)
+	client, err := api.NewClient(cfg, nil)
 	if err != nil {
 		stop()
 		return fmt.Errorf("failed to create client: %w", err)

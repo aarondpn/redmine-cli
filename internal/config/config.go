@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/aarondpn/redmine-cli/internal/debug"
 	"github.com/spf13/viper"
 )
 
@@ -14,7 +15,7 @@ func DefaultConfigPath() string {
 }
 
 // Load reads configuration from file, environment variables, and defaults.
-func Load(configPath string) (*Config, error) {
+func Load(configPath string, log *debug.Logger) (*Config, error) {
 	v := viper.New()
 
 	// Defaults
@@ -25,6 +26,7 @@ func Load(configPath string) (*Config, error) {
 	// Config file
 	if configPath != "" {
 		v.SetConfigFile(configPath)
+		log.Printf("Config: using explicit path %s", configPath)
 	} else {
 		v.SetConfigName(".redmine-cli")
 		v.SetConfigType("yaml")
@@ -47,12 +49,24 @@ func Load(configPath string) (*Config, error) {
 				return nil, fmt.Errorf("reading config: %w", err)
 			}
 		}
+		log.Printf("Config: no config file found")
+	} else {
+		log.Printf("Config: loaded from %s", v.ConfigFileUsed())
+	}
+
+	// Log environment variable overrides
+	for _, envVar := range []string{"REDMINE_SERVER", "REDMINE_API_KEY", "REDMINE_AUTH_METHOD"} {
+		if val := os.Getenv(envVar); val != "" {
+			log.Printf("Config: env override %s is set", envVar)
+		}
 	}
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
+
+	log.Printf("Config: server=%s auth_method=%s", cfg.Server, cfg.AuthMethod)
 
 	return &cfg, nil
 }

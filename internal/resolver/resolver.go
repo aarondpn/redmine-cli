@@ -20,15 +20,20 @@ type Option struct {
 // If input is numeric, it returns the parsed int directly.
 // Otherwise, it calls fetcher to get available options and performs
 // case-insensitive exact matching on the name.
-func Resolve(input string, fetcher func() ([]Option, error)) (int, error) {
+func Resolve(input string, resourceType string, client *api.Client, fetcher func() ([]Option, error)) (int, error) {
 	if id, err := strconv.Atoi(input); err == nil {
+		client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", resourceType, input, id)
 		return id, nil
 	}
+
+	client.DebugLog().Printf("Resolver: looking up %s %q", resourceType, input)
 
 	options, err := fetcher()
 	if err != nil {
 		return 0, err
 	}
+
+	client.DebugLog().Printf("Resolver: searching %d %s options", len(options), resourceType)
 
 	needle := strings.ToLower(input)
 	var matches []Option
@@ -46,6 +51,7 @@ func Resolve(input string, fetcher func() ([]Option, error)) (int, error) {
 		}
 		return 0, fmt.Errorf("no match found for %q. Available options:\n%s", input, strings.Join(lines, "\n"))
 	case 1:
+		client.DebugLog().Printf("Resolver: matched %s %q -> ID %d", resourceType, input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
 		return 0, fmt.Errorf("multiple matches for %q, please use the numeric ID instead", input)
@@ -55,16 +61,18 @@ func Resolve(input string, fetcher func() ([]Option, error)) (int, error) {
 // ResolveProject resolves a project by name/identifier or numeric ID.
 // Returns both the numeric ID and the string identifier (needed for version resolution).
 func ResolveProject(ctx context.Context, client *api.Client, input string) (int, string, error) {
+	client.DebugLog().Printf("Resolver: resolving project %q", input)
 	project, err := client.Projects.Get(ctx, input, nil)
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to resolve project %q: %w", input, err)
 	}
+	client.DebugLog().Printf("Resolver: resolved project %q -> ID %d, identifier %q", input, project.ID, project.Identifier)
 	return project.ID, project.Identifier, nil
 }
 
 // ResolveTracker resolves a tracker by name or numeric ID.
 func ResolveTracker(ctx context.Context, client *api.Client, input string) (int, error) {
-	id, err := Resolve(input, func() ([]Option, error) {
+	return Resolve(input, "tracker", client, func() ([]Option, error) {
 		trackers, err := client.Trackers.List(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch trackers: %w", err)
@@ -75,12 +83,11 @@ func ResolveTracker(ctx context.Context, client *api.Client, input string) (int,
 		}
 		return opts, nil
 	})
-	return id, err
 }
 
 // ResolveStatus resolves a status by name or numeric ID.
 func ResolveStatus(ctx context.Context, client *api.Client, input string) (int, error) {
-	id, err := Resolve(input, func() ([]Option, error) {
+	return Resolve(input, "status", client, func() ([]Option, error) {
 		statuses, err := client.Statuses.List(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch statuses: %w", err)
@@ -91,12 +98,11 @@ func ResolveStatus(ctx context.Context, client *api.Client, input string) (int, 
 		}
 		return opts, nil
 	})
-	return id, err
 }
 
 // ResolvePriority resolves a priority by name or numeric ID.
 func ResolvePriority(ctx context.Context, client *api.Client, input string) (int, error) {
-	id, err := Resolve(input, func() ([]Option, error) {
+	return Resolve(input, "priority", client, func() ([]Option, error) {
 		priorities, err := client.Enumerations.IssuePriorities(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch priorities: %w", err)
@@ -107,13 +113,13 @@ func ResolvePriority(ctx context.Context, client *api.Client, input string) (int
 		}
 		return opts, nil
 	})
-	return id, err
 }
 
 // ResolveCategory resolves an issue category by name or numeric ID.
 // projectIdentifier is required when resolving by name.
 func ResolveCategory(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {
 	if id, err := strconv.Atoi(input); err == nil {
+		client.DebugLog().Printf("Resolver: category %q is numeric, using ID %d directly", input, id)
 		return id, nil
 	}
 
@@ -121,10 +127,14 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 		return 0, fmt.Errorf("--project is required when filtering by category name")
 	}
 
+	client.DebugLog().Printf("Resolver: looking up category %q in project %q", input, projectIdentifier)
+
 	categories, _, err := client.Categories.List(ctx, projectIdentifier)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch issue categories: %w", err)
 	}
+
+	client.DebugLog().Printf("Resolver: searching %d category options", len(categories))
 
 	needle := strings.ToLower(input)
 	var matches []models.IssueCategory
@@ -142,6 +152,7 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 		}
 		return 0, fmt.Errorf("no category found matching %q. Available categories:\n%s", input, strings.Join(names, "\n"))
 	case 1:
+		client.DebugLog().Printf("Resolver: matched category %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
 		return 0, fmt.Errorf("multiple categories match %q, please use the category ID instead", input)
@@ -152,6 +163,7 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 // projectIdentifier is required when resolving by name.
 func ResolveVersion(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {
 	if id, err := strconv.Atoi(input); err == nil {
+		client.DebugLog().Printf("Resolver: version %q is numeric, using ID %d directly", input, id)
 		return id, nil
 	}
 
@@ -159,10 +171,14 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 		return 0, fmt.Errorf("--project is required when filtering by version name")
 	}
 
+	client.DebugLog().Printf("Resolver: looking up version %q in project %q", input, projectIdentifier)
+
 	versions, _, err := client.Versions.List(ctx, projectIdentifier, 0)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch versions for name resolution: %w", err)
 	}
+
+	client.DebugLog().Printf("Resolver: searching %d version options", len(versions))
 
 	needle := strings.ToLower(input)
 	var matches []models.Version
@@ -180,6 +196,7 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 		}
 		return 0, fmt.Errorf("no version found matching %q. Available versions:\n%s", input, strings.Join(names, "\n"))
 	case 1:
+		client.DebugLog().Printf("Resolver: matched version %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
 		return 0, fmt.Errorf("multiple versions match %q, please use the version ID instead", input)
@@ -189,21 +206,28 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 // ResolveAssignee resolves an assignee by "me", login/name, or numeric ID.
 func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int, error) {
 	if strings.ToLower(input) == "me" {
+		client.DebugLog().Printf("Resolver: resolving assignee \"me\" via current user")
 		user, err := client.Users.Current(ctx)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get current user: %w", err)
 		}
+		client.DebugLog().Printf("Resolver: \"me\" -> ID %d (%s %s)", user.ID, user.FirstName, user.LastName)
 		return user.ID, nil
 	}
 
 	if id, err := strconv.Atoi(input); err == nil {
+		client.DebugLog().Printf("Resolver: assignee %q is numeric, using ID %d directly", input, id)
 		return id, nil
 	}
+
+	client.DebugLog().Printf("Resolver: looking up assignee %q", input)
 
 	users, _, err := client.Users.List(ctx, models.UserFilter{Name: input})
 	if err != nil {
 		return 0, fmt.Errorf("failed to search users: %w", err)
 	}
+
+	client.DebugLog().Printf("Resolver: searching %d user results", len(users))
 
 	needle := strings.ToLower(input)
 	var matches []models.User
@@ -226,6 +250,7 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 		}
 		return 0, fmt.Errorf("no user found matching %q", input)
 	case 1:
+		client.DebugLog().Printf("Resolver: matched assignee %q -> ID %d (%s)", input, matches[0].ID, matches[0].Login)
 		return matches[0].ID, nil
 	default:
 		lines := make([]string, len(matches))

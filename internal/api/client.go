@@ -9,14 +9,17 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/debug"
 )
 
 // Client is the Redmine API client.
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
+	debugLog   *debug.Logger
 
 	Issues       *IssueService
 	Projects     *ProjectService
@@ -29,6 +32,11 @@ type Client struct {
 	Categories   *CategoryService
 	Groups       *GroupService
 	Search       *SearchService
+}
+
+// DebugLog returns the client's debug logger.
+func (c *Client) DebugLog() *debug.Logger {
+	return c.debugLog
 }
 
 // authTransport applies authentication headers to every request.
@@ -59,7 +67,7 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient creates a new Redmine API client from configuration.
-func NewClient(cfg *config.Config) (*Client, error) {
+func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if cfg.Server == "" {
 		return nil, fmt.Errorf("server URL not configured. Run 'redmine init' to set up")
 	}
@@ -77,6 +85,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	c := &Client{
 		httpClient: &http.Client{Transport: transport},
 		baseURL:    baseURL,
+		debugLog:   log,
 	}
 
 	c.Issues = &IssueService{client: c}
@@ -149,11 +158,17 @@ func (c *Client) doWithBody(ctx context.Context, method, path string, body inter
 }
 
 func (c *Client) do(req *http.Request, out interface{}) error {
+	start := time.Now()
 	resp, err := c.httpClient.Do(req)
+	duration := time.Since(start)
+
 	if err != nil {
+		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	c.debugLog.Printf("HTTP %s %s -> %d (%s)", req.Method, debug.ScrubURL(req.URL.String()), resp.StatusCode, duration.Round(time.Millisecond))
 
 	if resp.StatusCode >= 400 {
 		return parseErrorResponse(resp)

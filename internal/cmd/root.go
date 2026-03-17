@@ -30,6 +30,7 @@ func NewRootCmd(version string) *cobra.Command {
 		server  string
 		apiKey  string
 		noColor bool
+		verbose bool
 		cfgFile string
 	)
 
@@ -49,6 +50,7 @@ func NewRootCmd(version string) *cobra.Command {
 			if noColor {
 				viper.Set("no_color", true)
 			}
+			f.Verbose = verbose
 			return nil
 		},
 		SilenceUsage:  true,
@@ -59,6 +61,7 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
 	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
+	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
 
 	// Version
