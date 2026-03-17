@@ -8,14 +8,6 @@ import (
 	"strconv"
 )
 
-// paginatedResponse is the raw JSON wrapper for paginated Redmine responses.
-type paginatedResponse struct {
-	TotalCount int             `json:"total_count"`
-	Offset     int             `json:"offset"`
-	Limit      int             `json:"limit"`
-	Items      json.RawMessage `json:"-"`
-}
-
 // FetchAll retrieves all pages of a resource. The key parameter is the JSON
 // wrapper key (e.g., "issues", "projects"). If maxResults is 0, all results
 // are fetched.
@@ -48,7 +40,9 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 
 		// Parse total_count
 		if tc, ok := raw["total_count"]; ok {
-			json.Unmarshal(tc, &totalCount)
+			if err := json.Unmarshal(tc, &totalCount); err != nil {
+				return nil, 0, fmt.Errorf("decoding total_count: %w", err)
+			}
 		}
 
 		// Parse items
@@ -116,7 +110,9 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 		}
 
 		if tc, ok := raw["total_count"]; ok {
-			json.Unmarshal(tc, &totalCount)
+			if err := json.Unmarshal(tc, &totalCount); err != nil {
+				return nil, false, fmt.Errorf("decoding total_count: %w", err)
+			}
 		}
 
 		itemsRaw, ok := raw[key]

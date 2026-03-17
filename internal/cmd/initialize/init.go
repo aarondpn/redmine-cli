@@ -136,7 +136,7 @@ func runInit(f *cmdutil.Factory) error {
 			options = append(options, huh.NewOption(p.Name, p.Identifier))
 		}
 
-		huh.NewForm(
+		_ = huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Default Project (optional)").
@@ -165,7 +165,7 @@ func runInit(f *cmdutil.Factory) error {
 	// Step 6: Offer agent skill installation
 	if _, err := exec.LookPath("npx"); err == nil {
 		var installSkill bool
-		huh.NewForm(
+		_ = huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().
 					Title("Install AI agent skill?").

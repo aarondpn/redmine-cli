@@ -41,9 +41,6 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]mode
 	vals := url.Values{}
 	vals.Set("q", params.Query)
 
-	if params.ProjectID != "" {
-		// Project-scoped search uses /projects/:id/search.json
-	}
 	if params.Scope != "" {
 		vals.Set("scope", params.Scope)
 	}
