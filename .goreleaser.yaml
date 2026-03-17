@@ -34,7 +34,11 @@ archives:
       - completions/*
 
 changelog:
-  use: github-native
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
 
 homebrew_casks:
   - name: redmine
