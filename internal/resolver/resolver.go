@@ -3,17 +3,79 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	lfuzzy "github.com/lithammer/fuzzysearch/fuzzy"
 )
 
 // Option represents a name/ID pair for resolution.
 type Option struct {
 	ID   int
 	Name string
+}
+
+const (
+	smallListThreshold = 10
+	maxSuggestions     = 5
+)
+
+type suggestion struct {
+	name     string
+	id       int
+	distance int
+}
+
+// buildSuggestions generates a helpful error message when no exact match is found.
+// For small lists (<=10 items) it shows all options. For larger lists it uses
+// Levenshtein distance to suggest close matches.
+func buildSuggestions(input string, names []string, ids []int, resourceType string) string {
+	if len(names) <= smallListThreshold {
+		lines := make([]string, len(names))
+		for i := range names {
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", names[i], ids[i])
+		}
+		return fmt.Sprintf("no match found for %q. Available %ss:\n%s", input, resourceType, strings.Join(lines, "\n"))
+	}
+
+	threshold := len(input) / 3
+	if threshold < 2 {
+		threshold = 2
+	}
+
+	var suggestions []suggestion
+	lowerInput := strings.ToLower(input)
+	for i, name := range names {
+		dist := lfuzzy.LevenshteinDistance(lowerInput, strings.ToLower(name))
+		if dist <= threshold {
+			suggestions = append(suggestions, suggestion{name: name, id: ids[i], distance: dist})
+		}
+	}
+
+	if len(suggestions) == 0 {
+		return fmt.Sprintf("no match found for %q. No similar %ss found.", input, resourceType)
+	}
+
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].distance < suggestions[j].distance
+	})
+
+	if len(suggestions) == 1 ||
+		(len(suggestions) > 1 && suggestions[0].distance < suggestions[1].distance) {
+		return fmt.Sprintf("no match found for %q. Did you mean %q (ID: %d)?", input, suggestions[0].name, suggestions[0].id)
+	}
+
+	if len(suggestions) > maxSuggestions {
+		suggestions = suggestions[:maxSuggestions]
+	}
+	lines := make([]string, len(suggestions))
+	for i, s := range suggestions {
+		lines[i] = fmt.Sprintf("  - %s (ID: %d)", s.name, s.id)
+	}
+	return fmt.Sprintf("no match found for %q. Did you mean:\n%s", input, strings.Join(lines, "\n"))
 }
 
 // Resolve attempts to resolve input to a numeric ID.
@@ -45,11 +107,13 @@ func Resolve(input string, resourceType string, client *api.Client, fetcher func
 
 	switch len(matches) {
 	case 0:
-		lines := make([]string, len(options))
+		names := make([]string, len(options))
+		ids := make([]int, len(options))
 		for i, o := range options {
-			lines[i] = fmt.Sprintf("  - %s (ID: %d)", o.Name, o.ID)
+			names[i] = o.Name
+			ids[i] = o.ID
 		}
-		return 0, fmt.Errorf("no match found for %q. Available options:\n%s", input, strings.Join(lines, "\n"))
+		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, resourceType))
 	case 1:
 		client.DebugLog().Printf("Resolver: matched %s %q -> ID %d", resourceType, input, matches[0].ID)
 		return matches[0].ID, nil
@@ -151,10 +215,12 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 	switch len(matches) {
 	case 0:
 		names := make([]string, len(categories))
+		ids := make([]int, len(categories))
 		for i, c := range categories {
-			names[i] = fmt.Sprintf("  - %s (ID: %d)", c.Name, c.ID)
+			names[i] = c.Name
+			ids[i] = c.ID
 		}
-		return 0, fmt.Errorf("no category found matching %q. Available categories:\n%s", input, strings.Join(names, "\n"))
+		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "category"))
 	case 1:
 		client.DebugLog().Printf("Resolver: matched category %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
@@ -199,10 +265,12 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 	switch len(matches) {
 	case 0:
 		names := make([]string, len(versions))
+		ids := make([]int, len(versions))
 		for i, v := range versions {
-			names[i] = fmt.Sprintf("  - %s (ID: %d)", v.Name, v.ID)
+			names[i] = v.Name
+			ids[i] = v.ID
 		}
-		return 0, fmt.Errorf("no version found matching %q. Available versions:\n%s", input, strings.Join(names, "\n"))
+		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "version"))
 	case 1:
 		client.DebugLog().Printf("Resolver: matched version %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
@@ -262,12 +330,14 @@ func resolveUser(ctx context.Context, client *api.Client, input string, label st
 
 	switch len(matches) {
 	case 0:
-		lines := make([]string, len(users))
+		names := make([]string, len(users))
+		ids := make([]int, len(users))
 		for i, u := range users {
-			lines[i] = fmt.Sprintf("  - %s %s / %s (ID: %d)", u.FirstName, u.LastName, u.Login, u.ID)
+			names[i] = fmt.Sprintf("%s %s / %s", u.FirstName, u.LastName, u.Login)
+			ids[i] = u.ID
 		}
-		if len(lines) > 0 {
-			return 0, fmt.Errorf("no exact match for %q. Similar users:\n%s", input, strings.Join(lines, "\n"))
+		if len(names) > 0 {
+			return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "user"))
 		}
 		return 0, fmt.Errorf("no user found matching %q", input)
 	case 1:
