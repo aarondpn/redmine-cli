@@ -21,10 +21,10 @@ type CustomFieldValue struct {
 
 // Journal represents an issue history entry.
 type Journal struct {
-	ID        int        `json:"id"`
-	User      IDName     `json:"user"`
-	Notes     string     `json:"notes"`
-	CreatedOn string     `json:"created_on"`
+	ID        int             `json:"id"`
+	User      IDName          `json:"user"`
+	Notes     string          `json:"notes"`
+	CreatedOn string          `json:"created_on"`
 	Details   []JournalDetail `json:"details,omitempty"`
 }
 

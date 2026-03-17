@@ -7,8 +7,8 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmd/category"
 	"github.com/aarondpn/redmine-cli/internal/cmd/completion"
 	"github.com/aarondpn/redmine-cli/internal/cmd/group"
-	"github.com/aarondpn/redmine-cli/internal/cmd/installskill"
 	initcmd "github.com/aarondpn/redmine-cli/internal/cmd/initialize"
+	"github.com/aarondpn/redmine-cli/internal/cmd/installskill"
 	"github.com/aarondpn/redmine-cli/internal/cmd/issue"
 	"github.com/aarondpn/redmine-cli/internal/cmd/project"
 	"github.com/aarondpn/redmine-cli/internal/cmd/search"
@@ -27,13 +27,10 @@ func NewRootCmd(version string) *cobra.Command {
 	f := cmdutil.NewFactory()
 
 	var (
-		server    string
-		apiKey    string
-		defProject string
-		outputFmt string
-		noColor   bool
-		verbose   bool
-		cfgFile   string
+		server  string
+		apiKey  string
+		noColor bool
+		cfgFile string
 	)
 
 	cmd := &cobra.Command{
@@ -52,9 +49,6 @@ func NewRootCmd(version string) *cobra.Command {
 			if noColor {
 				viper.Set("no_color", true)
 			}
-			_ = verbose
-			_ = defProject
-			_ = outputFmt
 			return nil
 		},
 		SilenceUsage:  true,
@@ -64,10 +58,7 @@ func NewRootCmd(version string) *cobra.Command {
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
 	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
-	cmd.PersistentFlags().StringVarP(&defProject, "project", "p", "", "Default project identifier")
-	cmd.PersistentFlags().StringVarP(&outputFmt, "output", "o", "", "Output format: table, wide, json, csv")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
-	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
 
 	// Version

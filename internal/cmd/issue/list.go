@@ -29,8 +29,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short: "List issues",
-		Long:  "List issues with optional filters for project, tracker, status, and assignee.",
+		Short:   "List issues",
+		Long:    "List issues with optional filters for project, tracker, status, and assignee.",
 		Example: `  # List open issues for a project
   redmine issues list --project myproject
 

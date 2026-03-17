@@ -1,10 +1,8 @@
 package project
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -29,11 +27,8 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			identifier := args[0]
 
 			if !force {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Are you sure you want to delete project %q? [y/N]: ", identifier)
-				reader := bufio.NewReader(f.IOStreams.In)
-				answer, _ := reader.ReadString('\n')
-				answer = strings.TrimSpace(strings.ToLower(answer))
-				if answer != "y" && answer != "yes" {
+				msg := fmt.Sprintf("Are you sure you want to delete project %q?", identifier)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
 					printer.Warning("Deletion cancelled")
 					return nil
 				}

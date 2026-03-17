@@ -1,12 +1,9 @@
 package issue
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,11 +29,8 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 
 			if !force {
-				fmt.Fprintf(os.Stderr, "Are you sure you want to delete issue %s? (y/N): ", fmt.Sprintf("#%d", id))
-				reader := bufio.NewReader(os.Stdin)
-				answer, _ := reader.ReadString('\n')
-				answer = strings.TrimSpace(strings.ToLower(answer))
-				if answer != "y" && answer != "yes" {
+				msg := fmt.Sprintf("Are you sure you want to delete issue #%d?", id)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
 					printer.Warning("Delete cancelled")
 					return nil
 				}
@@ -51,10 +45,10 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			err = client.Issues.Delete(context.Background(), id)
 			stop()
 			if err != nil {
-				return fmt.Errorf("failed to delete issue %s: %w", fmt.Sprintf("#%d", id), err)
+				return fmt.Errorf("failed to delete issue #%d: %w", id, err)
 			}
 
-			printer.Success(fmt.Sprintf("Deleted issue %s", fmt.Sprintf("#%d", id)))
+			printer.Success(fmt.Sprintf("Deleted issue #%d", id))
 			return nil
 		},
 	}

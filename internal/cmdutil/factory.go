@@ -24,7 +24,7 @@ type Factory struct {
 	config     *config.Config
 	client     *api.Client
 	printer    output.Printer
-	IOStreams   *IOStreams
+	IOStreams  *IOStreams
 }
 
 // NewFactory creates a new Factory with default I/O streams.

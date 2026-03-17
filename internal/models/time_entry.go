@@ -34,12 +34,12 @@ type TimeEntryUpdate struct {
 
 // TimeEntryFilter defines parameters for listing time entries.
 type TimeEntryFilter struct {
-	ProjectID string
-	UserID    string
-	IssueID   int
-	From      string
-	To        string
+	ProjectID  string
+	UserID     string
+	IssueID    int
+	From       string
+	To         string
 	ActivityID int
-	Limit     int
-	Offset    int
+	Limit      int
+	Offset     int
 }

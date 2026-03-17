@@ -40,8 +40,8 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short: "List project versions",
-		Long:  "List all versions for a project, optionally filtered by status.",
+		Short:   "List project versions",
+		Long:    "List all versions for a project, optionally filtered by status.",
 		Example: `  # List all versions
   redmine versions list --project myproject
 

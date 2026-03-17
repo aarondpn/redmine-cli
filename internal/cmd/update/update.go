@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	repoOwner    = "aarondpn"
-	repoName     = "redmine-cli"
-	binaryName   = "redmine"
-	releaseURL   = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest"
+	repoOwner  = "aarondpn"
+	repoName   = "redmine-cli"
+	binaryName = "redmine"
+	releaseURL = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest"
 )
 
 type githubRelease struct {

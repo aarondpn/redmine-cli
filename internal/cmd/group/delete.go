@@ -23,16 +23,20 @@ func newCmdGroupDelete(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("invalid group ID: %s", args[0])
 			}
 
+			printer := f.Printer("")
+
 			if !force {
-				fmt.Fprintf(f.IOStreams.ErrOut, "Are you sure you want to delete group %d? Use --force to confirm.\n", id)
-				return nil
+				msg := fmt.Sprintf("Are you sure you want to delete group %d?", id)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Warning("Delete cancelled")
+					return nil
+				}
 			}
 
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
-			printer := f.Printer("")
 
 			stop := printer.Spinner("Deleting group...")
 			err = client.Groups.Delete(context.Background(), id)

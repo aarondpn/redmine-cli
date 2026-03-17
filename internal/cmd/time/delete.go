@@ -24,10 +24,14 @@ func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("invalid time entry ID: %s", args[0])
 			}
 
+			printer := f.Printer("")
+
 			if !force {
-				printer := f.Printer("")
-				printer.Warning(fmt.Sprintf("Are you sure you want to delete time entry #%d? Use --force to confirm.", id))
-				return nil
+				msg := fmt.Sprintf("Are you sure you want to delete time entry #%d?", id)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Warning("Delete cancelled")
+					return nil
+				}
 			}
 
 			client, err := f.ApiClient()
@@ -39,7 +43,6 @@ func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer := f.Printer("")
 			printer.Success(fmt.Sprintf("Time entry #%d deleted", id))
 
 			return nil

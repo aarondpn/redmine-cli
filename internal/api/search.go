@@ -15,12 +15,12 @@ type SearchService struct {
 
 // SearchParams holds parameters for the search API call.
 type SearchParams struct {
-	Query      string
-	ProjectID  string
-	Scope      string // "all", "my_projects", "subprojects"
-	AllWords   bool
-	TitlesOnly bool
-	OpenIssues bool
+	Query       string
+	ProjectID   string
+	Scope       string // "all", "my_projects", "subprojects"
+	AllWords    bool
+	TitlesOnly  bool
+	OpenIssues  bool
 	Attachments string // "0", "1", "only"
 
 	// Resource type filters
