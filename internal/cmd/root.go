@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -49,6 +51,7 @@ func NewRootCmd(version string) *cobra.Command {
 			}
 			if noColor {
 				viper.Set("no_color", true)
+				os.Setenv("NO_COLOR", "1")
 			}
 			f.Verbose = verbose
 			return nil

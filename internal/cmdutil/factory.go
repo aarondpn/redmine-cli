@@ -91,9 +91,12 @@ func (f *Factory) Printer(format string) output.Printer {
 	if f.printer != nil {
 		return f.printer
 	}
-	noColor := false
+	noColor := os.Getenv("NO_COLOR") != ""
 	if cfg, err := f.Config(); err == nil {
-		noColor = cfg.NoColor
+		noColor = noColor || cfg.NoColor
+	}
+	if noColor {
+		os.Setenv("NO_COLOR", "1")
 	}
 	f.printer = output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
 	return f.printer
