@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Redmine-style semicircular arch with separated voussoir blocks -->
+  <!-- Center at (64,110), outer radius 58, inner radius 38 -->
+  <!-- 9 blocks computed at 20deg intervals with 2deg gaps -->
+
+  <!-- Block 1: left pillar (180 to 162) -->
+  <path d="M6,110 L6,74 L26,77 L26,110 Z" fill="#B22222"/>
+
+  <!-- Block 2: (158 to 140) -->
+  <path d="M7.6,70 L14.8,51.2 L32.4,59.6 L27,74.4 Z" fill="#CC3333"/>
+
+  <!-- Block 3: (138 to 120) -->
+  <path d="M17.6,47.6 L30.8,32.4 L44.4,44 L34.4,56.4 Z" fill="#B22222"/>
+
+  <!-- Block 4: (118 to 100) -->
+  <path d="M34.4,29.6 L52,20.4 L56.8,36.8 L43.2,41.6 Z" fill="#CC3333"/>
+
+  <!-- Block 5: keystone (98 to 82) -->
+  <path d="M55.2,19.2 L72.8,19.2 L71.2,36.8 L56.8,36.8 Z" fill="#B22222"/>
+
+  <!-- Block 6: (80 to 62) -->
+  <path d="M76,20.4 L93.6,29.6 L84.8,41.6 L71.2,36.8 Z" fill="#CC3333"/>
+
+  <!-- Block 7: (60 to 42) -->
+  <path d="M97.2,32.4 L110.4,47.6 L93.6,56.4 L83.6,44 Z" fill="#B22222"/>
+
+  <!-- Block 8: (40 to 22) -->
+  <path d="M113.2,51.2 L120.4,70 L101,74.4 L95.6,59.6 Z" fill="#CC3333"/>
+
+  <!-- Block 9: right pillar (20 to 0) -->
+  <path d="M122,74 L122,110 L102,110 L102,77 Z" fill="#B22222"/>
+
+  <!-- Terminal prompt under the arch -->
+  <polygon points="46,80 58,90 46,100" fill="#fff" opacity="0.9"/>
+  <rect x="64" y="95" width="20" height="5" rx="2" fill="#fff" opacity="0.9"/>
+</svg>

@@ -1,0 +1,29 @@
+---
+const lines = [
+  { type: 'command', text: 'redmine issues list --project api --assignee me' },
+  { type: 'header', text: 'ID    TRACKER  STATUS       PRIORITY  SUBJECT' },
+  { type: 'row', id: '312', text: '   Bug      In Progress  High      Fix auth timeout' },
+  { type: 'row', id: '298', text: '   Feature  Open         Normal    Add webhook support' },
+  { type: 'row', id: '285', text: '   Feature  Open         Normal    CSV export for reports' },
+  { type: 'blank' },
+  { type: 'command', text: 'redmine issues close 312 --notes "Fixed in v2.1.3"' },
+  { type: 'success', text: 'Issue #312 closed' },
+];
+---
+
+<div class="terminal-demo">
+  <div class="terminal-bar">
+    <span class="terminal-dot red"></span>
+    <span class="terminal-dot yellow"></span>
+    <span class="terminal-dot green"></span>
+  </div>
+  <div class="terminal-body">
+    {lines.map((line) => {
+      if (line.type === 'blank') return <div class="terminal-line separator"></div>;
+      if (line.type === 'command') return <div class="terminal-line"><span class="prompt">$</span> <span class="cmd">{line.text}</span></div>;
+      if (line.type === 'header') return <div class="terminal-line header-line">{line.text}</div>;
+      if (line.type === 'row') return <div class="terminal-line"><span class="accent">{line.id}</span><span class="output">{line.text}</span></div>;
+      if (line.type === 'success') return <div class="terminal-line"><span class="success">&#10003;</span> <span class="output">{line.text}</span></div>;
+    })}
+  </div>
+</div>
