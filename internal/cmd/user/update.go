@@ -3,10 +3,10 @@ package user
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -20,20 +20,22 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "update <id>",
+		Use:     "update <id-or-name>",
 		Short:   "Update a user",
+		Long:    "Update a user. Accepts a numeric ID, login, full name, or 'me'.",
 		Aliases: []string{"edit"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				return fmt.Errorf("invalid user ID: %s", args[0])
-			}
-
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
+
+			id, err := resolver.ResolveUser(context.Background(), client, args[0])
+			if err != nil {
+				return err
+			}
+
 			printer := f.Printer("")
 
 			update := models.UserUpdate{}

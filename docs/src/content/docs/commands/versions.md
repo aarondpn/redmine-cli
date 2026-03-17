@@ -27,5 +27,11 @@ redmine versions list --project myproject --status open
 ## View a Version
 
 ```bash
-redmine versions get <id> [flags]
+redmine versions get <id-or-name> [flags]
 ```
+
+Accepts a numeric ID or version name. When using a name, a project is needed — uses the default project from config, or pass `--project`.
+
+| Flag | Description |
+|------|------------|
+| `--project` | Project identifier (used for name resolution; falls back to default project) |

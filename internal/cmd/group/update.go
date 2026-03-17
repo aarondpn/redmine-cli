@@ -3,10 +3,10 @@ package group
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -17,20 +17,22 @@ func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "update <id>",
+		Use:     "update <id-or-name>",
 		Short:   "Update a group",
+		Long:    "Update a group. Accepts a numeric ID or group name.",
 		Aliases: []string{"edit"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				return fmt.Errorf("invalid group ID: %s", args[0])
-			}
-
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
+
+			id, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			if err != nil {
+				return err
+			}
+
 			printer := f.Printer("")
 
 			update := models.GroupUpdate{}

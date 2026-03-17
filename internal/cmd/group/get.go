@@ -3,11 +3,11 @@ package group
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -19,20 +19,22 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "get <id>",
+		Use:     "get <id-or-name>",
 		Short:   "Show group details",
+		Long:    "Show group details. Accepts a numeric ID or group name.",
 		Aliases: []string{"show"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				return fmt.Errorf("invalid group ID: %s", args[0])
-			}
-
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
+
+			id, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			if err != nil {
+				return err
+			}
+
 			printer := f.Printer(format)
 
 			var includes []string

@@ -20,8 +20,10 @@ redmine groups list [flags]
 ## View a Group
 
 ```bash
-redmine groups get <id> [flags]
+redmine groups get <id-or-name> [flags]
 ```
+
+Accepts a numeric ID or group name.
 
 ## Create a Group
 
@@ -36,7 +38,7 @@ redmine groups create [flags]
 ## Update a Group
 
 ```bash
-redmine groups update <id> [flags]
+redmine groups update <id-or-name> [flags]
 ```
 
 | Flag | Description |
@@ -46,19 +48,23 @@ redmine groups update <id> [flags]
 ## Add a User to a Group
 
 ```bash
-redmine groups add-user <group-id> --user <user-id>
+redmine groups add-user <group-id-or-name> <user-id-or-name>
 ```
+
+Both arguments accept a numeric ID or name.
 
 ## Remove a User from a Group
 
 ```bash
-redmine groups remove-user <group-id> --user <user-id>
+redmine groups remove-user <group-id-or-name> <user-id-or-name>
 ```
+
+Both arguments accept a numeric ID or name.
 
 ## Delete a Group
 
 ```bash
-redmine groups delete <id> [flags]
+redmine groups delete <id-or-name> [flags]
 ```
 
 | Flag | Description |

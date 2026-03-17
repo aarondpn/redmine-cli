@@ -10,6 +10,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
@@ -17,7 +18,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 		issue    int
 		project  string
 		hours    float64
-		activity int
+		activity string
 		date     string
 		comment  string
 	)
@@ -43,11 +44,19 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				date = time.Now().Format("2006-01-02")
 			}
 
+			var activityID int
+			if activity != "" {
+				activityID, err = resolver.ResolveActivity(context.Background(), client, activity)
+				if err != nil {
+					return err
+				}
+			}
+
 			entry := models.TimeEntryCreate{
 				IssueID:    issue,
 				ProjectID:  project,
 				Hours:      hours,
-				ActivityID: activity,
+				ActivityID: activityID,
 				SpentOn:    date,
 				Comments:   comment,
 			}
@@ -68,7 +77,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&issue, "issue", 0, "Issue ID")
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier")
 	cmd.Flags().Float64Var(&hours, "hours", 0, "Hours spent (required)")
-	cmd.Flags().IntVar(&activity, "activity", 0, "Activity ID")
+	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD, default today)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 

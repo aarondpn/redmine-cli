@@ -10,6 +10,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
@@ -19,7 +20,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 		issue    int
 		from     string
 		to       string
-		activity int
+		activity string
 		limit    int
 		offset   int
 		format   string
@@ -42,18 +43,40 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			ctx := context.Background()
+
+			// Resolve user: if non-numeric and not "me", resolve by name
+			userID := user
+			if user != "" && user != "me" {
+				if _, err := strconv.Atoi(user); err != nil {
+					resolved, err := resolver.ResolveUser(ctx, client, user)
+					if err != nil {
+						return err
+					}
+					userID = strconv.Itoa(resolved)
+				}
+			}
+
+			var activityID int
+			if activity != "" {
+				activityID, err = resolver.ResolveActivity(ctx, client, activity)
+				if err != nil {
+					return err
+				}
+			}
+
 			filter := models.TimeEntryFilter{
 				ProjectID:  project,
-				UserID:     user,
+				UserID:     userID,
 				IssueID:    issue,
 				From:       from,
 				To:         to,
-				ActivityID: activity,
+				ActivityID: activityID,
 				Limit:      limit,
 				Offset:     offset,
 			}
 
-			entries, total, err := client.TimeEntries.List(context.Background(), filter)
+			entries, total, err := client.TimeEntries.List(ctx, filter)
 			if err != nil {
 				return err
 			}
@@ -116,11 +139,11 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Filter by project identifier")
-	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID")
+	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID, login, name, or 'me'")
 	cmd.Flags().IntVar(&issue, "issue", 0, "Filter by issue ID")
 	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD)")
-	cmd.Flags().IntVar(&activity, "activity", 0, "Filter by activity ID")
+	cmd.Flags().StringVar(&activity, "activity", "", "Filter by activity name or ID")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 

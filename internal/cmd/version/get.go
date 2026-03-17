@@ -9,31 +9,53 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
-	var format string
+	var (
+		format  string
+		project string
+	)
 
 	cmd := &cobra.Command{
-		Use:     "get <id>",
+		Use:     "get <id-or-name>",
 		Aliases: []string{"show", "view"},
 		Short:   "Get version details",
-		Long:    "Display detailed information about a specific version.",
+		Long:    "Display detailed information about a specific version. Accepts a numeric ID or version name (uses the default project, or pass --project).",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				return fmt.Errorf("invalid version ID: %s", args[0])
-			}
-
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 
+			ctx := context.Background()
+
+			var id int
+			if numID, err := strconv.Atoi(args[0]); err == nil {
+				id = numID
+			} else {
+				// Non-numeric: resolve by name, requires project
+				if project == "" {
+					cfg, cfgErr := f.Config()
+					if cfgErr == nil && cfg.DefaultProject != "" {
+						project = cfg.DefaultProject
+					}
+				}
+				if project == "" {
+					return fmt.Errorf("--project is required when looking up a version by name")
+				}
+				resolved, err := resolver.ResolveVersion(ctx, client, args[0], project)
+				if err != nil {
+					return err
+				}
+				id = resolved
+			}
+
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching version...")
-			version, err := client.Versions.Get(context.Background(), id)
+			version, err := client.Versions.Get(ctx, id)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get version %d: %w", id, err)
@@ -69,6 +91,7 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&project, "project", "", "Project identifier (for name resolution; falls back to default project)")
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }

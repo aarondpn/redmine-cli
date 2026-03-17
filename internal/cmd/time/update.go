@@ -9,12 +9,13 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
 		hours    float64
-		activity int
+		activity string
 		date     string
 		comment  string
 	)
@@ -41,7 +42,11 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.Hours = &hours
 			}
 			if cmd.Flags().Changed("activity") {
-				update.ActivityID = &activity
+				activityID, err := resolver.ResolveActivity(context.Background(), client, activity)
+				if err != nil {
+					return err
+				}
+				update.ActivityID = &activityID
 			}
 			if cmd.Flags().Changed("date") {
 				update.SpentOn = &date
@@ -62,7 +67,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().Float64Var(&hours, "hours", 0, "Hours spent")
-	cmd.Flags().IntVar(&activity, "activity", 0, "Activity ID")
+	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 

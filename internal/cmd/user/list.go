@@ -7,6 +7,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +15,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	var (
 		status string
 		name   string
-		group  int
+		group  string
 		limit  int
 		offset int
 		format string
@@ -31,11 +32,19 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
+			var groupID int
+			if group != "" {
+				groupID, err = resolver.ResolveGroup(context.Background(), client, group)
+				if err != nil {
+					return err
+				}
+			}
+
 			stop := printer.Spinner("Fetching users...")
 			users, total, err := client.Users.List(context.Background(), models.UserFilter{
 				Status:  status,
 				Name:    name,
-				GroupID: group,
+				GroupID: groupID,
 				Limit:   limit,
 				Offset:  offset,
 			})
@@ -84,7 +93,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&status, "status", "", "Filter by status (active, registered, locked)")
 	cmd.Flags().StringVar(&name, "name", "", "Filter by name")
-	cmd.Flags().IntVar(&group, "group", 0, "Filter by group ID")
+	cmd.Flags().StringVar(&group, "group", "", "Filter by group name or ID")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd

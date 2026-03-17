@@ -103,8 +103,10 @@ redmine issues reopen <id> [flags]
 ## Assign an Issue
 
 ```bash
-redmine issues assign <id> --to <user> [flags]
+redmine issues assign <id> <user-id-or-name> [flags]
 ```
+
+The user argument accepts a numeric ID, login, full name, or `me`.
 
 ## Add a Comment
 

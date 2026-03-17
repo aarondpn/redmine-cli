@@ -54,7 +54,11 @@ func Resolve(input string, resourceType string, client *api.Client, fetcher func
 		client.DebugLog().Printf("Resolver: matched %s %q -> ID %d", resourceType, input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
-		return 0, fmt.Errorf("multiple matches for %q, please use the numeric ID instead", input)
+		lines := make([]string, len(matches))
+		for i, o := range matches {
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", o.Name, o.ID)
+		}
+		return 0, fmt.Errorf("multiple %ss match %q, please use the numeric ID:\n%s", resourceType, input, strings.Join(lines, "\n"))
 	}
 }
 
@@ -155,7 +159,11 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 		client.DebugLog().Printf("Resolver: matched category %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
-		return 0, fmt.Errorf("multiple categories match %q, please use the category ID instead", input)
+		lines := make([]string, len(matches))
+		for i, c := range matches {
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", c.Name, c.ID)
+		}
+		return 0, fmt.Errorf("multiple categories match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
 	}
 }
 
@@ -199,14 +207,27 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 		client.DebugLog().Printf("Resolver: matched version %q -> ID %d", input, matches[0].ID)
 		return matches[0].ID, nil
 	default:
-		return 0, fmt.Errorf("multiple versions match %q, please use the version ID instead", input)
+		lines := make([]string, len(matches))
+		for i, v := range matches {
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", v.Name, v.ID)
+		}
+		return 0, fmt.Errorf("multiple versions match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
 	}
+}
+
+// ResolveUser resolves a user by "me", login/name, or numeric ID.
+func ResolveUser(ctx context.Context, client *api.Client, input string) (int, error) {
+	return resolveUser(ctx, client, input, "user")
 }
 
 // ResolveAssignee resolves an assignee by "me", login/name, or numeric ID.
 func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int, error) {
+	return resolveUser(ctx, client, input, "assignee")
+}
+
+func resolveUser(ctx context.Context, client *api.Client, input string, label string) (int, error) {
 	if strings.ToLower(input) == "me" {
-		client.DebugLog().Printf("Resolver: resolving assignee \"me\" via current user")
+		client.DebugLog().Printf("Resolver: resolving %s \"me\" via current user", label)
 		user, err := client.Users.Current(ctx)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get current user: %w", err)
@@ -216,11 +237,11 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 	}
 
 	if id, err := strconv.Atoi(input); err == nil {
-		client.DebugLog().Printf("Resolver: assignee %q is numeric, using ID %d directly", input, id)
+		client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", label, input, id)
 		return id, nil
 	}
 
-	client.DebugLog().Printf("Resolver: looking up assignee %q", input)
+	client.DebugLog().Printf("Resolver: looking up %s %q", label, input)
 
 	users, _, err := client.Users.List(ctx, models.UserFilter{Name: input})
 	if err != nil {
@@ -250,7 +271,7 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 		}
 		return 0, fmt.Errorf("no user found matching %q", input)
 	case 1:
-		client.DebugLog().Printf("Resolver: matched assignee %q -> ID %d (%s)", input, matches[0].ID, matches[0].Login)
+		client.DebugLog().Printf("Resolver: matched %s %q -> ID %d (%s)", label, input, matches[0].ID, matches[0].Login)
 		return matches[0].ID, nil
 	default:
 		lines := make([]string, len(matches))
@@ -259,4 +280,34 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 		}
 		return 0, fmt.Errorf("multiple users match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
 	}
+}
+
+// ResolveGroup resolves a group by name or numeric ID.
+func ResolveGroup(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "group", client, func() ([]Option, error) {
+		groups, _, err := client.Groups.List(ctx, models.GroupFilter{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch groups: %w", err)
+		}
+		opts := make([]Option, len(groups))
+		for i, g := range groups {
+			opts[i] = Option{ID: g.ID, Name: g.Name}
+		}
+		return opts, nil
+	})
+}
+
+// ResolveActivity resolves a time entry activity by name or numeric ID.
+func ResolveActivity(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "activity", client, func() ([]Option, error) {
+		activities, err := client.Enumerations.TimeEntryActivities(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch activities: %w", err)
+		}
+		opts := make([]Option, len(activities))
+		for i, a := range activities {
+			opts[i] = Option{ID: a.ID, Name: a.Name}
+		}
+		return opts, nil
+	})
 }

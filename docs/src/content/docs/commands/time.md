@@ -71,7 +71,7 @@ redmine time update <id> [flags]
 | Flag | Description |
 |------|------------|
 | `--hours` | New hours |
-| `--activity` | New activity |
+| `--activity` | New activity (name or ID) |
 | `--comment` | New comment |
 | `--date` | New date |
 

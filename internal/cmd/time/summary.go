@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
 func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
@@ -54,10 +56,22 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				to = time.Now().Format("2006-01-02")
 			}
 
+			// Resolve user: if non-numeric and not "me", resolve by name
+			userID := user
+			if user != "" && user != "me" {
+				if _, err := strconv.Atoi(user); err != nil {
+					resolved, err := resolver.ResolveUser(context.Background(), client, user)
+					if err != nil {
+						return err
+					}
+					userID = strconv.Itoa(resolved)
+				}
+			}
+
 			// Fetch all entries in the range (use a large limit)
 			filter := models.TimeEntryFilter{
 				ProjectID: project,
-				UserID:    user,
+				UserID:    userID,
 				From:      from,
 				To:        to,
 				Limit:     0, // fetch all
@@ -130,7 +144,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Filter by project identifier")
-	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID")
+	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID, login, name, or 'me'")
 	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD, default: start of current week)")
 	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD, default: today)")
 	cmd.Flags().StringVar(&groupBy, "group-by", "day", "Group by: day, project, activity")

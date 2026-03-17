@@ -167,6 +167,10 @@ redmine versions list --project myproject --status open -o json
 
 ```bash
 redmine versions get 42 -o json
+
+# By name (uses default project, or pass --project)
+redmine versions get "v1.0" -o json
+redmine versions get "v1.0" --project myproject -o json
 ```
 
 ## Time Entries
@@ -174,7 +178,7 @@ redmine versions get 42 -o json
 ### Log time
 
 ```bash
-redmine time log --issue 123 --hours 2.5 --activity 9 --comment "Worked on feature"
+redmine time log --issue 123 --hours 2.5 --activity Development --comment "Worked on feature"
 ```
 
 ### List time entries
@@ -182,6 +186,35 @@ redmine time log --issue 123 --hours 2.5 --activity 9 --comment "Worked on featu
 ```bash
 redmine time list --project myproject -o json
 redmine time list --issue 123 -o json
+```
+
+## Users
+
+```bash
+# List users
+redmine users list -o json
+
+# Get user by ID, login, name, or "me"
+redmine users get jsmith -o json
+redmine users get "John Smith" -o json
+redmine users get me -o json
+
+# Filter users by group (name or ID)
+redmine users list --group Developers -o json
+```
+
+## Groups
+
+```bash
+# List groups
+redmine groups list -o json
+
+# Get group by name or ID
+redmine groups get Developers -o json
+
+# Add/remove users by name
+redmine groups add-user Developers jsmith
+redmine groups remove-user Developers "John Smith"
 ```
 
 ## Other Commands
@@ -192,9 +225,6 @@ redmine search "query string" --project myproject -o json
 
 # List projects
 redmine projects list -o json
-
-# List users
-redmine users list -o json
 
 # List trackers (for --tracker filter)
 redmine trackers list -o json
@@ -231,8 +261,9 @@ This pattern applies broadly — whenever a command requires a value from a fixe
 
 - Always use `-o json` for programmatic access to avoid parsing table formatting.
 - Use `--limit 0` to fetch all results when you need the complete dataset.
-- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--category`, `--version`) accept human-readable names or numeric IDs.
-- The `--assignee` flag supports the special value `me` to assign to the current API user.
+- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--category`, `--version`, `--activity`, `--group`) accept human-readable names or numeric IDs.
+- Commands that take user/group/version IDs as arguments also accept names (e.g., `redmine users get jsmith`, `redmine groups get Developers`).
+- The `--assignee` flag and user arguments support the special value `me` to refer to the current API user.
 - Version status filters (`--open`, `--closed`, `--locked`) are applied client-side.
 - Set a default project with `redmine init` to avoid `--project` on every command.
 - Use `--project` or `-p` to override the default project per-command.

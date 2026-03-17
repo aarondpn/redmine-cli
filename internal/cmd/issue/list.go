@@ -16,7 +16,7 @@ import (
 func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	var (
 		project  string
-		tracker  int
+		tracker  string
 		status   string
 		assignee string
 		version  string
@@ -63,6 +63,14 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			var trackerID int
+			if tracker != "" {
+				trackerID, err = resolver.ResolveTracker(context.Background(), client, tracker)
+				if err != nil {
+					return err
+				}
+			}
+
 			var versionID int
 			if version != "" {
 				id, err := resolver.ResolveVersion(context.Background(), client, version, project)
@@ -74,7 +82,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 
 			filter := models.IssueFilter{
 				ProjectID:      project,
-				TrackerID:      tracker,
+				TrackerID:      trackerID,
 				StatusID:       status,
 				AssignedToID:   assignee,
 				FixedVersionID: versionID,
@@ -140,7 +148,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier")
-	cmd.Flags().IntVar(&tracker, "tracker", 0, "Tracker ID")
+	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, or status ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")

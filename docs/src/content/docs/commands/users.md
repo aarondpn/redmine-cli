@@ -15,7 +15,7 @@ redmine users list [flags]
 |------|------------|
 | `--status` | Filter by status: `active`, `registered`, `locked` |
 | `--name` | Filter by name or login |
-| `--group` | Filter by group ID |
+| `--group` | Filter by group name or ID |
 | `--limit` | Maximum number of results |
 | `--offset` | Result offset for pagination |
 | `-o, --output` | Output format |
@@ -23,8 +23,10 @@ redmine users list [flags]
 ## View a User
 
 ```bash
-redmine users get <id> [flags]
+redmine users get <id-or-name> [flags]
 ```
+
+Accepts a numeric ID, login, full name, or `me`.
 
 ## Current User
 
@@ -52,15 +54,15 @@ redmine users create [flags]
 ## Update a User
 
 ```bash
-redmine users update <id> [flags]
+redmine users update <id-or-name> [flags]
 ```
 
-Accepts the same flags as `create` (all optional).
+Accepts the same flags as `create` (all optional). The user argument accepts a numeric ID, login, full name, or `me`.
 
 ## Delete a User
 
 ```bash
-redmine users delete <id> [flags]
+redmine users delete <id-or-name> [flags]
 ```
 
 | Flag | Description |

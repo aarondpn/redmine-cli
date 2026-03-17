@@ -3,9 +3,9 @@ package group
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
 
@@ -13,14 +13,20 @@ func newCmdGroupDelete(f *cmdutil.Factory) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:     "delete <id>",
+		Use:     "delete <id-or-name>",
 		Short:   "Delete a group",
+		Long:    "Delete a group. Accepts a numeric ID or group name.",
 		Aliases: []string{"rm"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.Atoi(args[0])
+			client, err := f.ApiClient()
 			if err != nil {
-				return fmt.Errorf("invalid group ID: %s", args[0])
+				return err
+			}
+
+			id, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			if err != nil {
+				return err
 			}
 
 			printer := f.Printer("")
@@ -31,11 +37,6 @@ func newCmdGroupDelete(f *cmdutil.Factory) *cobra.Command {
 					printer.Warning("Delete cancelled")
 					return nil
 				}
-			}
-
-			client, err := f.ApiClient()
-			if err != nil {
-				return err
 			}
 
 			stop := printer.Spinner("Deleting group...")
