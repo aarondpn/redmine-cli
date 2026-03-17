@@ -19,7 +19,7 @@ Use this skill when the user asks you to:
 
 ## Prerequisites
 
-The CLI must be configured first. Run `redmine config` to check. If not configured, run `redmine init` for interactive setup, or pass `--server` and `--api-key` flags.
+The CLI must be configured first. Run `redmine config` to check. If not configured, run `redmine init` for interactive setup.
 
 ## Output Formats
 
