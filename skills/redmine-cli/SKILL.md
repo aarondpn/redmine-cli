@@ -136,11 +136,18 @@ Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--prior
 
 ### Name resolution errors
 
-If a name doesn't match, the CLI lists available options. Use this to discover valid values:
+If a name doesn't match, the CLI provides helpful suggestions:
+
+- **Small lists** (≤10 options): all available options are shown
+- **Large lists** (>10 options): fuzzy "Did you mean?" suggestions based on typo similarity
+- **Ambiguous matches**: all exact matches are listed with their IDs
 
 ```bash
 # Will show all available trackers if "NonExistent" doesn't match
 redmine issues create --project myproject --tracker NonExistent --subject "Test"
+
+# Typos get "Did you mean?" suggestions (e.g. "Featrue" -> "Feature")
+redmine issues create --project myproject --tracker Featrue --subject "Test"
 
 # Will show matching users if the name is ambiguous
 redmine issues update 123 --assignee "John"
