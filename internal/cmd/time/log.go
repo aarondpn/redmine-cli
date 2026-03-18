@@ -40,6 +40,13 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				project, err = cmdutil.ResolveProjectID(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+			}
+
 			if date == "" {
 				date = time.Now().Format("2006-01-02")
 			}
@@ -75,7 +82,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&issue, "issue", 0, "Issue ID")
-	cmd.Flags().StringVar(&project, "project", "", "Project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().Float64Var(&hours, "hours", 0, "Hours spent (required)")
 	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD, default today)")

@@ -44,6 +44,13 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+			}
+
 			params := api.SearchParams{
 				Query:       query,
 				ProjectID:   project,
@@ -66,7 +73,13 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(results) == 0 {
-				printer.Warning("No issues found")
+				if printer.Format() == output.FormatJSON {
+					printer.JSON(results)
+					return nil
+				}
+				if output.SupportsWarnings(printer.Format()) {
+					printer.Warning("No issues found")
+				}
 				return nil
 			}
 
@@ -97,7 +110,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if total > limit+offset {
+			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
 				printer.Warning(fmt.Sprintf("Showing %d of %d results. Use --offset to paginate.", len(results), total))
 			}
 
@@ -105,7 +118,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
 	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")

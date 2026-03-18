@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -130,12 +131,64 @@ func Resolve(input string, resourceType string, client *api.Client, fetcher func
 // Returns both the numeric ID and the string identifier (needed for version resolution).
 func ResolveProject(ctx context.Context, client *api.Client, input string) (int, string, error) {
 	client.DebugLog().Printf("Resolver: resolving project %q", input)
+
 	project, err := client.Projects.Get(ctx, input, nil)
-	if err != nil {
+	if err == nil {
+		client.DebugLog().Printf("Resolver: resolved project %q -> ID %d, identifier %q", input, project.ID, project.Identifier)
+		return project.ID, project.Identifier, nil
+	}
+
+	var apiErr *api.APIError
+	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
 		return 0, "", fmt.Errorf("failed to resolve project %q: %w", input, err)
 	}
-	client.DebugLog().Printf("Resolver: resolved project %q -> ID %d, identifier %q", input, project.ID, project.Identifier)
-	return project.ID, project.Identifier, nil
+
+	projects, _, err := client.Projects.List(ctx, nil, 0, 0)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to fetch projects: %w", err)
+	}
+
+	return resolveProjectFromList(client, input, projects)
+}
+
+func resolveProjectFromList(client *api.Client, input string, projects []models.Project) (int, string, error) {
+	if id, err := strconv.Atoi(input); err == nil {
+		for _, project := range projects {
+			if project.ID == id {
+				client.DebugLog().Printf("Resolver: resolved project %q -> ID %d, identifier %q", input, project.ID, project.Identifier)
+				return project.ID, project.Identifier, nil
+			}
+		}
+		return 0, "", fmt.Errorf("no match found for project ID %d", id)
+	}
+
+	needle := strings.ToLower(input)
+	var matches []models.Project
+	for _, project := range projects {
+		if strings.ToLower(project.Name) == needle || strings.ToLower(project.Identifier) == needle {
+			matches = append(matches, project)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		names := make([]string, len(projects))
+		ids := make([]int, len(projects))
+		for i, project := range projects {
+			names[i] = fmt.Sprintf("%s [%s]", project.Name, project.Identifier)
+			ids[i] = project.ID
+		}
+		return 0, "", fmt.Errorf("%s", buildSuggestions(input, names, ids, "project"))
+	case 1:
+		client.DebugLog().Printf("Resolver: resolved project %q -> ID %d, identifier %q", input, matches[0].ID, matches[0].Identifier)
+		return matches[0].ID, matches[0].Identifier, nil
+	default:
+		lines := make([]string, len(matches))
+		for i, project := range matches {
+			lines[i] = fmt.Sprintf("  - %s [%s] (ID: %d)", project.Name, project.Identifier, project.ID)
+		}
+		return 0, "", fmt.Errorf("multiple projects match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
+	}
 }
 
 // ResolveTracker resolves a tracker by name or numeric ID.

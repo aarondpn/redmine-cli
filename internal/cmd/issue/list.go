@@ -63,6 +63,13 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				project, err = cmdutil.ResolveProjectID(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+			}
+
 			var trackerID int
 			if tracker != "" {
 				trackerID, err = resolver.ResolveTracker(context.Background(), client, tracker)
@@ -100,7 +107,13 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(issues) == 0 {
-				printer.Warning("No issues found")
+				if printer.Format() == output.FormatJSON {
+					printer.JSON(issues)
+					return nil
+				}
+				if output.SupportsWarnings(printer.Format()) {
+					printer.Warning("No issues found")
+				}
 				return nil
 			}
 
@@ -139,7 +152,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if total > limit+offset {
+			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
 				printer.Warning(fmt.Sprintf("Showing %d of %d issues. Use --offset to paginate.", len(issues), total))
 			}
 
@@ -147,7 +160,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, or status ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")

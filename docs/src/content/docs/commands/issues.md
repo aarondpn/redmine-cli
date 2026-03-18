@@ -13,7 +13,7 @@ redmine issues list [flags]
 
 | Flag | Description |
 |------|------------|
-| `--project` | Filter by project (name or ID) |
+| `--project` | Filter by project (name, identifier, or ID) |
 | `--tracker` | Filter by tracker (name or ID) |
 | `--status` | Filter by status: `open`, `closed`, `*`, name, or ID |
 | `--assignee` | Filter by assignee: `me`, name, or ID |
@@ -53,7 +53,7 @@ redmine issues create [flags]
 
 | Flag | Description |
 |------|------------|
-| `--project` | Project (name or ID) — **required** |
+| `--project` | Project (name, identifier, or ID) — **required** |
 | `--subject` | Issue subject — **required** |
 | `--tracker` | Tracker (name or ID) |
 | `--status` | Status (name or ID) |

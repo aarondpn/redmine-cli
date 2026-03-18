@@ -46,6 +46,10 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 				if project == "" {
 					return fmt.Errorf("--project is required when looking up a version by name")
 				}
+				project, err = cmdutil.ResolveProjectIdentifier(ctx, f, project)
+				if err != nil {
+					return err
+				}
 				resolved, err := resolver.ResolveVersion(ctx, client, args[0], project)
 				if err != nil {
 					return err
@@ -91,7 +95,7 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Project identifier (for name resolution; falls back to default project)")
+	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID (for name resolution; falls back to default project)")
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }

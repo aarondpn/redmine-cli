@@ -45,6 +45,14 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				resolvedProject, err := cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+				project = resolvedProject
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -83,7 +91,7 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
 	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")

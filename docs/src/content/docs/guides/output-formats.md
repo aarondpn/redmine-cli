@@ -59,6 +59,8 @@ redmine issues list --tracker Bug -o json | jq '.[].id'
 redmine issues list --project myproject -o json | jq 'group_by(.status.name) | map({status: .[0].status.name, count: length})'
 ```
 
+When `-o json` is selected, the CLI emits JSON only on `stdout`. Human-readable pagination hints are suppressed in this mode, so piping to tools like `jq` is safe. Keep `stderr` separate if you want to capture actual errors.
+
 ## CSV
 
 Comma-separated values for spreadsheets and data analysis:

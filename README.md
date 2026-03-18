@@ -86,6 +86,7 @@ This uses the [skills](https://github.com/anthropics/skills) CLI under the hood 
 Once installed, the agent will:
 
 - Use `-o json` for all commands to get machine-readable output
+- Keep `stderr` separate when capturing `-o json`; JSON is written only to `stdout`
 - Query available options (trackers, statuses, versions, etc.) before creating or updating issues, rather than guessing values
 - Present options to the user for selection when values are ambiguous
 - Handle pagination with `--limit` and `--offset`

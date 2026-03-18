@@ -82,6 +82,11 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("project is required. Use --project or set a default project")
 			}
 
+			project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
+			}
+
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching versions...")
 
@@ -122,7 +127,13 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(versions) == 0 {
-				printer.Warning("No versions found")
+				if printer.Format() == output.FormatJSON {
+					printer.JSON(versions)
+					return nil
+				}
+				if output.SupportsWarnings(printer.Format()) {
+					printer.Warning("No versions found")
+				}
 				return nil
 			}
 
@@ -159,7 +170,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if hasMore {
+			if hasMore && output.SupportsWarnings(printer.Format()) {
 				printer.Warning("More versions available. Use --limit and --offset to paginate.")
 			}
 
@@ -167,7 +178,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Project identifier (required)")
+	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID (required)")
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status: open, locked, closed")
 	cmd.Flags().BoolVar(&open, "open", false, "Show only open versions")
 	cmd.Flags().BoolVar(&closed, "closed", false, "Show only closed versions")
