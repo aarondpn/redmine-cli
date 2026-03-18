@@ -48,6 +48,10 @@ homebrew_casks:
       bash: completions/redmine.bash
       zsh: completions/redmine.zsh
       fish: completions/redmine.fish
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/redmine"]
     repository:
       owner: aarondpn
       name: homebrew-tap
