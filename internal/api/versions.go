@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/models"
 )
@@ -13,9 +15,14 @@ type VersionService struct {
 }
 
 // List retrieves versions for a project. If limit is 0, all versions are fetched.
-func (s *VersionService) List(ctx context.Context, projectID string, limit int) ([]models.Version, int, error) {
+func (s *VersionService) List(ctx context.Context, projectID string, limit, offset int) ([]models.Version, int, error) {
 	path := fmt.Sprintf("/projects/%s/versions.json", projectID)
-	return FetchAll[models.Version](ctx, s.client, path, nil, "versions", limit)
+	var params url.Values
+	if offset > 0 {
+		params = url.Values{}
+		params.Set("offset", strconv.Itoa(offset))
+	}
+	return FetchAll[models.Version](ctx, s.client, path, params, "versions", limit)
 }
 
 // Get retrieves a single version by ID.

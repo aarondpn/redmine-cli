@@ -104,21 +104,21 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				}
 				versions = matched
 				hasMore = more
+
+				// Apply client-side offset to filtered results
+				if offset > 0 && offset < len(versions) {
+					versions = versions[offset:]
+				} else if offset >= len(versions) {
+					versions = nil
+				}
 			} else {
-				fetched, total, err := client.Versions.List(context.Background(), project, limit)
+				fetched, total, err := client.Versions.List(context.Background(), project, limit, offset)
 				stop()
 				if err != nil {
 					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
 				}
 				versions = fetched
 				hasMore = limit > 0 && total > limit+offset
-			}
-
-			// Apply client-side offset
-			if offset > 0 && offset < len(versions) {
-				versions = versions[offset:]
-			} else if offset >= len(versions) {
-				versions = nil
 			}
 
 			if len(versions) == 0 {

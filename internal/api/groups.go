@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/internal/models"
@@ -16,7 +17,12 @@ type GroupService struct {
 
 // List retrieves groups matching the given filter.
 func (s *GroupService) List(ctx context.Context, filter models.GroupFilter) ([]models.Group, int, error) {
-	return FetchAll[models.Group](ctx, s.client, "/groups.json", nil, "groups", filter.Limit)
+	var params url.Values
+	if filter.Offset > 0 {
+		params = url.Values{}
+		params.Set("offset", strconv.Itoa(filter.Offset))
+	}
+	return FetchAll[models.Group](ctx, s.client, "/groups.json", params, "groups", filter.Limit)
 }
 
 // Get retrieves a single group by ID. includes can contain "users" and/or "memberships".

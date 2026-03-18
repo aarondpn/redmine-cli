@@ -125,7 +125,7 @@ func runInit(f *cmdutil.Factory) error {
 
 	// Step 4: Default project (optional)
 	stop = printer.Spinner("Fetching projects...")
-	projects, _, err := client.Projects.List(context.Background(), nil, 100)
+	projects, _, err := client.Projects.List(context.Background(), nil, 100, 0)
 	stop()
 
 	if err == nil && len(projects) > 0 {

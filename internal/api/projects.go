@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/models"
 )
@@ -14,10 +15,13 @@ type ProjectService struct {
 }
 
 // List retrieves all projects.
-func (s *ProjectService) List(ctx context.Context, includes []string, limit int) ([]models.Project, int, error) {
+func (s *ProjectService) List(ctx context.Context, includes []string, limit, offset int) ([]models.Project, int, error) {
 	params := url.Values{}
 	if len(includes) > 0 {
 		params.Set("include", joinStrings(includes, ","))
+	}
+	if offset > 0 {
+		params.Set("offset", strconv.Itoa(offset))
 	}
 	return FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", limit)
 }
@@ -61,6 +65,11 @@ func (s *ProjectService) Delete(ctx context.Context, identifier string) error {
 }
 
 // Members retrieves project memberships.
-func (s *ProjectService) Members(ctx context.Context, identifier string, limit int) ([]models.Membership, int, error) {
-	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", identifier), nil, "memberships", limit)
+func (s *ProjectService) Members(ctx context.Context, identifier string, limit, offset int) ([]models.Membership, int, error) {
+	var params url.Values
+	if offset > 0 {
+		params = url.Values{}
+		params.Set("offset", strconv.Itoa(offset))
+	}
+	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", identifier), params, "memberships", limit)
 }

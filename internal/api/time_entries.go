@@ -35,6 +35,9 @@ func (s *TimeEntryService) List(ctx context.Context, filter models.TimeEntryFilt
 	if filter.ActivityID > 0 {
 		params.Set("activity_id", strconv.Itoa(filter.ActivityID))
 	}
+	if filter.Offset > 0 {
+		params.Set("offset", strconv.Itoa(filter.Offset))
+	}
 
 	return FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", filter.Limit)
 }

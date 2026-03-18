@@ -124,6 +124,19 @@ redmine issues delete <id> [flags]
 |------|------------|
 | `-f, --force` | Skip confirmation prompt |
 
+## Open in Browser
+
+```bash
+redmine issues open <id>
+```
+
+Opens the issue in your default web browser. Constructs the URL from your configured Redmine server.
+
+```bash
+# Opens https://redmine.example.com/issues/123 in the browser
+redmine issues open 123
+```
+
 ## Browse Issues (TUI)
 
 ```bash

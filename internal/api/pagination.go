@@ -23,6 +23,10 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 
 	var allItems []T
 	offset := 0
+	if v := params.Get("offset"); v != "" {
+		offset, _ = strconv.Atoi(v)
+	}
+	startOffset := offset
 	totalCount := 0
 	page := 1
 
@@ -60,6 +64,15 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 
 		c.debugLog.Printf("Pagination: received %d items (total so far: %d, server total: %d)", len(items), len(allItems), totalCount)
 
+		// For unpaginated endpoints that ignore offset, apply it client-side.
+		if startOffset > 0 && len(items) >= totalCount {
+			if startOffset < len(allItems) {
+				allItems = allItems[startOffset:]
+			} else {
+				allItems = nil
+			}
+		}
+
 		// Check if we have enough
 		if maxResults > 0 && len(allItems) >= maxResults {
 			allItems = allItems[:maxResults]
@@ -78,6 +91,11 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 			break
 		}
 		page++
+	}
+
+	// Apply maxResults after any offset adjustment
+	if maxResults > 0 && len(allItems) > maxResults {
+		allItems = allItems[:maxResults]
 	}
 
 	return allItems, totalCount, nil
