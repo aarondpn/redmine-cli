@@ -30,6 +30,8 @@ redmine issues list -o json
 redmine versions list --project myproject -o json
 ```
 
+With `-o json`, the CLI writes JSON only to `stdout`. Do not merge `stderr` into the JSON stream unless you explicitly want errors mixed into your capture.
+
 Other formats: `-o csv` (tabular), `-o table` (default, human-readable).
 
 ## Pagination
@@ -85,7 +87,7 @@ redmine issues get 123 --include journals,children,relations -o json
 
 ### Create an issue
 
-All flags that reference other resources (project, tracker, priority, status, assignee, version) accept **names or numeric IDs**. The CLI resolves names automatically.
+All flags that reference other resources (project, tracker, priority, status, assignee, version) accept **names, identifiers where applicable, or numeric IDs**. The CLI resolves them automatically.
 
 ```bash
 # Create using human-readable names

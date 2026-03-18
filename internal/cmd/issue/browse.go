@@ -28,6 +28,14 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				resolvedProject, err := cmdutil.ResolveProjectID(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+				project = resolvedProject
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -50,7 +58,7 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project")
+	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Filter by status")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee")
 	return cmd

@@ -8,6 +8,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/config"
 	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/internal/models"
 )
 
 func testClient(t *testing.T) *api.Client {
@@ -149,6 +150,53 @@ func TestResolve_FetcherError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "connection refused") {
 		t.Errorf("expected fetcher error propagated, got: %v", err)
+	}
+}
+
+func TestResolveProjectFromList_MatchesDisplayName(t *testing.T) {
+	client := testClient(t)
+	projects := []models.Project{
+		{ID: 129, Name: "Internal Platform", Identifier: "platform"},
+		{ID: 130, Name: "Internal Tools", Identifier: "tools"},
+	}
+
+	id, identifier, err := resolveProjectFromList(client, "Internal Platform", projects)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 129 || identifier != "platform" {
+		t.Fatalf("expected project 129/platform, got %d/%s", id, identifier)
+	}
+}
+
+func TestResolveProjectFromList_MatchesIdentifier(t *testing.T) {
+	client := testClient(t)
+	projects := []models.Project{
+		{ID: 129, Name: "Internal Platform", Identifier: "platform"},
+	}
+
+	id, identifier, err := resolveProjectFromList(client, "platform", projects)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 129 || identifier != "platform" {
+		t.Fatalf("expected project 129/platform, got %d/%s", id, identifier)
+	}
+}
+
+func TestResolveProjectFromList_SuggestionsIncludeIdentifier(t *testing.T) {
+	client := testClient(t)
+	projects := []models.Project{
+		{ID: 129, Name: "Internal Platform", Identifier: "platform"},
+		{ID: 130, Name: "Internal Tools", Identifier: "tools"},
+	}
+
+	_, _, err := resolveProjectFromList(client, "Internal Pltform", projects)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "Internal Platform [platform]") {
+		t.Fatalf("expected identifier in suggestion output, got: %v", err)
 	}
 }
 

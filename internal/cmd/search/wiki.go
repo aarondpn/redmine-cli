@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
@@ -41,6 +42,13 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			if project != "" {
+				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+				if err != nil {
+					return err
+				}
+			}
+
 			params := api.SearchParams{
 				Query:      query,
 				ProjectID:  project,
@@ -61,7 +69,13 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(results) == 0 {
-				printer.Warning("No wiki pages found")
+				if printer.Format() == output.FormatJSON {
+					printer.JSON(results)
+					return nil
+				}
+				if output.SupportsWarnings(printer.Format()) {
+					printer.Warning("No wiki pages found")
+				}
 				return nil
 			}
 
@@ -70,7 +84,7 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
 	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")

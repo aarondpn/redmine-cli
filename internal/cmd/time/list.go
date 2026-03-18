@@ -45,6 +45,13 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 
 			ctx := context.Background()
 
+			if project != "" {
+				project, err = cmdutil.ResolveProjectID(ctx, f, project)
+				if err != nil {
+					return err
+				}
+			}
+
 			// Resolve user: if non-numeric and not "me", resolve by name
 			userID := user
 			if user != "" && user != "me" {
@@ -82,6 +89,11 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer(format)
+
+			if len(entries) == 0 && printer.Format() == output.FormatJSON {
+				printer.JSON(entries)
+				return nil
+			}
 
 			switch printer.Format() {
 			case output.FormatJSON:
@@ -130,7 +142,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer.Table(headers, rows)
-			if total > len(entries) {
+			if total > len(entries) && output.SupportsWarnings(printer.Format()) {
 				printer.Warning(fmt.Sprintf("Showing %d of %d entries", len(entries), total))
 			}
 
@@ -138,7 +150,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Filter by project identifier")
+	cmd.Flags().StringVar(&project, "project", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID, login, name, or 'me'")
 	cmd.Flags().IntVar(&issue, "issue", 0, "Filter by issue ID")
 	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD)")

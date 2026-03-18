@@ -53,6 +53,11 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("--project is required (or set a default project in config)")
 			}
 
+			project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
+			}
+
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching categories...")
