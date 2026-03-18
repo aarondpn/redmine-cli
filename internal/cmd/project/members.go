@@ -32,16 +32,9 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			members, total, err := client.Projects.Members(context.Background(), args[0], limit)
+			members, total, err := client.Projects.Members(context.Background(), args[0], limit, offset)
 			if err != nil {
 				return err
-			}
-
-			// Apply client-side offset
-			if offset > 0 && offset < len(members) {
-				members = members[offset:]
-			} else if offset >= len(members) {
-				members = nil
 			}
 
 			if len(members) == 0 {

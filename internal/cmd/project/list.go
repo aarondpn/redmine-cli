@@ -30,7 +30,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			projects, total, err := client.Projects.List(context.Background(), nil, limit)
+			projects, total, err := client.Projects.List(context.Background(), nil, limit, offset)
 			if err != nil {
 				return err
 			}

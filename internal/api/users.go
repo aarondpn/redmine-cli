@@ -35,6 +35,9 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 	if filter.GroupID > 0 {
 		params.Set("group_id", strconv.Itoa(filter.GroupID))
 	}
+	if filter.Offset > 0 {
+		params.Set("offset", strconv.Itoa(filter.Offset))
+	}
 
 	return FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
 }

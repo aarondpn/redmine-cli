@@ -35,6 +35,9 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 	if filter.Sort != "" {
 		params.Set("sort", filter.Sort)
 	}
+	if filter.Offset > 0 {
+		params.Set("offset", strconv.Itoa(filter.Offset))
+	}
 
 	return FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", filter.Limit)
 }

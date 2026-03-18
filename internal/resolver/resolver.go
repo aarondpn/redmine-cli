@@ -247,7 +247,7 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 
 	client.DebugLog().Printf("Resolver: looking up version %q in project %q", input, projectIdentifier)
 
-	versions, _, err := client.Versions.List(ctx, projectIdentifier, 0)
+	versions, _, err := client.Versions.List(ctx, projectIdentifier, 0, 0)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch versions for name resolution: %w", err)
 	}

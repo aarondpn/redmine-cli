@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"testing"
 
@@ -384,6 +385,94 @@ func TestFetchAll_EmptyResponse(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("len(got) = %d, want 0", len(got))
+	}
+}
+
+func TestFetchAll_WithOffset(t *testing.T) {
+	items := makeItems(250, "open")
+	ts := httptest.NewServer(paginatedHandler("things", items))
+	defer ts.Close()
+
+	params := url.Values{}
+	params.Set("offset", "50")
+	got, total, err := FetchAll[testItem](context.Background(), newTestClient(ts), "/things.json", params, "things", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 250 {
+		t.Errorf("total = %d, want 250", total)
+	}
+	if len(got) != 200 {
+		t.Errorf("len(got) = %d, want 200", len(got))
+	}
+	if got[0].ID != 51 {
+		t.Errorf("first item ID = %d, want 51", got[0].ID)
+	}
+}
+
+func TestFetchAll_WithOffsetAndMaxResults(t *testing.T) {
+	items := makeItems(250, "open")
+	ts := httptest.NewServer(paginatedHandler("things", items))
+	defer ts.Close()
+
+	params := url.Values{}
+	params.Set("offset", "50")
+	got, _, err := FetchAll[testItem](context.Background(), newTestClient(ts), "/things.json", params, "things", 25)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 25 {
+		t.Errorf("len(got) = %d, want 25", len(got))
+	}
+	if got[0].ID != 51 {
+		t.Errorf("first item ID = %d, want 51", got[0].ID)
+	}
+	if got[24].ID != 75 {
+		t.Errorf("last item ID = %d, want 75", got[24].ID)
+	}
+}
+
+func TestFetchAll_UnpaginatedWithOffset(t *testing.T) {
+	items := makeItems(50, "open")
+	ts := httptest.NewServer(unpaginatedHandler("things", items))
+	defer ts.Close()
+
+	params := url.Values{}
+	params.Set("offset", "10")
+	got, total, err := FetchAll[testItem](context.Background(), newTestClient(ts), "/things.json", params, "things", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 50 {
+		t.Errorf("total = %d, want 50", total)
+	}
+	if len(got) != 40 {
+		t.Errorf("len(got) = %d, want 40", len(got))
+	}
+	if got[0].ID != 11 {
+		t.Errorf("first item ID = %d, want 11", got[0].ID)
+	}
+}
+
+func TestFetchAll_UnpaginatedWithOffsetAndMaxResults(t *testing.T) {
+	items := makeItems(50, "open")
+	ts := httptest.NewServer(unpaginatedHandler("things", items))
+	defer ts.Close()
+
+	params := url.Values{}
+	params.Set("offset", "10")
+	got, _, err := FetchAll[testItem](context.Background(), newTestClient(ts), "/things.json", params, "things", 5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 5 {
+		t.Errorf("len(got) = %d, want 5", len(got))
+	}
+	if got[0].ID != 11 {
+		t.Errorf("first item ID = %d, want 11", got[0].ID)
+	}
+	if got[4].ID != 15 {
+		t.Errorf("last item ID = %d, want 15", got[4].ID)
 	}
 }
 
