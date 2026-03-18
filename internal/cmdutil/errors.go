@@ -7,6 +7,12 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/api"
 )
 
+// SilentError is returned when the error message has already been printed
+// or should be suppressed. main.go will still exit with the given code.
+type SilentError struct{ Code int }
+
+func (e *SilentError) Error() string { return "" }
+
 // FormatError converts an API error into a user-friendly message.
 func FormatError(err error) string {
 	var apiErr *api.APIError

@@ -15,6 +15,14 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/debug"
 )
 
+// RawResponse holds the unprocessed HTTP response from DoRaw.
+type RawResponse struct {
+	StatusCode int
+	Status     string
+	Headers    http.Header
+	Body       []byte
+}
+
 // Client is the Redmine API client.
 type Client struct {
 	httpClient *http.Client
@@ -155,6 +163,43 @@ func (c *Client) doWithBody(ctx context.Context, method, path string, body inter
 	}
 
 	return c.do(req, out)
+}
+
+// DoRaw performs an HTTP request and returns the raw response without parsing.
+func (c *Client) DoRaw(ctx context.Context, method, path string, params url.Values, body io.Reader) (*RawResponse, error) {
+	u := c.baseURL + path
+	if len(params) > 0 {
+		u += "?" + params.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	duration := time.Since(start)
+
+	if err != nil {
+		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	c.debugLog.Printf("HTTP %s %s -> %d (%s)", req.Method, debug.ScrubURL(req.URL.String()), resp.StatusCode, duration.Round(time.Millisecond))
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	return &RawResponse{
+		StatusCode: resp.StatusCode,
+		Status:     resp.Status,
+		Headers:    resp.Header,
+		Body:       respBody,
+	}, nil
 }
 
 func (c *Client) do(req *http.Request, out interface{}) error {
