@@ -6,21 +6,7 @@ import (
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/config"
 )
-
-func newTestFactory(cfg *config.Config) *cmdutil.Factory {
-	f := &cmdutil.Factory{
-		IOStreams: &cmdutil.IOStreams{
-			In:     os.Stdin,
-			Out:    &bytes.Buffer{},
-			ErrOut: &bytes.Buffer{},
-		},
-	}
-	// Pre-load config by calling SetConfig helper or using a config file.
-	// We use a temp config file approach.
-	return f
-}
 
 func TestOpenURL(t *testing.T) {
 	// Stub openBrowser to capture the URL instead of launching a browser.
