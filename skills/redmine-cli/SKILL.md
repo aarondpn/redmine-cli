@@ -134,6 +134,13 @@ redmine issues update 123 --private
 
 Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--priority`, `--assignee`, `--category`, `--version`, `--parent`, `--estimated-hours`, `--private`, `--done-ratio`, `--note`.
 
+### Open an issue in the browser
+
+```bash
+# Opens the issue in your default web browser
+redmine issues open 123
+```
+
 ### Name resolution errors
 
 If a name doesn't match, the CLI provides helpful suggestions:
