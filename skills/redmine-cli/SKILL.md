@@ -150,6 +150,7 @@ If a name doesn't match, the CLI provides helpful suggestions:
 - **Small lists** (≤10 options): all available options are shown
 - **Large lists** (>10 options): fuzzy "Did you mean?" suggestions based on typo similarity
 - **Ambiguous matches**: all exact matches are listed with their IDs
+- **Permission errors**: some endpoints (notably `/users.json` and `/groups.json`) require admin privileges. When this happens, the CLI tells you explicitly and suggests using a numeric ID or `me` instead. The error message will say which field caused the failure (e.g. `resolving assignee: cannot resolve assignee by name ...`).
 
 ```bash
 # Will show all available trackers if "NonExistent" doesn't match
@@ -160,6 +161,16 @@ redmine issues create --project myproject --tracker Featrue --subject "Test"
 
 # Will show matching users if the name is ambiguous
 redmine issues update 123 --assignee "John"
+```
+
+**If you get a permission error resolving a user/group by name**, fall back to a numeric ID or `me`:
+
+```bash
+# Instead of --assignee "John Smith", use the numeric ID
+redmine issues create --project myproject --subject "Task" --assignee 42
+
+# Or use "me" to assign to yourself
+redmine issues create --project myproject --subject "Task" --assignee me
 ```
 
 ## Versions
@@ -264,10 +275,12 @@ When you need to specify a project, tracker, version, assignee, priority, or sta
    redmine projects list -o json        # available projects
    redmine trackers list -o json        # available trackers
    redmine statuses list -o json        # available statuses
-   redmine categories list -o json              # available categories
-   redmine versions list -o json               # available versions
-   redmine users list -o json           # available users
+   redmine categories list -o json      # available categories
+   redmine versions list -o json        # available versions
+   redmine users list -o json           # available users (requires admin)
+   redmine groups list -o json          # available groups (requires admin)
    ```
+   **Note:** `redmine users list` and `redmine groups list` require admin privileges. If you get a permission error, ask the user for a numeric user/group ID or use `me` for the current user.
 2. **Present the options to the user** in a clear, numbered list or selection prompt using your interactive tools (e.g. AskUserQuestion with a formatted list of choices). Let the user pick from the actual available options rather than asking them to type a free-form name.
 3. **Then use the confirmed value** in the create/update command.
 
@@ -284,3 +297,4 @@ This pattern applies broadly — whenever a command requires a value from a fixe
 - Set a default project with `redmine init` to avoid `--project` on every command.
 - Use `--project` or `-p` to override the default project per-command.
 - If a name doesn't resolve, the CLI shows all available options — use this to discover valid values.
+- Resolving users and groups by name requires admin privileges. For non-admin users, use numeric IDs or `me`. If resolution fails with a permission error, do **not** retry with the same name — switch to a numeric ID instead.

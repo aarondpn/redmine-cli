@@ -89,28 +89,28 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("tracker") {
 				tid, err := resolver.ResolveTracker(ctx, client, tracker)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving tracker: %w", err)
 				}
 				update.TrackerID = &tid
 			}
 			if cmd.Flags().Changed("status") {
 				sid, err := resolver.ResolveStatus(ctx, client, status)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving status: %w", err)
 				}
 				update.StatusID = &sid
 			}
 			if cmd.Flags().Changed("priority") {
 				pid, err := resolver.ResolvePriority(ctx, client, priority)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving priority: %w", err)
 				}
 				update.PriorityID = &pid
 			}
 			if cmd.Flags().Changed("assignee") {
 				aid, err := resolver.ResolveAssignee(ctx, client, assignee)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving assignee: %w", err)
 				}
 				update.AssignedToID = &aid
 			}
@@ -132,14 +132,14 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("category") {
 				cid, err := resolver.ResolveCategory(ctx, client, category, projectIdentifier)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving category: %w", err)
 				}
 				update.CategoryID = &cid
 			}
 			if cmd.Flags().Changed("version") {
 				vid, err := resolver.ResolveVersion(ctx, client, version, projectIdentifier)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving version: %w", err)
 				}
 				update.FixedVersionID = &vid
 			}

@@ -58,7 +58,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				if _, err := strconv.Atoi(user); err != nil {
 					resolved, err := resolver.ResolveUser(ctx, client, user)
 					if err != nil {
-						return err
+						return fmt.Errorf("resolving user: %w", err)
 					}
 					userID = strconv.Itoa(resolved)
 				}
@@ -68,7 +68,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			if activity != "" {
 				activityID, err = resolver.ResolveActivity(ctx, client, activity)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving activity: %w", err)
 				}
 			}
 

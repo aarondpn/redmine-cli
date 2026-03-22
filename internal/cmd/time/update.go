@@ -44,7 +44,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("activity") {
 				activityID, err := resolver.ResolveActivity(context.Background(), client, activity)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving activity: %w", err)
 				}
 				update.ActivityID = &activityID
 			}

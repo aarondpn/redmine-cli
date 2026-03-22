@@ -153,6 +153,104 @@ func TestResolve_FetcherError(t *testing.T) {
 	}
 }
 
+func TestResolve_ForbiddenError(t *testing.T) {
+	client := testClient(t)
+	fetcher := func() ([]Option, error) {
+		return nil, &api.APIError{StatusCode: 403, URL: "/groups.json"}
+	}
+
+	_, err := Resolve("Developers", "group", client, fetcher)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "cannot resolve group by name") {
+		t.Errorf("expected permission hint, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "numeric ID") {
+		t.Errorf("expected numeric ID suggestion, got: %v", err)
+	}
+}
+
+func TestResolve_ForbiddenErrorWrapped(t *testing.T) {
+	// Simulates the real code path: fetcher wraps the 403 with fmt.Errorf,
+	// e.g. ResolveGroup's "failed to fetch groups: %w"
+	client := testClient(t)
+	fetcher := func() ([]Option, error) {
+		return nil, fmt.Errorf("failed to fetch groups: %w", &api.APIError{StatusCode: 403, URL: "/groups.json"})
+	}
+
+	_, err := Resolve("Developers", "group", client, fetcher)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "cannot resolve group by name") {
+		t.Errorf("expected permission hint even for wrapped 403, got: %v", err)
+	}
+	// Should NOT contain the raw API error — we want a clean message
+	if strings.Contains(err.Error(), "API error 403") {
+		t.Errorf("expected clean message without raw API error, got: %v", err)
+	}
+}
+
+func TestResolve_NonForbiddenAPIError(t *testing.T) {
+	// Non-403 API errors (401, 500, etc.) should pass through unchanged
+	client := testClient(t)
+	fetcher := func() ([]Option, error) {
+		return nil, &api.APIError{StatusCode: 401, URL: "/trackers.json"}
+	}
+
+	_, err := Resolve("Bug", "tracker", client, fetcher)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "cannot resolve") {
+		t.Errorf("non-403 error should not get permission hint, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("expected original error propagated, got: %v", err)
+	}
+}
+
+func TestResolve_ForbiddenNumericBypass(t *testing.T) {
+	// Numeric input should bypass the fetcher entirely, even if it would 403
+	client := testClient(t)
+	fetcher := func() ([]Option, error) {
+		t.Fatal("fetcher should not be called for numeric input")
+		return nil, nil
+	}
+
+	id, err := Resolve("42", "group", client, fetcher)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 42 {
+		t.Errorf("expected ID 42, got %d", id)
+	}
+}
+
+func TestIsForbiddenErr_WrappedError(t *testing.T) {
+	inner := &api.APIError{StatusCode: 403, URL: "/users.json"}
+	wrapped := fmt.Errorf("failed to fetch users: %w", inner)
+	if !isForbiddenErr(wrapped) {
+		t.Error("expected isForbiddenErr to detect wrapped 403")
+	}
+}
+
+func TestIsForbiddenErr_NonForbidden(t *testing.T) {
+	err := &api.APIError{StatusCode: 404, URL: "/users.json"}
+	if isForbiddenErr(err) {
+		t.Error("expected isForbiddenErr to return false for 404")
+	}
+
+	if isForbiddenErr(fmt.Errorf("some other error")) {
+		t.Error("expected isForbiddenErr to return false for non-API error")
+	}
+
+	if isForbiddenErr(nil) {
+		t.Error("expected isForbiddenErr to return false for nil")
+	}
+}
+
 func TestResolveProjectFromList_MatchesDisplayName(t *testing.T) {
 	client := testClient(t)
 	projects := []models.Project{

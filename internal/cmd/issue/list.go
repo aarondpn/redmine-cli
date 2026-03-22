@@ -74,7 +74,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			if tracker != "" {
 				trackerID, err = resolver.ResolveTracker(context.Background(), client, tracker)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving tracker: %w", err)
 				}
 			}
 
@@ -82,7 +82,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			if version != "" {
 				id, err := resolver.ResolveVersion(context.Background(), client, version, project)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving version: %w", err)
 				}
 				versionID = id
 			}
