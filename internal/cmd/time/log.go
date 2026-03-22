@@ -55,7 +55,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 			if activity != "" {
 				activityID, err = resolver.ResolveActivity(context.Background(), client, activity)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving activity: %w", err)
 				}
 			}
 

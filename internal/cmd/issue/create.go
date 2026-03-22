@@ -68,7 +68,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			projectID, projectIdentifier, err := resolver.ResolveProject(ctx, client, project)
 			if err != nil {
-				return err
+				return fmt.Errorf("resolving project: %w", err)
 			}
 
 			create := models.IssueCreate{
@@ -82,7 +82,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if tracker != "" {
 				id, err := resolver.ResolveTracker(ctx, client, tracker)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving tracker: %w", err)
 				}
 				create.TrackerID = id
 			}
@@ -90,7 +90,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if priority != "" {
 				id, err := resolver.ResolvePriority(ctx, client, priority)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving priority: %w", err)
 				}
 				create.PriorityID = id
 			}
@@ -98,7 +98,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if assignee != "" {
 				id, err := resolver.ResolveAssignee(ctx, client, assignee)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving assignee: %w", err)
 				}
 				create.AssignedToID = id
 			}
@@ -106,7 +106,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if status != "" {
 				id, err := resolver.ResolveStatus(ctx, client, status)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving status: %w", err)
 				}
 				create.StatusID = id
 			}
@@ -114,7 +114,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if category != "" {
 				id, err := resolver.ResolveCategory(ctx, client, category, projectIdentifier)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving category: %w", err)
 				}
 				create.CategoryID = id
 			}
@@ -122,7 +122,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if version != "" {
 				id, err := resolver.ResolveVersion(ctx, client, version, projectIdentifier)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolving version: %w", err)
 				}
 				create.FixedVersionID = id
 			}

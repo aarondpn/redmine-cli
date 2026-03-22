@@ -32,7 +32,7 @@ func NewCmdAssign(f *cmdutil.Factory) *cobra.Command {
 
 			userID, err := resolver.ResolveUser(context.Background(), client, args[1])
 			if err != nil {
-				return err
+				return fmt.Errorf("resolving user: %w", err)
 			}
 
 			update := models.IssueUpdate{

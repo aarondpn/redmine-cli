@@ -79,6 +79,12 @@ func buildSuggestions(input string, names []string, ids []int, resourceType stri
 	return fmt.Sprintf("no match found for %q. Did you mean:\n%s", input, strings.Join(lines, "\n"))
 }
 
+// isForbiddenErr checks whether the error is a 403 Forbidden API error.
+func isForbiddenErr(err error) bool {
+	var apiErr *api.APIError
+	return errors.As(err, &apiErr) && apiErr.IsForbidden()
+}
+
 // Resolve attempts to resolve input to a numeric ID.
 // If input is numeric, it returns the parsed int directly.
 // Otherwise, it calls fetcher to get available options and performs
@@ -93,6 +99,9 @@ func Resolve(input string, resourceType string, client *api.Client, fetcher func
 
 	options, err := fetcher()
 	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, fmt.Errorf("cannot resolve %s by name (insufficient permissions). Use a numeric ID instead", resourceType)
+		}
 		return 0, err
 	}
 
@@ -140,11 +149,17 @@ func ResolveProject(ctx context.Context, client *api.Client, input string) (int,
 
 	var apiErr *api.APIError
 	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
+		if isForbiddenErr(err) {
+			return 0, "", fmt.Errorf("cannot resolve project %q (insufficient permissions). Use the project identifier or numeric ID instead", input)
+		}
 		return 0, "", fmt.Errorf("failed to resolve project %q: %w", input, err)
 	}
 
 	projects, _, err := client.Projects.List(ctx, nil, 0, 0)
 	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, "", fmt.Errorf("cannot resolve project %q (insufficient permissions). Use the project identifier or numeric ID instead", input)
+		}
 		return 0, "", fmt.Errorf("failed to fetch projects: %w", err)
 	}
 
@@ -252,6 +267,9 @@ func ResolveCategory(ctx context.Context, client *api.Client, input string, proj
 
 	categories, _, err := client.Categories.List(ctx, projectIdentifier)
 	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, fmt.Errorf("cannot resolve category by name (insufficient permissions). Use a numeric ID instead")
+		}
 		return 0, fmt.Errorf("failed to fetch issue categories: %w", err)
 	}
 
@@ -302,6 +320,9 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 
 	versions, _, err := client.Versions.List(ctx, projectIdentifier, 0, 0)
 	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, fmt.Errorf("cannot resolve version by name (insufficient permissions). Use a numeric ID instead")
+		}
 		return 0, fmt.Errorf("failed to fetch versions for name resolution: %w", err)
 	}
 
@@ -366,6 +387,9 @@ func resolveUser(ctx context.Context, client *api.Client, input string, label st
 
 	users, _, err := client.Users.List(ctx, models.UserFilter{Name: input})
 	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, fmt.Errorf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", label)
+		}
 		return 0, fmt.Errorf("failed to search users: %w", err)
 	}
 
