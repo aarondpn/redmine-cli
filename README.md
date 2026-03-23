@@ -1,6 +1,19 @@
-# redmine-cli
+<p align="center">
+  <img src="docs/public/favicon.svg" alt="redmine-cli logo" width="120" />
+</p>
 
-A command-line interface for [Redmine](https://www.redmine.org/) project management.
+<h1 align="center">redmine-cli</h1>
+
+<p align="center">
+  A command-line interface for <a href="https://www.redmine.org/">Redmine</a> project management.
+</p>
+
+<p align="center">
+  <a href="https://github.com/aarondpn/redmine-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aarondpn/redmine-cli/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+  <a href="https://github.com/aarondpn/redmine-cli/releases/latest"><img src="https://img.shields.io/github/v/release/aarondpn/redmine-cli?style=for-the-badge&logo=github&logoColor=white" alt="Release"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/aarondpn/redmine-cli?style=for-the-badge&logo=go&logoColor=white" alt="Go"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="License"></a>
+</p>
 
 ## Installation
 
