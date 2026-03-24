@@ -30,12 +30,3 @@ type ProjectUpdate struct {
 	Description *string `json:"description,omitempty"`
 	IsPublic    *bool   `json:"is_public,omitempty"`
 }
-
-// Membership represents a project membership.
-type Membership struct {
-	ID      int      `json:"id"`
-	Project IDName   `json:"project"`
-	User    *IDName  `json:"user,omitempty"`
-	Group   *IDName  `json:"group,omitempty"`
-	Roles   []IDName `json:"roles"`
-}

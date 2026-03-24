@@ -14,6 +14,7 @@ Use this skill when the user asks you to:
 - List, view, or search Redmine issues
 - List or view project versions (milestones)
 - Log or view time entries
+- Manage project memberships (add, update, remove users/groups from projects)
 - Query projects, users, groups, trackers, or statuses
 - Perform any task involving Redmine project management data
 
@@ -242,6 +243,46 @@ redmine groups get Developers -o json
 # Add/remove users by name
 redmine groups add-user Developers jsmith
 redmine groups remove-user Developers "John Smith"
+```
+
+## Memberships
+
+### List project memberships
+
+```bash
+redmine memberships list --project myproject -o json
+
+# With pagination
+redmine memberships list --project myproject --limit 25 --offset 0 -o json
+```
+
+### Get a single membership
+
+```bash
+redmine memberships get 42 -o json
+```
+
+### Create a membership (add user/group to project)
+
+```bash
+# Add a user with roles
+redmine memberships create --project myproject --user-id 5 --role-ids 1,2 -o json
+
+# Add a group with a role
+redmine memberships create --project myproject --group-id 10 --role-ids 3 -o json
+```
+
+### Update membership roles
+
+```bash
+redmine memberships update 42 --role-ids 1,3
+```
+
+### Delete a membership
+
+```bash
+redmine memberships delete 42
+redmine memberships delete 42 --force
 ```
 
 ## Other Commands
