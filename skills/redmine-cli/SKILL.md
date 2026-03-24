@@ -1,344 +1,54 @@
 ---
 name: redmine-cli
-description: Guide for using the redmine CLI tool to interact with Redmine project management. Covers output formats, pagination, filtering, and common workflows for issues, versions, time entries, and search.
+description: Use the `redmine` CLI to interact with Redmine. Activate when the user asks to create, list, update, close, or search issues, log or view time entries, manage versions or memberships, query projects/users/groups, or perform any Redmine project management task. Also activate when the user says "redmine", "issue", "ticket", "time entry", or references Redmine workflows.
 ---
 
 # Redmine CLI
 
-This skill teaches you how to use the `redmine` CLI to interact with a Redmine project management server.
+A CLI for the Redmine REST API. Run `redmine --help` and `redmine <command> --help` to discover available commands and flags — this skill only covers what `--help` cannot tell you.
 
-## When to Use This Skill
+## Setup
 
-Use this skill when the user asks you to:
-
-- List, view, or search Redmine issues
-- List or view project versions (milestones)
-- Log or view time entries
-- Manage project memberships (add, update, remove users/groups from projects)
-- Query projects, users, groups, trackers, or statuses
-- Perform any task involving Redmine project management data
-
-## Prerequisites
-
-The CLI must be configured first. Run `redmine config` to check. If not configured, run `redmine init` for interactive setup.
-
-## Output Formats
-
-Always use `-o json` for machine-readable output:
+If the `redmine` command is not found, install it:
 
 ```bash
-redmine issues list -o json
-redmine versions list --project myproject -o json
+curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-With `-o json`, the CLI writes JSON only to `stdout`. Do not merge `stderr` into the JSON stream unless you explicitly want errors mixed into your capture.
+Then run `redmine init` for interactive configuration. Use `redmine config` to verify an existing setup.
 
-Other formats: `-o csv` (tabular), `-o table` (default, human-readable).
+## Critical Rules
 
-## Pagination
+- **Always use `-o json`** when you need to parse output programmatically. JSON goes to stdout only; stderr is separate.
+- **Use `--limit 0`** to fetch ALL results. The default limit is 100.
+- **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity) resolve human-readable names automatically. You don't need to look up IDs first.
+- **`--assignee me`** refers to the current API user.
+- **`--status "*"`** shows all issues regardless of status (default is `open`).
 
-All list commands support `--limit` and `--offset`:
+## Permission Gotcha: Users & Groups
 
-```bash
---limit N     # Return at most N results
---limit 0     # Fetch ALL results (no limit) - use this when you need the complete dataset
---offset N    # Skip the first N results
-```
+Resolving users and groups **by name requires admin privileges**. If you get a permission error:
+- Do NOT retry with the same name
+- Use `me` for the current user
+- To discover user IDs without admin access, extract them from other sources:
+  - `redmine issues list --project <project> -o json` — the `assigned_to` and `author` fields contain user IDs and names
+  - `redmine memberships list --project <project> -o json` — lists all project members with their IDs
+  - `redmine issues get <id> --journals -o json` — journal entries contain user references
 
-Example: page through results:
+## Workflow: Resolving Ambiguous Values
 
-```bash
-redmine issues list --project myproject --limit 25 --offset 0
-redmine issues list --project myproject --limit 25 --offset 25
-```
+When a command needs a value from a fixed set (tracker, status, priority, category, version, assignee) and you're not sure of the exact name:
 
-## Issues
+1. **Query options first**: `redmine trackers list -o json`, `redmine statuses list -o json`, etc.
+2. **Present choices to the user** via AskUserQuestion with a formatted list
+3. **Use the confirmed value** in the command
 
-### List issues
+For users/groups, if the list endpoint fails with a permission error, use the workarounds from the section above instead.
 
-```bash
-# Open issues (default)
-redmine issues list --project myproject -o json
+## Non-Obvious Behaviors
 
-# All issues regardless of status
-redmine issues list --project myproject --status "*" --limit 0 -o json
-
-# Closed issues assigned to me
-redmine issues list --status closed --assignee me -o json
-
-# Issues for a specific version (by name or ID)
-redmine issues list --project myproject --version "v1.0" -o json
-redmine issues list --version 42 -o json
-
-# Sort by field
-redmine issues list --project myproject --sort updated_on:desc -o json
-```
-
-### Get a single issue
-
-```bash
-redmine issues get 123 -o json
-
-# With comments/journals (shorthand flag)
-redmine issues get 123 --journals -o json
-
-# With children or relations
-redmine issues get 123 --children --relations -o json
-
-# Using --include for multiple values
-redmine issues get 123 --include journals,children,relations -o json
-```
-
-### Create an issue
-
-All flags that reference other resources (project, tracker, priority, status, assignee, version) accept **names, identifiers where applicable, or numeric IDs**. The CLI resolves them automatically.
-
-```bash
-# Create using human-readable names
-redmine issues create --project myproject --tracker Bug --priority High --subject "Fix login page"
-
-# Assign to the current user
-redmine issues create --project myproject --subject "My task" --assignee me
-
-# Full example with all fields
-redmine issues create --project myproject --tracker Feature --priority Normal \
-  --subject "Add search" --description "Implement full-text search" \
-  --assignee "John Smith" --status "In Progress" --category "Development" \
-  --version "v2.0" --parent 100 --estimated-hours 8 --private
-
-# Numeric IDs still work
-redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"
-
-# Output as JSON
-redmine issues create --project myproject --subject "New bug" --tracker Bug -o json
-```
-
-Available flags: `--project`, `--tracker`, `--subject` (required), `--description`, `--priority`, `--assignee`, `--status`, `--category`, `--version`, `--parent`, `--estimated-hours`, `--private`, `-o`.
-
-If `--project` is omitted, the configured default project is used.
-
-### Update an issue
-
-Same name resolution as create. Only changed flags are sent to the server.
-
-```bash
-# Update status and priority by name
-redmine issues update 123 --status Closed --priority Low
-
-# Reassign with a note
-redmine issues update 123 --assignee me --note "Taking over"
-
-# Change category
-redmine issues update 123 --category "Development"
-
-# Set version and estimated hours
-redmine issues update 123 --version "v2.0" --estimated-hours 4.5
-
-# Mark as private
-redmine issues update 123 --private
-```
-
-Available flags: `--subject`, `--description`, `--tracker`, `--status`, `--priority`, `--assignee`, `--category`, `--version`, `--parent`, `--estimated-hours`, `--private`, `--done-ratio`, `--note`.
-
-### Open an issue in the browser
-
-```bash
-# Opens the issue in your default web browser
-redmine issues open 123
-```
-
-### Name resolution errors
-
-If a name doesn't match, the CLI provides helpful suggestions:
-
-- **Small lists** (≤10 options): all available options are shown
-- **Large lists** (>10 options): fuzzy "Did you mean?" suggestions based on typo similarity
-- **Ambiguous matches**: all exact matches are listed with their IDs
-- **Permission errors**: some endpoints (notably `/users.json` and `/groups.json`) require admin privileges. When this happens, the CLI tells you explicitly and suggests using a numeric ID or `me` instead. The error message will say which field caused the failure (e.g. `resolving assignee: cannot resolve assignee by name ...`).
-
-```bash
-# Will show all available trackers if "NonExistent" doesn't match
-redmine issues create --project myproject --tracker NonExistent --subject "Test"
-
-# Typos get "Did you mean?" suggestions (e.g. "Featrue" -> "Feature")
-redmine issues create --project myproject --tracker Featrue --subject "Test"
-
-# Will show matching users if the name is ambiguous
-redmine issues update 123 --assignee "John"
-```
-
-**If you get a permission error resolving a user/group by name**, fall back to a numeric ID or `me`:
-
-```bash
-# Instead of --assignee "John Smith", use the numeric ID
-redmine issues create --project myproject --subject "Task" --assignee 42
-
-# Or use "me" to assign to yourself
-redmine issues create --project myproject --subject "Task" --assignee me
-```
-
-## Versions
-
-### List versions
-
-```bash
-# All versions for a project
-redmine versions list --project myproject -o json
-
-# Filter by status
-redmine versions list --project myproject --open -o json
-redmine versions list --project myproject --closed -o json
-redmine versions list --project myproject --locked -o json
-
-# Or use --status flag
-redmine versions list --project myproject --status open -o json
-```
-
-### Get a single version
-
-```bash
-redmine versions get 42 -o json
-
-# By name (uses default project, or pass --project)
-redmine versions get "v1.0" -o json
-redmine versions get "v1.0" --project myproject -o json
-```
-
-## Time Entries
-
-### Log time
-
-```bash
-redmine time log --issue 123 --hours 2.5 --activity Development --comment "Worked on feature"
-```
-
-### List time entries
-
-```bash
-redmine time list --project myproject -o json
-redmine time list --issue 123 -o json
-```
-
-## Users
-
-```bash
-# List users
-redmine users list -o json
-
-# Get user by ID, login, name, or "me"
-redmine users get jsmith -o json
-redmine users get "John Smith" -o json
-redmine users get me -o json
-
-# Filter users by group (name or ID)
-redmine users list --group Developers -o json
-```
-
-## Groups
-
-```bash
-# List groups
-redmine groups list -o json
-
-# Get group by name or ID
-redmine groups get Developers -o json
-
-# Add/remove users by name
-redmine groups add-user Developers jsmith
-redmine groups remove-user Developers "John Smith"
-```
-
-## Memberships
-
-### List project memberships
-
-```bash
-redmine memberships list --project myproject -o json
-
-# With pagination
-redmine memberships list --project myproject --limit 25 --offset 0 -o json
-```
-
-### Get a single membership
-
-```bash
-redmine memberships get 42 -o json
-```
-
-### Create a membership (add user/group to project)
-
-```bash
-# Add a user with roles
-redmine memberships create --project myproject --user-id 5 --role-ids 1,2 -o json
-
-# Add a group with a role
-redmine memberships create --project myproject --group-id 10 --role-ids 3 -o json
-```
-
-### Update membership roles
-
-```bash
-redmine memberships update 42 --role-ids 1,3
-```
-
-### Delete a membership
-
-```bash
-redmine memberships delete 42
-redmine memberships delete 42 --force
-```
-
-## Other Commands
-
-```bash
-# Search across resources
-redmine search "query string" --project myproject -o json
-
-# List projects
-redmine projects list -o json
-
-# List trackers (for --tracker filter)
-redmine trackers list -o json
-
-# List issue categories (for --category filter)
-redmine categories list --project myproject -o json
-
-# List statuses (for --status filter)
-redmine statuses list -o json
-
-# Current config
-redmine config
-```
-
-## Resolving Ambiguous Values Interactively
-
-When you need to specify a project, tracker, version, assignee, priority, or status but are **not sure of the exact name or ID**, do NOT guess. Instead:
-
-1. **Query the available options first** using the appropriate list command:
-   ```bash
-   redmine projects list -o json        # available projects
-   redmine trackers list -o json        # available trackers
-   redmine statuses list -o json        # available statuses
-   redmine categories list -o json      # available categories
-   redmine versions list -o json        # available versions
-   redmine users list -o json           # available users (requires admin)
-   redmine groups list -o json          # available groups (requires admin)
-   ```
-   **Note:** `redmine users list` and `redmine groups list` require admin privileges. If you get a permission error, ask the user for a numeric user/group ID or use `me` for the current user.
-2. **Present the options to the user** in a clear, numbered list or selection prompt using your interactive tools (e.g. AskUserQuestion with a formatted list of choices). Let the user pick from the actual available options rather than asking them to type a free-form name.
-3. **Then use the confirmed value** in the create/update command.
-
-This pattern applies broadly — whenever a command requires a value from a fixed set (tracker, status, priority, category, version, assignee, project), prefer querying and presenting options over asking the user to remember or look up exact names. This makes the experience intuitive and avoids resolution errors.
-
-## Tips
-
-- Always use `-o json` for programmatic access to avoid parsing table formatting.
-- Use `--limit 0` to fetch all results when you need the complete dataset.
-- All resource flags (`--project`, `--tracker`, `--priority`, `--status`, `--assignee`, `--category`, `--version`, `--activity`, `--group`) accept human-readable names or numeric IDs.
-- Commands that take user/group/version IDs as arguments also accept names (e.g., `redmine users get jsmith`, `redmine groups get Developers`).
-- The `--assignee` flag and user arguments support the special value `me` to refer to the current API user.
-- Version status filters (`--open`, `--closed`, `--locked`) are applied client-side.
-- Set a default project with `redmine init` to avoid `--project` on every command.
-- Use `--project` or `-p` to override the default project per-command.
-- If a name doesn't resolve, the CLI shows all available options — use this to discover valid values.
-- Resolving users and groups by name requires admin privileges. For non-admin users, use numeric IDs or `me`. If resolution fails with a permission error, do **not** retry with the same name — switch to a numeric ID instead.
+- `redmine issues list` defaults to `--status open`. Use `--status closed`, `--status "*"`, or a specific status name.
+- `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`.
+- `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
+- If `--project` is omitted, the configured default project is used (set via `redmine init`).
+- Version status filters (`--open`, `--closed`, `--locked`) on `redmine versions list` are applied client-side.
