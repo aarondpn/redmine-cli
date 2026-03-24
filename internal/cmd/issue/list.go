@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,15 +16,18 @@ import (
 // NewCmdList creates the issues list command.
 func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project  string
-		tracker  string
-		status   string
-		assignee string
-		version  string
-		sort     string
-		limit    int
-		offset   int
-		format   string
+		project     string
+		tracker     string
+		status      string
+		assignee    string
+		version     string
+		sort        string
+		include     string
+		attachments bool
+		relations   bool
+		limit       int
+		offset      int
+		format      string
 	)
 
 	cmd := &cobra.Command{
@@ -87,6 +91,17 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
+			var includes []string
+			if include != "" {
+				includes = strings.Split(include, ",")
+			}
+			if attachments {
+				includes = append(includes, "attachments")
+			}
+			if relations {
+				includes = append(includes, "relations")
+			}
+
 			filter := models.IssueFilter{
 				ProjectID:      project,
 				TrackerID:      trackerID,
@@ -94,6 +109,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				AssignedToID:   assignee,
 				FixedVersionID: versionID,
 				Sort:           sort,
+				Includes:       includes,
 				Limit:          limit,
 				Offset:         offset,
 			}
@@ -166,6 +182,9 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
+	cmd.Flags().StringVar(&include, "include", "", "Include related data: attachments,relations")
+	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")
+	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 

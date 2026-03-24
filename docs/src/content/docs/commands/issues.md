@@ -19,6 +19,9 @@ redmine issues list [flags]
 | `--assignee` | Filter by assignee: `me`, name, or ID |
 | `--version` | Filter by target version (name or ID) |
 | `--sort` | Sort order, e.g. `updated_on:desc` |
+| `--include` | Include related data: `attachments`, `relations` |
+| `--attachments` | Shorthand for `--include attachments` |
+| `--relations` | Shorthand for `--include relations` |
 | `--limit` | Maximum number of results (0 for all) |
 | `--offset` | Result offset for pagination |
 | `-o, --output` | Output format: `table`, `wide`, `json`, `csv` |
@@ -42,7 +45,10 @@ redmine issues get <id> [flags]
 
 | Flag | Description |
 |------|------------|
-| `--journals` | Include issue history/comments |
+| `--include` | Include related data: `journals`, `children`, `relations` |
+| `--journals` | Shorthand for `--include journals` |
+| `--children` | Shorthand for `--include children` |
+| `--relations` | Shorthand for `--include relations` |
 | `-o, --output` | Output format |
 
 ## Create an Issue
