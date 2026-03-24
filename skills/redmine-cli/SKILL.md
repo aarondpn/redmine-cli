@@ -79,10 +79,13 @@ redmine issues list --project myproject --sort updated_on:desc -o json
 ```bash
 redmine issues get 123 -o json
 
-# With comments/journals
-redmine issues get 123 --include journals -o json
+# With comments/journals (shorthand flag)
+redmine issues get 123 --journals -o json
 
-# With all related data
+# With children or relations
+redmine issues get 123 --children --relations -o json
+
+# Using --include for multiple values
 redmine issues get 123 --include journals,children,relations -o json
 ```
 

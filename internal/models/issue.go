@@ -41,6 +41,7 @@ type IssueFilter struct {
 	AssignedToID   string // numeric ID or "me"
 	FixedVersionID int
 	Sort           string // e.g., "updated_on:desc"
+	Includes       []string
 	Limit          int
 	Offset         int
 }

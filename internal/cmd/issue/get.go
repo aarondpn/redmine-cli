@@ -15,8 +15,11 @@ import (
 // NewCmdGet creates the issues get command.
 func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	var (
-		include string
-		format  string
+		include   string
+		journals  bool
+		children  bool
+		relations bool
+		format    string
 	)
 
 	cmd := &cobra.Command{
@@ -39,6 +42,15 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 			var includes []string
 			if include != "" {
 				includes = strings.Split(include, ",")
+			}
+			if journals {
+				includes = append(includes, "journals")
+			}
+			if children {
+				includes = append(includes, "children")
+			}
+			if relations {
+				includes = append(includes, "relations")
 			}
 
 			printer := f.Printer(format)
@@ -103,6 +115,9 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&include, "include", "", "Include related data: journals,children,relations")
+	cmd.Flags().BoolVar(&journals, "journals", false, "Include issue history/comments (shorthand for --include journals)")
+	cmd.Flags().BoolVar(&children, "children", false, "Include child issues (shorthand for --include children)")
+	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd
