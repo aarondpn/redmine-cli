@@ -159,5 +159,9 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("activity", cmdutil.CompleteActivities(f))
+	_ = cmd.RegisterFlagCompletionFunc("user", cmdutil.CompleteUsers(f))
+
 	return cmd
 }

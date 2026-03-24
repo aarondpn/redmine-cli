@@ -176,5 +176,13 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("subject")
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
+	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
+	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteVersions(f))
+
 	return cmd
 }

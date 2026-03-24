@@ -96,6 +96,9 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&group, "group", "", "Filter by group name or ID")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
+
+	_ = cmd.RegisterFlagCompletionFunc("group", cmdutil.CompleteGroups(f))
+
 	return cmd
 }
 

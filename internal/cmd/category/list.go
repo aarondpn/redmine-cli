@@ -108,5 +108,8 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmdutil.AddOutputFlag(cmd, &format)
+
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
 	return cmd
 }

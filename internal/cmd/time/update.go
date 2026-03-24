@@ -71,5 +71,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 
+	_ = cmd.RegisterFlagCompletionFunc("activity", cmdutil.CompleteActivities(f))
+
 	return cmd
 }
