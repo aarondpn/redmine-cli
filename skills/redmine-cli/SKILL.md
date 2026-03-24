@@ -5,7 +5,26 @@ description: Use the `redmine` CLI to interact with Redmine. Activate when the u
 
 # Redmine CLI
 
-A CLI for the Redmine REST API. Run `redmine --help` and `redmine <command> --help` to discover available commands and flags — this skill only covers what `--help` cannot tell you.
+A CLI for the Redmine REST API. Use `redmine <command> --help` for detailed flags and examples — this skill only covers what `--help` cannot tell you.
+
+## Available Commands
+
+Only these top-level commands exist. Do NOT invent subcommands that aren't listed here — run `redmine <command> --help` to discover subcommands.
+
+| Command | Purpose |
+|---------|---------|
+| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues |
+| `projects` | List, get, create, update, delete projects; list project members |
+| `time` | Log, list, get, update, delete, summarize time entries |
+| `versions` | List, get project versions (milestones) |
+| `memberships` | List, get, create, update, delete project memberships |
+| `users` | List, get, create, update, delete users |
+| `groups` | List, get, create, update, delete groups; add/remove users |
+| `categories` | List issue categories |
+| `trackers` | List trackers |
+| `statuses` | List issue statuses |
+| `search` | Search issues, wiki, news, messages, or browse results |
+| `api` | Make raw authenticated API requests |
 
 ## Setup
 
