@@ -295,6 +295,9 @@ func CompleteVersions(f *Factory) func(cmd *cobra.Command, args []string, toComp
 
 		items := make([]string, 0, len(versions))
 		for _, v := range versions {
+			if v.Status == "closed" {
+				continue
+			}
 			items = append(items, fmt.Sprintf("%s\t%s", v.Name, v.Status))
 		}
 		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
