@@ -13,6 +13,7 @@ import (
 	initcmd "github.com/aarondpn/redmine-cli/internal/cmd/initialize"
 	"github.com/aarondpn/redmine-cli/internal/cmd/installskill"
 	"github.com/aarondpn/redmine-cli/internal/cmd/issue"
+	"github.com/aarondpn/redmine-cli/internal/cmd/membership"
 	"github.com/aarondpn/redmine-cli/internal/cmd/project"
 	"github.com/aarondpn/redmine-cli/internal/cmd/search"
 	"github.com/aarondpn/redmine-cli/internal/cmd/status"
@@ -76,6 +77,7 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(initcmd.NewCmdInit(f))
 	cmd.AddCommand(issue.NewCmdIssue(f))
 	cmd.AddCommand(group.NewCmdGroup(f))
+	cmd.AddCommand(membership.NewCmdMemberships(f))
 	cmd.AddCommand(project.NewCmdProject(f))
 	cmd.AddCommand(timecmd.NewCmdTime(f))
 	cmd.AddCommand(user.NewCmdUser(f))
