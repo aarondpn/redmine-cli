@@ -13,6 +13,7 @@ func AddPaginationFlags(cmd *cobra.Command, limit, offset *int) {
 // AddOutputFlag adds the --output/-o flag to a command.
 func AddOutputFlag(cmd *cobra.Command, format *string) {
 	cmd.Flags().StringVarP(format, "output", "o", "", "Output format: table, wide, json, csv")
+	_ = cmd.RegisterFlagCompletionFunc("output", CompleteOutputFormat)
 }
 
 // AddForceFlag adds the --force/-f flag to a command.

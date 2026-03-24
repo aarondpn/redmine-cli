@@ -157,5 +157,8 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&groupBy, "group-by", "day", "Group by: day, project, activity")
 	cmdutil.AddOutputFlag(cmd, &format)
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("user", cmdutil.CompleteUsers(f))
+
 	return cmd
 }

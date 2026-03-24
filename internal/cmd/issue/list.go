@@ -188,5 +188,11 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteVersions(f))
+
 	return cmd
 }

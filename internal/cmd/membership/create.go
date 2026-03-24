@@ -90,5 +90,8 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.MarkFlagRequired("role-ids")
 	cmd.MarkFlagsMutuallyExclusive("user-id", "group-id")
 	cmdutil.AddOutputFlag(cmd, &format)
+
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
 	return cmd
 }

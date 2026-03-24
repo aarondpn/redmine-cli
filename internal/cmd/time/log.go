@@ -90,5 +90,8 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("hours")
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("activity", cmdutil.CompleteActivities(f))
+
 	return cmd
 }

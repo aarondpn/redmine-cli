@@ -120,6 +120,8 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
 	// Subcommands for dedicated resource search
 	cmd.AddCommand(newCmdSearchIssues(f))
 	cmd.AddCommand(newCmdSearchWiki(f))

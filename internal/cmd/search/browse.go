@@ -105,5 +105,7 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&messages, "messages", false, "Include forum messages in results")
 	cmd.Flags().BoolVar(&projects, "projects", false, "Include projects in results")
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
 	return cmd
 }

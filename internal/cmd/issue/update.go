@@ -171,5 +171,12 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
 
+	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
+	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
+	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))
+
 	return cmd
 }

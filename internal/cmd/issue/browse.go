@@ -61,5 +61,10 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Filter by status")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee")
+
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+
 	return cmd
 }
