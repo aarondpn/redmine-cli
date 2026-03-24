@@ -98,6 +98,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.RegisterFlagCompletionFunc("group", cmdutil.CompleteGroups(f))
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteUserStatus)
 
 	return cmd
 }

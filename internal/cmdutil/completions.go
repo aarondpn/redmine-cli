@@ -55,6 +55,24 @@ func CompleteOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]st
 	}, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
+// CompleteVersionStatus provides static completions for version --status flag.
+func CompleteVersionStatus(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return filterCompletions([]string{
+		"open",
+		"locked",
+		"closed",
+	}, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// CompleteUserStatus provides static completions for user --status flag.
+func CompleteUserStatus(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return filterCompletions([]string{
+		"active",
+		"registered",
+		"locked",
+	}, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
 // CompleteProjects returns a completion function for the --project flag.
 func CompleteProjects(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -130,8 +148,14 @@ func CompleteIssueListStatus(f *Factory) func(cmd *cobra.Command, args []string,
 			"closed\tShow closed issues",
 			"*\tShow all issues",
 		}
+		// Fetch real status names from the API (already filtered by toComplete).
 		dynamic, _ := CompleteStatuses(f)(cmd, args, toComplete)
-		return filterCompletions(append(static, dynamic...), toComplete), cobra.ShellCompDirectiveNoFileComp
+		all := append(static, dynamic...)
+		// Only filter the static entries; dynamic ones are already filtered.
+		if toComplete == "" {
+			return all, cobra.ShellCompDirectiveNoFileComp
+		}
+		return filterCompletions(all, toComplete), cobra.ShellCompDirectiveNoFileComp
 	}
 }
 
@@ -231,7 +255,7 @@ func CompleteGroups(f *Factory) func(cmd *cobra.Command, args []string, toComple
 
 // resolveProjectForCompletion reads the --project flag from the command,
 // falls back to the default project from config, and returns the identifier.
-func resolveProjectForCompletion(f *Factory, cmd *cobra.Command, client *api.Client, ctx context.Context) string {
+func resolveProjectForCompletion(f *Factory, cmd *cobra.Command) string {
 	project, _ := cmd.Flags().GetString("project")
 	if project == "" {
 		if cfg, err := f.Config(); err == nil && cfg.DefaultProject != "" {
@@ -255,7 +279,7 @@ func CompleteCategories(f *Factory) func(cmd *cobra.Command, args []string, toCo
 		}
 		defer cancel()
 
-		project := resolveProjectForCompletion(f, cmd, client, ctx)
+		project := resolveProjectForCompletion(f, cmd)
 		if project == "" {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
@@ -295,7 +319,7 @@ func completeVersions(f *Factory, excludeClosed bool) func(cmd *cobra.Command, a
 		}
 		defer cancel()
 
-		project := resolveProjectForCompletion(f, cmd, client, ctx)
+		project := resolveProjectForCompletion(f, cmd)
 		if project == "" {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
