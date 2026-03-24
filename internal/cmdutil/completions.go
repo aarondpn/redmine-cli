@@ -273,9 +273,21 @@ func CompleteCategories(f *Factory) func(cmd *cobra.Command, args []string, toCo
 	}
 }
 
-// CompleteVersions returns a completion function for the --version flag.
+// CompleteVersions returns a completion function for the --version flag
+// that shows all versions including closed ones.
 // Requires --project to be set (or a default project in config).
 func CompleteVersions(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeVersions(f, false)
+}
+
+// CompleteOpenVersions returns a completion function for the --version flag
+// that only shows open and locked versions (excludes closed).
+// Useful for create/update commands where closed versions aren't valid targets.
+func CompleteOpenVersions(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeVersions(f, true)
+}
+
+func completeVersions(f *Factory, excludeClosed bool) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		client, ctx, cancel := completionClient(f)
 		if client == nil {
@@ -295,7 +307,7 @@ func CompleteVersions(f *Factory) func(cmd *cobra.Command, args []string, toComp
 
 		items := make([]string, 0, len(versions))
 		for _, v := range versions {
-			if v.Status == "closed" {
+			if excludeClosed && v.Status == "closed" {
 				continue
 			}
 			items = append(items, fmt.Sprintf("%s\t%s", v.Name, v.Status))
