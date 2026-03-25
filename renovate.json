@@ -2,12 +2,21 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":semanticCommitTypeAll(chore)"
+    ":semanticCommitTypeAll(chore)",
+    "helpers:pinGitHubActionDigests"
   ],
   "labels": ["dependencies"],
+  "osvVulnerabilityAlerts": true,
+  "minimumReleaseAge": "3 days",
   "schedule": ["before 9am on monday"],
   "timezone": "Europe/Berlin",
   "packageRules": [
+    {
+      "description": "Immediately open PRs for vulnerability fixes",
+      "matchCategories": ["security"],
+      "schedule": ["at any time"],
+      "minimumReleaseAge": "0 days"
+    },
     {
       "description": "Group Go dependency updates",
       "matchManagers": ["gomod"],
