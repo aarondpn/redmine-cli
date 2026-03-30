@@ -44,6 +44,17 @@ Then run `redmine init` for interactive configuration. Use `redmine config` to v
 - **`--assignee me`** refers to the current API user.
 - **`--status "*"`** shows all issues regardless of status (default is `open`).
 
+## When Something Doesn't Work: Stop and Use `--help`
+
+**Do NOT guess, loop, or retry with invented flags/subcommands.** If a command fails or you're unsure about the correct syntax:
+
+1. **Run `redmine <command> --help`** (or `redmine <command> <subcommand> --help`) to see the actual available options, flags, and subcommands.
+2. **Read the help output carefully** — it is authoritative and always up to date. Trust it over your own assumptions.
+3. **Never invent flags or subcommands** that aren't shown in `--help`. If you think an option should exist but it doesn't appear in the help, it doesn't exist.
+4. **Do not loop** — if the same command fails twice, stop and re-read the help output. Do not keep retrying with slight variations hoping one will work.
+5. **Parse output with `-o json` and standard JSON tools (jq)** — never use Python scripts, awk hacks, or regex to parse CLI output. The CLI's JSON output is well-structured; use it.
+6. **Ask the user** if the help output doesn't clarify things — that's better than spiraling through failed attempts.
+
 ## Permission Gotcha: Users & Groups
 
 Resolving users and groups **by name requires admin privileges**. If you get a permission error:
@@ -63,6 +74,17 @@ When a command needs a value from a fixed set (tracker, status, priority, catego
 3. **Use the confirmed value** in the command
 
 For users/groups, if the list endpoint fails with a permission error, use the workarounds from the section above instead.
+
+## After Creating Resources
+
+When you create an issue, project, user, or other resource, the CLI returns the new ID. Offer the user a clickable URL so they can open it in the browser:
+
+- **Issues**: `redmine issues open <id>` opens the issue directly. You can also provide the URL: `<server>/issues/<id>`
+- **Projects**: `<server>/projects/<identifier>`
+- **Users**: `<server>/users/<id>`
+- **Time entries**: `<server>/time_entries/<id>/edit`
+
+Get the server URL from `redmine config` (or from the JSON output's hints). Always mention the URL or the `open` command after a successful create so the user can quickly navigate to the new resource.
 
 ## Non-Obvious Behaviors
 
