@@ -29,10 +29,14 @@ func main() {
 	rootCmd := cmd.NewRootCmd(version)
 	err := rootCmd.Execute()
 
-	// Print update notice after command output.
+	// Print update notice if the check already finished; never block exit.
 	if updateDone != nil {
-		if result := <-updateDone; result != nil {
-			update.PrintNotice(os.Stderr, version, result)
+		select {
+		case result := <-updateDone:
+			if result != nil {
+				update.PrintNotice(os.Stderr, version, result)
+			}
+		default:
 		}
 	}
 

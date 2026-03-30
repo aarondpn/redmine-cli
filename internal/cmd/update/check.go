@@ -33,10 +33,28 @@ func ShouldCheck(version string, args []string) bool {
 	if !isTerminal() {
 		return false
 	}
-	if len(args) > 0 && args[0] == "update" {
+	if hasSubcommand(args, "update") {
 		return false
 	}
 	return true
+}
+
+// hasSubcommand returns true if name appears as a non-flag argument in args.
+// This handles invocations like "redmine --verbose update" where flags
+// precede the subcommand.
+func hasSubcommand(args []string, name string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		if a == name {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckForUpdate checks GitHub for a newer release. It returns nil on any

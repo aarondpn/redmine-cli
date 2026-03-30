@@ -29,6 +29,9 @@ func TestShouldCheck(t *testing.T) {
 		{name: "env true", version: "1.0.0", args: nil, env: "true", tty: true, want: false},
 		{name: "env TRUE", version: "1.0.0", args: nil, env: "TRUE", tty: true, want: false},
 		{name: "update command", version: "1.0.0", args: []string{"update"}, tty: true, want: false},
+		{name: "update after flags", version: "1.0.0", args: []string{"--verbose", "update"}, tty: true, want: false},
+		{name: "update after flag with value", version: "1.0.0", args: []string{"--config", "cfg.yaml", "update"}, tty: true, want: false},
+		{name: "update after short flag", version: "1.0.0", args: []string{"-v", "update"}, tty: true, want: false},
 		{name: "no tty", version: "1.0.0", args: nil, tty: false, want: false},
 		{name: "no args", version: "1.0.0", args: nil, tty: true, want: true},
 	}
