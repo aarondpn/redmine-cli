@@ -87,3 +87,25 @@ redmine update
 ```
 
 Checks GitHub for the latest release, downloads it with SHA256 checksum verification, and replaces the current binary. If installed via Homebrew, delegates to `brew upgrade`.
+
+### Startup Update Check
+
+Every time `redmine` runs, it checks GitHub for a newer release in the background. If a newer version is available, a notice is printed to stderr after the command output:
+
+```
+A new version of redmine is available: v1.2.0 → v1.3.0
+https://github.com/aarondpn/redmine-cli/releases/tag/v1.3.0
+Run "redmine update" to upgrade
+```
+
+The check runs in a goroutine with a 3-second timeout, so it never delays the CLI. It is automatically skipped when:
+
+- The command is `redmine update` (which already checks for updates)
+- stderr is not a TTY (e.g. piped output or CI)
+- The environment variable `REDMINE_NO_UPDATE_CHECK` is set to `1` or `true`
+
+To disable the check permanently:
+
+```bash
+export REDMINE_NO_UPDATE_CHECK=1
+```

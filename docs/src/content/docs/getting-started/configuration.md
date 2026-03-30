@@ -38,6 +38,14 @@ export REDMINE_API_KEY=your-api-key
 export REDMINE_AUTH_METHOD=apikey
 ```
 
+Additionally, the following variable controls the startup update check:
+
+```bash
+export REDMINE_NO_UPDATE_CHECK=1  # disable automatic update check
+```
+
+See [Self-Update](/commands/other/#startup-update-check) for details.
+
 ## Global Flags
 
 These flags can be used with any command to override config values:
