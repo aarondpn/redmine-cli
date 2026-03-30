@@ -60,7 +60,10 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 					}
 				}
 				printer.Table(headers, rows)
-				fmt.Fprintf(f.IOStreams.ErrOut, "\nShowing %d of %d groups\n", len(groups), total)
+			}
+
+			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
+				printer.Warning(fmt.Sprintf("Showing %d of %d groups. Use --offset to paginate.", len(groups), total))
 			}
 			return nil
 		},
