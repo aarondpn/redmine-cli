@@ -29,16 +29,10 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
-			format = printer.Format()
 
 			projects, total, err := client.Projects.List(context.Background(), nil, limit, offset)
 			if err != nil {
 				return err
-			}
-
-			if format == output.FormatJSON {
-				printer.JSON(projects)
-				return nil
 			}
 
 			headers := []string{"ID", "Identifier", "Name", "Status", "Public"}
@@ -53,11 +47,17 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				})
 			}
 
-			if format == output.FormatCSV {
+			switch printer.Format() {
+			case output.FormatJSON:
+				printer.JSON(projects)
+			case output.FormatCSV:
 				printer.CSV(headers, rows)
-			} else {
+			default:
 				printer.Table(headers, rows)
-				fmt.Fprintf(cmd.ErrOrStderr(), "Showing %d of %d projects\n", len(projects), total)
+			}
+
+			if limit > 0 && total > limit+offset && output.SupportsWarnings(printer.Format()) {
+				printer.Warning(fmt.Sprintf("Showing %d of %d projects. Use --offset to paginate.", len(projects), total))
 			}
 
 			return nil

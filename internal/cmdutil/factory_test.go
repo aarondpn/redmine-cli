@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // writeConfigFile creates a temporary YAML config file and returns its path.
@@ -267,6 +268,42 @@ func TestFactory_Config_ConfigCached(t *testing.T) {
 
 	if cfg1 != cfg2 {
 		t.Error("expected Config() to return the same cached pointer on second call")
+	}
+}
+
+func TestFactory_Printer_NoCacheTrap(t *testing.T) {
+	cfgPath := writeConfigFile(t, "server: https://example.com\napi_key: test-key\n")
+
+	f := &Factory{
+		ConfigPath: cfgPath,
+		IOStreams:  &IOStreams{Out: os.Stdout, ErrOut: os.Stderr},
+	}
+
+	p1 := f.Printer(output.FormatJSON)
+	p2 := f.Printer(output.FormatCSV)
+
+	if p1.Format() != output.FormatJSON {
+		t.Errorf("first printer: expected format %q, got %q", output.FormatJSON, p1.Format())
+	}
+	if p2.Format() != output.FormatCSV {
+		t.Errorf("second printer: expected format %q, got %q", output.FormatCSV, p2.Format())
+	}
+}
+
+func TestFactory_Printer_ReturnsRequestedFormat(t *testing.T) {
+	cfgPath := writeConfigFile(t, "server: https://example.com\napi_key: test-key\n")
+
+	formats := []string{output.FormatJSON, output.FormatCSV, output.FormatTable}
+	for _, format := range formats {
+		f := &Factory{
+			ConfigPath: cfgPath,
+			IOStreams:  &IOStreams{Out: os.Stdout, ErrOut: os.Stderr},
+		}
+
+		p := f.Printer(format)
+		if p.Format() != format {
+			t.Errorf("Printer(%q).Format() = %q, want %q", format, p.Format(), format)
+		}
 	}
 }
 

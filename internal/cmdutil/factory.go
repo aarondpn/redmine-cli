@@ -31,7 +31,6 @@ type Factory struct {
 
 	config    *config.Config
 	client    *api.Client
-	printer   output.Printer
 	debugLog  *debug.Logger
 	IOStreams *IOStreams
 }
@@ -107,11 +106,8 @@ func (f *Factory) ApiClient() (*api.Client, error) {
 	return client, nil
 }
 
-// Printer returns the output printer.
+// Printer creates and returns a new output printer for the given format.
 func (f *Factory) Printer(format string) output.Printer {
-	if f.printer != nil {
-		return f.printer
-	}
 	noColor := os.Getenv("NO_COLOR") != ""
 	if cfg, err := f.Config(); err == nil {
 		noColor = noColor || cfg.NoColor
@@ -122,6 +118,5 @@ func (f *Factory) Printer(format string) output.Printer {
 	if noColor {
 		os.Setenv("NO_COLOR", "1")
 	}
-	f.printer = output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
-	return f.printer
+	return output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
 }
