@@ -123,6 +123,16 @@ func TestGroupCreate_Success(t *testing.T) {
 	if capturedMethod != "POST" {
 		t.Errorf("expected POST, got %s", capturedMethod)
 	}
+
+	// Verify the request payload contains the --name flag value.
+	group, _ := capturedBody["group"].(map[string]interface{})
+	if group == nil {
+		t.Fatal("request body missing group wrapper")
+	}
+	if group["name"] != "QA" {
+		t.Errorf("payload name = %v, want 'QA'", group["name"])
+	}
+
 	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "QA") {
 		t.Errorf("stderr = %q, want success message mentioning group name", stderr)
 	}

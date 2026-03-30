@@ -238,6 +238,25 @@ func TestTimeLog_Success(t *testing.T) {
 	if capturedMethod != "POST" {
 		t.Errorf("expected POST, got %s", capturedMethod)
 	}
+
+	// Verify the request payload contains the CLI flag values.
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if te["hours"] != 2.5 {
+		t.Errorf("payload hours = %v, want 2.5", te["hours"])
+	}
+	if te["issue_id"] != float64(10) {
+		t.Errorf("payload issue_id = %v, want 10", te["issue_id"])
+	}
+	if te["spent_on"] != "2025-06-15" {
+		t.Errorf("payload spent_on = %v, want 2025-06-15", te["spent_on"])
+	}
+	if te["comments"] != "Fixed bug" {
+		t.Errorf("payload comments = %v, want 'Fixed bug'", te["comments"])
+	}
+
 	stderr := testutil.Stderr(f)
 	if !strings.Contains(stderr, "Time entry #99 created") {
 		t.Errorf("stderr = %q, want success message", stderr)
@@ -262,17 +281,20 @@ func TestTimeLog_MissingHours(t *testing.T) {
 
 func TestTimeUpdate_Success(t *testing.T) {
 	var capturedMethod, capturedPath string
+	var capturedBody map[string]interface{}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedMethod = r.Method
 		capturedPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &capturedBody)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdTimeUpdate(f)
-	cmd.SetArgs([]string{"42", "--hours", "3.0"})
+	cmd.SetArgs([]string{"42", "--hours", "3.0", "--comment", "Updated estimate"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -283,6 +305,19 @@ func TestTimeUpdate_Success(t *testing.T) {
 	if capturedPath != "/time_entries/42.json" {
 		t.Errorf("expected /time_entries/42.json, got %s", capturedPath)
 	}
+
+	// Verify the request payload contains the CLI flag values.
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if te["hours"] != 3.0 {
+		t.Errorf("payload hours = %v, want 3.0", te["hours"])
+	}
+	if te["comments"] != "Updated estimate" {
+		t.Errorf("payload comments = %v, want 'Updated estimate'", te["comments"])
+	}
+
 	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Time entry #42 updated") {
 		t.Errorf("stderr = %q, want success message", stderr)
 	}
