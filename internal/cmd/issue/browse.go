@@ -26,6 +26,11 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			cfg, err := f.Config()
+			if err != nil {
+				return err
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -44,7 +49,7 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			return tui.RunBrowser(issues)
+			return tui.RunBrowser(issues, cfg.Server)
 		},
 	}
 
