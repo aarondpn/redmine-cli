@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/aarondpn/redmine-cli/internal/resolver"
@@ -43,4 +44,26 @@ func ResolveProjectIdentifier(ctx context.Context, f *Factory, input string) (st
 	}
 
 	return identifier, nil
+}
+
+// DefaultProjectID applies the default-project fallback and resolves to a
+// numeric ID string. Returns ("", nil) when no project is specified.
+func DefaultProjectID(ctx context.Context, f *Factory, project string) (string, error) {
+	return ResolveProjectID(ctx, f, DefaultProject(f, project))
+}
+
+// DefaultProjectIdentifier applies the default-project fallback and resolves
+// to the canonical identifier. Returns ("", nil) when no project is specified.
+func DefaultProjectIdentifier(ctx context.Context, f *Factory, project string) (string, error) {
+	return ResolveProjectIdentifier(ctx, f, DefaultProject(f, project))
+}
+
+// RequireProjectIdentifier applies the default-project fallback, ensures a
+// project was provided, and resolves to the canonical identifier.
+func RequireProjectIdentifier(ctx context.Context, f *Factory, project string) (string, error) {
+	project = DefaultProject(f, project)
+	if project == "" {
+		return "", fmt.Errorf("project is required (use --project or set a default project)")
+	}
+	return ResolveProjectIdentifier(ctx, f, project)
 }

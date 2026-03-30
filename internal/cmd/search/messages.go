@@ -34,13 +34,9 @@ func newCmdSearchMessages(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project = cmdutil.DefaultProject(f, project)
-
-			if project != "" {
-				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			params := api.SearchParams{

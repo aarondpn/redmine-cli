@@ -36,15 +36,11 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project = cmdutil.DefaultProject(f, project)
-
 			ctx := context.Background()
 
-			if project != "" {
-				project, err = cmdutil.ResolveProjectID(ctx, f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			if err != nil {
+				return err
 			}
 
 			// Resolve user: if non-numeric and not "me", resolve by name

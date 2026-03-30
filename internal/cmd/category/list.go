@@ -43,12 +43,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project = cmdutil.DefaultProject(f, project)
-			if project == "" {
-				return fmt.Errorf("--project is required (or set a default project in config)")
-			}
-
-			project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
 			if err != nil {
 				return err
 			}

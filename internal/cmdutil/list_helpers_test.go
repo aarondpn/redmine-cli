@@ -68,6 +68,20 @@ func TestDefaultProject_ConfigError(t *testing.T) {
 	}
 }
 
+// --- RequireProjectIdentifier tests ---
+
+func TestRequireProjectIdentifier_EmptyNoDefault(t *testing.T) {
+	f := testFactoryWithConfig(t, "server: https://example.com\napi_key: test\n")
+
+	_, err := RequireProjectIdentifier(t.Context(), f, "")
+	if err == nil {
+		t.Fatal("expected error for empty project with no default")
+	}
+	if got := err.Error(); got != "project is required (use --project or set a default project)" {
+		t.Errorf("error = %q, want project-required message", got)
+	}
+}
+
 // --- HandleEmpty tests ---
 
 func TestHandleEmpty_NonEmpty(t *testing.T) {

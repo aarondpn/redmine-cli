@@ -51,8 +51,7 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if len(results) == 0 {
-				printer.Warning("No projects found")
+			if cmdutil.HandleEmpty(printer, results, "projects") {
 				return nil
 			}
 

@@ -35,13 +35,9 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project = cmdutil.DefaultProject(f, project)
-
-			if project != "" {
-				project, err = cmdutil.ResolveProjectID(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectID(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			if from == "" {
