@@ -26,6 +26,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
+			format = printer.Format()
 
 			project, err := client.Projects.Get(context.Background(), args[0], nil)
 			if err != nil {

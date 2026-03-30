@@ -102,7 +102,6 @@ func runInit(f *cmdutil.Factory) error {
 		APIKey:     apiKey,
 		Username:   username,
 		Password:   password,
-		PageSize:   25,
 	}
 
 	printer := f.Printer("")

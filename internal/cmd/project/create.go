@@ -32,6 +32,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
+			format = printer.Format()
 
 			create := models.ProjectCreate{
 				Name:       name,

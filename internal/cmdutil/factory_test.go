@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,6 +21,26 @@ func writeConfigFile(t *testing.T, content string) string {
 	return path
 }
 
+func TestPrinterUsesConfiguredOutputFormatByDefault(t *testing.T) {
+	f := testFactoryWithConfig(t, "output_format: json\n")
+
+	printer := f.Printer("")
+
+	if got := printer.Format(); got != "json" {
+		t.Fatalf("Format() = %q, want %q", got, "json")
+	}
+}
+
+func TestPrinterExplicitFormatOverridesConfig(t *testing.T) {
+	f := testFactoryWithConfig(t, "output_format: json\n")
+
+	printer := f.Printer("csv")
+
+	if got := printer.Format(); got != "csv" {
+		t.Fatalf("Format() = %q, want %q", got, "csv")
+	}
+}
+
 func TestFactory_Config_CLIFlagOverridesServer(t *testing.T) {
 	cfgPath := writeConfigFile(t, "server: https://file.example.com\napi_key: file-key\n")
 
@@ -37,7 +58,6 @@ func TestFactory_Config_CLIFlagOverridesServer(t *testing.T) {
 	if cfg.Server != "https://flag.example.com" {
 		t.Errorf("expected server from CLI flag, got %q", cfg.Server)
 	}
-	// API key should come from file when no override is set.
 	if cfg.APIKey != "file-key" {
 		t.Errorf("expected api_key from file, got %q", cfg.APIKey)
 	}
@@ -60,7 +80,6 @@ func TestFactory_Config_CLIFlagOverridesAPIKey(t *testing.T) {
 	if cfg.APIKey != "flag-key" {
 		t.Errorf("expected api_key from CLI flag, got %q", cfg.APIKey)
 	}
-	// Server should come from file when no override is set.
 	if cfg.Server != "https://file.example.com" {
 		t.Errorf("expected server from file, got %q", cfg.Server)
 	}
@@ -160,9 +179,6 @@ func TestFactory_Config_CLIFlagOverridesEnv(t *testing.T) {
 }
 
 func TestFactory_Config_NoGlobalViperMutation(t *testing.T) {
-	// Verify that the factory does not depend on hidden global viper state.
-	// Two independent factories with different overrides must resolve
-	// independently without interfering with each other.
 	cfgPath := writeConfigFile(t, "server: https://file.example.com\napi_key: file-key\n")
 
 	f1 := &Factory{
@@ -197,16 +213,11 @@ func TestFactory_Config_NoGlobalViperMutation(t *testing.T) {
 }
 
 func TestFactory_Config_PrecedenceOrder(t *testing.T) {
-	// Full precedence test: CLI flags > env vars > config file > defaults.
-	// The config file sets all three sources for server and api_key.
-	// The env sets a different value. The CLI flag sets yet another.
-	// Expected: CLI flag wins.
 	cfgPath := writeConfigFile(t, `
 server: https://file.example.com
 api_key: file-key
 auth_method: basic
 output_format: csv
-page_size: 50
 `)
 	t.Setenv("REDMINE_SERVER", "https://env.example.com")
 	t.Setenv("REDMINE_API_KEY", "env-key")
@@ -223,22 +234,17 @@ page_size: 50
 		t.Fatal(err)
 	}
 
-	// CLI flag overrides should win.
 	if cfg.Server != "https://flag.example.com" {
 		t.Errorf("server: expected CLI flag value, got %q", cfg.Server)
 	}
 	if cfg.APIKey != "flag-key" {
 		t.Errorf("api_key: expected CLI flag value, got %q", cfg.APIKey)
 	}
-	// Non-overridden fields should retain file values.
 	if cfg.AuthMethod != "basic" {
 		t.Errorf("auth_method: expected file value 'basic', got %q", cfg.AuthMethod)
 	}
 	if cfg.OutputFormat != "csv" {
 		t.Errorf("output_format: expected file value 'csv', got %q", cfg.OutputFormat)
-	}
-	if cfg.PageSize != 50 {
-		t.Errorf("page_size: expected file value 50, got %d", cfg.PageSize)
 	}
 }
 
@@ -301,6 +307,23 @@ func TestFactory_Printer_ReturnsRequestedFormat(t *testing.T) {
 	}
 }
 
-// Ensure unused import doesn't cause issues. This is a compile-time check that
-// config package is accessible for test helpers.
+func testFactoryWithConfig(t *testing.T, body string) *Factory {
+	t.Helper()
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return &Factory{
+		ConfigPath: cfgPath,
+		IOStreams: &IOStreams{
+			In:     &bytes.Buffer{},
+			Out:    &bytes.Buffer{},
+			ErrOut: &bytes.Buffer{},
+			IsTTY:  false,
+		},
+	}
+}
+
 var _ = config.Config{}

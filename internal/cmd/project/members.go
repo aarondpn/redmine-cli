@@ -31,6 +31,7 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
+			format = printer.Format()
 
 			members, total, err := client.Projects.Members(context.Background(), args[0], limit, offset)
 			if err != nil {
