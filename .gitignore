@@ -5,3 +5,4 @@ completions/*.fish
 docs/node_modules/
 docs/dist/
 docs/.astro/
+.claude/
