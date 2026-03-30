@@ -80,6 +80,12 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer(format)
+			headers := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}
+
+			if len(entries) == 0 && printer.Format() == output.FormatCSV {
+				printer.CSV(headers, nil)
+				return nil
+			}
 
 			if cmdutil.HandleEmpty(printer, entries, "time entries") {
 				return nil
@@ -90,7 +96,6 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				printer.JSON(entries)
 				return nil
 			case output.FormatCSV:
-				headers := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}
 				rows := make([][]string, len(entries))
 				for i, e := range entries {
 					issueRef := ""
@@ -112,7 +117,6 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			headers := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}
 			rows := make([][]string, len(entries))
 			for i, e := range entries {
 				issueRef := ""

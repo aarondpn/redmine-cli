@@ -35,23 +35,33 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			headers := []string{"ID", "Identifier", "Name", "Status", "Public"}
-			rows := make([][]string, 0, len(projects))
-			for _, p := range projects {
-				rows = append(rows, []string{
-					output.StyleID.Render(strconv.Itoa(p.ID)),
-					p.Identifier,
-					p.Name,
-					projectStatusLabel(p.Status),
-					formatBool(p.IsPublic),
-				})
-			}
 
 			switch printer.Format() {
 			case output.FormatJSON:
 				printer.JSON(projects)
 			case output.FormatCSV:
+				rows := make([][]string, 0, len(projects))
+				for _, p := range projects {
+					rows = append(rows, []string{
+						strconv.Itoa(p.ID),
+						p.Identifier,
+						p.Name,
+						projectStatusLabel(p.Status),
+						formatBool(p.IsPublic),
+					})
+				}
 				printer.CSV(headers, rows)
 			default:
+				rows := make([][]string, 0, len(projects))
+				for _, p := range projects {
+					rows = append(rows, []string{
+						output.StyleID.Render(strconv.Itoa(p.ID)),
+						p.Identifier,
+						p.Name,
+						projectStatusLabel(p.Status),
+						formatBool(p.IsPublic),
+					})
+				}
 				printer.Table(headers, rows)
 			}
 

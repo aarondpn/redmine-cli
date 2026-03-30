@@ -68,3 +68,33 @@ func TestCmdMembers_JSONPaginatedDoesNotWarn(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", got)
 	}
 }
+
+func TestCmdMembers_CSVConfigDoesNotEmitANSI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/demo/memberships.json" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"memberships":[{"id":1,"project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"roles":[{"id":3,"name":"Manager"}]}],"total_count":1}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactoryWithConfig(t, srv.URL, "output_format: csv\n")
+	f.IOStreams.IsTTY = true
+	cmd := newCmdMembers(f)
+	cmd.SetArgs([]string{"demo"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout := testutil.Stdout(f)
+	if strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("csv output contains ANSI escapes:\n%q", stdout)
+	}
+	for _, want := range []string{"ID,User/Group,Roles", "1,Alice,Manager"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("csv output missing %q:\n%s", want, stdout)
+		}
+	}
+}

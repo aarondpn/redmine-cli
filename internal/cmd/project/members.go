@@ -46,18 +46,25 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			headers := []string{"ID", "User/Group", "Roles"}
-			rows := make([][]string, 0, len(members))
-			for _, m := range members {
-				rows = append(rows, []string{
-					output.StyleID.Render(strconv.Itoa(m.ID)),
-					memberName(m),
-					formatRoles(m.Roles),
-				})
-			}
-
 			if printer.Format() == output.FormatCSV {
+				rows := make([][]string, 0, len(members))
+				for _, m := range members {
+					rows = append(rows, []string{
+						strconv.Itoa(m.ID),
+						memberName(m),
+						formatRoles(m.Roles),
+					})
+				}
 				printer.CSV(headers, rows)
 			} else {
+				rows := make([][]string, 0, len(members))
+				for _, m := range members {
+					rows = append(rows, []string{
+						output.StyleID.Render(strconv.Itoa(m.ID)),
+						memberName(m),
+						formatRoles(m.Roles),
+					})
+				}
 				printer.Table(headers, rows)
 			}
 

@@ -148,6 +148,31 @@ func TestTimeList_CSV(t *testing.T) {
 	}
 }
 
+func TestTimeList_EmptyCSVPrintsHeaders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(emptyTimeListHandler))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeList(f)
+	cmd.SetArgs([]string{"--output", "csv"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := testutil.Stderr(f); got != "" {
+		t.Fatalf("stderr = %q, want empty", got)
+	}
+
+	stdout := testutil.Stdout(f)
+	if strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("csv output contains ANSI escapes:\n%q", stdout)
+	}
+	if got := stdout; got != "ID,Date,Project,Issue,Hours,Activity,User,Comments\n" {
+		t.Fatalf("stdout = %q, want csv headers only", got)
+	}
+}
+
 // --- get ---
 
 func TestTimeGet_Detail(t *testing.T) {
