@@ -23,11 +23,17 @@ type IOStreams struct {
 type Factory struct {
 	ConfigPath string
 	Verbose    bool
-	config     *config.Config
-	client     *api.Client
-	printer    output.Printer
-	debugLog   *debug.Logger
-	IOStreams  *IOStreams
+
+	// Runtime overrides from CLI flags (highest precedence).
+	ServerOverride  string
+	APIKeyOverride  string
+	NoColorOverride bool
+
+	config    *config.Config
+	client    *api.Client
+	printer   output.Printer
+	debugLog  *debug.Logger
+	IOStreams *IOStreams
 }
 
 // NewFactory creates a new Factory with default I/O streams.
@@ -57,6 +63,9 @@ func (f *Factory) DebugLogger() *debug.Logger {
 }
 
 // Config returns the loaded configuration (cached after first call).
+// CLI flag overrides (ServerOverride, APIKeyOverride, NoColorOverride) are
+// applied after loading from file and environment, giving them the highest
+// precedence.
 func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
@@ -65,6 +74,18 @@ func (f *Factory) Config() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Apply CLI flag overrides (highest precedence).
+	if f.ServerOverride != "" {
+		cfg.Server = f.ServerOverride
+	}
+	if f.APIKeyOverride != "" {
+		cfg.APIKey = f.APIKeyOverride
+	}
+	if f.NoColorOverride {
+		cfg.NoColor = true
+	}
+
 	f.config = cfg
 	return cfg, nil
 }
