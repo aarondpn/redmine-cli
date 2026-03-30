@@ -33,18 +33,9 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, cfgErr := f.Config()
-				if cfgErr == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-
-			if project != "" {
-				project, err = cmdutil.ResolveProjectID(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectID(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			if date == "" {

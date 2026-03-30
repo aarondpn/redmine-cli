@@ -2,7 +2,6 @@ package project
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -56,9 +55,9 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if limit > 0 && total > limit+offset && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d projects. Use --offset to paginate.", len(projects), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(projects), Total: total, Limit: limit, Offset: offset, Noun: "projects",
+			})
 
 			return nil
 		},

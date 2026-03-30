@@ -38,19 +38,9 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-
-			if project != "" {
-				resolvedProject, err := cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
-				project = resolvedProject
+			project, err := cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			client, err := f.ApiClient()

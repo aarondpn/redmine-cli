@@ -36,20 +36,11 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, cfgErr := f.Config()
-				if cfgErr == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-
 			ctx := context.Background()
 
-			if project != "" {
-				project, err = cmdutil.ResolveProjectID(ctx, f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			if err != nil {
+				return err
 			}
 
 			// Resolve user: if non-numeric and not "me", resolve by name
@@ -90,8 +81,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 
-			if len(entries) == 0 && printer.Format() == output.FormatJSON {
-				printer.JSON(entries)
+			if cmdutil.HandleEmpty(printer, entries, "time entries") {
 				return nil
 			}
 
@@ -142,9 +132,9 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer.Table(headers, rows)
-			if total > len(entries) && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d entries", len(entries), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(entries), Total: total, Limit: limit, Offset: offset, Noun: "entries",
+			})
 
 			return nil
 		},

@@ -56,12 +56,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			ctx := context.Background()
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 			if project == "" {
 				return fmt.Errorf("--project is required (or set a default project in config)")
 			}

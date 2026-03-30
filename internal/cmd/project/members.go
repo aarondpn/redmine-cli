@@ -2,7 +2,6 @@ package project
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -37,14 +36,7 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if len(members) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(members)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No members found")
-				}
+			if cmdutil.HandleEmpty(printer, members, "members") {
 				return nil
 			}
 
@@ -69,9 +61,9 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if limit > 0 && total > limit+offset && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d members. Use --limit and --offset to paginate.", len(members), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(members), Total: total, Limit: limit, Offset: offset, Noun: "members",
+			})
 
 			return nil
 		},

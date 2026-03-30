@@ -37,18 +37,9 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-
-			if project != "" {
-				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			params := api.SearchParams{
@@ -72,14 +63,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if len(results) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(results)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No issues found")
-				}
+			if cmdutil.HandleEmpty(printer, results, "issues") {
 				return nil
 			}
 
@@ -110,9 +94,9 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d results. Use --offset to paginate.", len(results), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(results), Total: total, Limit: limit, Offset: offset, Noun: "results",
+			})
 
 			return nil
 		},

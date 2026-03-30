@@ -42,17 +42,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-			if project == "" {
-				return fmt.Errorf("project is required. Use --project or set a default project")
-			}
-
-			project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
 			if err != nil {
 				return err
 			}

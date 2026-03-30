@@ -43,17 +43,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-			if project == "" {
-				return fmt.Errorf("--project is required (or set a default project in config)")
-			}
-
-			project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
 			if err != nil {
 				return err
 			}
@@ -67,8 +57,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if len(categories) == 0 {
-				printer.Success("No categories found.")
+			if cmdutil.HandleEmpty(printer, categories, "categories") {
 				return nil
 			}
 

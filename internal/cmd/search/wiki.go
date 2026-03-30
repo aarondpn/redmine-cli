@@ -9,7 +9,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
@@ -35,18 +34,9 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
-
-			if project != "" {
-				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
-				if err != nil {
-					return err
-				}
+			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
 			}
 
 			params := api.SearchParams{
@@ -68,14 +58,7 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if len(results) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(results)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No wiki pages found")
-				}
+			if cmdutil.HandleEmpty(printer, results, "wiki pages") {
 				return nil
 			}
 
