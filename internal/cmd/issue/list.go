@@ -60,12 +60,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 
 			if project != "" {
 				project, err = cmdutil.ResolveProjectID(context.Background(), f, project)
@@ -122,14 +117,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to list issues: %w", err)
 			}
 
-			if len(issues) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(issues)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No issues found")
-				}
+			if cmdutil.HandleEmpty(printer, issues, "issues") {
 				return nil
 			}
 
@@ -168,9 +156,9 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d issues. Use --offset to paginate.", len(issues), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(issues), Total: total, Limit: limit, Offset: offset, Noun: "issues",
+			})
 
 			return nil
 		},

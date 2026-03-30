@@ -72,12 +72,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				statusFilter = "locked"
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 			if project == "" {
 				return fmt.Errorf("project is required. Use --project or set a default project")
 			}
@@ -126,14 +121,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				hasMore = limit > 0 && total > limit+offset
 			}
 
-			if len(versions) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(versions)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No versions found")
-				}
+			if cmdutil.HandleEmpty(printer, versions, "versions") {
 				return nil
 			}
 

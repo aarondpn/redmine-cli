@@ -37,12 +37,7 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 				id = numID
 			} else {
 				// Non-numeric: resolve by name, requires project
-				if project == "" {
-					cfg, cfgErr := f.Config()
-					if cfgErr == nil && cfg.DefaultProject != "" {
-						project = cfg.DefaultProject
-					}
-				}
+				project = cmdutil.DefaultProject(f, project)
 				if project == "" {
 					return fmt.Errorf("--project is required when looking up a version by name")
 				}

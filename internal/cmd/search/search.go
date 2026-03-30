@@ -47,12 +47,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 
 			if project != "" {
 				project, err = cmdutil.ResolveProjectIdentifier(context.Background(), f, project)
@@ -88,14 +83,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if len(results) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(results)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No results found")
-				}
+			if cmdutil.HandleEmpty(printer, results, "results") {
 				return nil
 			}
 
@@ -164,9 +152,9 @@ func printResults(printer output.Printer, results []models.SearchResult, total, 
 		printer.Table(headers, rows)
 	}
 
-	if total > limit+offset && output.SupportsWarnings(printer.Format()) {
-		printer.Warning(fmt.Sprintf("Showing %d of %d results. Use --offset to paginate.", len(results), total))
-	}
+	cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+		Shown: len(results), Total: total, Limit: limit, Offset: offset, Noun: "results",
+	})
 }
 
 // typeStyle returns a color style based on the result type.

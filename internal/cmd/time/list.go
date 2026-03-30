@@ -36,12 +36,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, cfgErr := f.Config()
-				if cfgErr == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 
 			ctx := context.Background()
 
@@ -90,8 +85,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 
-			if len(entries) == 0 && printer.Format() == output.FormatJSON {
-				printer.JSON(entries)
+			if cmdutil.HandleEmpty(printer, entries, "time entries") {
 				return nil
 			}
 
@@ -142,9 +136,9 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer.Table(headers, rows)
-			if total > len(entries) && output.SupportsWarnings(printer.Format()) {
-				printer.Warning(fmt.Sprintf("Showing %d of %d entries", len(entries), total))
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(entries), Total: total, Limit: limit, Offset: offset, Noun: "entries",
+			})
 
 			return nil
 		},

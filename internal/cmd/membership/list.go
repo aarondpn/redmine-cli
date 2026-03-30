@@ -37,12 +37,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if project == "" {
-				cfg, err := f.Config()
-				if err == nil && cfg.DefaultProject != "" {
-					project = cfg.DefaultProject
-				}
-			}
+			project = cmdutil.DefaultProject(f, project)
 			if project == "" {
 				return fmt.Errorf("project is required. Use --project or set a default project")
 			}
@@ -61,14 +56,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to list memberships: %s", cmdutil.FormatError(err))
 			}
 
-			if len(memberships) == 0 {
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(memberships)
-					return nil
-				}
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning("No memberships found")
-				}
+			if cmdutil.HandleEmpty(printer, memberships, "memberships") {
 				return nil
 			}
 
@@ -99,11 +87,9 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if limit > 0 && total > limit+offset {
-				if output.SupportsWarnings(printer.Format()) {
-					printer.Warning(fmt.Sprintf("Showing %d of %d memberships. Use --limit and --offset to paginate.", len(memberships), total))
-				}
-			}
+			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+				Shown: len(memberships), Total: total, Limit: limit, Offset: offset, Noun: "memberships",
+			})
 
 			return nil
 		},
