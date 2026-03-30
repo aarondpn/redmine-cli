@@ -1,35 +1,13 @@
 package project
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/testutil"
 )
-
-func testFactory(t *testing.T, serverURL string) *cmdutil.Factory {
-	t.Helper()
-
-	cfgPath := t.TempDir() + "/config.yaml"
-	cfg := "server: " + serverURL + "\napi_key: test\nauth_method: apikey\n"
-	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	return &cmdutil.Factory{
-		ConfigPath: cfgPath,
-		IOStreams: &cmdutil.IOStreams{
-			In:     &bytes.Buffer{},
-			Out:    &bytes.Buffer{},
-			ErrOut: &bytes.Buffer{},
-			IsTTY:  false,
-		},
-	}
-}
 
 func TestCmdMembers_JSONEmptyDoesNotWarn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +19,7 @@ func TestCmdMembers_JSONEmptyDoesNotWarn(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdMembers(f)
 	cmd.SetArgs([]string{"demo", "--output", "json"})
 
@@ -49,10 +27,10 @@ func TestCmdMembers_JSONEmptyDoesNotWarn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := f.IOStreams.Out.(*bytes.Buffer).String(); got != "[]\n" {
+	if got := testutil.Stdout(f); got != "[]\n" {
 		t.Fatalf("stdout = %q, want %q", got, "[]\n")
 	}
-	if got := f.IOStreams.ErrOut.(*bytes.Buffer).String(); got != "" {
+	if got := testutil.Stderr(f); got != "" {
 		t.Fatalf("stderr = %q, want empty", got)
 	}
 }
@@ -74,7 +52,7 @@ func TestCmdMembers_JSONPaginatedDoesNotWarn(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdMembers(f)
 	cmd.SetArgs([]string{"demo", "--output", "json", "--limit", "1"})
 
@@ -82,11 +60,11 @@ func TestCmdMembers_JSONPaginatedDoesNotWarn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stdout := f.IOStreams.Out.(*bytes.Buffer).String()
+	stdout := testutil.Stdout(f)
 	if !strings.Contains(stdout, `"name": "Alice"`) {
 		t.Fatalf("stdout missing membership payload:\n%s", stdout)
 	}
-	if got := f.IOStreams.ErrOut.(*bytes.Buffer).String(); got != "" {
+	if got := testutil.Stderr(f); got != "" {
 		t.Fatalf("stderr = %q, want empty", got)
 	}
 }

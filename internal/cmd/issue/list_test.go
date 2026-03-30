@@ -1,35 +1,13 @@
 package issue
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/testutil"
 )
-
-func testFactory(t *testing.T, serverURL string) *cmdutil.Factory {
-	t.Helper()
-
-	cfgPath := t.TempDir() + "/config.yaml"
-	cfg := "server: " + serverURL + "\napi_key: test\nauth_method: apikey\n"
-	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	return &cmdutil.Factory{
-		ConfigPath: cfgPath,
-		IOStreams: &cmdutil.IOStreams{
-			In:     &bytes.Buffer{},
-			Out:    &bytes.Buffer{},
-			ErrOut: &bytes.Buffer{},
-			IsTTY:  false,
-		},
-	}
-}
 
 func TestCmdIssueList_EmptyJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +16,7 @@ func TestCmdIssueList_EmptyJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "json"})
 
@@ -46,10 +24,10 @@ func TestCmdIssueList_EmptyJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := f.IOStreams.Out.(*bytes.Buffer).String(); got != "[]\n" {
+	if got := testutil.Stdout(f); got != "[]\n" {
 		t.Fatalf("stdout = %q, want %q", got, "[]\n")
 	}
-	if got := f.IOStreams.ErrOut.(*bytes.Buffer).String(); got != "" {
+	if got := testutil.Stderr(f); got != "" {
 		t.Fatalf("stderr = %q, want empty", got)
 	}
 }
@@ -61,7 +39,7 @@ func TestCmdIssueList_EmptyTableWarning(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "table"})
 
@@ -69,7 +47,7 @@ func TestCmdIssueList_EmptyTableWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stderr := f.IOStreams.ErrOut.(*bytes.Buffer).String()
+	stderr := testutil.Stderr(f)
 	if !strings.Contains(stderr, "No issues found") {
 		t.Fatalf("stderr = %q, want warning about no issues found", stderr)
 	}
@@ -82,7 +60,7 @@ func TestCmdIssueList_PaginationWarning(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "table", "--limit", "1"})
 
@@ -90,7 +68,7 @@ func TestCmdIssueList_PaginationWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stderr := f.IOStreams.ErrOut.(*bytes.Buffer).String()
+	stderr := testutil.Stderr(f)
 	if !strings.Contains(stderr, "Showing 1 of 5 issues") {
 		t.Fatalf("stderr = %q, want pagination warning", stderr)
 	}
@@ -103,7 +81,7 @@ func TestCmdIssueList_NoPaginationWarningJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "json", "--limit", "1"})
 
@@ -111,7 +89,7 @@ func TestCmdIssueList_NoPaginationWarningJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := f.IOStreams.ErrOut.(*bytes.Buffer).String(); got != "" {
+	if got := testutil.Stderr(f); got != "" {
 		t.Fatalf("stderr = %q, want empty (no warning for JSON)", got)
 	}
 }
@@ -123,7 +101,7 @@ func TestCmdIssueList_NoPaginationWarningLimitZero(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "table", "--limit", "0"})
 
@@ -131,7 +109,7 @@ func TestCmdIssueList_NoPaginationWarningLimitZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stderr := f.IOStreams.ErrOut.(*bytes.Buffer).String()
+	stderr := testutil.Stderr(f)
 	if strings.Contains(stderr, "Showing") {
 		t.Fatalf("stderr = %q, want no pagination warning when limit=0", stderr)
 	}
@@ -146,21 +124,7 @@ func TestCmdIssueList_DefaultProjectFallback(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cfgPath := t.TempDir() + "/config.yaml"
-	cfg := "server: " + srv.URL + "\napi_key: test\nauth_method: apikey\ndefault_project: mydefault\n"
-	if err := os.WriteFile(cfgPath, []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	f := &cmdutil.Factory{
-		ConfigPath: cfgPath,
-		IOStreams: &cmdutil.IOStreams{
-			In:     &bytes.Buffer{},
-			Out:    &bytes.Buffer{},
-			ErrOut: &bytes.Buffer{},
-			IsTTY:  false,
-		},
-	}
+	f := testutil.NewFactoryWithConfig(t, srv.URL, "default_project: mydefault\n")
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--output", "json"})
 

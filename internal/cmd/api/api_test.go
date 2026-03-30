@@ -11,31 +11,8 @@ import (
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/testutil"
 )
-
-// testFactory creates a Factory pointing at the given test server.
-func testFactory(t *testing.T, serverURL string) *cmdutil.Factory {
-	t.Helper()
-	tmp := t.TempDir()
-	cfgPath := tmp + "/config.yaml"
-	cfg := "server: " + serverURL + "\napi_key: test\nauth_method: apikey\n"
-	if err := os.WriteFile(cfgPath, []byte(cfg), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return &cmdutil.Factory{
-		ConfigPath: cfgPath,
-		IOStreams: &cmdutil.IOStreams{
-			In:     &bytes.Buffer{},
-			Out:    &bytes.Buffer{},
-			ErrOut: &bytes.Buffer{},
-			IsTTY:  false,
-		},
-	}
-}
-
-func output(f *cmdutil.Factory) string {
-	return f.IOStreams.Out.(*bytes.Buffer).String()
-}
 
 func TestGetDefaultMethod(t *testing.T) {
 	var gotMethod string
@@ -45,7 +22,7 @@ func TestGetDefaultMethod(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/test.json"})
 	if err := cmd.Execute(); err != nil {
@@ -64,7 +41,7 @@ func TestAutoPrependSlash(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"issues.json"})
 	if err := cmd.Execute(); err != nil {
@@ -83,7 +60,7 @@ func TestExplicitMethod(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"-X", "DELETE", "/issues/123.json"})
 	if err := cmd.Execute(); err != nil {
@@ -102,7 +79,7 @@ func TestQueryParamsField(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/issues.json", "-f", "project_id=demo", "-f", "limit=5"})
 	if err := cmd.Execute(); err != nil {
@@ -126,7 +103,7 @@ func TestRawFieldsPOST(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/issues.json", "-F", "issue[subject]=Bug", "-F", "issue[project_id]=1"})
 	if err := cmd.Execute(); err != nil {
@@ -182,7 +159,7 @@ func TestInputFile(t *testing.T) {
 	bodyFile := tmp + "/body.json"
 	os.WriteFile(bodyFile, []byte(`{"issue":{"subject":"test"}}`), 0644)
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/issues.json", "--input", bodyFile})
 	if err := cmd.Execute(); err != nil {
@@ -206,7 +183,7 @@ func TestInputStdin(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	f.IOStreams.In = strings.NewReader(`{"test":1}`)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/issues.json", "--input", "-"})
@@ -226,13 +203,13 @@ func TestIncludeHeaders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/test.json", "-i"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	out := output(f)
+	out := testutil.Stdout(f)
 	if !strings.Contains(out, "200") {
 		t.Errorf("expected status line with 200, got:\n%s", out)
 	}
@@ -247,13 +224,13 @@ func TestSilentSuppressesOutput(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/test.json", "--silent"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if out := output(f); out != "" {
+	if out := testutil.Stdout(f); out != "" {
 		t.Errorf("expected no output with --silent, got: %s", out)
 	}
 }
@@ -265,7 +242,7 @@ func TestNon2xxReturnsErrorWithBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := testFactory(t, srv.URL)
+	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/missing.json"})
 	err := cmd.Execute()
@@ -277,13 +254,13 @@ func TestNon2xxReturnsErrorWithBody(t *testing.T) {
 		t.Fatalf("expected SilentError, got %T: %v", err, err)
 	}
 	// Body should still be written.
-	if out := output(f); !strings.Contains(out, "not found") {
+	if out := testutil.Stdout(f); !strings.Contains(out, "not found") {
 		t.Errorf("expected error body in output, got: %s", out)
 	}
 }
 
 func TestMutualExclusion(t *testing.T) {
-	f := testFactory(t, "http://unused")
+	f := testutil.NewFactory(t, "http://unused")
 	cmd := NewCmdAPI(f)
 	cmd.SetArgs([]string{"/test.json", "-F", "a=b", "--input", "file.json"})
 	err := cmd.Execute()
