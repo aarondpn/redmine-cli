@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/tui"
 )
 
@@ -31,14 +32,19 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "browse <query>",
+		Use:   "browse [query]",
 		Short: "Interactive search result browser (TUI)",
-		Long:  "Browse search results interactively with a split-screen detail view.",
-		Args:  cobra.MinimumNArgs(1),
+		Long:  "Browse search results interactively with a split-screen detail view and live search.",
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 
 			project, err := cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
+			}
+
+			cfg, err := f.Config()
 			if err != nil {
 				return err
 			}
@@ -48,10 +54,8 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer := f.Printer("")
-			stop := printer.Spinner("Searching...")
-			results, _, err := client.Search.Search(context.Background(), api.SearchParams{
-				Query:       query,
+			// Build the base search params (everything except query).
+			baseParams := api.SearchParams{
 				ProjectID:   project,
 				Scope:       scope,
 				AllWords:    allWords,
@@ -66,18 +70,39 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 				Messages:    messages,
 				Projects:    projects,
 				Limit:       100,
-			})
-			stop()
-			if err != nil {
-				return fmt.Errorf("search failed: %w", err)
 			}
 
-			if len(results) == 0 {
-				printer.Warning("No results found")
-				return nil
+			// Search function for the TUI to call on query changes.
+			searchFn := func(q string) ([]models.SearchResult, error) {
+				if q == "" {
+					return nil, nil
+				}
+				p := baseParams
+				p.Query = q
+				results, _, err := client.Search.Search(context.Background(), p)
+				if err != nil {
+					return nil, fmt.Errorf("search failed: %w", err)
+				}
+				return results, nil
 			}
 
-			return tui.RunSearchBrowser(results)
+			// Perform initial search if a query was provided.
+			var initialResults []models.SearchResult
+			if query != "" {
+				printer := f.Printer("")
+				stop := printer.Spinner("Searching...")
+				initialResults, _, err = client.Search.Search(context.Background(), func() api.SearchParams {
+					p := baseParams
+					p.Query = query
+					return p
+				}())
+				stop()
+				if err != nil {
+					return fmt.Errorf("search failed: %w", err)
+				}
+			}
+
+			return tui.RunSearchBrowser(initialResults, query, cfg.Server, searchFn)
 		},
 	}
 
