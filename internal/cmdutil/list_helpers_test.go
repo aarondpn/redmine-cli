@@ -59,7 +59,7 @@ func TestDefaultProject_EmptyWithNoDefault(t *testing.T) {
 func TestDefaultProject_ConfigError(t *testing.T) {
 	f := &Factory{
 		ConfigPath: "/nonexistent/path/config.yaml",
-		IOStreams:   &IOStreams{},
+		IOStreams:  &IOStreams{},
 	}
 
 	got := DefaultProject(f, "")
