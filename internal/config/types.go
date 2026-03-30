@@ -10,5 +10,4 @@ type Config struct {
 	DefaultProject string `mapstructure:"default_project"`
 	OutputFormat   string `mapstructure:"output_format"` // "table", "wide", "json", "csv"
 	NoColor        bool   `mapstructure:"no_color"`
-	PageSize       int    `mapstructure:"page_size"`
 }
