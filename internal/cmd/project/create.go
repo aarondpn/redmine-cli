@@ -32,7 +32,6 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
-			format = printer.Format()
 
 			create := models.ProjectCreate{
 				Name:       name,
@@ -54,7 +53,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if format == output.FormatJSON {
+			if printer.Format() == output.FormatJSON {
 				printer.JSON(project)
 				return nil
 			}

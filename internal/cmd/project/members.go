@@ -31,7 +31,6 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			printer := f.Printer(format)
-			format = printer.Format()
 
 			members, total, err := client.Projects.Members(context.Background(), args[0], limit, offset)
 			if err != nil {
@@ -39,11 +38,17 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(members) == 0 {
-				printer.Warning("No members found")
+				if printer.Format() == output.FormatJSON {
+					printer.JSON(members)
+					return nil
+				}
+				if output.SupportsWarnings(printer.Format()) {
+					printer.Warning("No members found")
+				}
 				return nil
 			}
 
-			if format == output.FormatJSON {
+			if printer.Format() == output.FormatJSON {
 				printer.JSON(members)
 				return nil
 			}
@@ -58,13 +63,13 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				})
 			}
 
-			if format == output.FormatCSV {
+			if printer.Format() == output.FormatCSV {
 				printer.CSV(headers, rows)
 			} else {
 				printer.Table(headers, rows)
 			}
 
-			if limit > 0 && total > limit+offset {
+			if limit > 0 && total > limit+offset && output.SupportsWarnings(printer.Format()) {
 				printer.Warning(fmt.Sprintf("Showing %d of %d members. Use --limit and --offset to paginate.", len(members), total))
 			}
 
