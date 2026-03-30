@@ -156,6 +156,12 @@ func (m SearchBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.list.SetItems(items)
 			m.list.ResetSelected()
+			// Close stale detail pane.
+			if m.showDetail {
+				m.showDetail = false
+				m.focusDetail = false
+				m.updateSizes()
+			}
 		}
 		return m, nil
 
@@ -171,22 +177,18 @@ func (m SearchBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// If the search input is focused, handle special keys.
 		if m.searchInput.Focused() {
-			switch {
-			case key.Matches(msg, m.keys.Quit):
-				if msg.String() == "ctrl+c" {
-					return m, tea.Quit
-				}
-				// 'q' should type into the search bar, not quit.
-			case msg.String() == "esc":
+			switch msg.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "esc":
 				m.searchInput.Blur()
 				return m, nil
-			case msg.String() == "down" || msg.String() == "enter":
+			case "down", "enter":
 				m.searchInput.Blur()
 				return m, nil
 			default:
 				var cmd tea.Cmd
 				m.searchInput, cmd = m.searchInput.Update(msg)
-				// Schedule debounced search.
 				query := m.searchInput.Value()
 				if query != m.lastQuery {
 					m.pendingQuery = query
@@ -194,7 +196,6 @@ func (m SearchBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, cmd
 			}
-			return m, nil
 		}
 
 		// List/detail key handling (search bar not focused).
@@ -234,7 +235,9 @@ func (m SearchBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case key.Matches(msg, m.keys.OpenBrowser) && m.showDetail:
+		case m.showDetail && (key.Matches(msg, m.keys.OpenBrowser) ||
+			key.Matches(msg, m.keys.CopyID) ||
+			key.Matches(msg, m.keys.CopyURL)):
 			cmd := m.detail.Update(msg, m.keys)
 			return m, cmd
 

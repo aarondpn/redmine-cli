@@ -30,7 +30,8 @@ type DetailPane struct {
 	viewport      viewport.Model
 	fields        []field
 	title         string
-	selectedField int // -1 = no selection (scrolling description)
+	description   string // raw description for re-rendering on resize
+	selectedField int    // -1 = no selection (scrolling description)
 	width         int
 	height        int
 	statusMsg     string
@@ -56,10 +57,16 @@ func NewDetailPane(serverURL string) DetailPane {
 	}
 }
 
-// SetSize updates the pane dimensions.
+// SetSize updates the pane dimensions and re-renders the description.
 func (d *DetailPane) SetSize(width, height int) {
+	if d.width == width && d.height == height {
+		return
+	}
 	d.width = width
 	d.height = height
+	if d.description != "" || len(d.fields) > 0 {
+		d.setViewportContent(d.description)
+	}
 }
 
 func (d *DetailPane) contentWidth() int {
@@ -101,7 +108,8 @@ func (d *DetailPane) SetIssueContent(issue *models.Issue) {
 	}
 
 	d.selectedField = 0
-	d.setViewportContent(issue.Description)
+	d.description = issue.Description
+	d.setViewportContent(d.description)
 }
 
 // SetSearchContent builds and sets the content for a search result.
@@ -124,7 +132,8 @@ func (d *DetailPane) SetSearchContent(result *models.SearchResult) {
 	}
 
 	d.selectedField = 0
-	d.setViewportContent(result.Description)
+	d.description = result.Description
+	d.setViewportContent(d.description)
 }
 
 func (d *DetailPane) setViewportContent(description string) {
@@ -215,6 +224,27 @@ func (d *DetailPane) Update(msg tea.Msg, keys KeyMap) tea.Cmd {
 				return clearStatusAfter(2 * time.Second)
 			}
 			d.statusMsg = "No URL available"
+			return clearStatusAfter(2 * time.Second)
+
+		case key.Matches(msg, keys.CopyID):
+			id := fmt.Sprintf("#%d", d.issueID)
+			if err := clipboard.WriteAll(id); err != nil {
+				d.statusMsg = "Copy failed"
+			} else {
+				d.statusMsg = fmt.Sprintf("Copied %s", id)
+			}
+			return clearStatusAfter(2 * time.Second)
+
+		case key.Matches(msg, keys.CopyURL):
+			if d.issueURL == "" {
+				d.statusMsg = "No URL available"
+				return clearStatusAfter(2 * time.Second)
+			}
+			if err := clipboard.WriteAll(d.issueURL); err != nil {
+				d.statusMsg = "Copy failed"
+			} else {
+				d.statusMsg = "Copied URL"
+			}
 			return clearStatusAfter(2 * time.Second)
 
 		case key.Matches(msg, keys.Enter):

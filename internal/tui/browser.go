@@ -152,7 +152,9 @@ func (m BrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case key.Matches(msg, m.keys.OpenBrowser) && m.showDetail:
+		case m.showDetail && (key.Matches(msg, m.keys.OpenBrowser) ||
+			key.Matches(msg, m.keys.CopyID) ||
+			key.Matches(msg, m.keys.CopyURL)):
 			cmd := m.detail.Update(msg, m.keys)
 			return m, cmd
 
