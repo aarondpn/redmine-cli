@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,18 +24,20 @@ import (
 )
 
 const (
-	repoOwner  = "aarondpn"
-	repoName   = "redmine-cli"
+	RepoOwner  = "aarondpn"
+	RepoName   = "redmine-cli"
 	binaryName = "redmine"
-	releaseURL = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest"
+	ReleaseURL = "https://api.github.com/repos/" + RepoOwner + "/" + RepoName + "/releases/latest"
 )
 
-type githubRelease struct {
+// GithubRelease represents a GitHub release.
+type GithubRelease struct {
 	TagName string        `json:"tag_name"`
-	Assets  []githubAsset `json:"assets"`
+	Assets  []GithubAsset `json:"assets"`
 }
 
-type githubAsset struct {
+// GithubAsset represents a release asset.
+type GithubAsset struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
@@ -77,7 +80,7 @@ func defaultUpgradeHomebrew() error {
 	return nil
 }
 
-var fetchRelease = fetchLatestRelease
+var fetchRelease = FetchLatestRelease
 
 func runUpdate(currentVersion string) error {
 	if checkHomebrew() {
@@ -87,7 +90,7 @@ func runUpdate(currentVersion string) error {
 	fmt.Printf("Current version: %s\n", currentVersion)
 	fmt.Println("Checking for updates...")
 
-	release, err := fetchRelease()
+	release, err := fetchRelease(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to check for updates: %w", err)
 	}
@@ -95,7 +98,7 @@ func runUpdate(currentVersion string) error {
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 	currentClean := strings.TrimPrefix(currentVersion, "v")
 
-	if currentClean != "dev" && !isNewer(latestVersion, currentClean) {
+	if currentClean != "dev" && !IsNewer(latestVersion, currentClean) {
 		fmt.Printf("Already up to date (%s).\n", currentVersion)
 		return nil
 	}
@@ -146,8 +149,14 @@ func runUpdate(currentVersion string) error {
 	return nil
 }
 
-func fetchLatestRelease() (*githubRelease, error) {
-	resp, err := http.Get(releaseURL)
+// FetchLatestRelease fetches the latest release from GitHub.
+func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ReleaseURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +166,7 @@ func fetchLatestRelease() (*githubRelease, error) {
 		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
-	var release githubRelease
+	var release GithubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, err
 	}
@@ -293,7 +302,7 @@ func installPath() (string, error) {
 				"  curl -fsSL https://raw.githubusercontent.com/%s/%s/main/install.sh | bash\n\n"+
 				"Or download manually from:\n"+
 				"  https://github.com/%s/%s/releases/latest",
-			dir, repoOwner, repoName, repoOwner, repoName,
+			dir, RepoOwner, RepoName, RepoOwner, RepoName,
 		)
 	}
 	tmp.Close()
@@ -342,11 +351,11 @@ func replaceBinary(execPath string, newBinary []byte) error {
 	return nil
 }
 
-// isNewer returns true if version a is newer than version b.
+// IsNewer returns true if version a is newer than version b.
 // Versions are expected as "major.minor.patch" (no "v" prefix).
-func isNewer(a, b string) bool {
-	aParts := parseVersion(a)
-	bParts := parseVersion(b)
+func IsNewer(a, b string) bool {
+	aParts := ParseVersion(a)
+	bParts := ParseVersion(b)
 	for i := 0; i < 3; i++ {
 		if aParts[i] > bParts[i] {
 			return true
@@ -358,7 +367,8 @@ func isNewer(a, b string) bool {
 	return false
 }
 
-func parseVersion(v string) [3]int {
+// ParseVersion parses a semver string into [major, minor, patch].
+func ParseVersion(v string) [3]int {
 	var parts [3]int
 	segments := strings.SplitN(v, ".", 3)
 	for i, s := range segments {

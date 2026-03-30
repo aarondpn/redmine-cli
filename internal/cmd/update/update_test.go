@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -72,10 +73,10 @@ func TestRunUpdate_SkipsBrewWhenNotInstalled(t *testing.T) {
 
 	origFetch := fetchRelease
 	t.Cleanup(func() { fetchRelease = origFetch })
-	fetchRelease = func() (*githubRelease, error) {
-		return &githubRelease{
+	fetchRelease = func(ctx context.Context) (*GithubRelease, error) {
+		return &GithubRelease{
 			TagName: "v1.0.0",
-			Assets:  []githubAsset{},
+			Assets:  []GithubAsset{},
 		}, nil
 	}
 
@@ -253,7 +254,7 @@ func TestExtractBinary_ZipMissingBinary(t *testing.T) {
 	}
 }
 
-// --- isNewer ---
+// --- IsNewer ---
 
 func TestIsNewer(t *testing.T) {
 	tests := []struct {
@@ -270,9 +271,9 @@ func TestIsNewer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s_vs_%s", tt.a, tt.b), func(t *testing.T) {
-			got := isNewer(tt.a, tt.b)
+			got := IsNewer(tt.a, tt.b)
 			if got != tt.want {
-				t.Errorf("isNewer(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+				t.Errorf("IsNewer(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
 			}
 		})
 	}
