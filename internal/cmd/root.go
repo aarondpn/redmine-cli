@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	apicmd "github.com/aarondpn/redmine-cli/internal/cmd/api"
 	"github.com/aarondpn/redmine-cli/internal/cmd/category"
@@ -44,15 +43,10 @@ func NewRootCmd(version string) *cobra.Command {
 		Long:  "A command-line interface for interacting with Redmine's REST API.",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			f.ConfigPath = cfgFile
-
-			if server != "" {
-				viper.Set("server", server)
-			}
-			if apiKey != "" {
-				viper.Set("api_key", apiKey)
-			}
+			f.ServerOverride = server
+			f.APIKeyOverride = apiKey
 			if noColor {
-				viper.Set("no_color", true)
+				f.NoColorOverride = true
 				os.Setenv("NO_COLOR", "1")
 			}
 			f.Verbose = verbose
