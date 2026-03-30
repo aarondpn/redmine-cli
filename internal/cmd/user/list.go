@@ -87,7 +87,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if total > limit+offset && output.SupportsWarnings(printer.Format()) {
+			if limit > 0 && total > limit+offset && output.SupportsWarnings(printer.Format()) {
 				printer.Warning(fmt.Sprintf("Showing %d of %d users. Use --offset to paginate.", len(users), total))
 			}
 			return nil
