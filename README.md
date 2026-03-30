@@ -73,10 +73,10 @@ Downloads and verifies the latest release via SHA256 checksum before replacing t
 redmine init
 
 # List issues
-redmine issue list
+redmine issues list
 
 # View a specific issue
-redmine issue view 123
+redmine issues view 123
 
 # Log time
 redmine time log
