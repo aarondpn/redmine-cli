@@ -21,7 +21,6 @@ func Load(configPath string, log *debug.Logger) (*Config, error) {
 	// Defaults
 	v.SetDefault("auth_method", "apikey")
 	v.SetDefault("output_format", "table")
-	v.SetDefault("page_size", 25)
 
 	// Config file
 	if configPath != "" {
@@ -82,7 +81,6 @@ func Save(cfg *Config, path string) error {
 	v.Set("default_project", cfg.DefaultProject)
 	v.Set("output_format", cfg.OutputFormat)
 	v.Set("no_color", cfg.NoColor)
-	v.Set("page_size", cfg.PageSize)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

@@ -115,6 +115,9 @@ func (f *Factory) Printer(format string) output.Printer {
 	noColor := os.Getenv("NO_COLOR") != ""
 	if cfg, err := f.Config(); err == nil {
 		noColor = noColor || cfg.NoColor
+		if format == "" {
+			format = cfg.OutputFormat
+		}
 	}
 	if noColor {
 		os.Setenv("NO_COLOR", "1")

@@ -26,7 +26,6 @@ password: ""               # for basic auth
 default_project: myproject # optional
 output_format: table       # table, wide, json, csv
 no_color: false
-page_size: 25
 ```
 
 ## Environment Variables
