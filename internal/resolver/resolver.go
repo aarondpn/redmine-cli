@@ -30,6 +30,23 @@ type suggestion struct {
 	distance int
 }
 
+// NameResolutionPermissionError indicates that a name lookup could not be
+// completed because the API does not allow listing the candidate resource.
+type NameResolutionPermissionError struct {
+	message string
+}
+
+func (e *NameResolutionPermissionError) Error() string {
+	return e.message
+}
+
+// IsNameResolutionPermissionError reports whether err indicates that a
+// human-readable lookup was blocked by permissions.
+func IsNameResolutionPermissionError(err error) bool {
+	var target *NameResolutionPermissionError
+	return errors.As(err, &target)
+}
+
 // buildSuggestions generates a helpful error message when no exact match is found.
 // For small lists (<=10 items) it shows all options. For larger lists it uses
 // Levenshtein distance to suggest close matches.
@@ -100,7 +117,9 @@ func Resolve(input string, resourceType string, client *api.Client, fetcher func
 	options, err := fetcher()
 	if err != nil {
 		if isForbiddenErr(err) {
-			return 0, fmt.Errorf("cannot resolve %s by name (insufficient permissions). Use a numeric ID instead", resourceType)
+			return 0, &NameResolutionPermissionError{
+				message: fmt.Sprintf("cannot resolve %s by name (insufficient permissions). Use a numeric ID instead", resourceType),
+			}
 		}
 		return 0, err
 	}
@@ -388,7 +407,9 @@ func resolveUser(ctx context.Context, client *api.Client, input string, label st
 	users, _, err := client.Users.List(ctx, models.UserFilter{Name: input})
 	if err != nil {
 		if isForbiddenErr(err) {
-			return 0, fmt.Errorf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", label)
+			return 0, &NameResolutionPermissionError{
+				message: fmt.Sprintf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", label),
+			}
 		}
 		return 0, fmt.Errorf("failed to search users: %w", err)
 	}

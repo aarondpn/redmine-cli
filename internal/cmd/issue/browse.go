@@ -2,6 +2,7 @@ package issue
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
@@ -21,7 +22,8 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 		Use:   "browse",
 		Short: "Interactive issue browser (TUI)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			project, err := cmdutil.DefaultProjectID(context.Background(), f, project)
+			ctx := context.Background()
+			project, err := cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
 				return err
 			}
@@ -37,16 +39,25 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer("")
 
+			resolvedStatus, err := resolveIssueStatusFilter(ctx, client, status)
+			if err != nil {
+				return err
+			}
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, printer)
+			if err != nil {
+				return err
+			}
+
 			stop := printer.Spinner("Loading issues...")
-			issues, _, err := client.Issues.List(context.Background(), models.IssueFilter{
+			issues, _, err := client.Issues.List(ctx, models.IssueFilter{
 				ProjectID:    project,
-				StatusID:     status,
-				AssignedToID: assignee,
+				StatusID:     resolvedStatus,
+				AssignedToID: resolvedAssignee,
 				Limit:        100,
 			})
 			stop()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to browse issues: %w", err)
 			}
 
 			return tui.RunBrowser(issues, cfg.Server)
@@ -54,8 +65,8 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project name, identifier, or ID")
-	cmd.Flags().StringVar(&status, "status", "open", "Filter by status")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee")
+	cmd.Flags().StringVar(&status, "status", "open", "Filter by status: open, closed, *, status name, or ID")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee: me, name, login, or ID")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
