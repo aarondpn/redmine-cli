@@ -61,6 +61,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			ctx := context.Background()
+			printer := f.Printer(format)
 
 			project, err = cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
@@ -75,13 +76,14 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			resolvedStatus := status
-			if status != "" && status != "open" && status != "closed" && status != "*" {
-				id, err := resolver.ResolveStatus(ctx, client, status)
-				if err != nil {
-					return fmt.Errorf("resolving status: %w", err)
-				}
-				resolvedStatus = fmt.Sprintf("%d", id)
+			resolvedStatus, err := resolveIssueStatusFilter(ctx, client, status)
+			if err != nil {
+				return err
+			}
+
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, printer)
+			if err != nil {
+				return err
 			}
 
 			var versionID int
@@ -108,7 +110,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				ProjectID:      project,
 				TrackerID:      trackerID,
 				StatusID:       resolvedStatus,
-				AssignedToID:   assignee,
+				AssignedToID:   resolvedAssignee,
 				FixedVersionID: versionID,
 				Sort:           sort,
 				Includes:       includes,
@@ -116,7 +118,6 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				Offset:         offset,
 			}
 
-			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching issues...")
 			issues, total, err := client.Issues.List(ctx, filter)
 			stop()

@@ -171,3 +171,72 @@ func TestCmdIssueList_ResolvesStatusNameToID(t *testing.T) {
 		t.Fatalf("issues query = %q, did not expect raw status name", issuesQuery)
 	}
 }
+
+func TestCmdIssueList_ResolvesAssigneeNameToID(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/users.json":
+			_, _ = w.Write([]byte(`{"users":[{"id":7,"login":"jdoe","firstname":"John","lastname":"Doe","mail":"john@example.com","status":1}],"total_count":1}`))
+		case "/issues.json":
+			issuesQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--assignee", "John Doe", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(issuesQuery, "assigned_to_id=7") {
+		t.Fatalf("issues query = %q, want assigned_to_id=7", issuesQuery)
+	}
+	if strings.Contains(issuesQuery, "assigned_to_id=John") {
+		t.Fatalf("issues query = %q, did not expect raw assignee name", issuesQuery)
+	}
+}
+
+func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/users.json":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"errors":["Forbidden"]}`))
+		case "/issues.json":
+			issuesQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--assignee", "John Doe", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(issuesQuery, "assigned_to_id=") {
+		t.Fatalf("issues query = %q, did not expect assigned_to_id filter", issuesQuery)
+	}
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "ignoring the assignee filter") {
+		t.Fatalf("stderr = %q, want assignee fallback warning", stderr)
+	}
+}
