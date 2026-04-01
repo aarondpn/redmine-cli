@@ -60,22 +60,33 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectID(context.Background(), f, project)
+			ctx := context.Background()
+
+			project, err = cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
 				return err
 			}
 
 			var trackerID int
 			if tracker != "" {
-				trackerID, err = resolver.ResolveTracker(context.Background(), client, tracker)
+				trackerID, err = resolver.ResolveTracker(ctx, client, tracker)
 				if err != nil {
 					return fmt.Errorf("resolving tracker: %w", err)
 				}
 			}
 
+			resolvedStatus := status
+			if status != "" && status != "open" && status != "closed" && status != "*" {
+				id, err := resolver.ResolveStatus(ctx, client, status)
+				if err != nil {
+					return fmt.Errorf("resolving status: %w", err)
+				}
+				resolvedStatus = fmt.Sprintf("%d", id)
+			}
+
 			var versionID int
 			if version != "" {
-				id, err := resolver.ResolveVersion(context.Background(), client, version, project)
+				id, err := resolver.ResolveVersion(ctx, client, version, project)
 				if err != nil {
 					return fmt.Errorf("resolving version: %w", err)
 				}
@@ -96,7 +107,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			filter := models.IssueFilter{
 				ProjectID:      project,
 				TrackerID:      trackerID,
-				StatusID:       status,
+				StatusID:       resolvedStatus,
 				AssignedToID:   assignee,
 				FixedVersionID: versionID,
 				Sort:           sort,
@@ -107,7 +118,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching issues...")
-			issues, total, err := client.Issues.List(context.Background(), filter)
+			issues, total, err := client.Issues.List(ctx, filter)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list issues: %w", err)
@@ -162,7 +173,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
-	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, or status ID")
+	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, status name, or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
