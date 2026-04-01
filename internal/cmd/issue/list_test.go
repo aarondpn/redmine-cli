@@ -137,3 +137,37 @@ func TestCmdIssueList_DefaultProjectFallback(t *testing.T) {
 		t.Fatalf("expected issues endpoint to be called, got path %q", capturedPath)
 	}
 }
+
+func TestCmdIssueList_ResolvesStatusNameToID(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/issue_statuses.json":
+			_, _ = w.Write([]byte(`{"issue_statuses":[{"id":3,"name":"Gelöst","is_closed":true},{"id":5,"name":"Closed","is_closed":true}]}`))
+		case "/issues.json":
+			issuesQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--status", "Gelöst", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(issuesQuery, "status_id=3") {
+		t.Fatalf("issues query = %q, want status_id=3", issuesQuery)
+	}
+	if strings.Contains(issuesQuery, "status_id=Gel") {
+		t.Fatalf("issues query = %q, did not expect raw status name", issuesQuery)
+	}
+}
