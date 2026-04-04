@@ -149,7 +149,7 @@ func TestVersionList_UnfilteredPaginationWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	stderr := testutil.Stderr(f)
-	if !strings.Contains(stderr, "More versions available") {
+	if !strings.Contains(stderr, "Showing 1 of 5 versions") {
 		t.Errorf("stderr = %q, want pagination warning", stderr)
 	}
 }

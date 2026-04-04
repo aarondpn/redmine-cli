@@ -82,6 +82,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 
 			var versions []models.Version
 			var hasMore bool
+			var total int
 			if statusFilter != "" {
 				// Page through the API, collecting only matching versions
 				// until we have enough for offset + limit.
@@ -107,13 +108,12 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 					versions = nil
 				}
 			} else {
-				fetched, total, err := client.Versions.List(context.Background(), project, limit, offset)
+				var err error
+				versions, total, err = client.Versions.List(context.Background(), project, limit, offset)
 				stop()
 				if err != nil {
 					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
 				}
-				versions = fetched
-				hasMore = limit > 0 && total > limit+offset
 			}
 
 			if cmdutil.HandleEmpty(printer, versions, "versions") {
@@ -153,8 +153,15 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				printer.Table(headers, rows)
 			}
 
-			if hasMore && output.SupportsWarnings(printer.Format()) {
-				printer.Warning("More versions available. Use --limit and --offset to paginate.")
+			if statusFilter != "" {
+				// Filtered path: we don't have a total count, just a hasMore hint.
+				if hasMore && output.SupportsWarnings(printer.Format()) {
+					printer.Warning("More versions available. Use --limit and --offset to paginate.")
+				}
+			} else {
+				cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
+					Shown: len(versions), Total: total, Limit: limit, Offset: offset, Noun: "versions",
+				})
 			}
 
 			return nil
