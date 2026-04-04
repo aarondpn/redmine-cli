@@ -143,12 +143,15 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 			return nil, false, fmt.Errorf("decoding %s: %w", key, err)
 		}
 
-		for _, item := range items {
+		for i, item := range items {
 			if filter(item) {
 				matched = append(matched, item)
 				if maxResults > 0 && len(matched) >= maxResults {
-					// We have enough, but there may be more on remaining pages.
-					hasMore := offset+len(items) < totalCount || len(matched) > maxResults
+					// We have enough, but there may be more on the rest
+					// of this page or on subsequent pages.
+					moreItemsOnPage := i < len(items)-1
+					morePagesExist := offset+len(items) < totalCount
+					hasMore := moreItemsOnPage || morePagesExist
 					c.debugLog.Printf("Pagination (filtered): matched %d items (limit reached)", len(matched))
 					return matched[:maxResults], hasMore, nil
 				}

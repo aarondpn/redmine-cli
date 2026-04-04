@@ -476,6 +476,68 @@ func TestFetchAll_UnpaginatedWithOffsetAndMaxResults(t *testing.T) {
 	}
 }
 
+func TestFetchAllFiltered_UnpaginatedWithMaxResults_HasMore(t *testing.T) {
+	// Bug fix: when maxResults is reached mid-page on an unpaginated endpoint,
+	// hasMore should be true if there are unscanned items remaining on the page.
+	allItems := make([]testItem, 50)
+	openCount := 0
+	for i := range allItems {
+		if i%5 == 0 {
+			allItems[i] = testItem{ID: i + 1, Status: "open"}
+			openCount++
+		} else {
+			allItems[i] = testItem{ID: i + 1, Status: "closed"}
+		}
+	}
+	// openCount = 10 (items at index 0,5,10,...,45)
+
+	ts := httptest.NewServer(unpaginatedHandler("things", allItems))
+	defer ts.Close()
+
+	// Request only 3 matching items — more open items exist beyond that.
+	got, hasMore, err := FetchAllFiltered[testItem](context.Background(), newTestClient(ts), "/things.json", nil, "things", 3, func(i testItem) bool {
+		return i.Status == "open"
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 3 {
+		t.Errorf("len(got) = %d, want 3", len(got))
+	}
+	if !hasMore {
+		t.Error("hasMore = false, want true (there are 10 open items but we only asked for 3)")
+	}
+}
+
+func TestFetchAllFiltered_SinglePageExactMatch_NoHasMore(t *testing.T) {
+	// When maxResults exactly matches the total number of filtered items on a
+	// single page and we finish scanning the last item, hasMore should be false.
+	allItems := []testItem{
+		{ID: 1, Status: "closed"},
+		{ID: 2, Status: "closed"},
+		{ID: 3, Status: "open"}, // match #1
+		{ID: 4, Status: "closed"},
+		{ID: 5, Status: "open"}, // match #2 — last item
+	}
+
+	ts := httptest.NewServer(paginatedHandler("things", allItems))
+	defer ts.Close()
+
+	got, hasMore, err := FetchAllFiltered[testItem](context.Background(), newTestClient(ts), "/things.json", nil, "things", 2, func(i testItem) bool {
+		return i.Status == "open"
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("len(got) = %d, want 2", len(got))
+	}
+	// The last match was the last item on the only page, so no more.
+	if hasMore {
+		t.Error("hasMore = true, want false (all items scanned, all matches consumed)")
+	}
+}
+
 func TestFetchAll_MissingKey(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

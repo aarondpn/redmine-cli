@@ -34,6 +34,10 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			if cmdutil.HandleEmpty(printer, projects, "projects") {
+				return nil
+			}
+
 			headers := []string{"ID", "Identifier", "Name", "Status", "Public"}
 
 			switch printer.Format() {
