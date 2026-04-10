@@ -1,6 +1,6 @@
 BINARY_NAME=redmine
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS=-ldflags "-X main.version=$(VERSION)"
+LDFLAGS=-ldflags "-X main.version=$(VERSION) $(EXTRA_LDFLAGS)"
 
 .PHONY: build test lint clean install
 
