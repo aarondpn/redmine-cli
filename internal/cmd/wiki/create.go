@@ -1,0 +1,76 @@
+package wiki
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
+)
+
+func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
+	var (
+		project  string
+		text     string
+		title    string
+		comments string
+		format   string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "create <page>",
+		Aliases: []string{"new"},
+		Short:   "Create a wiki page",
+		Long:    "Create a new Redmine wiki page (or overwrite an existing one).",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := f.ApiClient()
+			if err != nil {
+				return err
+			}
+			printer := f.Printer(format)
+
+			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
+			}
+
+			create := models.WikiPageCreate{
+				Text: text,
+			}
+			if title != "" {
+				create.Title = title
+			}
+			if comments != "" {
+				create.Comments = comments
+			}
+
+			page, err := client.Wikis.Create(context.Background(), projectID, args[0], create)
+			if err != nil {
+				return err
+			}
+
+			if printer.Format() == output.FormatJSON {
+				printer.JSON(page)
+				return nil
+			}
+
+			printer.Success(fmt.Sprintf("Wiki page %q created (version %d)", args[0], page.Version))
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown (required)")
+	cmd.Flags().StringVar(&title, "title", "", "Display title (defaults to page name)")
+	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
+	cmdutil.AddOutputFlag(cmd, &format)
+
+	_ = cmd.MarkFlagRequired("text")
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
+	return cmd
+}

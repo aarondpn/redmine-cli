@@ -1,0 +1,62 @@
+package wiki
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+)
+
+func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
+	var (
+		project string
+		force   bool
+	)
+
+	cmd := &cobra.Command{
+		Use:     "delete <page>",
+		Aliases: []string{"rm"},
+		Short:   "Delete a wiki page",
+		Long:    "Delete a Redmine wiki page.",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := f.ApiClient()
+			if err != nil {
+				return err
+			}
+			printer := f.Printer("")
+
+			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			if err != nil {
+				return err
+			}
+
+			pageTitle := args[0]
+
+			if !force {
+				msg := fmt.Sprintf("Are you sure you want to delete wiki page %q?", pageTitle)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Warning("Deletion cancelled")
+					return nil
+				}
+			}
+
+			err = client.Wikis.Delete(context.Background(), projectID, pageTitle)
+			if err != nil {
+				return err
+			}
+
+			printer.Success(fmt.Sprintf("Wiki page %q deleted", pageTitle))
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmdutil.AddForceFlag(cmd, &force)
+
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+
+	return cmd
+}

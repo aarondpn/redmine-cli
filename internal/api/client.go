@@ -42,6 +42,7 @@ type Client struct {
 	Search       *SearchService
 	Memberships  *MembershipService
 	Attachments  *AttachmentService
+	Wikis        *WikiService
 }
 
 // DebugLog returns the client's debug logger.
@@ -113,6 +114,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Search = &SearchService{client: c}
 	c.Memberships = &MembershipService{client: c}
 	c.Attachments = &AttachmentService{client: c}
+	c.Wikis = &WikiService{client: c}
 
 	return c, nil
 }

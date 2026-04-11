@@ -25,6 +25,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `statuses` | List issue statuses |
 | `search` | Search issues, wiki, news, messages, or browse results |
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |
+| `wiki` | List, get, create, update, delete wiki pages |
 | `api` | Make raw authenticated API requests |
 
 ## Setup
