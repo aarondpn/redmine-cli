@@ -1,21 +1,44 @@
+version: "2"
 linters:
   enable:
     - errcheck
     - govet
     - staticcheck
     - unused
-    - gofmt
     - ineffassign
-    - gosimple
-
-issues:
-  exclude-rules:
-    # MarkFlagRequired on freshly defined flags cannot fail
-    - linters: [errcheck]
-      source: "MarkFlagRequired"
-    # Render/Stop calls in output helpers return errors we can't handle meaningfully
-    - linters: [errcheck]
-      path: internal/output/
-    # Test helpers — encoding errors in httptest handlers are fine to ignore
-    - linters: [errcheck]
-      path: _test\.go
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1003
+        - -ST1005
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        source: MarkFlagRequired
+      - linters:
+          - errcheck
+        path: internal/output/
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
