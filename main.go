@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -14,31 +15,28 @@ import (
 
 var version = "dev"
 
+const (
+	updateCheckHintDelay = 200 * time.Millisecond
+	updateCheckMaxWait   = 2 * time.Second
+)
+
 func main() {
 	// Start background update check.
 	var updateDone chan *update.CheckResult
+	var cancelUpdateCheck context.CancelFunc
 	if update.ShouldCheck(version, os.Args[1:]) {
 		updateDone = make(chan *update.CheckResult, 1)
+		ctx, cancel := context.WithTimeout(context.Background(), updateCheckMaxWait)
+		cancelUpdateCheck = cancel
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			updateDone <- update.CheckForUpdate(ctx, version)
+			updateDone <- update.CheckForUpdateCached(ctx, version)
 		}()
 	}
 
 	rootCmd := cmd.NewRootCmd(version)
 	err := rootCmd.Execute()
 
-	// Print update notice if the check already finished; never block exit.
-	if updateDone != nil {
-		select {
-		case result := <-updateDone:
-			if result != nil {
-				update.PrintNotice(os.Stderr, version, result)
-			}
-		default:
-		}
-	}
+	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
 
 	if err != nil {
 		var silent *cmdutil.SilentError
@@ -47,5 +45,40 @@ func main() {
 		}
 		fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
 		os.Exit(1)
+	}
+}
+
+func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan *update.CheckResult, cancel context.CancelFunc, hintDelay, maxWait time.Duration) {
+	if updateDone == nil {
+		return
+	}
+	if cancel != nil {
+		defer cancel()
+	}
+
+	select {
+	case result := <-updateDone:
+		if result != nil {
+			update.PrintNotice(w, currentVersion, result)
+		}
+		return
+	case <-time.After(hintDelay):
+		fmt.Fprintln(w, "Checking for updates...")
+	case <-time.After(maxWait):
+		if cancel != nil {
+			cancel()
+		}
+		return
+	}
+
+	select {
+	case result := <-updateDone:
+		if result != nil {
+			update.PrintNotice(w, currentVersion, result)
+		}
+	case <-time.After(maxWait - hintDelay):
+		if cancel != nil {
+			cancel()
+		}
 	}
 }
