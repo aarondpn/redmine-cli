@@ -70,7 +70,7 @@ Downloads and verifies the latest release via SHA256 checksum before replacing t
 
 ```bash
 # Configure your Redmine server and API key
-redmine init
+redmine auth login
 
 # List issues
 redmine issues list

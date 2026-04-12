@@ -6,10 +6,10 @@ import (
 	"github.com/spf13/cobra"
 
 	apicmd "github.com/aarondpn/redmine-cli/internal/cmd/api"
+	"github.com/aarondpn/redmine-cli/internal/cmd/auth"
 	"github.com/aarondpn/redmine-cli/internal/cmd/category"
 	"github.com/aarondpn/redmine-cli/internal/cmd/completion"
 	"github.com/aarondpn/redmine-cli/internal/cmd/group"
-	initcmd "github.com/aarondpn/redmine-cli/internal/cmd/initialize"
 	"github.com/aarondpn/redmine-cli/internal/cmd/installskill"
 	"github.com/aarondpn/redmine-cli/internal/cmd/issue"
 	"github.com/aarondpn/redmine-cli/internal/cmd/membership"
@@ -22,6 +22,8 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmd/user"
 	versioncmd "github.com/aarondpn/redmine-cli/internal/cmd/version"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/debug"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -32,6 +34,7 @@ func NewRootCmd(version string) *cobra.Command {
 	var (
 		server  string
 		apiKey  string
+		profile string
 		noColor bool
 		verbose bool
 		cfgFile string
@@ -43,6 +46,7 @@ func NewRootCmd(version string) *cobra.Command {
 		Long:  "A command-line interface for interacting with Redmine's REST API.",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			f.ConfigPath = cfgFile
+			f.ProfileOverride = profile
 			f.ServerOverride = server
 			f.APIKeyOverride = apiKey
 			if noColor {
@@ -59,6 +63,7 @@ func NewRootCmd(version string) *cobra.Command {
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
 	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
+	cmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "Use a specific auth profile")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
@@ -68,7 +73,7 @@ func NewRootCmd(version string) *cobra.Command {
 
 	// Subcommands
 	cmd.AddCommand(apicmd.NewCmdAPI(f))
-	cmd.AddCommand(initcmd.NewCmdInit(f))
+	cmd.AddCommand(auth.NewCmdAuth(f))
 	cmd.AddCommand(issue.NewCmdIssue(f))
 	cmd.AddCommand(group.NewCmdGroup(f))
 	cmd.AddCommand(membership.NewCmdMemberships(f))
@@ -97,8 +102,19 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			profileName := f.ProfileOverride
+			configPath := f.ConfigPath
+			if configPath == "" {
+				configPath = config.DefaultConfigPath()
+			}
+			if pc, err := config.LoadProfiles(configPath, debug.New(nil)); err == nil {
+				profileName = config.EffectiveProfileName(pc, f.ProfileOverride)
+			}
+
 			printer := f.Printer("")
 			printer.Detail([]output.KeyValue{
+				{Key: "Profile", Value: profileName},
 				{Key: "Server", Value: cfg.Server},
 				{Key: "Auth Method", Value: cfg.AuthMethod},
 				{Key: "Default Project", Value: cfg.DefaultProject},

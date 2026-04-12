@@ -27,6 +27,8 @@ Once installed, the agent will:
 - Handle pagination with `--limit` and `--offset`
 - Use name resolution (e.g. `--assignee "John Smith"` instead of `--assignee 42`)
 - Use the `me` shorthand for `--assignee me`
+- Use `redmine auth login` for initial setup and `redmine auth switch` to change servers
+- Use `redmine --profile <name>` to target a specific Redmine instance when multiple are configured
 
 ## Manual Setup
 

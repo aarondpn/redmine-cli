@@ -1,9 +1,8 @@
-package initialize
+package auth
 
 import (
 	"context"
 	"fmt"
-	"os/exec"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -13,20 +12,25 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/config"
 )
 
-// NewCmdInit creates the init command for first-time setup.
-func NewCmdInit(f *cmdutil.Factory) *cobra.Command {
+// NewCmdLogin creates the auth login command.
+func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
+	var name string
+
 	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Set up Redmine CLI configuration",
-		Long:  "Interactive setup wizard to configure your Redmine server connection.",
+		Use:   "login",
+		Short: "Log in to a Redmine instance",
+		Long:  "Interactive setup to authenticate with a Redmine server and save the profile.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(f)
+			return runLogin(f, name)
 		},
 	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Profile name (default: derived from server hostname)")
+
 	return cmd
 }
 
-func runInit(f *cmdutil.Factory) error {
+func runLogin(f *cmdutil.Factory, profileName string) error {
 	var (
 		server     string
 		authMethod string
@@ -62,7 +66,32 @@ func runInit(f *cmdutil.Factory) error {
 		return err
 	}
 
-	// Step 2: Credentials
+	// Derive default profile name from server URL
+	defaultName := config.ProfileNameFromURL(server)
+	if defaultName == "" {
+		defaultName = "default"
+	}
+
+	// Step 2: Profile name (with default from hostname)
+	if profileName == "" {
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Profile name").
+					Description("A short name for this connection").
+					Placeholder(defaultName).
+					Value(&profileName),
+			),
+		).Run()
+		if err != nil {
+			return err
+		}
+		if profileName == "" {
+			profileName = defaultName
+		}
+	}
+
+	// Step 3: Credentials
 	if authMethod == "apikey" {
 		err = huh.NewForm(
 			huh.NewGroup(
@@ -95,7 +124,7 @@ func runInit(f *cmdutil.Factory) error {
 		return err
 	}
 
-	// Step 3: Test connection
+	// Step 4: Test connection
 	cfg := &config.Config{
 		Server:     server,
 		AuthMethod: authMethod,
@@ -122,7 +151,7 @@ func runInit(f *cmdutil.Factory) error {
 
 	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
 
-	// Step 4: Default project (optional)
+	// Step 5: Default project (optional)
 	stop = printer.Spinner("Fetching projects...")
 	projects, _, err := client.Projects.List(context.Background(), nil, 100, 0)
 	stop()
@@ -141,7 +170,8 @@ func runInit(f *cmdutil.Factory) error {
 					Title("Default Project (optional)").
 					Description("Used when --project is not specified").
 					Options(options...).
-					Value(&defProject),
+					Value(&defProject).
+					Height(5),
 			),
 		).Run()
 	}
@@ -149,42 +179,22 @@ func runInit(f *cmdutil.Factory) error {
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	// Step 5: Save config
+	// Step 6: Save profile
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
 	}
 
-	if err := config.Save(cfg, configPath); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
+		return fmt.Errorf("saving profile: %w", err)
 	}
 
-	printer.Success(fmt.Sprintf("Configuration saved to %s", configPath))
-
-	// Step 6: Offer agent skill installation
-	if _, err := exec.LookPath("npx"); err == nil {
-		var installSkill bool
-		_ = huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title("Install AI agent skill?").
-					Description("Installs a skill that teaches AI coding agents (Claude Code, Cursor, etc.) how to use redmine-cli effectively.").
-					Value(&installSkill),
-			),
-		).Run()
-
-		if installSkill {
-			stop := printer.Spinner("Installing agent skill...")
-			out, err := exec.Command("npx", "-y", "skills", "add", "aarondpn/redmine-cli", "--skill", "redmine-cli", "-g", "-y").CombinedOutput()
-			stop()
-			if err != nil {
-				printer.Warning(fmt.Sprintf("Could not install agent skill: %s\n%s", err, string(out)))
-				printer.Warning("You can install it manually: npx skills add aarondpn/redmine-cli --skill redmine-cli -g")
-			} else {
-				printer.Success("Agent skill installed globally. AI agents will now know how to use redmine-cli.")
-			}
-		}
+	// Set as active profile
+	if err := config.SetActiveProfile(profileName, configPath); err != nil {
+		return fmt.Errorf("setting active profile: %w", err)
 	}
+
+	printer.Success(fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
 }

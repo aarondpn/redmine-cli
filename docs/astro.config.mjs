@@ -23,6 +23,7 @@ export default defineConfig({
 				{
 					label: 'Commands',
 					items: [
+						{ label: 'Auth', slug: 'commands/auth' },
 						{ label: 'Issues', slug: 'commands/issues' },
 						{ label: 'Projects', slug: 'commands/projects' },
 						{ label: 'Time Entries', slug: 'commands/time' },

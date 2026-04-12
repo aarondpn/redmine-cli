@@ -24,6 +24,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `trackers` | List trackers |
 | `statuses` | List issue statuses |
 | `search` | Search issues, wiki, news, messages, or browse results |
+| `auth` | Login, logout, list, switch, and check status of authentication profiles |
 | `api` | Make raw authenticated API requests |
 
 ## Setup
@@ -34,7 +35,7 @@ If the `redmine` command is not found, install it:
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-Then run `redmine init` for interactive configuration. Use `redmine config` to verify an existing setup.
+Then run `redmine auth login` for interactive configuration. Use `redmine config` to verify an existing setup.
 
 ## Critical Rules
 
@@ -91,5 +92,5 @@ Get the server URL from `redmine config` (or from the JSON output's hints). Alwa
 - `redmine issues list` defaults to `--status open`. Use `--status closed`, `--status "*"`, or a specific status name.
 - `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
-- If `--project` is omitted, the configured default project is used (set via `redmine init`).
+- If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - Version status filters (`--open`, `--closed`, `--locked`) on `redmine versions list` are applied client-side.
