@@ -170,7 +170,8 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 					Title("Default Project (optional)").
 					Description("Used when --project is not specified").
 					Options(options...).
-					Value(&defProject),
+					Value(&defProject).
+					Height(5),
 			),
 		).Run()
 	}

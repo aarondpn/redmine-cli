@@ -71,7 +71,8 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 				huh.NewSelect[string]().
 					Title("Select profile").
 					Options(options...).
-					Value(&name),
+					Value(&name).
+					Height(5),
 			),
 		).Run()
 		if err != nil {
