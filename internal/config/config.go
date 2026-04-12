@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var errNoActiveProfile = errors.New("multiple profiles exist but no active profile set")
+
 func DefaultConfigPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".redmine-cli.yaml")
@@ -20,6 +23,16 @@ func DefaultConfigPath() string {
 // If profileName is non-empty, that profile is used instead of the active one.
 // Environment variables (REDMINE_*) override file values.
 func Load(configPath string, profileName string, log *debug.Logger) (*Config, error) {
+	return load(configPath, profileName, false, log)
+}
+
+// LoadAllowNoActiveProfile reads configuration while allowing the caller to
+// recover with explicit CLI credentials when no active profile is selected.
+func LoadAllowNoActiveProfile(configPath string, profileName string, log *debug.Logger) (*Config, error) {
+	return load(configPath, profileName, true, log)
+}
+
+func load(configPath string, profileName string, allowNoActiveProfile bool, log *debug.Logger) (*Config, error) {
 	if configPath == "" {
 		configPath = DefaultConfigPath()
 	}
@@ -62,14 +75,15 @@ func Load(configPath string, profileName string, log *debug.Logger) (*Config, er
 	} else if len(pc.Profiles) == 0 {
 		log.Printf("Config: no profiles configured")
 	} else {
-		// No active profile with multiple profiles exist.
-		// Apply env overrides first - if REDMINE_SERVER is set, the user
-		// is explicitly providing credentials and wants to bypass profile selection.
+		// Apply env overrides first so explicit environment credentials can bypass
+		// profile selection when requested.
 		applyEnvOverrides(&cfg, log)
-		if cfg.Server == "" {
-			return nil, fmt.Errorf("multiple profiles exist but no active profile set. Run 'redmine auth switch' to select one")
+		if cfg.Server == "" && !allowNoActiveProfile {
+			return nil, fmt.Errorf("%w. Run 'redmine auth switch' to select one", errNoActiveProfile)
 		}
-		log.Printf("Config: using env overrides, no active profile")
+		if cfg.Server != "" || allowNoActiveProfile {
+			log.Printf("Config: proceeding without active profile selection")
+		}
 	}
 
 	// Apply env overrides (may have been applied above, idempotent)
@@ -84,6 +98,31 @@ func Load(configPath string, profileName string, log *debug.Logger) (*Config, er
 	}
 
 	return &cfg, nil
+}
+
+// IsNoActiveProfileError reports whether err is the missing-active-profile error.
+func IsNoActiveProfileError(err error) bool {
+	return errors.Is(err, errNoActiveProfile)
+}
+
+// EffectiveProfileName resolves which profile name should be displayed or used
+// for commands that mirror Load's profile selection behavior.
+func EffectiveProfileName(pc *ProfileConfig, override string) string {
+	if override != "" {
+		return override
+	}
+	if pc == nil {
+		return ""
+	}
+	if pc.ActiveProfile != "" {
+		return pc.ActiveProfile
+	}
+	if len(pc.Profiles) == 1 {
+		for name := range pc.Profiles {
+			return name
+		}
+	}
+	return ""
 }
 
 // LoadProfiles reads the full profile configuration from disk.

@@ -323,6 +323,34 @@ func TestLoadNoActiveProfileNoEnvOverridesFails(t *testing.T) {
 	}
 }
 
+func TestLoadAllowNoActiveProfile(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `profiles:
+  a:
+    server: https://a.example.com
+  b:
+    server: https://b.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadAllowNoActiveProfile(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("LoadAllowNoActiveProfile failed: %v", err)
+	}
+
+	if cfg.Server != "" {
+		t.Fatalf("Server = %q, want empty string when no explicit credentials are provided", cfg.Server)
+	}
+	if cfg.AuthMethod != "apikey" {
+		t.Fatalf("AuthMethod = %q, want %q", cfg.AuthMethod, "apikey")
+	}
+	if cfg.OutputFormat != "table" {
+		t.Fatalf("OutputFormat = %q, want %q", cfg.OutputFormat, "table")
+	}
+}
+
 func TestLoadSingleProfileNoActive(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `profiles:
@@ -357,6 +385,21 @@ func TestLoadProfilesNonExistent(t *testing.T) {
 	}
 	if pc.ActiveProfile != "" {
 		t.Fatalf("ActiveProfile = %q, want empty string", pc.ActiveProfile)
+	}
+}
+
+func TestEffectiveProfileName(t *testing.T) {
+	pc := &ProfileConfig{
+		Profiles: map[string]Config{
+			"only": {Server: "https://only.example.com"},
+		},
+	}
+
+	if got := EffectiveProfileName(pc, ""); got != "only" {
+		t.Fatalf("EffectiveProfileName(single profile) = %q, want %q", got, "only")
+	}
+	if got := EffectiveProfileName(pc, "override"); got != "override" {
+		t.Fatalf("EffectiveProfileName(override) = %q, want %q", got, "override")
 	}
 }
 

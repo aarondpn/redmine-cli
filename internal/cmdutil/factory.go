@@ -70,7 +70,12 @@ func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
-	cfg, err := config.Load(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
+	loadFn := config.Load
+	if f.ServerOverride != "" || f.APIKeyOverride != "" {
+		loadFn = config.LoadAllowNoActiveProfile
+	}
+
+	cfg, err := loadFn(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	if err != nil {
 		return nil, err
 	}

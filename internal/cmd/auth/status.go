@@ -39,18 +39,7 @@ func runStatus(f *cmdutil.Factory) error {
 
 	printer := f.Printer("")
 
-	// Honor --profile override, falling back to active profile
-	profileName := f.ProfileOverride
-	if profileName == "" {
-		profileName = pc.ActiveProfile
-	}
-
-	// Fall back to sole profile if no active profile set (matching Load behavior)
-	if profileName == "" && len(pc.Profiles) == 1 {
-		for profileName = range pc.Profiles {
-			// take the only key
-		}
-	}
+	profileName := config.EffectiveProfileName(pc, f.ProfileOverride)
 
 	if len(pc.Profiles) == 0 || profileName == "" {
 		printer.Warning("No active profile. Run 'redmine auth login' to set up.")

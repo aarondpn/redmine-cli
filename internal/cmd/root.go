@@ -103,16 +103,13 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			// Determine active profile name
 			profileName := f.ProfileOverride
-			if profileName == "" {
-				configPath := f.ConfigPath
-				if configPath == "" {
-					configPath = config.DefaultConfigPath()
-				}
-				if pc, err := config.LoadProfiles(configPath, debug.New(nil)); err == nil {
-					profileName = pc.ActiveProfile
-				}
+			configPath := f.ConfigPath
+			if configPath == "" {
+				configPath = config.DefaultConfigPath()
+			}
+			if pc, err := config.LoadProfiles(configPath, debug.New(nil)); err == nil {
+				profileName = config.EffectiveProfileName(pc, f.ProfileOverride)
 			}
 
 			printer := f.Printer("")
