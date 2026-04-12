@@ -270,6 +270,59 @@ profiles:
 	}
 }
 
+func TestLoadNoActiveProfileWithEnvOverrides(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `profiles:
+  a:
+    server: https://a.example.com
+  b:
+    server: https://b.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("REDMINE_SERVER", "https://env.example.com")
+	t.Setenv("REDMINE_API_KEY", "env-key")
+
+	cfg, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load with no active profile and env overrides failed: %v", err)
+	}
+
+	if cfg.Server != "https://env.example.com" {
+		t.Errorf("expected server from env, got %q", cfg.Server)
+	}
+	if cfg.APIKey != "env-key" {
+		t.Errorf("expected api_key from env, got %q", cfg.APIKey)
+	}
+}
+
+func TestLoadNoActiveProfileNoEnvOverridesFails(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `profiles:
+  a:
+    server: https://a.example.com
+  b:
+    server: https://b.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ensure no env overrides
+	t.Setenv("REDMINE_SERVER", "")
+	t.Setenv("REDMINE_API_KEY", "")
+
+	_, err := Load(cfgPath, "", debug.New(nil))
+	if err == nil {
+		t.Fatal("expected error for no active profile without env overrides")
+	}
+	if !strings.Contains(err.Error(), "multiple profiles exist but no active profile") {
+		t.Errorf("expected 'multiple profiles' error, got: %v", err)
+	}
+}
+
 func TestLoadSingleProfileNoActive(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `profiles:

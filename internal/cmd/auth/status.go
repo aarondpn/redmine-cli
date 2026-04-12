@@ -45,6 +45,13 @@ func runStatus(f *cmdutil.Factory) error {
 		profileName = pc.ActiveProfile
 	}
 
+	// Fall back to sole profile if no active profile set (matching Load behavior)
+	if profileName == "" && len(pc.Profiles) == 1 {
+		for profileName = range pc.Profiles {
+			// take the only key
+		}
+	}
+
 	if len(pc.Profiles) == 0 || profileName == "" {
 		printer.Warning("No active profile. Run 'redmine auth login' to set up.")
 		return nil

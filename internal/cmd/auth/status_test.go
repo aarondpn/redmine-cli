@@ -152,3 +152,45 @@ profiles:
 		t.Errorf("expected 'not found' in error, got: %v", err)
 	}
 }
+
+func TestStatus_FallsBackToSoleProfile(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	// Single profile but no active_profile set
+	content := `profiles:
+  only:
+    server: https://only.example.com
+    auth_method: apikey
+    api_key: only-key
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &cmdutil.Factory{
+		ConfigPath: cfgPath,
+		IOStreams: &cmdutil.IOStreams{
+			In:     strings.NewReader(""),
+			Out:    &strings.Builder{},
+			ErrOut: &strings.Builder{},
+			IsTTY:  false,
+		},
+	}
+
+	cmd := NewCmdStatus(f)
+	cmd.SetOut(f.IOStreams.Out)
+	cmd.SetErr(f.IOStreams.ErrOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := f.IOStreams.Out.(*strings.Builder).String()
+	// Should show the sole profile's server
+	if !strings.Contains(output, "https://only.example.com") {
+		t.Errorf("output should contain sole profile's server URL, got:\n%s", output)
+	}
+	// Should show the profile name
+	if !strings.Contains(output, "only") {
+		t.Errorf("output should contain profile name 'only', got:\n%s", output)
+	}
+}

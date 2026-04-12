@@ -62,8 +62,18 @@ func Load(configPath string, profileName string, log *debug.Logger) (*Config, er
 	} else if len(pc.Profiles) == 0 {
 		log.Printf("Config: no profiles configured")
 	} else {
-		return nil, fmt.Errorf("multiple profiles exist but no active profile set. Run 'redmine auth switch' to select one")
+		// No active profile with multiple profiles exist.
+		// Apply env overrides first - if REDMINE_SERVER is set, the user
+		// is explicitly providing credentials and wants to bypass profile selection.
+		applyEnvOverrides(&cfg, log)
+		if cfg.Server == "" {
+			return nil, fmt.Errorf("multiple profiles exist but no active profile set. Run 'redmine auth switch' to select one")
+		}
+		log.Printf("Config: using env overrides, no active profile")
 	}
+
+	// Apply env overrides (may have been applied above, idempotent)
+	applyEnvOverrides(&cfg, log)
 
 	// Apply defaults
 	if cfg.AuthMethod == "" {
@@ -72,8 +82,6 @@ func Load(configPath string, profileName string, log *debug.Logger) (*Config, er
 	if cfg.OutputFormat == "" {
 		cfg.OutputFormat = "table"
 	}
-
-	applyEnvOverrides(&cfg, log)
 
 	return &cfg, nil
 }
