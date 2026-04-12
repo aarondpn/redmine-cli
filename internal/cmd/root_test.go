@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,30 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 )
+
+func TestRootCmdGeneratesCompletions(t *testing.T) {
+	root := NewRootCmd("test")
+	for _, shell := range []struct {
+		name string
+		gen  func() error
+	}{
+		{"bash", func() error { return root.GenBashCompletion(io.Discard) }},
+		{"zsh", func() error { return root.GenZshCompletion(io.Discard) }},
+		{"fish", func() error { return root.GenFishCompletion(io.Discard, true) }},
+		{"powershell", func() error { return root.GenPowerShellCompletion(io.Discard) }},
+	} {
+		t.Run(shell.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("completion generation panicked (likely a flag shorthand collision): %v", r)
+				}
+			}()
+			if err := shell.gen(); err != nil {
+				t.Fatalf("completion generation failed: %v", err)
+			}
+		})
+	}
+}
 
 func TestConfigCommandShowsSoleProfileName(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
