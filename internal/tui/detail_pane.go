@@ -203,14 +203,14 @@ func (d *DetailPane) Update(msg tea.Msg, keys KeyMap) tea.Cmd {
 		case key.Matches(msg, keys.PageUp):
 			if d.viewport.TotalLineCount() > 0 {
 				d.selectedField = len(d.fields) // ensure we're in description mode
-				d.viewport.ViewUp()
+				d.viewport.PageUp()
 			}
 			return nil
 
 		case key.Matches(msg, keys.PageDown):
 			if d.viewport.TotalLineCount() > 0 {
 				d.selectedField = len(d.fields)
-				d.viewport.ViewDown()
+				d.viewport.PageDown()
 			}
 			return nil
 
