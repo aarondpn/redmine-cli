@@ -8,7 +8,7 @@ description: Get up and running with redmine-cli in minutes.
 Configure your Redmine server connection:
 
 ```bash
-redmine init
+redmine auth login
 ```
 
 ## Common Tasks

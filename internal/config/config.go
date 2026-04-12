@@ -2,11 +2,13 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aarondpn/redmine-cli/internal/debug"
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 func DefaultConfigPath() string {
@@ -14,76 +16,267 @@ func DefaultConfigPath() string {
 	return filepath.Join(home, ".redmine-cli.yaml")
 }
 
-// Load reads configuration from file, environment variables, and defaults.
-func Load(configPath string, log *debug.Logger) (*Config, error) {
-	v := viper.New()
-
-	// Defaults
-	v.SetDefault("auth_method", "apikey")
-	v.SetDefault("output_format", "table")
-
-	// Config file
-	if configPath != "" {
-		v.SetConfigFile(configPath)
-		log.Printf("Config: using explicit path %s", configPath)
-	} else {
-		v.SetConfigName(".redmine-cli")
-		v.SetConfigType("yaml")
-		home, err := os.UserHomeDir()
-		if err == nil {
-			v.AddConfigPath(home)
-		}
-		v.AddConfigPath(".")
+// Load reads configuration and returns the active profile's Config.
+// If profileName is non-empty, that profile is used instead of the active one.
+// Environment variables (REDMINE_*) override file values.
+func Load(configPath string, profileName string, log *debug.Logger) (*Config, error) {
+	if configPath == "" {
+		configPath = DefaultConfigPath()
 	}
 
-	// Environment variables
-	v.SetEnvPrefix("REDMINE")
-	v.AutomaticEnv()
-
-	// Read config file (ignore "not found" errors)
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Only fail on errors other than "file not found"
-			if _, err2 := os.Stat(v.ConfigFileUsed()); err2 == nil {
-				return nil, fmt.Errorf("reading config: %w", err)
+	pc, err := LoadProfiles(configPath, log)
+	if err != nil {
+		// If no config file exists, return defaults with env overrides
+		if os.IsNotExist(err) {
+			log.Printf("Config: no config file found")
+			cfg := &Config{
+				AuthMethod:   "apikey",
+				OutputFormat: "table",
 			}
+			applyEnvOverrides(cfg, log)
+			return cfg, nil
 		}
-		log.Printf("Config: no config file found")
-	} else {
-		log.Printf("Config: loaded from %s", v.ConfigFileUsed())
+		return nil, err
 	}
 
-	// Log environment variable overrides
-	for _, envVar := range []string{"REDMINE_SERVER", "REDMINE_API_KEY", "REDMINE_AUTH_METHOD"} {
-		if val := os.Getenv(envVar); val != "" {
-			log.Printf("Config: env override %s is set", envVar)
-		}
+	// Determine which profile to use
+	name := profileName
+	if name == "" {
+		name = pc.ActiveProfile
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+	if name != "" {
+		p, ok := pc.Profiles[name]
+		if !ok {
+			return nil, fmt.Errorf("profile %q not found. Run 'redmine auth list' to see available profiles", name)
+		}
+		cfg = p
+		log.Printf("Config: loaded profile %q from %s", name, configPath)
+	} else if len(pc.Profiles) == 1 {
+		// Single profile, use it even without active_profile set
+		for n, p := range pc.Profiles {
+			cfg = p
+			log.Printf("Config: loaded only profile %q from %s", n, configPath)
+		}
+	} else if len(pc.Profiles) == 0 {
+		log.Printf("Config: no profiles configured")
+	} else {
+		return nil, fmt.Errorf("multiple profiles exist but no active profile set. Run 'redmine auth switch' to select one")
 	}
 
-	log.Printf("Config: server=%s auth_method=%s", cfg.Server, cfg.AuthMethod)
+	// Apply defaults
+	if cfg.AuthMethod == "" {
+		cfg.AuthMethod = "apikey"
+	}
+	if cfg.OutputFormat == "" {
+		cfg.OutputFormat = "table"
+	}
+
+	applyEnvOverrides(&cfg, log)
 
 	return &cfg, nil
 }
 
-// Save writes configuration to the given path.
-func Save(cfg *Config, path string) error {
-	v := viper.New()
-	v.Set("server", cfg.Server)
-	v.Set("api_key", cfg.APIKey)
-	v.Set("username", cfg.Username)
-	v.Set("password", cfg.Password)
-	v.Set("auth_method", cfg.AuthMethod)
-	v.Set("default_project", cfg.DefaultProject)
-	v.Set("output_format", cfg.OutputFormat)
-	v.Set("no_color", cfg.NoColor)
+// LoadProfiles reads the full profile configuration from disk.
+// It handles both legacy flat format and new profile format.
+func LoadProfiles(configPath string, log *debug.Logger) (*ProfileConfig, error) {
+	if configPath == "" {
+		configPath = DefaultConfigPath()
+	}
 
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to detect format by checking for "profiles" key
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parsing config file: %w", err)
+	}
+
+	if _, hasProfiles := raw["profiles"]; hasProfiles {
+		// New profile format
+		var pc ProfileConfig
+		if err := yaml.Unmarshal(data, &pc); err != nil {
+			return nil, fmt.Errorf("parsing config profiles: %w", err)
+		}
+		if pc.Profiles == nil {
+			pc.Profiles = make(map[string]Config)
+		}
+		return &pc, nil
+	}
+
+	// Legacy flat format — convert to profile
+	var legacy Config
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return nil, fmt.Errorf("parsing legacy config: %w", err)
+	}
+
+	profileName := ProfileNameFromURL(legacy.Server)
+	if profileName == "" {
+		profileName = "default"
+	}
+
+	pc := &ProfileConfig{
+		ActiveProfile: profileName,
+		Profiles: map[string]Config{
+			profileName: legacy,
+		},
+	}
+
+	// Auto-migrate: write back in new format
+	log.Printf("Config: migrating legacy format to profile %q", profileName)
+	if err := SaveProfiles(pc, configPath); err != nil {
+		log.Printf("Config: migration write failed: %v", err)
+		// Non-fatal: still return the parsed config
+	}
+
+	return pc, nil
+}
+
+// SaveProfiles writes the full profile configuration to disk.
+func SaveProfiles(pc *ProfileConfig, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return v.WriteConfigAs(path)
+
+	data, err := yaml.Marshal(pc)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	return os.WriteFile(path, data, 0o644)
+}
+
+// Save writes a single profile's configuration (used by auth login).
+func Save(cfg *Config, path string) error {
+	// Load existing profiles or create new
+	log := debug.New(nil)
+	pc, err := LoadProfiles(path, log)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		pc = &ProfileConfig{Profiles: make(map[string]Config)}
+	}
+
+	name := ProfileNameFromURL(cfg.Server)
+	if name == "" {
+		name = "default"
+	}
+
+	pc.Profiles[name] = *cfg
+	if pc.ActiveProfile == "" {
+		pc.ActiveProfile = name
+	}
+
+	return SaveProfiles(pc, path)
+}
+
+// SaveProfile writes a named profile to the config file.
+func SaveProfile(name string, cfg *Config, path string) error {
+	log := debug.New(nil)
+	pc, err := LoadProfiles(path, log)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		pc = &ProfileConfig{Profiles: make(map[string]Config)}
+	}
+
+	pc.Profiles[name] = *cfg
+	if pc.ActiveProfile == "" || len(pc.Profiles) == 1 {
+		pc.ActiveProfile = name
+	}
+
+	return SaveProfiles(pc, path)
+}
+
+// DeleteProfile removes a profile from the config file.
+func DeleteProfile(name string, path string) error {
+	log := debug.New(nil)
+	pc, err := LoadProfiles(path, log)
+	if err != nil {
+		return err
+	}
+
+	if _, ok := pc.Profiles[name]; !ok {
+		return fmt.Errorf("profile %q not found", name)
+	}
+
+	delete(pc.Profiles, name)
+
+	if pc.ActiveProfile == name {
+		pc.ActiveProfile = ""
+		// If there's exactly one profile left, make it active
+		for remaining := range pc.Profiles {
+			pc.ActiveProfile = remaining
+		}
+	}
+
+	return SaveProfiles(pc, path)
+}
+
+// SetActiveProfile sets the active profile in the config file.
+func SetActiveProfile(name string, path string) error {
+	log := debug.New(nil)
+	pc, err := LoadProfiles(path, log)
+	if err != nil {
+		return err
+	}
+
+	if _, ok := pc.Profiles[name]; !ok {
+		return fmt.Errorf("profile %q not found", name)
+	}
+
+	pc.ActiveProfile = name
+	return SaveProfiles(pc, path)
+}
+
+// ProfileNameFromURL derives a profile name from a server URL.
+func ProfileNameFromURL(serverURL string) string {
+	if serverURL == "" {
+		return ""
+	}
+
+	u, err := url.Parse(serverURL)
+	if err != nil || u.Host == "" {
+		// Try adding scheme
+		u, err = url.Parse("https://" + serverURL)
+		if err != nil || u.Host == "" {
+			return strings.ReplaceAll(serverURL, "/", "-")
+		}
+	}
+
+	host := u.Hostname()
+	// Remove common prefixes/suffixes for cleaner names
+	host = strings.TrimPrefix(host, "www.")
+
+	return strings.ReplaceAll(host, ".", "-")
+}
+
+// applyEnvOverrides applies REDMINE_* environment variables to the config.
+func applyEnvOverrides(cfg *Config, log *debug.Logger) {
+	envMap := map[string]*string{
+		"REDMINE_SERVER":          &cfg.Server,
+		"REDMINE_API_KEY":         &cfg.APIKey,
+		"REDMINE_AUTH_METHOD":     &cfg.AuthMethod,
+		"REDMINE_USERNAME":        &cfg.Username,
+		"REDMINE_PASSWORD":        &cfg.Password,
+		"REDMINE_DEFAULT_PROJECT": &cfg.DefaultProject,
+		"REDMINE_OUTPUT_FORMAT":   &cfg.OutputFormat,
+	}
+
+	for envVar, field := range envMap {
+		if val := os.Getenv(envVar); val != "" {
+			*field = val
+			log.Printf("Config: env override %s is set", envVar)
+		}
+	}
+
+	if os.Getenv("REDMINE_NO_COLOR") != "" {
+		cfg.NoColor = true
+	}
 }

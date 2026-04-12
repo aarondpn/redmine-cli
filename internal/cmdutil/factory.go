@@ -25,6 +25,7 @@ type Factory struct {
 	Verbose    bool
 
 	// Runtime overrides from CLI flags (highest precedence).
+	ProfileOverride string
 	ServerOverride  string
 	APIKeyOverride  string
 	NoColorOverride bool
@@ -69,7 +70,7 @@ func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
-	cfg, err := config.Load(f.ConfigPath, f.DebugLogger())
+	cfg, err := config.Load(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	if err != nil {
 		return nil, err
 	}

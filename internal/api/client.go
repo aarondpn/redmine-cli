@@ -78,7 +78,7 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // NewClient creates a new Redmine API client from configuration.
 func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if cfg.Server == "" {
-		return nil, fmt.Errorf("server URL not configured. Run 'redmine init' to set up")
+		return nil, fmt.Errorf("server URL not configured. Run 'redmine auth login' to set up")
 	}
 
 	baseURL := strings.TrimRight(cfg.Server, "/")

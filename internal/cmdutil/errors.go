@@ -22,7 +22,7 @@ func FormatError(err error) string {
 
 	switch {
 	case apiErr.IsAuthError():
-		return "Authentication failed. Run 'redmine init' to reconfigure your credentials."
+		return "Authentication failed. Run 'redmine auth login' to reconfigure your credentials."
 	case apiErr.IsForbidden():
 		return "Permission denied: you don't have the required permissions for this action. Check your Redmine role permissions or contact your administrator."
 	case apiErr.IsNotFound():
