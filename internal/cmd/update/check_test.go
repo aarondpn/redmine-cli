@@ -163,7 +163,17 @@ func readTestCache(t *testing.T) *updateCheckCache {
 func clearTestCache(t *testing.T) {
 	t.Helper()
 	path := cachePath()
+	if path == "" {
+		return
+	}
 	os.Remove(path)
+}
+
+func setEmptyCachePath(t *testing.T) {
+	t.Helper()
+	orig := cachePath
+	cachePath = func() string { return "" }
+	t.Cleanup(func() { cachePath = orig })
 }
 
 // Test 1: positive cache hit
@@ -396,6 +406,29 @@ func TestCheckForUpdateCached_NetworkErrorNoCache(t *testing.T) {
 	cache := readTestCache(t)
 	if cache != nil {
 		t.Errorf("expected no cache on network error, got %+v", cache)
+	}
+}
+
+func TestCheckForUpdateCached_EmptyCachePathDisablesCaching(t *testing.T) {
+	var fetchCalls int
+	stubFetchRelease(t, func(ctx context.Context) (*GithubRelease, error) {
+		fetchCalls++
+		return &GithubRelease{TagName: "v2.0.0"}, nil
+	})
+
+	setEmptyCachePath(t)
+
+	result := CheckForUpdateCached(context.Background(), "1.0.0")
+	if result == nil {
+		t.Fatal("expected live result")
+	}
+	if fetchCalls != 1 {
+		t.Fatalf("expected exactly one live fetch, got %d", fetchCalls)
+	}
+
+	cache := readTestCache(t)
+	if cache != nil {
+		t.Fatalf("expected caching to be disabled when cache path is empty, got %+v", cache)
 	}
 }
 

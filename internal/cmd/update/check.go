@@ -107,7 +107,10 @@ func PrintNotice(w io.Writer, currentVersion string, result *CheckResult) {
 var cachePath = defaultCachePath
 
 func defaultCachePath() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
 	return filepath.Join(home, ".redmine-cli-update-check.json")
 }
 
@@ -121,6 +124,9 @@ func normalizeVersion(version string) string {
 // Returns nil if the file does not exist or is corrupt.
 func readCache() *updateCheckCache {
 	path := cachePath()
+	if path == "" {
+		return nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -138,6 +144,9 @@ func readCache() *updateCheckCache {
 // Errors are silently ignored.
 func writeCache(cache *updateCheckCache) {
 	path := cachePath()
+	if path == "" {
+		return
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return
 	}

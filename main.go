@@ -36,9 +36,10 @@ func main() {
 	rootCmd := cmd.NewRootCmd(version)
 	err := rootCmd.Execute()
 
-	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
-
 	if err != nil {
+		if cancelUpdateCheck != nil {
+			cancelUpdateCheck()
+		}
 		var silent *cmdutil.SilentError
 		if errors.As(err, &silent) {
 			os.Exit(silent.Code)
@@ -46,6 +47,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
 		os.Exit(1)
 	}
+
+	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
 }
 
 func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan *update.CheckResult, cancel context.CancelFunc, hintDelay, maxWait time.Duration) {
