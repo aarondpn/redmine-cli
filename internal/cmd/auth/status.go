@@ -39,18 +39,24 @@ func runStatus(f *cmdutil.Factory) error {
 
 	printer := f.Printer("")
 
-	if len(pc.Profiles) == 0 || pc.ActiveProfile == "" {
+	// Honor --profile override, falling back to active profile
+	profileName := f.ProfileOverride
+	if profileName == "" {
+		profileName = pc.ActiveProfile
+	}
+
+	if len(pc.Profiles) == 0 || profileName == "" {
 		printer.Warning("No active profile. Run 'redmine auth login' to set up.")
 		return nil
 	}
 
-	profile, ok := pc.Profiles[pc.ActiveProfile]
+	profile, ok := pc.Profiles[profileName]
 	if !ok {
-		return fmt.Errorf("active profile %q not found in config", pc.ActiveProfile)
+		return fmt.Errorf("profile %q not found in config", profileName)
 	}
 
 	kvs := []output.KeyValue{
-		{Key: "Profile", Value: pc.ActiveProfile},
+		{Key: "Profile", Value: profileName},
 		{Key: "Server", Value: profile.Server},
 		{Key: "Auth Method", Value: profile.AuthMethod},
 	}

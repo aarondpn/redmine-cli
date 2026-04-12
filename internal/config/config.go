@@ -80,6 +80,7 @@ func Load(configPath string, profileName string, log *debug.Logger) (*Config, er
 
 // LoadProfiles reads the full profile configuration from disk.
 // It handles both legacy flat format and new profile format.
+// If the config file does not exist, it returns an empty ProfileConfig.
 func LoadProfiles(configPath string, log *debug.Logger) (*ProfileConfig, error) {
 	if configPath == "" {
 		configPath = DefaultConfigPath()
@@ -87,6 +88,9 @@ func LoadProfiles(configPath string, log *debug.Logger) (*ProfileConfig, error) 
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return &ProfileConfig{Profiles: make(map[string]Config)}, nil
+		}
 		return nil, err
 	}
 
@@ -210,10 +214,19 @@ func DeleteProfile(name string, path string) error {
 
 	if pc.ActiveProfile == name {
 		pc.ActiveProfile = ""
-		// If there's exactly one profile left, make it active
-		for remaining := range pc.Profiles {
-			pc.ActiveProfile = remaining
+		// Only set active profile when exactly one remains
+		if len(pc.Profiles) == 1 {
+			for remaining := range pc.Profiles {
+				pc.ActiveProfile = remaining
+			}
 		}
+	}
+
+	// If no profiles remain, remove the config file entirely
+	// to avoid serializing an empty config that would be
+	// misinterpreted as legacy format on next load.
+	if len(pc.Profiles) == 0 {
+		return os.Remove(path)
 	}
 
 	return SaveProfiles(pc, path)

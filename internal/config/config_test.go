@@ -290,3 +290,117 @@ func TestLoadSingleProfileNoActive(t *testing.T) {
 		t.Fatalf("Server = %q, want %q", cfg.Server, "https://only.example.com")
 	}
 }
+
+func TestLoadProfilesNonExistent(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "nonexistent.yaml")
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatalf("LoadProfiles on nonexistent file returned error: %v", err)
+	}
+
+	if len(pc.Profiles) != 0 {
+		t.Fatalf("Profiles count = %d, want 0", len(pc.Profiles))
+	}
+	if pc.ActiveProfile != "" {
+		t.Fatalf("ActiveProfile = %q, want empty string", pc.ActiveProfile)
+	}
+}
+
+func TestDeleteProfileActiveWithMultipleRemaining(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: a
+profiles:
+  a:
+    server: https://a.example.com
+  b:
+    server: https://b.example.com
+  c:
+    server: https://c.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteProfile("a", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := pc.Profiles["a"]; ok {
+		t.Fatal("profile 'a' should be deleted")
+	}
+	// ActiveProfile should be cleared, not set to a random remaining profile
+	if pc.ActiveProfile != "" {
+		t.Fatalf("ActiveProfile = %q, want empty string when multiple profiles remain after deleting active", pc.ActiveProfile)
+	}
+}
+
+func TestDeleteLastProfileRemovesConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: only
+profiles:
+  only:
+    server: https://only.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteProfile("only", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Config file should be removed
+	if _, err := os.Stat(cfgPath); !os.IsNotExist(err) {
+		t.Fatal("expected config file to be removed after deleting last profile")
+	}
+
+	// LoadProfiles should return empty config, not error
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatalf("LoadProfiles after last profile deleted returned error: %v", err)
+	}
+	if len(pc.Profiles) != 0 {
+		t.Fatalf("Profiles count = %d, want 0", len(pc.Profiles))
+	}
+}
+
+func TestDeleteProfileNonActivePreservesOthers(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: a
+profiles:
+  a:
+    server: https://a.example.com
+  b:
+    server: https://b.example.com
+  c:
+    server: https://c.example.com
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteProfile("b", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := pc.Profiles["a"]; !ok {
+		t.Fatal("profile 'a' should still exist")
+	}
+	if _, ok := pc.Profiles["c"]; !ok {
+		t.Fatal("profile 'c' should still exist")
+	}
+	if pc.ActiveProfile != "a" {
+		t.Fatalf("ActiveProfile = %q, want %q", pc.ActiveProfile, "a")
+	}
+}
