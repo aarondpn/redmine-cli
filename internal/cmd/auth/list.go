@@ -39,7 +39,7 @@ func runList(f *cmdutil.Factory) error {
 
 	if len(pc.Profiles) == 0 {
 		printer := f.Printer("")
-		printer.Warning("No profiles configured. Run 'redmine auth login' to add one.")
+		printer.Warning(noProfilesConfiguredMessage)
 		return nil
 	}
 

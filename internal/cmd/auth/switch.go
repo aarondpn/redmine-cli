@@ -39,7 +39,9 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 	}
 
 	if len(pc.Profiles) == 0 {
-		return fmt.Errorf("no profiles configured. Run 'redmine auth login' to add one")
+		printer := f.Printer("")
+		printer.Warning(noProfilesConfiguredMessage)
+		return nil
 	}
 
 	var name string

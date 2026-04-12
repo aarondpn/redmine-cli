@@ -47,4 +47,3 @@ func TestConfigCommandShowsSoleProfileName(t *testing.T) {
 		t.Errorf("expected config output to contain the sole profile server, got:\n%s", output)
 	}
 }
-

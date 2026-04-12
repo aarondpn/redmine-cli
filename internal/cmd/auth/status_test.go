@@ -85,8 +85,8 @@ func TestStatus_NoActiveProfile(t *testing.T) {
 	}
 
 	output := f.IOStreams.ErrOut.(*strings.Builder).String()
-	if !strings.Contains(output, "No active profile") {
-		t.Errorf("expected 'No active profile' warning in stderr, got:\n%s", output)
+	if !strings.Contains(output, noProfilesConfiguredMessage) {
+		t.Errorf("expected %q warning in stderr, got:\n%s", noProfilesConfiguredMessage, output)
 	}
 }
 
@@ -113,8 +113,8 @@ func TestStatus_NonExistentConfig(t *testing.T) {
 	}
 
 	output := f.IOStreams.ErrOut.(*strings.Builder).String()
-	if !strings.Contains(output, "No active profile") {
-		t.Errorf("expected 'No active profile' warning in stderr, got:\n%s", output)
+	if !strings.Contains(output, noProfilesConfiguredMessage) {
+		t.Errorf("expected %q warning in stderr, got:\n%s", noProfilesConfiguredMessage, output)
 	}
 }
 
@@ -148,8 +148,8 @@ profiles:
 	if err == nil {
 		t.Fatal("expected error for nonexistent profile")
 	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected 'not found' in error, got: %v", err)
+	if got := err.Error(); got != profileNotFoundError("nonexistent").Error() {
+		t.Errorf("expected %q, got %q", profileNotFoundError("nonexistent").Error(), got)
 	}
 }
 
@@ -192,5 +192,98 @@ func TestStatus_FallsBackToSoleProfile(t *testing.T) {
 	// Should show the profile name
 	if !strings.Contains(output, "only") {
 		t.Errorf("output should contain profile name 'only', got:\n%s", output)
+	}
+}
+
+func TestStatus_UsesCLIOverridesWithoutActiveProfile(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    api_key: work-key
+  personal:
+    server: https://personal.example.com
+    auth_method: apikey
+    api_key: personal-key
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &cmdutil.Factory{
+		ConfigPath:     cfgPath,
+		ServerOverride: "http://127.0.0.1:1",
+		APIKeyOverride: "override-key",
+		IOStreams: &cmdutil.IOStreams{
+			In:     strings.NewReader(""),
+			Out:    &strings.Builder{},
+			ErrOut: &strings.Builder{},
+			IsTTY:  false,
+		},
+	}
+
+	cmd := NewCmdStatus(f)
+	cmd.SetOut(f.IOStreams.Out)
+	cmd.SetErr(f.IOStreams.ErrOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := f.IOStreams.Out.(*strings.Builder).String()
+	if !strings.Contains(output, "http://127.0.0.1:1") {
+		t.Errorf("output should contain overridden server URL, got:\n%s", output)
+	}
+	if !strings.Contains(output, "(override)") {
+		t.Errorf("output should identify override-based config, got:\n%s", output)
+	}
+
+	errOutput := f.IOStreams.ErrOut.(*strings.Builder).String()
+	if strings.Contains(errOutput, noActiveProfileMessage) {
+		t.Errorf("status should not warn about missing active profile when CLI overrides are provided, got:\n%s", errOutput)
+	}
+}
+
+func TestStatus_ShowsEffectiveServerAfterEnvOverride(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    api_key: work-key
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("REDMINE_SERVER", "http://127.0.0.1:1")
+	t.Setenv("REDMINE_API_KEY", "env-key")
+
+	f := &cmdutil.Factory{
+		ConfigPath: cfgPath,
+		IOStreams: &cmdutil.IOStreams{
+			In:     strings.NewReader(""),
+			Out:    &strings.Builder{},
+			ErrOut: &strings.Builder{},
+			IsTTY:  false,
+		},
+	}
+
+	cmd := NewCmdStatus(f)
+	cmd.SetOut(f.IOStreams.Out)
+	cmd.SetErr(f.IOStreams.ErrOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := f.IOStreams.Out.(*strings.Builder).String()
+	if !strings.Contains(output, "http://127.0.0.1:1") {
+		t.Errorf("output should contain env-overridden server URL, got:\n%s", output)
+	}
+	if strings.Contains(output, "https://work.example.com") {
+		t.Errorf("output should not contain stored profile server after env override, got:\n%s", output)
 	}
 }

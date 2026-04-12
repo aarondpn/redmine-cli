@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/huh"
@@ -37,19 +38,18 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	var name string
-	if len(args) > 0 {
-		name = args[0]
-	} else {
-		name = pc.ActiveProfile
-	}
-
-	if name == "" {
-		return fmt.Errorf("no profile specified and no active profile set")
+	name, err := resolveLogoutProfileName(pc, args, f.ProfileOverride)
+	if err != nil {
+		if err.Error() == noProfilesConfiguredMessage {
+			printer := f.Printer("")
+			printer.Warning(noProfilesConfiguredMessage)
+			return nil
+		}
+		return err
 	}
 
 	if _, ok := pc.Profiles[name]; !ok {
-		return fmt.Errorf("profile %q not found", name)
+		return profileNotFoundError(name)
 	}
 
 	// Confirm deletion
@@ -77,4 +77,20 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 
 	printer.Success(fmt.Sprintf("Profile %q removed", name))
 	return nil
+}
+
+func resolveLogoutProfileName(pc *config.ProfileConfig, args []string, override string) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	name := config.EffectiveProfileName(pc, override)
+	if name == "" {
+		if pc != nil && len(pc.Profiles) == 0 {
+			return "", errors.New(noProfilesConfiguredMessage)
+		}
+		return "", errors.New(noActiveProfileMessage)
+	}
+
+	return name, nil
 }

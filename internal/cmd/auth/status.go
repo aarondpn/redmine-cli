@@ -32,6 +32,16 @@ func runStatus(f *cmdutil.Factory) error {
 		configPath = f.ConfigPath
 	}
 
+	cfg, err := f.Config()
+	if err != nil {
+		if config.IsNoActiveProfileError(err) {
+			printer := f.Printer("")
+			printer.Warning(noActiveProfileMessage)
+			return nil
+		}
+		return err
+	}
+
 	pc, err := config.LoadProfiles(configPath, debug.New(nil))
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -40,21 +50,25 @@ func runStatus(f *cmdutil.Factory) error {
 	printer := f.Printer("")
 
 	profileName := config.EffectiveProfileName(pc, f.ProfileOverride)
-
-	if len(pc.Profiles) == 0 || profileName == "" {
-		printer.Warning("No active profile. Run 'redmine auth login' to set up.")
+	if profileName == "" && cfg.Server == "" {
+		if len(pc.Profiles) == 0 {
+			printer.Warning(noProfilesConfiguredMessage)
+		} else {
+			printer.Warning(noActiveProfileMessage)
+		}
 		return nil
 	}
 
-	profile, ok := pc.Profiles[profileName]
-	if !ok {
-		return fmt.Errorf("profile %q not found in config", profileName)
+	if profileName == "" {
+		profileName = "(override)"
+	} else if _, ok := pc.Profiles[profileName]; !ok {
+		return profileNotFoundError(profileName)
 	}
 
 	kvs := []output.KeyValue{
 		{Key: "Profile", Value: profileName},
-		{Key: "Server", Value: profile.Server},
-		{Key: "Auth Method", Value: profile.AuthMethod},
+		{Key: "Server", Value: cfg.Server},
+		{Key: "Auth Method", Value: cfg.AuthMethod},
 	}
 
 	// Try to fetch current user
@@ -68,8 +82,8 @@ func runStatus(f *cmdutil.Factory) error {
 		}
 	}
 
-	if profile.DefaultProject != "" {
-		kvs = append(kvs, output.KeyValue{Key: "Default Project", Value: profile.DefaultProject})
+	if cfg.DefaultProject != "" {
+		kvs = append(kvs, output.KeyValue{Key: "Default Project", Value: cfg.DefaultProject})
 	}
 
 	printer.Detail(kvs)
