@@ -85,7 +85,7 @@ These flags can be used with any command to override config values:
 |------|------------|
 | `-s, --server` | Redmine server URL |
 | `-k, --api-key` | API key for authentication |
-| `-p, --profile` | Use a specific auth profile |
+| `--profile` | Use a specific auth profile |
 | `--config` | Config file path (default `~/.redmine-cli.yaml`) |
 | `--no-color` | Disable colored output |
 | `-v, --verbose` | Enable debug logging |

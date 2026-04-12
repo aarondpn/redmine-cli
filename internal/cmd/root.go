@@ -63,7 +63,7 @@ func NewRootCmd(version string) *cobra.Command {
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
 	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
-	cmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "Use a specific auth profile")
+	cmd.PersistentFlags().StringVar(&profile, "profile", "", "Use a specific auth profile")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
