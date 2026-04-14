@@ -30,5 +30,7 @@
 	"capability.formats.title": "Output Formats",
 	"capability.formats.desc": "Table, wide, JSON and CSV — equally suited for reading or scripting.",
 	"capability.agents.title": "AI Agent Ready",
-	"capability.agents.desc": "First-class skill bundle for Claude Code, Cursor, and other agents."
+	"capability.agents.desc": "First-class skill bundle for Claude Code, Cursor, and other agents.",
+	"banner.translationNotice": "",
+	"banner.dismissLabel": "Dismiss"
 }

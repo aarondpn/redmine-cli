@@ -40,6 +40,8 @@ export const collections = {
 				'capability.formats.desc': z.string(),
 				'capability.agents.title': z.string(),
 				'capability.agents.desc': z.string(),
+				'banner.translationNotice': z.string(),
+				'banner.dismissLabel': z.string(),
 			}),
 		}),
 	}),
