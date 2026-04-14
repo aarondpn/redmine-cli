@@ -23,6 +23,14 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"ls"},
 		Short:   "List wiki pages",
 		Long:    "List wiki pages in a Redmine project.",
+		Example: `  # List wiki pages in a project
+  redmine wiki list --project myproject
+
+  # JSON output
+  redmine wiki list --project myproject --output json
+
+  # Paginate results
+  redmine wiki list --project myproject --limit 10 --offset 20`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 

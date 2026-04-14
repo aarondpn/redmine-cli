@@ -25,7 +25,15 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"show"},
 		Short:   "Get wiki page details",
 		Long:    "Display detailed information about a Redmine wiki page.",
-		Args:    cobra.ExactArgs(1),
+		Example: `  # View a wiki page
+  redmine wiki get WikiStart --project myproject
+
+  # View a specific version
+  redmine wiki get WikiStart --project myproject --version 3
+
+  # Include attachments
+  redmine wiki get WikiStart --project myproject --include attachments`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 

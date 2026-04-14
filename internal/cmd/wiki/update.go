@@ -24,7 +24,18 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"edit"},
 		Short:   "Update a wiki page",
 		Long:    "Update an existing Redmine wiki page.",
-		Args:    cobra.ExactArgs(1),
+		Example: `  # Update page content
+  redmine wiki update MyPage --project myproject --text "Updated content"
+
+  # Update with a change comment (text is preserved when omitted)
+  redmine wiki update MyPage --project myproject --comments "Fixed typo"
+
+  # Rename a page
+  redmine wiki update MyPage --project myproject --title "New Title"
+
+  # Attach a file
+  redmine wiki update MyPage --project myproject --attach ./screenshot.png`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 

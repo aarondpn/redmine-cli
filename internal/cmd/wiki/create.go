@@ -26,7 +26,17 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"new"},
 		Short:   "Create a wiki page",
 		Long:    "Create a new Redmine wiki page (or overwrite an existing one).",
-		Args:    cobra.ExactArgs(1),
+		Example: `  # Create a new wiki page
+  redmine wiki create MyPage --project myproject --text "h1. Hello World"
+
+  # With display title and change comment
+  redmine wiki create MyPage --project myproject --text "Content here" \
+    --title "My Page" --comments "Initial draft"
+
+  # Attach a file
+  redmine wiki create MyPage --project myproject --text "See diagram" \
+    --attach ./diagram.png`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
