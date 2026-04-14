@@ -40,10 +40,6 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if text == "" {
-				return fmt.Errorf("--text must not be empty")
-			}
-
 			create := models.WikiPageCreate{
 				Text: text,
 			}

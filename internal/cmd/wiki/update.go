@@ -42,6 +42,14 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			if cmd.Flags().Changed("text") {
 				update.Text = &text
+			} else {
+				// Redmine requires the text field on every PUT.
+				// Fetch the current page and resend its text unchanged.
+				current, err := client.Wikis.Get(ctx, projectID, args[0], nil)
+				if err != nil {
+					return err
+				}
+				update.Text = &current.Text
 			}
 			if cmd.Flags().Changed("title") {
 				update.Title = &title
