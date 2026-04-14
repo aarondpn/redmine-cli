@@ -75,7 +75,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 

@@ -77,7 +77,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown")
 	cmd.Flags().StringVar(&title, "title", "", "Display title")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")

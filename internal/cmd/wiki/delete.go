@@ -55,7 +55,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmdutil.AddForceFlag(cmd, &force)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))

@@ -100,7 +100,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&project, "project", "p", "", "Project identifier or ID (required if no default)")
+	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().IntVar(&version, "version", 0, "Page version (0 for latest)")
 	cmd.Flags().StringSliceVar(&include, "include", nil, "Include additional data (attachments)")
 	cmdutil.AddOutputFlag(cmd, &format)
