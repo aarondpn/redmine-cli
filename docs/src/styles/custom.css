@@ -191,16 +191,6 @@
 	font-weight: 600;
 }
 
-.status-live {
-	color: var(--rc-red);
-}
-
-.status-live .status-label {
-	color: var(--rc-red);
-	font-weight: 700;
-	letter-spacing: 0.14em;
-}
-
 @media (max-width: 720px) {
 	.status-cell--hide-sm { display: none; }
 }
