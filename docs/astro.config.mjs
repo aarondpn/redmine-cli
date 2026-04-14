@@ -11,6 +11,9 @@ export default defineConfig({
 			title: 'redmine-cli',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/aarondpn/redmine-cli' }],
 			customCss: ['./src/styles/custom.css'],
+			components: {
+				Hero: './src/components/Hero.astro',
+			},
 			sidebar: [
 				{
 					label: 'Getting Started',
@@ -26,11 +29,12 @@ export default defineConfig({
 						{ label: 'Auth', slug: 'commands/auth' },
 						{ label: 'Issues', slug: 'commands/issues' },
 						{ label: 'Projects', slug: 'commands/projects' },
+						{ label: 'Memberships', slug: 'commands/memberships' },
+						{ label: 'Versions', slug: 'commands/versions' },
 						{ label: 'Time Entries', slug: 'commands/time' },
 						{ label: 'Users', slug: 'commands/users' },
 						{ label: 'Groups', slug: 'commands/groups' },
 						{ label: 'Search', slug: 'commands/search' },
-						{ label: 'Versions', slug: 'commands/versions' },
 						{ label: 'Other', slug: 'commands/other' },
 					],
 				},

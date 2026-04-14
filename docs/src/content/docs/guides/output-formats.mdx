@@ -1,0 +1,108 @@
+---
+title: Output Formats
+description: Controlling how redmine-cli displays data.
+---
+
+import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+Most commands accept `-o` / `--output` to control the output format. Pick the one that matches what you're doing: reading, scripting, or exporting.
+
+<Tabs syncKey="output-format">
+  <TabItem label="table">
+    Default format, optimised for human reading.
+
+    ```bash
+    redmine issues list --project myproject
+    ```
+
+    ```
+    ID    TRACKER  STATUS  PRIORITY  SUBJECT
+    123   Bug      Open    High      Fix login timeout
+    124   Feature  Open    Normal    Add dark mode
+    ```
+  </TabItem>
+
+  <TabItem label="wide">
+    Extended table with additional columns (assignee, updated date, done ratio, …).
+
+    ```bash
+    redmine issues list --project myproject -o wide
+    ```
+  </TabItem>
+
+  <TabItem label="json">
+    Machine-readable output. Ideal for scripting and piping.
+
+    ```bash
+    redmine issues list --project myproject -o json
+    ```
+
+    ```json
+    [
+      {
+        "id": 123,
+        "tracker": {"id": 1, "name": "Bug"},
+        "status":  {"id": 1, "name": "Open"},
+        "priority":{"id": 2, "name": "High"},
+        "subject": "Fix login timeout"
+      }
+    ]
+    ```
+  </TabItem>
+
+  <TabItem label="csv">
+    Comma-separated values for spreadsheets and data analysis.
+
+    ```bash
+    redmine issues list --project myproject -o csv
+    ```
+
+    ```
+    ID,Tracker,Status,Priority,Subject
+    123,Bug,Open,High,Fix login timeout
+    124,Feature,Open,Normal,Add dark mode
+    ```
+  </TabItem>
+</Tabs>
+
+## Working with JSON <Badge text="jq friendly" variant="tip" />
+
+JSON output pairs well with `jq` for ad-hoc analysis:
+
+```bash
+# IDs of all open bugs
+redmine issues list --tracker Bug -o json | jq '.[].id'
+
+# Count issues by status
+redmine issues list --project myproject -o json \
+  | jq 'group_by(.status.name) | map({status: .[0].status.name, count: length})'
+```
+
+<Aside type="note">
+  In `-o json` mode the CLI emits JSON only on `stdout`. Human-readable pagination hints are suppressed, so piping to `jq` is safe. Keep `stderr` separate if you want to surface actual errors.
+</Aside>
+
+## Default format
+
+Set a default in your config file:
+
+```yaml title="~/.redmine-cli.yaml"
+output_format: table
+```
+
+The `-o` flag always overrides the default for a single command.
+
+## Related
+
+<CardGrid>
+  <LinkCard
+    title="AI agent integration"
+    href="/redmine-cli/guides/ai-agents/"
+    description="Agents default to -o json for reliable automation."
+  />
+  <LinkCard
+    title="Issues reference"
+    href="/redmine-cli/commands/issues/"
+    description="Every flag that -o formats output for."
+  />
+</CardGrid>

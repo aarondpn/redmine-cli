@@ -1,0 +1,99 @@
+---
+title: Authentication
+description: Manage multiple Redmine authentication profiles.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `auth` command manages authentication profiles for connecting to one or more Redmine instances.
+
+<CardGrid>
+  <LinkCard title="login"  href="#login"  description="Interactive login wizard; creates a new profile." />
+  <LinkCard title="list"   href="#list"   description="List all saved authentication profiles." />
+  <LinkCard title="switch" href="#switch" description="Switch the active authentication profile." />
+  <LinkCard title="status" href="#status" description="Show the current auth status." />
+  <LinkCard title="logout" href="#logout" description="Remove an authentication profile." />
+</CardGrid>
+
+## login
+
+Start an interactive login wizard:
+
+```bash
+redmine auth login
+redmine auth login --name work   # explicit profile name
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Profile name (default: derived from server hostname) |
+
+<Aside type="tip">
+  Run `redmine auth login` again at any time to add another profile — the wizard never overwrites an existing one without confirmation.
+</Aside>
+
+## list
+
+```bash
+redmine auth list
+```
+
+Shows each profile's server URL and which one is currently active.
+
+## switch
+
+```bash
+redmine auth switch
+```
+
+Opens an interactive selector. The picked profile becomes the default for subsequent commands.
+
+## status
+
+```bash
+redmine auth status
+```
+
+Displays the active profile name, server URL, and authentication method.
+
+## logout <Badge text="destructive" variant="caution" />
+
+```bash
+redmine auth logout              # current profile
+redmine auth logout work         # named profile
+```
+
+You will be prompted to confirm before removal.
+
+<Aside type="caution" title="API keys in backups">
+  After logout, revoke the corresponding API key in Redmine if it may exist in shell history or backups.
+</Aside>
+
+## Quick reference
+
+<Tabs syncKey="auth-flow">
+  <TabItem label="Onboard">
+    ```bash
+    redmine auth login
+    redmine auth login --name work
+    redmine auth list
+    ```
+  </TabItem>
+  <TabItem label="Switch profile">
+    ```bash
+    redmine auth switch
+    redmine auth status
+    ```
+  </TabItem>
+  <TabItem label="One-off override">
+    ```bash
+    redmine --profile work issues list
+    ```
+  </TabItem>
+  <TabItem label="Offboard">
+    ```bash
+    redmine auth logout
+    redmine auth logout work
+    ```
+  </TabItem>
+</Tabs>

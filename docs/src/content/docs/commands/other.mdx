@@ -1,0 +1,142 @@
+---
+title: Other Commands
+description: API passthrough, categories, trackers, statuses, completion, and self-update.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+A grab-bag of utility commands that don't fit the main resource families.
+
+<CardGrid>
+  <LinkCard title="api"        href="#api"        description="Authenticated requests to any Redmine endpoint." />
+  <LinkCard title="categories" href="#categories" description="List issue categories for a project." />
+  <LinkCard title="trackers"   href="#trackers"   description="List all available trackers." />
+  <LinkCard title="statuses"   href="#statuses"   description="List all issue statuses." />
+  <LinkCard title="completion" href="#shell-completion" description="Generate shell completion scripts." />
+  <LinkCard title="update"     href="#self-update" description="Self-update the binary." />
+</CardGrid>
+
+## api
+
+Make authenticated requests to any Redmine REST API endpoint.
+
+<Tabs syncKey="api-examples">
+  <TabItem label="GET">
+    ```bash
+    redmine api /users/current.json
+
+    redmine api /issues.json -f project_id=myproject -f limit=5
+    ```
+  </TabItem>
+  <TabItem label="POST">
+    ```bash
+    # Method auto-detected when body fields are supplied
+    redmine api /issues.json \
+      -F 'issue[subject]=Bug report' \
+      -F 'issue[project_id]=1'
+    ```
+  </TabItem>
+  <TabItem label="From file">
+    ```bash
+    # - reads from stdin
+    redmine api /issues.json --input body.json
+    ```
+  </TabItem>
+  <TabItem label="Explicit method">
+    ```bash
+    redmine api -X DELETE /issues/123.json
+    redmine api -X PUT /issues/123.json -F 'issue[status_id]=5' --silent
+    ```
+  </TabItem>
+</Tabs>
+
+| Flag | Description |
+|------|-------------|
+| `-X, --method`    | HTTP method (default: GET, or POST when a body is provided) |
+| `-f, --field`     | Query parameter as `key=value` (repeatable) |
+| `-F, --raw-field` | JSON body field as `key=value` (repeatable) |
+| `--input`         | Read request body from file (`-` for stdin) |
+| `-i, --include`   | Show response status line and headers |
+| `--silent`        | Suppress response output |
+
+<Aside type="tip">
+  JSON responses are pretty-printed when stdout is a terminal. Non-2xx responses still print the body but exit with code `1`.
+</Aside>
+
+## categories
+
+```bash
+redmine categories list --project <identifier>
+```
+
+Lists issue categories for a project.
+
+## trackers
+
+```bash
+redmine trackers list
+```
+
+Lists all available trackers.
+
+## statuses
+
+```bash
+redmine statuses list
+```
+
+Lists all issue statuses.
+
+## Shell completion
+
+<Tabs syncKey="shell">
+  <TabItem label="bash" icon="seti:shell">
+    ```bash
+    redmine completion bash > /etc/bash_completion.d/redmine
+    ```
+  </TabItem>
+  <TabItem label="zsh" icon="seti:shell">
+    ```bash
+    redmine completion zsh > "${fpath[1]}/_redmine"
+    ```
+  </TabItem>
+  <TabItem label="fish" icon="seti:shell">
+    ```bash
+    redmine completion fish > ~/.config/fish/completions/redmine.fish
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+  Homebrew installs ship completions automatically — run the command above only if you installed via the script, `go install`, or manual download.
+</Aside>
+
+## self-update <Badge text="checksum verified" variant="success" />
+
+```bash
+redmine update
+```
+
+Checks GitHub for the latest release, downloads it with SHA256 checksum verification, and replaces the current binary. When installed via Homebrew, delegates to `brew upgrade`.
+
+### Startup update check
+
+On every invocation, `redmine` checks GitHub for a newer release in the background. When one is available, a notice is printed to stderr after the command output:
+
+```text
+A new version of redmine is available: v1.2.0 → v1.3.0
+https://github.com/aarondpn/redmine-cli/releases/tag/v1.3.0
+Run "redmine update" to upgrade
+```
+
+The check runs in a goroutine with a 3-second timeout, so it never delays the CLI. It is automatically skipped when:
+
+- the command is `redmine update` itself;
+- stderr is not a TTY (piped output, CI);
+- `REDMINE_NO_UPDATE_CHECK` is `1` or `true`.
+
+To disable permanently:
+
+```bash
+export REDMINE_NO_UPDATE_CHECK=1
+```

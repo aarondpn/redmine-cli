@@ -1,0 +1,70 @@
+---
+type Contributor = {
+  login: string;
+  id: number;
+  avatar_url: string;
+  html_url: string;
+  contributions: number;
+  type: string;
+};
+
+let contributors: Contributor[] = [];
+try {
+  const res = await fetch(
+    'https://api.github.com/repos/aarondpn/redmine-cli/contributors?per_page=50',
+    { headers: { Accept: 'application/vnd.github+json' } },
+  );
+  if (res.ok) {
+    const data = (await res.json()) as Contributor[];
+    contributors = data.filter((c) => c.type === 'User');
+  }
+} catch {
+  contributors = [];
+}
+
+const totalCommits = contributors.reduce((a, c) => a + c.contributions, 0);
+---
+
+<div class="rc-crew not-content">
+  <div class="rc-crew__meta">
+    <span class="rc-crew__meta-key">ROSTER</span>
+    <span class="rc-crew__meta-val">{contributors.length} contributor{contributors.length === 1 ? '' : 's'}</span>
+    {totalCommits > 0 && (
+      <>
+        <span class="rc-crew__meta-sep" aria-hidden="true">·</span>
+        <span class="rc-crew__meta-key">COMMITS</span>
+        <span class="rc-crew__meta-val">{totalCommits.toLocaleString()}</span>
+      </>
+    )}
+  </div>
+
+  {contributors.length === 0 ? (
+    <p class="rc-crew__empty">
+      Contributor manifest unavailable at build time. See the{' '}
+      <a href="https://github.com/aarondpn/redmine-cli/graphs/contributors">GitHub contributors page</a>.
+    </p>
+  ) : (
+    <ul class="rc-crew__grid">
+      {contributors.map((c, i) => (
+        <li class="rc-crew__item">
+          <a class="rc-crew__link" href={c.html_url} target="_blank" rel="noopener" title={`@${c.login} — ${c.contributions} commits`}>
+            <span class="rc-crew__rank" aria-hidden="true">{String(i + 1).padStart(3, '0')}</span>
+            <img
+              class="rc-crew__avatar"
+              src={`${c.avatar_url}&s=96`}
+              alt={`${c.login} avatar`}
+              loading="lazy"
+              width="48"
+              height="48"
+            />
+            <span class="rc-crew__handle">@{c.login}</span>
+            <span class="rc-crew__count">
+              <span class="rc-crew__count-num">{c.contributions}</span>
+              <span class="rc-crew__count-unit">commits</span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>

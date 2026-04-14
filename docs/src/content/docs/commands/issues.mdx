@@ -1,0 +1,186 @@
+---
+title: Issues
+description: Create, list, update, and manage Redmine issues.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `issues` command (alias `i`) manages Redmine issues end-to-end.
+
+<CardGrid>
+  <LinkCard title="list"    href="#list"    description="Filter and page through issues." />
+  <LinkCard title="get"     href="#get"     description="View a single issue with journals and relations." />
+  <LinkCard title="create"  href="#create"  description="Create an issue, optionally with attachments." />
+  <LinkCard title="update"  href="#update"  description="Change fields, add notes, attach files." />
+  <LinkCard title="close"   href="#close"   description="Close an issue with an optional comment." />
+  <LinkCard title="reopen"  href="#reopen"  description="Reopen a previously closed issue." />
+  <LinkCard title="assign"  href="#assign"  description="Assign an issue to a user." />
+  <LinkCard title="comment" href="#comment" description="Add a comment without other changes." />
+  <LinkCard title="delete"  href="#delete"  description="Permanently remove an issue." />
+  <LinkCard title="open"    href="#open"    description="Open the issue in your browser." />
+  <LinkCard title="browse"  href="#browse"  description="Interactive terminal browser." />
+</CardGrid>
+
+## list
+
+```bash
+redmine issues list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`     | Filter by project (name, identifier, or ID) |
+| `--tracker`     | Filter by tracker (name or ID) |
+| `--status`      | Filter by status: `open`, `closed`, `*`, name, or ID |
+| `--assignee`    | Filter by assignee: `me`, name, or ID |
+| `--version`     | Filter by target version (name or ID) |
+| `--sort`        | Sort order, e.g. `updated_on:desc` |
+| `--include`     | Include related data: `attachments`, `relations` |
+| `--attachments` | Shorthand for `--include attachments` |
+| `--relations`   | Shorthand for `--include relations` |
+| `--limit`       | Maximum number of results (0 for all) |
+| `--offset`      | Result offset for pagination |
+| `-o, --output`  | Output format: `table`, `wide`, `json`, `csv` |
+
+<Tabs syncKey="issues-list">
+  <TabItem label="Mine">
+    ```bash
+    redmine issues list --assignee me
+    ```
+  </TabItem>
+  <TabItem label="Project bugs">
+    ```bash
+    redmine issues list --project myproject --tracker Bug
+    ```
+  </TabItem>
+  <TabItem label="Recently closed">
+    ```bash
+    redmine issues list --status closed --sort updated_on:desc
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine issues get <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--include`    | Include related data: `journals`, `children`, `relations` |
+| `--journals`   | Shorthand for `--include journals` |
+| `--children`   | Shorthand for `--include children` |
+| `--relations`  | Shorthand for `--include relations` |
+| `-o, --output` | Output format |
+
+## create
+
+```bash
+redmine issues create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`         | Project (name, identifier, or ID) — falls back to the default project of the active profile |
+| `--subject`         | Issue subject — <Badge text="required" variant="danger" /> |
+| `--tracker`         | Tracker (name or ID) |
+| `--status`          | Status (name or ID) |
+| `--priority`        | Priority (name or ID) |
+| `--assignee`        | Assignee: `me`, name, or ID |
+| `--description`     | Issue description |
+| `--parent`          | Parent issue ID |
+| `--category`        | Category (name or ID) |
+| `--version`         | Target version (name or ID) |
+| `--estimated-hours` | Estimated hours |
+| `--private`         | Mark as private |
+| `--attach`          | File path to attach (repeatable) |
+
+```bash
+redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
+
+redmine issues create --project myproject --subject "Bug report" \
+  --attach /path/to/screenshot.png --attach /path/to/log.txt
+```
+
+## update
+
+```bash
+redmine issues update <id> [flags]
+```
+
+Accepts the same flags as `create` (except `--project`) plus:
+
+| Flag | Description |
+|------|-------------|
+| `--note`       | Add a comment |
+| `--done-ratio` | Completion percentage (0-100) |
+| `--attach`     | File path to attach (repeatable) |
+
+```bash
+redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
+```
+
+## close
+
+```bash
+redmine issues close <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--note` | Add a closing comment |
+
+## reopen
+
+```bash
+redmine issues reopen <id> [flags]
+```
+
+## assign
+
+```bash
+redmine issues assign <id> <user-id-or-name> [flags]
+```
+
+The user argument accepts a numeric ID, login, full name, or `me`.
+
+## comment
+
+```bash
+redmine issues comment <id> --message "Your comment" [flags]
+```
+
+## delete <Badge text="destructive" variant="caution" />
+
+```bash
+redmine issues delete <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |
+
+<Aside type="caution">
+  Delete is permanent and cannot be undone via the CLI. Prefer `close` unless you are certain.
+</Aside>
+
+## open
+
+```bash
+redmine issues open <id>
+```
+
+Constructs the issue URL from your configured Redmine server and opens it in your default browser.
+
+```bash
+redmine issues open 123   # → https://redmine.example.com/issues/123
+```
+
+## browse
+
+```bash
+redmine issues browse [flags]
+```
+
+Opens an interactive terminal browser for issues. Accepts the same filter flags as [`list`](#list).

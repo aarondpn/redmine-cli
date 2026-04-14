@@ -1,0 +1,54 @@
+---
+const capabilities = [
+  {
+    code: 'ISS',
+    title: 'Issues',
+    desc: 'Create, list, update, close, and browse with full filtering support.',
+    href: '/redmine-cli/commands/issues/',
+  },
+  {
+    code: 'TIM',
+    title: 'Time Tracking',
+    desc: 'Log hours, filter by project or date, view running summaries.',
+    href: '/redmine-cli/commands/time/',
+  },
+  {
+    code: 'PRJ',
+    title: 'Projects',
+    desc: 'Manage projects, memberships, and version milestones end-to-end.',
+    href: '/redmine-cli/commands/projects/',
+  },
+  {
+    code: 'RES',
+    title: 'Name Resolution',
+    desc: 'Use human names instead of numeric IDs for trackers, statuses, users.',
+    href: '/redmine-cli/getting-started/quick-start/#name-resolution',
+  },
+  {
+    code: 'FMT',
+    title: 'Output Formats',
+    desc: 'Table, wide, JSON and CSV — equally suited for reading or scripting.',
+    href: '/redmine-cli/guides/output-formats/',
+  },
+  {
+    code: 'AGT',
+    title: 'AI Agent Ready',
+    desc: 'First-class skill bundle for Claude Code, Cursor, and other agents.',
+    href: '/redmine-cli/guides/ai-agents/',
+  },
+];
+---
+
+<div class="rc-matrix not-content">
+  {capabilities.map((cap, i) => (
+    <a class="rc-matrix__item" href={cap.href}>
+      <div class="rc-matrix__head">
+        <span class="rc-matrix__num">{String(i + 1).padStart(2, '0')}</span>
+        <span class="rc-matrix__code">{cap.code}</span>
+        <span class="rc-matrix__arrow" aria-hidden="true">→</span>
+      </div>
+      <h3 class="rc-matrix__title">{cap.title}</h3>
+      <p class="rc-matrix__desc">{cap.desc}</p>
+    </a>
+  ))}
+</div>

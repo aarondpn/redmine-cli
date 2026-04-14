@@ -1,0 +1,138 @@
+---
+title: Quick Start
+description: Get up and running with redmine-cli in minutes.
+---
+
+import { Steps, Tabs, TabItem, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+## First-time setup
+
+<Steps>
+
+1. Run the login wizard and point it at your Redmine server:
+
+   ```bash
+   redmine auth login
+   ```
+
+2. Confirm you are wired up:
+
+   ```bash
+   redmine auth status
+   ```
+
+3. Start driving issues, time entries, and more.
+
+</Steps>
+
+## Issues
+
+<Tabs syncKey="issue-verb">
+  <TabItem label="List">
+    ```bash
+    redmine issues list --project myproject
+    redmine issues list --assignee me --status open
+    ```
+  </TabItem>
+  <TabItem label="View">
+    ```bash
+    redmine issues get 123
+    ```
+  </TabItem>
+  <TabItem label="Create">
+    ```bash
+    redmine issues create \
+      --project myproject \
+      --subject "Fix login bug" \
+      --tracker Bug
+    ```
+  </TabItem>
+  <TabItem label="Update">
+    ```bash
+    redmine issues update 123 --status "In Progress" --assignee me
+    ```
+  </TabItem>
+  <TabItem label="Close">
+    ```bash
+    redmine issues close 123 --notes "Fixed in commit abc123"
+    ```
+  </TabItem>
+  <TabItem label="Browse">
+    ```bash
+    redmine issues browse --project myproject
+    ```
+  </TabItem>
+</Tabs>
+
+## Time tracking
+
+```bash
+# interactive
+redmine time log
+
+# one-shot
+redmine time log --issue 123 --hours 2.5 --activity Development --comment "Code review"
+
+# today's entries
+redmine time list --user me --from today
+```
+
+## Search
+
+```bash
+redmine search "login bug"
+redmine search issues "login bug" --project myproject
+redmine search "login bug" --open-issues
+```
+
+## Name resolution <Badge text="no IDs required" variant="tip" />
+
+You do not need to memorise numeric IDs. The CLI resolves trackers, statuses, priorities, projects, and users by name.
+
+```bash
+redmine issues create \
+  --project myproject \
+  --tracker Bug \
+  --priority High \
+  --assignee "John Smith"
+
+redmine issues list --assignee me
+```
+
+<Aside type="tip" title="The `me` keyword">
+  `me` always resolves to the current user of the active profile — handy in scripts that run under different accounts.
+</Aside>
+
+## Output formats
+
+```bash
+redmine issues list          # table (default)
+redmine issues list -o wide  # extra columns
+redmine issues list -o json  # scripting
+redmine issues list -o csv   # spreadsheets
+```
+
+## Where next
+
+<CardGrid>
+  <LinkCard
+    title="Issues reference"
+    href="/redmine-cli/commands/issues/"
+    description="Every flag on every issue subcommand."
+  />
+  <LinkCard
+    title="Time reference"
+    href="/redmine-cli/commands/time/"
+    description="Full time-tracking surface."
+  />
+  <LinkCard
+    title="Output formats"
+    href="/redmine-cli/guides/output-formats/"
+    description="Tips for scripting with JSON and CSV."
+  />
+  <LinkCard
+    title="AI agent integration"
+    href="/redmine-cli/guides/ai-agents/"
+    description="Wire the CLI into Claude Code, Cursor, etc."
+  />
+</CardGrid>

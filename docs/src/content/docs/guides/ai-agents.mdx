@@ -1,0 +1,79 @@
+---
+title: AI Agent Integration
+description: Use redmine-cli with AI coding agents like Claude Code and Cursor.
+---
+
+import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+redmine-cli ships with an [agent skill](https://github.com/anthropics/skills) that teaches AI coding agents (Claude Code, Cursor, …) how to use the CLI effectively. The skill covers output formats, pagination, filtering, name resolution, and common workflows.
+
+## Install the skill
+
+<Tabs syncKey="skill-scope">
+  <TabItem label="Global">
+    Available in every project on this machine.
+
+    ```bash
+    redmine install-skill --global
+    ```
+  </TabItem>
+  <TabItem label="Project-local">
+    Scoped to the current working directory.
+
+    ```bash
+    redmine install-skill
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+  Under the hood this uses the [skills](https://github.com/anthropics/skills) CLI (`npx skills add`), which requires Node.js on the `PATH`.
+</Aside>
+
+## What the agent learns <Badge text="behaviour" variant="tip" />
+
+Once the skill is installed, the agent will:
+
+- Use `-o json` for all commands to get machine-readable output.
+- Query available options (trackers, statuses, versions, …) before creating or updating issues, rather than guessing values.
+- Present options to the user for selection when values are ambiguous.
+- Handle pagination with `--limit` and `--offset`.
+- Use name resolution (e.g. `--assignee "John Smith"` instead of `--assignee 42`).
+- Use the `me` shorthand where appropriate.
+- Use `redmine auth login` for initial setup and `redmine auth switch` to change servers.
+- Use `redmine --profile <name>` to target a specific Redmine instance when multiple are configured.
+
+## Manual setup
+
+If you prefer not to use the installer, wire the skill into your agent configuration directly.
+
+<Steps>
+
+1. **Claude Code** — add the skill reference to `.claude/settings.json`:
+
+   ```json
+   {
+     "skills": ["aarondpn/redmine-cli:redmine-cli"]
+   }
+   ```
+
+2. **Cursor and friends** — copy the contents of [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md) into your agent instructions file (e.g. `CLAUDE.md`, `.cursorrules`).
+
+3. Restart the agent so the new instructions are loaded.
+
+</Steps>
+
+## Related
+
+<CardGrid>
+  <LinkCard
+    title="Output formats"
+    href="/redmine-cli/guides/output-formats/"
+    description="Why agents lean on -o json and how it behaves."
+  />
+  <LinkCard
+    title="Quick Start"
+    href="/redmine-cli/getting-started/quick-start/"
+    description="A human-friendly tour of the commands agents wrap."
+  />
+</CardGrid>

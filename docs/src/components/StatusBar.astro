@@ -1,0 +1,67 @@
+---
+// Build-time fetch of latest release + repo meta.
+// Fails gracefully if GH rate-limits or network unavailable.
+type Repo = { stargazers_count?: number; license?: { spdx_id?: string } | null };
+type Release = { tag_name?: string; published_at?: string };
+
+const repoUrl = 'https://api.github.com/repos/aarondpn/redmine-cli';
+const releaseUrl = `${repoUrl}/releases/latest`;
+
+async function safeFetch<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+const [repo, release] = await Promise.all([
+  safeFetch<Repo>(repoUrl),
+  safeFetch<Release>(releaseUrl),
+]);
+
+const version = release?.tag_name ?? 'latest';
+const stars = repo?.stargazers_count ?? null;
+const license = repo?.license?.spdx_id ?? 'MIT';
+const released = release?.published_at
+  ? new Date(release.published_at).toISOString().slice(0, 10)
+  : null;
+---
+
+<div class="status-bar not-content" role="status" aria-label="Project status">
+  <div class="status-cell status-live">
+    <span class="status-label">OPERATIONAL</span>
+  </div>
+  <div class="status-cell">
+    <span class="status-key">VER</span>
+    <span class="status-val">{version}</span>
+  </div>
+  {released && (
+    <div class="status-cell status-cell--hide-sm">
+      <span class="status-key">BUILD</span>
+      <span class="status-val">{released}</span>
+    </div>
+  )}
+  <div class="status-cell status-cell--hide-sm">
+    <span class="status-key">LIC</span>
+    <span class="status-val">{license}</span>
+  </div>
+  {stars !== null && (
+    <a
+      class="status-cell status-cell--link"
+      href="https://github.com/aarondpn/redmine-cli/stargazers"
+      target="_blank"
+      rel="noopener"
+    >
+      <span class="status-key">STARS</span>
+      <span class="status-val">{stars.toLocaleString()}</span>
+    </a>
+  )}
+  <div class="status-cell status-cell--grow" aria-hidden="true"></div>
+  <div class="status-cell status-clock">
+    <span class="status-key">SYS</span>
+    <span class="status-val">redmine/cli</span>
+  </div>
+</div>
