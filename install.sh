@@ -33,12 +33,12 @@ TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '
 info "Latest version: ${TAG}"
 
 # Download
-ARCHIVE="redmine-${OS}-${ARCH}.tar.gz"
+ARCHIVE="redmine-cli-${OS}-${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE}"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
+CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/redmine-cli_${TAG#v}_checksums.txt"
 
 info "Downloading ${URL}..."
 curl -fsSL -o "${TMPDIR}/${ARCHIVE}" "$URL"
