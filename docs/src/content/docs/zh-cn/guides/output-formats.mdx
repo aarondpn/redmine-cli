@@ -1,15 +1,15 @@
 ---
-title: Output Formats
-description: Controlling how redmine-cli displays data.
+title: 输出格式
+description: 控制 redmine-cli 的数据显示方式。
 ---
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-Most commands accept `-o` / `--output` to control the output format. Pick the one that matches what you're doing: reading, scripting, or exporting.
+大多数命令支持 `-o` / `--output` 来控制输出格式。根据实际用途选择合适的格式：阅读、脚本编写或数据导出。
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
-    Default format, optimised for human reading.
+    默认格式，针对人类阅读优化。
 
     ```bash
     redmine issues list --project myproject
@@ -23,7 +23,7 @@ Most commands accept `-o` / `--output` to control the output format. Pick the on
   </TabItem>
 
   <TabItem label="wide">
-    Extended table with additional columns (assignee, updated date, done ratio, …).
+    扩展表格，包含更多列（指派人、更新日期、完成度等）。
 
     ```bash
     redmine issues list --project myproject -o wide
@@ -31,7 +31,7 @@ Most commands accept `-o` / `--output` to control the output format. Pick the on
   </TabItem>
 
   <TabItem label="json">
-    Machine-readable output. Ideal for scripting and piping.
+    机器可读的输出格式，适合脚本编写和管道操作。
 
     ```bash
     redmine issues list --project myproject -o json
@@ -51,7 +51,7 @@ Most commands accept `-o` / `--output` to control the output format. Pick the on
   </TabItem>
 
   <TabItem label="csv">
-    Comma-separated values for spreadsheets and data analysis.
+    逗号分隔值格式，适用于电子表格和数据分析。
 
     ```bash
     redmine issues list --project myproject -o csv
@@ -65,10 +65,10 @@ Most commands accept `-o` / `--output` to control the output format. Pick the on
   </TabItem>
 </Tabs>
 
-## Working with JSON
+## 与 JSON 配合使用
 
-<Badge text="jq friendly" variant="tip" />
-JSON output pairs well with `jq` for ad-hoc analysis:
+<Badge text="兼容 jq" variant="tip" />
+JSON 输出可与 `jq` 配合用于即席分析：
 
 ```bash
 # IDs of all open bugs
@@ -80,30 +80,30 @@ redmine issues list --project myproject -o json \
 ```
 
 <Aside type="note">
-  In `-o json` mode the CLI emits JSON only on `stdout`. Human-readable pagination hints are suppressed, so piping to `jq` is safe. Keep `stderr` separate if you want to surface actual errors.
+  在 `-o json` 模式下，CLI 仅向 `stdout` 输出 JSON。人类可读的分页提示会被抑制，因此通过管道传给 `jq` 是安全的。如需捕获实际错误，请将 `stderr` 分开处理。
 </Aside>
 
-## Default format
+## 默认格式
 
-Set a default in your config file:
+在配置文件中设置默认格式：
 
 ```yaml title="~/.redmine-cli.yaml"
 output_format: table
 ```
 
-The `-o` flag always overrides the default for a single command.
+`-o` 标志始终会覆盖单次命令的默认格式。
 
-## Related
+## 相关资源
 
 <CardGrid>
   <LinkCard
-    title="AI agent integration"
-    href="/redmine-cli/guides/ai-agents/"
-    description="Agents default to -o json for reliable automation."
+    title="AI 代理集成"
+    href="/redmine-cli/zh-cn/guides/ai-agents/"
+    description="代理默认使用 -o json 以实现可靠的自动化。"
   />
   <LinkCard
-    title="Issues reference"
-    href="/redmine-cli/commands/issues/"
-    description="Every flag that -o formats output for."
+    title="工单命令参考"
+    href="/redmine-cli/zh-cn/commands/issues/"
+    description="所有支持 -o 输出格式的标志说明。"
   />
 </CardGrid>

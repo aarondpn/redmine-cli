@@ -1,0 +1,86 @@
+---
+title: 用户
+description: 管理 Redmine 用户。
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+`users` 命令（别名 `u`）用于管理 Redmine 用户。
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="按状态、名称或用户组过滤列出用户。" />
+  <LinkCard title="get"    href="#get"    description="通过 ID、登录名或姓名查看单个用户。" />
+  <LinkCard title="me"     href="#me"     description="显示当前已认证的用户。" />
+  <LinkCard title="create" href="#create" description="创建新用户账户。" />
+  <LinkCard title="update" href="#update" description="修改用户字段。" />
+  <LinkCard title="delete" href="#delete" description="移除用户账户。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine users list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--status`     | 按状态过滤：`active`、`registered`、`locked` |
+| `--name`       | 按姓名或登录名过滤 |
+| `--group`      | 按用户组名称或 ID 过滤 |
+| `--limit`      | 最大结果数 |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式 |
+
+## get
+
+```bash
+redmine users get <id-or-name> [flags]
+```
+
+接受数字 ID、登录名、全名或 `me`。
+
+## me
+
+```bash
+redmine users me [flags]
+```
+
+显示当前已认证用户的详细信息——在脚本中用于解析当前账户非常实用。
+
+## create
+
+```bash
+redmine users create [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--login`     | 登录名 — <Badge text="必填" variant="danger" /> |
+| `--password`  | 密码 — <Badge text="必填" variant="danger" /> |
+| `--firstname` | 名 — <Badge text="必填" variant="danger" /> |
+| `--lastname`  | 姓 — <Badge text="必填" variant="danger" /> |
+| `--mail`      | 邮箱地址 — <Badge text="必填" variant="danger" /> |
+| `--admin`     | 授予管理员权限 |
+
+<Aside type="caution" title="命令行中的密码">
+  在命令行中传入 `--password` 可能会将密码泄露至 shell 历史记录。建议在 Redmine UI 中创建账户，或通过安全来源以管道方式传入密码。
+</Aside>
+
+## update
+
+```bash
+redmine users update <id-or-name> [flags]
+```
+
+接受与 [`create`](#create) 相同的标志（均为可选）。用户参数接受数字 ID、登录名、全名或 `me`。
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine users delete <id-or-name> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |

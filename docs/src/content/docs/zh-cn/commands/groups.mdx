@@ -1,0 +1,85 @@
+---
+title: 用户组
+description: 管理 Redmine 用户组。
+---
+
+import { CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+`groups` 命令（别名 `g`）用于管理 Redmine 用户组。
+
+<CardGrid>
+  <LinkCard title="list"         href="#list"         description="列出所有用户组。" />
+  <LinkCard title="get"          href="#get"          description="通过 ID 或名称查看用户组。" />
+  <LinkCard title="create"       href="#create"       description="创建新用户组。" />
+  <LinkCard title="update"       href="#update"       description="重命名用户组。" />
+  <LinkCard title="add-user"     href="#add-user"     description="将用户添加到用户组。" />
+  <LinkCard title="remove-user"  href="#remove-user"  description="从用户组中移除用户。" />
+  <LinkCard title="delete"       href="#delete"       description="删除用户组。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine groups list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--limit`      | 最大结果数 |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式 |
+
+## get
+
+```bash
+redmine groups get <id-or-name> [flags]
+```
+
+接受数字 ID 或用户组名称。
+
+## create
+
+```bash
+redmine groups create [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--name` | 用户组名称 — <Badge text="必填" variant="danger" /> |
+
+## update
+
+```bash
+redmine groups update <id-or-name> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--name` | 新用户组名称 |
+
+## add-user
+
+```bash
+redmine groups add-user <group-id-or-name> <user-id-or-name>
+```
+
+两个参数均接受数字 ID 或名称。
+
+## remove-user
+
+```bash
+redmine groups remove-user <group-id-or-name> <user-id-or-name>
+```
+
+两个参数均接受数字 ID 或名称。
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine groups delete <id-or-name> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |

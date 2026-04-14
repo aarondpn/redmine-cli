@@ -1,0 +1,81 @@
+---
+title: 搜索
+description: 跨 Redmine 资源进行搜索。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+`search` 命令支持搜索工单、新闻、文档、Wiki 页面、消息和项目。
+
+<CardGrid>
+  <LinkCard title="通用搜索"     href="#通用搜索"    description="单次查询覆盖所有资源类型。" />
+  <LinkCard title="类型化搜索" href="#类型化搜索"       description="按工单、项目、Wiki 等类型范围搜索。" />
+  <LinkCard title="交互式浏览"   href="#交互式浏览" description="在 TUI 中浏览搜索结果。" />
+</CardGrid>
+
+## 通用搜索
+
+```bash
+redmine search <query> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`     | 限定到指定项目标识符 |
+| `--scope`       | 搜索范围：`all`、`my_projects`、`subprojects` |
+| `--all-words`   | 匹配所有查询词 |
+| `--titles-only` | 仅搜索标题 |
+| `--open-issues` | 仅返回未关闭的工单 |
+| `--attachments` | 附件搜索：`0`、`1`、`only` |
+| `--issues`      | 包含工单 |
+| `--news`        | 包含新闻 |
+| `--documents`   | 包含文档 |
+| `--changesets`  | 包含变更集 |
+| `--wiki-pages`  | 包含 Wiki 页面 |
+| `--messages`    | 包含论坛消息 |
+| `--projects`    | 包含项目 |
+| `--limit`       | 最大结果数 |
+| `--offset`      | 结果偏移量 |
+| `-o, --output`  | 输出格式 |
+
+<Tabs syncKey="search-examples">
+  <TabItem label="全部">
+    ```bash
+    redmine search "login bug"
+    ```
+  </TabItem>
+  <TabItem label="项目范围">
+    ```bash
+    redmine search "login bug" --project myproject --open-issues
+    ```
+  </TabItem>
+  <TabItem label="仅标题">
+    ```bash
+    redmine search "login" --titles-only --issues
+    ```
+  </TabItem>
+</Tabs>
+
+## 类型化搜索
+
+直接按指定资源类型搜索：
+
+```bash
+redmine search issues   <query> [flags]
+redmine search projects <query> [flags]
+redmine search wiki     <query> [flags]
+redmine search news     <query> [flags]
+redmine search messages <query> [flags]
+```
+
+<Aside type="tip">
+  指定类型搜索等同于在通用搜索中使用对应的 `--<type>` 标志，但命令更简短，在脚本中意图也更清晰。
+</Aside>
+
+## 交互式浏览
+
+```bash
+redmine search browse <query> [flags]
+```
+
+在交互式终端浏览器中展示搜索结果。

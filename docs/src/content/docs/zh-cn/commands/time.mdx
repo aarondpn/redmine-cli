@@ -1,0 +1,120 @@
+---
+title: 工时记录
+description: 记录、列出及管理工时记录。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`time` 命令（别名 `t`）用于管理工时记录。
+
+<CardGrid>
+  <LinkCard title="log"     href="#log"     description="通过交互式表单或标志记录工时。" />
+  <LinkCard title="list"    href="#list"    description="过滤并分页浏览工时记录。" />
+  <LinkCard title="get"     href="#get"     description="查看单条工时记录。" />
+  <LinkCard title="update"  href="#update"  description="修改工时、活动类型、评论或日期。" />
+  <LinkCard title="delete"  href="#delete"  description="删除工时记录。" />
+  <LinkCard title="summary" href="#summary" description="按项目和活动类型汇总统计。" />
+</CardGrid>
+
+## log
+
+```bash
+redmine time log [flags]
+```
+
+不带标志时，打开交互式填写表单。
+
+| 标志 | 描述 |
+|------|------|
+| `--issue`    | 工单 ID |
+| `--project`  | 项目（名称或标识符） |
+| `--hours`    | 工时 — <Badge text="必填" variant="danger" /> |
+| `--activity` | 活动类型（名称或 ID） |
+| `--comment`  | 工作描述 |
+| `--date`     | 日期（YYYY-MM-DD，默认：今天） |
+
+<Tabs syncKey="time-log">
+  <TabItem label="交互式">
+    ```bash
+    redmine time log
+    ```
+  </TabItem>
+  <TabItem label="一次性">
+    ```bash
+    redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
+    ```
+  </TabItem>
+</Tabs>
+
+## list
+
+```bash
+redmine time list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 按项目过滤 |
+| `--user`       | 按用户过滤：`me`、名称或 ID |
+| `--issue`      | 按工单 ID 过滤 |
+| `--activity`   | 按活动类型过滤（名称或 ID） |
+| `--from`       | 开始日期（YYYY-MM-DD 或 `today`） |
+| `--to`         | 结束日期（YYYY-MM-DD 或 `today`） |
+| `--limit`      | 最大结果数 |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式 |
+
+<Tabs syncKey="time-list">
+  <TabItem label="本周">
+    ```bash
+    redmine time list --user me --from 2024-01-15 --to 2024-01-19
+    ```
+  </TabItem>
+  <TabItem label="按工单">
+    ```bash
+    redmine time list --issue 123
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine time get <id> [flags]
+```
+
+## update
+
+```bash
+redmine time update <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--hours`    | 新工时 |
+| `--activity` | 新活动类型（名称或 ID） |
+| `--comment`  | 新评论 |
+| `--date`     | 新日期 |
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine time delete <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+## summary
+
+```bash
+redmine time summary [flags]
+```
+
+显示按项目和活动类型分组的工时记录汇总。接受与 [`list`](#list) 相同的过滤标志。
+
+<Aside type="tip">
+  将 `summary` 与 `--from today --user me` 结合使用，可快速查看当天自己的工时分布。
+</Aside>

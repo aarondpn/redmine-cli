@@ -1,0 +1,103 @@
+---
+title: 安装
+description: 如何在你的系统上安装 redmine-cli。
+---
+
+import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+选择适合你平台的安装方式，所有方式均会生成同一个 `redmine` 二进制文件。
+
+## 安装
+
+<Tabs syncKey="installer">
+  <TabItem label="Homebrew" icon="apple">
+    适用于 macOS 和 Linux，自带 bash、zsh 和 fish 的 shell 补全支持。
+
+    ```bash
+    brew tap aarondpn/tap
+    brew install redmine
+    ```
+  </TabItem>
+
+  <TabItem label="安装脚本" icon="seti:shell">
+    自动检测操作系统和架构，验证 SHA256 校验和，安装至 `~/.local/bin`。
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
+    ```
+
+    <Aside type="tip" title="PATH">
+      确保 `~/.local/bin` 已添加至你的 `PATH`。大多数现代 shell 会自动添加。
+    </Aside>
+  </TabItem>
+
+  <TabItem label="go install" icon="seti:go">
+    通过 Go 工具链从源码构建，需要 Go 1.22+。
+
+    ```bash
+    go install github.com/aarondpn/redmine-cli@latest
+    ```
+  </TabItem>
+
+  <TabItem label="手动安装" icon="download">
+    下载适合你平台的预构建发行版。
+
+    | 平台    | 架构          | 文件名 |
+    |---------|---------------|--------|
+    | Linux   | x86_64        | `redmine-linux-amd64.tar.gz` |
+    | Linux   | ARM64         | `redmine-linux-arm64.tar.gz` |
+    | macOS   | Intel         | `redmine-darwin-amd64.tar.gz` |
+    | macOS   | Apple Silicon | `redmine-darwin-arm64.tar.gz` |
+    | Windows | x86_64        | `redmine-windows-amd64.zip` |
+
+    下载地址见 [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest)。
+  </TabItem>
+</Tabs>
+
+## 验证
+
+<Steps>
+
+1. 确认二进制文件可访问并能输出版本信息：
+
+   ```bash
+   redmine --version
+   ```
+
+2. 运行内置健康检查，验证安装是否正常：
+
+   ```bash
+   redmine --help
+   ```
+
+3. 继续前往 [配置](/redmine-cli/zh-cn/getting-started/configuration/) 以连接你的 Redmine 服务器。
+
+</Steps>
+
+## 更新
+
+<Badge text="自动更新" variant="tip" />
+```bash
+redmine update
+```
+
+拉取最新版本，验证 SHA256 校验和，然后替换当前运行的二进制文件。参见 [自动更新](/redmine-cli/zh-cn/commands/other/#启动时更新检查) 查看可用标志。
+
+<Aside type="caution" title="校验和验证">
+  安装程序和自动更新程序在发行版校验和不匹配时均会拒绝执行。请勿绕过此检查——如发现不匹配，请作为安全问题上报。
+</Aside>
+
+## 下一步
+
+<CardGrid>
+  <LinkCard
+    title="配置"
+    href="/redmine-cli/zh-cn/getting-started/configuration/"
+    description="配置服务器、身份验证配置文件及默认值。"
+  />
+  <LinkCard
+    title="快速开始"
+    href="/redmine-cli/zh-cn/getting-started/quick-start/"
+    description="5 分钟内上手工单、工时记录与搜索。"
+  />
+</CardGrid>

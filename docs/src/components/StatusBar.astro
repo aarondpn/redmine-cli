@@ -28,24 +28,22 @@ const license = repo?.license?.spdx_id ?? 'MIT';
 const released = release?.published_at
   ? new Date(release.published_at).toISOString().slice(0, 10)
   : null;
+const t = Astro.locals.t;
 ---
 
-<div class="status-bar not-content" role="status" aria-label="Project status">
-  <div class="status-cell status-live">
-    <span class="status-label">OPERATIONAL</span>
-  </div>
+<div class="status-bar not-content" role="status" aria-label={t('hero.statusAriaLabel')}>
   <div class="status-cell">
-    <span class="status-key">VER</span>
+    <span class="status-key">{t('hero.ver')}</span>
     <span class="status-val">{version}</span>
   </div>
   {released && (
     <div class="status-cell status-cell--hide-sm">
-      <span class="status-key">BUILD</span>
+      <span class="status-key">{t('hero.build')}</span>
       <span class="status-val">{released}</span>
     </div>
   )}
   <div class="status-cell status-cell--hide-sm">
-    <span class="status-key">LIC</span>
+    <span class="status-key">{t('hero.lic')}</span>
     <span class="status-val">{license}</span>
   </div>
   {stars !== null && (
@@ -55,13 +53,13 @@ const released = release?.published_at
       target="_blank"
       rel="noopener"
     >
-      <span class="status-key">STARS</span>
+      <span class="status-key">{t('hero.stars')}</span>
       <span class="status-val">{stars.toLocaleString()}</span>
     </a>
   )}
   <div class="status-cell status-cell--grow" aria-hidden="true"></div>
   <div class="status-cell status-clock">
-    <span class="status-key">SYS</span>
+    <span class="status-key">{t('hero.sys')}</span>
     <span class="status-val">redmine/cli</span>
   </div>
 </div>

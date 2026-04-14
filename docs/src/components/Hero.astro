@@ -12,6 +12,7 @@ const { hero, title } = Astro.locals.starlightRoute.entry.data as {
   title: string;
 };
 
+const t = Astro.locals.t;
 const tagline = hero?.tagline ?? '';
 const actions = hero?.actions ?? [];
 ---
@@ -27,7 +28,7 @@ const actions = hero?.actions ?? [];
 
     <p class="rc-hero__tagline">
       <span class="rc-comment" aria-hidden="true">{'//'}</span>
-      {tagline || 'A fast, modern CLI for Redmine project management.'}
+      {tagline || t('hero.fallbackTagline')}
     </p>
 
     {actions.length > 0 && (

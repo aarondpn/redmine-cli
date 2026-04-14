@@ -23,16 +23,17 @@ try {
 }
 
 const totalCommits = contributors.reduce((a, c) => a + c.contributions, 0);
+const t = Astro.locals.t;
 ---
 
 <div class="rc-crew not-content">
   <div class="rc-crew__meta">
-    <span class="rc-crew__meta-key">ROSTER</span>
-    <span class="rc-crew__meta-val">{contributors.length} contributor{contributors.length === 1 ? '' : 's'}</span>
+    <span class="rc-crew__meta-key">{t('contributors.roster')}</span>
+    <span class="rc-crew__meta-val">{t('contributors.count', { count: contributors.length })}</span>
     {totalCommits > 0 && (
       <>
         <span class="rc-crew__meta-sep" aria-hidden="true">·</span>
-        <span class="rc-crew__meta-key">COMMITS</span>
+        <span class="rc-crew__meta-key">{t('contributors.commits')}</span>
         <span class="rc-crew__meta-val">{totalCommits.toLocaleString()}</span>
       </>
     )}
@@ -40,8 +41,8 @@ const totalCommits = contributors.reduce((a, c) => a + c.contributions, 0);
 
   {contributors.length === 0 ? (
     <p class="rc-crew__empty">
-      Contributor manifest unavailable at build time. See the{' '}
-      <a href="https://github.com/aarondpn/redmine-cli/graphs/contributors">GitHub contributors page</a>.
+      {t('contributors.emptyBefore')}
+      <a href="https://github.com/aarondpn/redmine-cli/graphs/contributors">{t('contributors.emptyLink')}</a>.
     </p>
   ) : (
     <ul class="rc-crew__grid">
@@ -60,7 +61,7 @@ const totalCommits = contributors.reduce((a, c) => a + c.contributions, 0);
             <span class="rc-crew__handle">@{c.login}</span>
             <span class="rc-crew__count">
               <span class="rc-crew__count-num">{c.contributions}</span>
-              <span class="rc-crew__count-unit">commits</span>
+              <span class="rc-crew__count-unit">{t('contributors.commitsUnit')}</span>
             </span>
           </a>
         </li>

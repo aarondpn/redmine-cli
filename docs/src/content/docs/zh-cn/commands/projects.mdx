@@ -1,0 +1,89 @@
+---
+title: 项目
+description: 管理 Redmine 项目。
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+`projects` 命令（别名 `p`）用于管理 Redmine 项目。
+
+<CardGrid>
+  <LinkCard title="list"    href="#list"    description="列出所有项目。" />
+  <LinkCard title="get"     href="#get"     description="查看单个项目，可选包含关联数据。" />
+  <LinkCard title="create"  href="#create"  description="创建新项目。" />
+  <LinkCard title="update"  href="#update"  description="更新名称、描述或可见性。" />
+  <LinkCard title="delete"  href="#delete"  description="永久删除项目。" />
+  <LinkCard title="members" href="#members" description="列出成员及其角色。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine projects list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--limit`      | 最大结果数 |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式：`table`、`wide`、`json`、`csv` |
+
+## get
+
+```bash
+redmine projects get <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--include`    | 附加数据：`trackers`、`issue_categories`、`enabled_modules`、`time_entry_activities` |
+| `-o, --output` | 输出格式 |
+
+## create
+
+```bash
+redmine projects create [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--name`        | 项目名称 — <Badge text="必填" variant="danger" /> |
+| `--identifier`  | URL 友好的标识符 — <Badge text="必填" variant="danger" /> |
+| `--description` | 项目描述 |
+| `--public`      | 将项目设为公开 |
+| `--parent`      | 父项目 ID |
+
+## update
+
+```bash
+redmine projects update <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--name`        | 新项目名称 |
+| `--description` | 新描述 |
+| `--public`      | 设置为公开可见 |
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine projects delete <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+<Aside type="caution">
+  删除项目将同时移除其所有工单、工时记录和成员关系，且无法撤销。
+</Aside>
+
+## members
+
+```bash
+redmine projects members <identifier> [flags]
+```
+
+列出项目的所有成员及其角色。

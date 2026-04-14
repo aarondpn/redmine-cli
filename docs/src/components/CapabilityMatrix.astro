@@ -1,40 +1,44 @@
 ---
+const t = Astro.locals.t;
+const locale = Astro.locals.starlightRoute.locale;
+const base = locale ? `/redmine-cli/${locale}` : '/redmine-cli';
+
 const capabilities = [
   {
     code: 'ISS',
-    title: 'Issues',
-    desc: 'Create, list, update, close, and browse with full filtering support.',
-    href: '/redmine-cli/commands/issues/',
+    title: t('capability.issues.title'),
+    desc: t('capability.issues.desc'),
+    href: `${base}/commands/issues/`,
   },
   {
     code: 'TIM',
-    title: 'Time Tracking',
-    desc: 'Log hours, filter by project or date, view running summaries.',
-    href: '/redmine-cli/commands/time/',
+    title: t('capability.time.title'),
+    desc: t('capability.time.desc'),
+    href: `${base}/commands/time/`,
   },
   {
     code: 'PRJ',
-    title: 'Projects',
-    desc: 'Manage projects, memberships, and version milestones end-to-end.',
-    href: '/redmine-cli/commands/projects/',
+    title: t('capability.projects.title'),
+    desc: t('capability.projects.desc'),
+    href: `${base}/commands/projects/`,
   },
   {
     code: 'RES',
-    title: 'Name Resolution',
-    desc: 'Use human names instead of numeric IDs for trackers, statuses, users.',
-    href: '/redmine-cli/getting-started/quick-start/#name-resolution',
+    title: t('capability.names.title'),
+    desc: t('capability.names.desc'),
+    href: `${base}/getting-started/quick-start/${t('capability.names.anchor')}`,
   },
   {
     code: 'FMT',
-    title: 'Output Formats',
-    desc: 'Table, wide, JSON and CSV — equally suited for reading or scripting.',
-    href: '/redmine-cli/guides/output-formats/',
+    title: t('capability.formats.title'),
+    desc: t('capability.formats.desc'),
+    href: `${base}/guides/output-formats/`,
   },
   {
     code: 'AGT',
-    title: 'AI Agent Ready',
-    desc: 'First-class skill bundle for Claude Code, Cursor, and other agents.',
-    href: '/redmine-cli/guides/ai-agents/',
+    title: t('capability.agents.title'),
+    desc: t('capability.agents.desc'),
+    href: `${base}/guides/ai-agents/`,
   },
 ];
 ---

@@ -1,0 +1,82 @@
+---
+title: 成员关系
+description: 管理 Redmine 项目成员关系。
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+`memberships` 命令（别名 `m`）用于管理项目成员关系——即用户/用户组与项目角色之间的映射。
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="列出项目的所有成员关系。" />
+  <LinkCard title="get"    href="#get"    description="查看单条成员关系。" />
+  <LinkCard title="create" href="#create" description="将用户或用户组与角色一起添加到项目。" />
+  <LinkCard title="update" href="#update" description="修改已分配的角色。" />
+  <LinkCard title="delete" href="#delete" description="移除成员关系。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine memberships list --project <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目名称、标识符或 ID——默认回退至活跃配置文件的默认项目 |
+| `--limit`      | 最大结果数 |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式：`table`、`json`、`csv` |
+
+## get
+
+```bash
+redmine memberships get <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-o, --output` | 输出格式 |
+
+## create
+
+```bash
+redmine memberships create [flags]
+```
+
+将用户或用户组以指定角色添加到项目中。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目名称、标识符或 ID——默认回退至活跃配置文件的默认项目 |
+| `--user-id`    | 要添加的用户 ID |
+| `--group-id`   | 要添加的用户组 ID |
+| `--role-ids`   | 逗号分隔的角色 ID — <Badge text="必填" variant="danger" /> |
+| `-o, --output` | 输出格式 |
+
+<Aside type="note">
+  `--user-id` 和 `--group-id` 二者必须且只能提供其中一个，二者互斥。
+</Aside>
+
+## update
+
+```bash
+redmine memberships update <id> [flags]
+```
+
+对于已有的成员关系，只能修改其已分配的角色。
+
+| 标志 | 描述 |
+|------|------|
+| `--role-ids` | 逗号分隔的角色 ID — <Badge text="必填" variant="danger" /> |
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine memberships delete <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |

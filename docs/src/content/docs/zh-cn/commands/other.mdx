@@ -1,0 +1,144 @@
+---
+title: 其他命令
+description: API 透传、类别、跟踪类型、状态、shell 补全与自动更新。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+一组不归属于主要资源类别的实用命令。
+
+<CardGrid>
+  <LinkCard title="api"        href="#api"        description="向任意 Redmine 端点发送已认证的请求。" />
+  <LinkCard title="categories" href="#categories" description="列出项目的工单类别。" />
+  <LinkCard title="trackers"   href="#trackers"   description="列出所有可用的跟踪类型。" />
+  <LinkCard title="statuses"   href="#statuses"   description="列出所有工单状态。" />
+  <LinkCard title="completion" href="#shell-补全" description="生成 shell 补全脚本。" />
+  <LinkCard title="update"     href="#自动更新" description="自动更新二进制文件。" />
+</CardGrid>
+
+## api
+
+向任意 Redmine REST API 端点发送已认证的请求。
+
+<Tabs syncKey="api-examples">
+  <TabItem label="GET">
+    ```bash
+    redmine api /users/current.json
+
+    redmine api /issues.json -f project_id=myproject -f limit=5
+    ```
+  </TabItem>
+  <TabItem label="POST">
+    ```bash
+    # 提供请求体字段时会自动检测请求方法
+    redmine api /issues.json \
+      -F 'issue[subject]=Bug report' \
+      -F 'issue[project_id]=1'
+    ```
+  </TabItem>
+  <TabItem label="从文件读取">
+    ```bash
+    # - 表示从标准输入读取
+    redmine api /issues.json --input body.json
+    ```
+  </TabItem>
+  <TabItem label="指定请求方法">
+    ```bash
+    redmine api -X DELETE /issues/123.json
+    redmine api -X PUT /issues/123.json -F 'issue[status_id]=5' --silent
+    ```
+  </TabItem>
+</Tabs>
+
+| 标志 | 描述 |
+|------|------|
+| `-X, --method`    | HTTP 方法（默认：GET，提供请求体时为 POST） |
+| `-f, --field`     | 查询参数，格式为 `key=value`（可重复使用） |
+| `-F, --raw-field` | JSON 请求体字段，格式为 `key=value`（可重复使用） |
+| `--input`         | 从文件读取请求体（`-` 表示从标准输入读取） |
+| `-i, --include`   | 显示响应状态行和标头 |
+| `--silent`        | 抑制响应输出 |
+
+<Aside type="tip">
+  当输出目标为终端时，JSON 响应将以格式化方式输出。非 2xx 响应仍会打印响应体，但以退出码 `1` 退出。
+</Aside>
+
+## categories
+
+```bash
+redmine categories list --project <identifier>
+```
+
+列出项目的工单类别。
+
+## trackers
+
+```bash
+redmine trackers list
+```
+
+列出所有可用的跟踪类型。
+
+## statuses
+
+```bash
+redmine statuses list
+```
+
+列出所有工单状态。
+
+## Shell 补全
+
+<Tabs syncKey="shell">
+  <TabItem label="bash" icon="seti:shell">
+    ```bash
+    redmine completion bash > /etc/bash_completion.d/redmine
+    ```
+  </TabItem>
+  <TabItem label="zsh" icon="seti:shell">
+    ```bash
+    redmine completion zsh > "${fpath[1]}/_redmine"
+    ```
+  </TabItem>
+  <TabItem label="fish" icon="seti:shell">
+    ```bash
+    redmine completion fish > ~/.config/fish/completions/redmine.fish
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+  通过 Homebrew 安装时会自动附带补全脚本——仅当通过安装脚本、`go install` 或手动下载安装时才需运行上述命令。
+</Aside>
+
+## 自动更新
+
+<Badge text="已验证校验和" variant="success" />
+
+```bash
+redmine update
+```
+
+检查 GitHub 是否有最新版本，下载并验证 SHA256 校验和，然后替换当前二进制文件。通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
+
+### 启动时更新检查
+
+每次执行命令时，`redmine` 会在后台检查 GitHub 是否有新版本。如有新版本，会在命令输出后将提示信息打印至 stderr：
+
+```text
+A new version of redmine is available: v1.2.0 → v1.3.0
+https://github.com/aarondpn/redmine-cli/releases/tag/v1.3.0
+Run "redmine update" to upgrade
+```
+
+检查在独立协程中运行，超时时间为 3 秒，不会影响 CLI 的响应速度。以下情况下会自动跳过检查：
+
+- 当前命令本身是 `redmine update`；
+- stderr 不是 TTY（管道输出或 CI 环境）；
+- `REDMINE_NO_UPDATE_CHECK` 的值为 `1` 或 `true`。
+
+如需永久禁用：
+
+```bash
+export REDMINE_NO_UPDATE_CHECK=1
+```
