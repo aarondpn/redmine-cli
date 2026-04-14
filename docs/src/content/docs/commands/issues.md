@@ -71,9 +71,13 @@ redmine issues create [flags]
 | `--version` | Target version (name or ID) |
 | `--estimated-hours` | Estimated hours |
 | `--private` | Mark as private |
+| `--attach` | File path to attach (repeatable) |
 
 ```bash
 redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
+
+# Create an issue with attachments
+redmine issues create --project myproject --subject "Bug report" --attach /path/to/screenshot.png --attach /path/to/log.txt
 ```
 
 ## Update an Issue
@@ -89,6 +93,12 @@ Accepts the same flags as `create` (except `--project`) plus:
 | `--notes` | Add a comment |
 | `--done-ratio` | Completion percentage (0-100) |
 | `--due-date` | Due date (YYYY-MM-DD) |
+| `--attach` | File path to attach (repeatable) |
+
+```bash
+# Update an issue and add an attachment
+redmine issues update 123 --notes "Fixed the bug" --attach /path/to/fixed_code.patch
+```
 
 ## Close an Issue
 
