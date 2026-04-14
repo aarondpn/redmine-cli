@@ -2,6 +2,7 @@ package wiki
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -36,9 +37,11 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			stop := printer.Spinner("Fetching wiki pages...")
 			pages, total, err := client.Wikis.List(ctx, projectID, limit, offset)
+			stop()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to list wiki pages: %w", err)
 			}
 
 			if cmdutil.HandleEmpty(printer, pages, "wiki pages") {

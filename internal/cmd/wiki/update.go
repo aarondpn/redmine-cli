@@ -48,7 +48,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				// Fetch the current page and resend its text unchanged.
 				current, err := client.Wikis.Get(ctx, projectID, args[0], nil)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to fetch current wiki page %q: %w", args[0], err)
 				}
 				update.Text = &current.Text
 			}
@@ -67,9 +67,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.Uploads = uploads
 			}
 
+			stop := printer.Spinner("Updating wiki page...")
 			err = client.Wikis.Update(ctx, projectID, args[0], update)
+			stop()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to update wiki page %q: %w", args[0], err)
 			}
 
 			printer.Success(fmt.Sprintf("Wiki page %q updated", args[0]))

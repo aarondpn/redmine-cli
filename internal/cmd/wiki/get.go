@@ -42,14 +42,16 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 			pageTitle := args[0]
 
+			stop := printer.Spinner("Fetching wiki page...")
 			var page *models.WikiPage
 			if version > 0 {
 				page, err = client.Wikis.GetVersion(ctx, projectID, pageTitle, version)
 			} else {
 				page, err = client.Wikis.Get(ctx, projectID, pageTitle, include)
 			}
+			stop()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get wiki page %q: %w", pageTitle, err)
 			}
 
 			if printer.Format() == output.FormatJSON {

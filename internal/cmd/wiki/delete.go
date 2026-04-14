@@ -45,9 +45,11 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			stop := printer.Spinner("Deleting wiki page...")
 			err = client.Wikis.Delete(ctx, projectID, pageTitle)
+			stop()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to delete wiki page %q: %w", pageTitle, err)
 			}
 
 			printer.Success(fmt.Sprintf("Wiki page %q deleted", pageTitle))
