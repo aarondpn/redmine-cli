@@ -27,6 +27,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		parent         int
 		estimatedHours float64
 		private        bool
+		attach         []string
 		format         string
 	)
 
@@ -126,6 +127,14 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.IsPrivate = &private
 			}
 
+			if len(attach) > 0 {
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				if err != nil {
+					return err
+				}
+				create.Uploads = uploads
+			}
+
 			printer := f.Printer(format)
 			stop := printer.Spinner("Creating issue...")
 			issue, err := client.Issues.Create(ctx, create)
@@ -167,6 +176,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
+	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("subject")

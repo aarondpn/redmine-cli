@@ -28,6 +28,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		private        bool
 		doneRatio      int
 		note           string
+		attach         []string
 	)
 
 	cmd := &cobra.Command{
@@ -144,6 +145,14 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.FixedVersionID = &vid
 			}
 
+			if len(attach) > 0 {
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				if err != nil {
+					return err
+				}
+				update.Uploads = uploads
+			}
+
 			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
 			err = client.Issues.Update(ctx, id, update)
@@ -170,6 +179,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
+	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
