@@ -17,6 +17,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		text     string
 		title    string
 		comments string
+		attach   []string
 		format   string
 	)
 
@@ -50,6 +51,14 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.Comments = comments
 			}
 
+			if len(attach) > 0 {
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				if err != nil {
+					return err
+				}
+				create.Uploads = uploads
+			}
+
 			err = client.Wikis.Create(ctx, projectID, args[0], create)
 			if err != nil {
 				return err
@@ -70,6 +79,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown (required)")
 	cmd.Flags().StringVar(&title, "title", "", "Display title (defaults to page name)")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
+	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("text")

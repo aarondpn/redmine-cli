@@ -19,7 +19,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 		Use:     "delete <page>",
 		Aliases: []string{"rm"},
 		Short:   "Delete a wiki page",
-		Long:    "Delete a Redmine wiki page.",
+		Long:    "Delete a Redmine wiki page.\n\nThis also removes all attachments and the page history.\nAny child pages will be re-parented to the wiki root.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
@@ -38,7 +38,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			pageTitle := args[0]
 
 			if !force {
-				msg := fmt.Sprintf("Are you sure you want to delete wiki page %q?", pageTitle)
+				msg := fmt.Sprintf("Delete wiki page %q?\nThis also removes all attachments and the page history. Any child pages will be re-parented to the wiki root.", pageTitle)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
 					printer.Warning("Deletion cancelled")
 					return nil

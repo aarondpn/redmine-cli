@@ -16,6 +16,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		text     string
 		title    string
 		comments string
+		attach   []string
 	)
 
 	cmd := &cobra.Command{
@@ -58,6 +59,14 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.Comments = &comments
 			}
 
+			if len(attach) > 0 {
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				if err != nil {
+					return err
+				}
+				update.Uploads = uploads
+			}
+
 			err = client.Wikis.Update(ctx, projectID, args[0], update)
 			if err != nil {
 				return err
@@ -72,6 +81,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown")
 	cmd.Flags().StringVar(&title, "title", "", "Display title")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
+	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 

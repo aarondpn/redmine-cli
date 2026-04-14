@@ -38,14 +38,16 @@ type WikiPageIndex struct {
 
 // WikiPageCreate defines fields for creating a wiki page.
 type WikiPageCreate struct {
-	Text     string `json:"text"`
-	Comments string `json:"comments,omitempty"`
-	Title    string `json:"title,omitempty"`
+	Text     string   `json:"text"`
+	Comments string   `json:"comments,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Uploads  []Upload `json:"uploads,omitempty"`
 }
 
 // WikiPageUpdate defines fields for updating a wiki page.
 type WikiPageUpdate struct {
-	Text     *string `json:"text,omitempty"`
-	Comments *string `json:"comments,omitempty"`
-	Title    *string `json:"title,omitempty"`
+	Text     *string  `json:"text,omitempty"`
+	Comments *string  `json:"comments,omitempty"`
+	Title    *string  `json:"title,omitempty"`
+	Uploads  []Upload `json:"uploads,omitempty"`
 }
