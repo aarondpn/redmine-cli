@@ -22,13 +22,15 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 		Long:    "Delete a Redmine wiki page.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 			printer := f.Printer("")
 
-			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
 				return err
 			}
@@ -43,7 +45,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			err = client.Wikis.Delete(context.Background(), projectID, pageTitle)
+			err = client.Wikis.Delete(ctx, projectID, pageTitle)
 			if err != nil {
 				return err
 			}

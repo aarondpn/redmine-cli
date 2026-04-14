@@ -23,18 +23,20 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		Short:   "List wiki pages",
 		Long:    "List wiki pages in a Redmine project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 			printer := f.Printer(format)
 
-			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
 				return err
 			}
 
-			pages, total, err := client.Wikis.List(context.Background(), projectID, limit, offset)
+			pages, total, err := client.Wikis.List(ctx, projectID, limit, offset)
 			if err != nil {
 				return err
 			}

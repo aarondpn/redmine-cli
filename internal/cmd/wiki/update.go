@@ -25,13 +25,15 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Long:    "Update an existing Redmine wiki page.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 			printer := f.Printer("")
 
-			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
 				return err
 			}
@@ -48,7 +50,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.Comments = &comments
 			}
 
-			err = client.Wikis.Update(context.Background(), projectID, args[0], update)
+			err = client.Wikis.Update(ctx, projectID, args[0], update)
 			if err != nil {
 				return err
 			}

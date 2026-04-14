@@ -27,13 +27,15 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 		Long:    "Display detailed information about a Redmine wiki page.",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 			printer := f.Printer(format)
 
-			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
 				return err
 			}
@@ -42,9 +44,9 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 			var page *models.WikiPage
 			if version > 0 {
-				page, err = client.Wikis.GetVersion(context.Background(), projectID, pageTitle, version)
+				page, err = client.Wikis.GetVersion(ctx, projectID, pageTitle, version)
 			} else {
-				page, err = client.Wikis.Get(context.Background(), projectID, pageTitle, include)
+				page, err = client.Wikis.Get(ctx, projectID, pageTitle, include)
 			}
 			if err != nil {
 				return err
@@ -88,13 +90,11 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			printer.Detail(pairs)
-
-			// Print page text content separately for readability.
 			if page.Text != "" {
-				fmt.Println()
-				fmt.Println(page.Text)
+				pairs = append(pairs, output.KeyValue{Key: "Content", Value: page.Text})
 			}
+
+			printer.Detail(pairs)
 
 			return nil
 		},

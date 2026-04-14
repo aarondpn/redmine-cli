@@ -52,13 +52,9 @@ func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, ve
 }
 
 // Create creates a new wiki page (or overwrites an existing one).
-func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki models.WikiPageCreate) (*models.WikiPage, error) {
+func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki models.WikiPageCreate) error {
 	body := map[string]interface{}{"wiki_page": wiki}
-	if err := s.client.Put(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", projectID, page), body); err != nil {
-		return nil, err
-	}
-	// Redmine returns 201/200 with no body for wiki PUT; fetch the page back.
-	return s.Get(ctx, projectID, page, nil)
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", projectID, page), body)
 }
 
 // Update updates an existing wiki page.

@@ -27,15 +27,21 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		Long:    "Create a new Redmine wiki page (or overwrite an existing one).",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
 			printer := f.Printer(format)
 
-			projectID, err := cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
 				return err
+			}
+
+			if text == "" {
+				return fmt.Errorf("--text must not be empty")
 			}
 
 			create := models.WikiPageCreate{
@@ -48,17 +54,18 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.Comments = comments
 			}
 
-			page, err := client.Wikis.Create(context.Background(), projectID, args[0], create)
+			err = client.Wikis.Create(ctx, projectID, args[0], create)
 			if err != nil {
 				return err
 			}
 
 			if printer.Format() == output.FormatJSON {
+				page, _ := client.Wikis.Get(ctx, projectID, args[0], nil)
 				printer.JSON(page)
 				return nil
 			}
 
-			printer.Success(fmt.Sprintf("Wiki page %q created (version %d)", args[0], page.Version))
+			printer.Success(fmt.Sprintf("Wiki page %q created", args[0]))
 			return nil
 		},
 	}
