@@ -70,14 +70,13 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Creating wiki page...")
-			err = client.Wikis.Create(ctx, projectID, args[0], create)
+			page, err := client.Wikis.Create(ctx, projectID, args[0], create)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to create wiki page %q: %w", args[0], err)
 			}
 
 			if printer.Format() == output.FormatJSON {
-				page, _ := client.Wikis.Get(ctx, projectID, args[0], nil)
 				printer.JSON(page)
 				return nil
 			}

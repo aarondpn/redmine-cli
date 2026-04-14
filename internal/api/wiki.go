@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 
@@ -52,9 +53,20 @@ func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, ve
 }
 
 // Create creates a new wiki page (or overwrites an existing one).
-func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki models.WikiPageCreate) error {
+func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki models.WikiPageCreate) (*models.WikiPage, error) {
 	body := map[string]interface{}{"wiki_page": wiki}
-	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page)), body)
+	path := fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page))
+	var resp struct {
+		WikiPage models.WikiPage `json:"wiki_page"`
+	}
+	if err := s.client.doWithBody(ctx, http.MethodPut, path, body, &resp); err != nil {
+		return nil, err
+	}
+	if resp.WikiPage.Title != "" {
+		return &resp.WikiPage, nil
+	}
+	// Fallback: some Redmine versions return an empty body; fetch the page back.
+	return s.Get(ctx, projectID, page, nil)
 }
 
 // Update updates an existing wiki page.
