@@ -52,11 +52,11 @@ Grab the latest release for your platform from [GitHub Releases](https://github.
 
 | Platform      | Architecture | Download |
 |---------------|-------------|----------|
-| Linux         | x86_64      | `redmine-linux-amd64.tar.gz` |
-| Linux         | ARM64       | `redmine-linux-arm64.tar.gz` |
-| macOS         | Intel       | `redmine-darwin-amd64.tar.gz` |
-| macOS         | Apple Silicon | `redmine-darwin-arm64.tar.gz` |
-| Windows       | x86_64      | `redmine-windows-amd64.zip` |
+| Linux         | x86_64      | `redmine-cli-linux-amd64.tar.gz` |
+| Linux         | ARM64       | `redmine-cli-linux-arm64.tar.gz` |
+| macOS         | Intel       | `redmine-cli-darwin-amd64.tar.gz` |
+| macOS         | Apple Silicon | `redmine-cli-darwin-arm64.tar.gz` |
+| Windows       | x86_64      | `redmine-cli-windows-amd64.zip` |
 
 ### Updating
 

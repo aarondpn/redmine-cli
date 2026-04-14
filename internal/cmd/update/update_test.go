@@ -278,3 +278,82 @@ func TestIsNewer(t *testing.T) {
 		})
 	}
 }
+
+// --- runUpdate: checksum asset is mandatory ---
+
+// TestRunUpdate_RefusesWithoutChecksumsAsset guards against silent checksum
+// skip when the release omits the checksums asset. Installing an unverified
+// binary would be a downgrade attack vector.
+func TestRunUpdate_RefusesWithoutChecksumsAsset(t *testing.T) {
+	stubHomebrew(t, false, nil)
+
+	var downloadCalls int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		downloadCalls++
+		fmt.Fprint(w, "tampered payload")
+	}))
+	defer ts.Close()
+
+	origFetch := fetchRelease
+	t.Cleanup(func() { fetchRelease = origFetch })
+	fetchRelease = func(ctx context.Context) (*GithubRelease, error) {
+		return &GithubRelease{
+			TagName: "v99.0.0",
+			Assets: []GithubAsset{
+				{Name: expectedAssetName(), BrowserDownloadURL: ts.URL},
+				// No checksums asset.
+			},
+		}, nil
+	}
+
+	err := runUpdate("1.0.0")
+	if err == nil {
+		t.Fatal("expected error when checksums asset is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "checksums asset") {
+		t.Errorf("expected error to mention missing checksums asset, got: %v", err)
+	}
+	if downloadCalls != 0 {
+		t.Errorf("expected no archive download when checksums missing, got %d calls", downloadCalls)
+	}
+}
+
+// TestRunUpdate_RefusesOnChecksumMismatch ensures a tampered archive fails
+// verification and does not get written to disk.
+func TestRunUpdate_RefusesOnChecksumMismatch(t *testing.T) {
+	stubHomebrew(t, false, nil)
+
+	archive := []byte("tampered payload")
+	// Checksum for a DIFFERENT payload — simulates modified archive.
+	bogusHash := sha256.Sum256([]byte("original payload"))
+	checksumLine := fmt.Sprintf("%s  %s\n", hex.EncodeToString(bogusHash[:]), expectedAssetName())
+
+	archiveSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(archive)
+	}))
+	defer archiveSrv.Close()
+	checksumSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, checksumLine)
+	}))
+	defer checksumSrv.Close()
+
+	origFetch := fetchRelease
+	t.Cleanup(func() { fetchRelease = origFetch })
+	fetchRelease = func(ctx context.Context) (*GithubRelease, error) {
+		return &GithubRelease{
+			TagName: "v99.0.0",
+			Assets: []GithubAsset{
+				{Name: expectedAssetName(), BrowserDownloadURL: archiveSrv.URL},
+				{Name: expectedChecksumsName("v99.0.0"), BrowserDownloadURL: checksumSrv.URL},
+			},
+		}, nil
+	}
+
+	err := runUpdate("1.0.0")
+	if err == nil {
+		t.Fatal("expected checksum verification error, got nil")
+	}
+	if !strings.Contains(err.Error(), "checksum verification failed") {
+		t.Errorf("expected error to mention checksum verification failure, got: %v", err)
+	}
+}

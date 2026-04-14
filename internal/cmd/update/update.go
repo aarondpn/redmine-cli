@@ -104,17 +104,21 @@ func runUpdate(currentVersion string) error {
 	}
 
 	assetName := expectedAssetName()
+	checksumsName := expectedChecksumsName(release.TagName)
 	var downloadURL, checksumsURL string
 	for _, asset := range release.Assets {
 		switch asset.Name {
 		case assetName:
 			downloadURL = asset.BrowserDownloadURL
-		case "checksums.txt":
+		case checksumsName:
 			checksumsURL = asset.BrowserDownloadURL
 		}
 	}
 	if downloadURL == "" {
 		return fmt.Errorf("no release asset found for %s/%s (expected %s)", runtime.GOOS, runtime.GOARCH, assetName)
+	}
+	if checksumsURL == "" {
+		return fmt.Errorf("checksums asset %q not found in release %s; refusing to install unverified binary", checksumsName, release.TagName)
 	}
 
 	execPath, err := installPath()
@@ -129,11 +133,9 @@ func runUpdate(currentVersion string) error {
 		return fmt.Errorf("failed to download update: %w", err)
 	}
 
-	if checksumsURL != "" {
-		fmt.Println("Verifying checksum...")
-		if err := verifyChecksum(archiveData, assetName, checksumsURL); err != nil {
-			return fmt.Errorf("checksum verification failed: %w", err)
-		}
+	fmt.Println("Verifying checksum...")
+	if err := verifyChecksum(archiveData, assetName, checksumsURL); err != nil {
+		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
 	binaryData, err := extractBinary(archiveData, assetName)
@@ -178,7 +180,13 @@ func expectedAssetName() string {
 	if runtime.GOOS == "windows" {
 		ext = ".zip"
 	}
-	return fmt.Sprintf("redmine-%s-%s%s", runtime.GOOS, runtime.GOARCH, ext)
+	return fmt.Sprintf("%s-%s-%s%s", RepoName, runtime.GOOS, runtime.GOARCH, ext)
+}
+
+// expectedChecksumsName returns the GoReleaser-default checksums filename
+// for the given release tag (e.g. "redmine-cli_1.2.3_checksums.txt").
+func expectedChecksumsName(tag string) string {
+	return fmt.Sprintf("%s_%s_checksums.txt", RepoName, strings.TrimPrefix(tag, "v"))
 }
 
 func downloadBytes(url string) ([]byte, error) {
