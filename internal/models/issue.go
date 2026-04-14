@@ -46,20 +46,29 @@ type IssueFilter struct {
 	Offset         int
 }
 
+// Upload represents a file attachment reference for an issue create/update.
+type Upload struct {
+	Token       string `json:"token"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // IssueCreate defines fields for creating a new issue.
 type IssueCreate struct {
-	ProjectID      int     `json:"project_id"`
-	TrackerID      int     `json:"tracker_id,omitempty"`
-	StatusID       int     `json:"status_id,omitempty"`
-	PriorityID     int     `json:"priority_id,omitempty"`
-	Subject        string  `json:"subject"`
-	Description    string  `json:"description,omitempty"`
-	AssignedToID   int     `json:"assigned_to_id,omitempty"`
-	ParentIssueID  int     `json:"parent_issue_id,omitempty"`
-	CategoryID     int     `json:"category_id,omitempty"`
-	FixedVersionID int     `json:"fixed_version_id,omitempty"`
-	EstimatedHours float64 `json:"estimated_hours,omitempty"`
-	IsPrivate      *bool   `json:"is_private,omitempty"`
+	ProjectID      int      `json:"project_id"`
+	TrackerID      int      `json:"tracker_id,omitempty"`
+	StatusID       int      `json:"status_id,omitempty"`
+	PriorityID     int      `json:"priority_id,omitempty"`
+	Subject        string   `json:"subject"`
+	Description    string   `json:"description,omitempty"`
+	AssignedToID   int      `json:"assigned_to_id,omitempty"`
+	ParentIssueID  int      `json:"parent_issue_id,omitempty"`
+	CategoryID     int      `json:"category_id,omitempty"`
+	FixedVersionID int      `json:"fixed_version_id,omitempty"`
+	EstimatedHours float64  `json:"estimated_hours,omitempty"`
+	IsPrivate      *bool    `json:"is_private,omitempty"`
+	Uploads        []Upload `json:"uploads,omitempty"`
 }
 
 // IssueUpdate defines fields for updating an issue. Nil fields are not sent.
@@ -78,4 +87,5 @@ type IssueUpdate struct {
 	FixedVersionID *int     `json:"fixed_version_id,omitempty"`
 	EstimatedHours *float64 `json:"estimated_hours,omitempty"`
 	IsPrivate      *bool    `json:"is_private,omitempty"`
+	Uploads        []Upload `json:"uploads,omitempty"`
 }

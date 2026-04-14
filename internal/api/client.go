@@ -41,6 +41,7 @@ type Client struct {
 	Groups       *GroupService
 	Search       *SearchService
 	Memberships  *MembershipService
+	Attachments  *AttachmentService
 }
 
 // DebugLog returns the client's debug logger.
@@ -59,7 +60,9 @@ type authTransport struct {
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Header.Set("Content-Type", "application/json")
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	switch t.authMethod {
 	case "basic":
@@ -109,6 +112,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Groups = &GroupService{client: c}
 	c.Search = &SearchService{client: c}
 	c.Memberships = &MembershipService{client: c}
+	c.Attachments = &AttachmentService{client: c}
 
 	return c, nil
 }
