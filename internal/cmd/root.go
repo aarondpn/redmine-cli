@@ -21,6 +21,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmd/update"
 	"github.com/aarondpn/redmine-cli/internal/cmd/user"
 	versioncmd "github.com/aarondpn/redmine-cli/internal/cmd/version"
+	"github.com/aarondpn/redmine-cli/internal/cmd/wiki"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/config"
 	"github.com/aarondpn/redmine-cli/internal/debug"
@@ -85,6 +86,7 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(status.NewCmdStatuses(f))
 	cmd.AddCommand(versioncmd.NewCmdVersions(f))
 	cmd.AddCommand(search.NewCmdSearch(f))
+	cmd.AddCommand(wiki.NewCmdWiki(f))
 	cmd.AddCommand(completion.NewCmdCompletion())
 	cmd.AddCommand(installskill.NewCmdInstallSkill(f))
 	cmd.AddCommand(update.NewCmdUpdate(version))
