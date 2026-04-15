@@ -81,7 +81,11 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			printer.Success(fmt.Sprintf("Wiki page %q created", args[0]))
+			effective := args[0]
+			if page.Title != "" {
+				effective = page.Title
+			}
+			printer.Success(fmt.Sprintf("Wiki page %q created", effective))
 			return nil
 		},
 	}
