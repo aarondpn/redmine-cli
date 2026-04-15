@@ -1,0 +1,17 @@
+---
+interface Props {
+  index: string | number;
+  label: string;
+  id?: string;
+}
+const { index, label, id } = Astro.props;
+const n = typeof index === 'number' ? String(index).padStart(2, '0') : index;
+---
+
+<div class="rc-rule not-content" id={id}>
+  <span class="rc-rule__dashes" aria-hidden="true">──</span>
+  <span class="rc-rule__index">{n}</span>
+  <span class="rc-rule__slash" aria-hidden="true">/</span>
+  <span class="rc-rule__label">{label}</span>
+  <span class="rc-rule__fill" aria-hidden="true"></span>
+</div>

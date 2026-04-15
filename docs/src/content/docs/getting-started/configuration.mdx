@@ -1,0 +1,134 @@
+---
+title: Configuration
+description: Configuring redmine-cli to connect to your Redmine server.
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+## Interactive setup
+
+<Steps>
+
+1. Start the login wizard:
+
+   ```bash
+   redmine auth login
+   ```
+
+2. Provide your Redmine server URL and authentication method (API key or username/password).
+
+3. Optionally set a default project — it is prepopulated in project-scoped commands.
+
+4. The wizard writes a profile to `~/.redmine-cli.yaml`. You are ready to go.
+
+</Steps>
+
+## Multiple profiles
+
+You can authenticate against as many Redmine instances as you like. Each `redmine auth login` creates a named profile.
+
+<Tabs syncKey="profile-flow">
+  <TabItem label="Add">
+    ```bash
+    redmine auth login             # second instance
+    redmine auth login --name work # with an explicit name
+    ```
+  </TabItem>
+  <TabItem label="Switch">
+    ```bash
+    redmine auth list    # see all profiles
+    redmine auth switch  # interactive picker
+    ```
+  </TabItem>
+  <TabItem label="Use once">
+    ```bash
+    redmine --profile work issues list
+    ```
+  </TabItem>
+  <TabItem label="Status">
+    ```bash
+    redmine auth status
+    ```
+  </TabItem>
+</Tabs>
+
+## Config file
+
+<FileTree>
+- ~/
+  - **.redmine-cli.yaml** active profile + all profile data
+  - .local/bin/
+    - redmine binary (install script target)
+</FileTree>
+
+```yaml title="~/.redmine-cli.yaml"
+active_profile: work
+profiles:
+  work:
+    server: https://redmine.work.com
+    auth_method: apikey
+    api_key: your-api-key
+    default_project: myproject
+    output_format: table
+  personal:
+    server: https://redmine.personal.com
+    auth_method: apikey
+    api_key: another-key
+    output_format: wide
+```
+
+<Aside type="caution" title="Secrets on disk">
+  The config file stores API keys in plaintext. Keep it `0600` and out of dotfile repositories. Use environment variables in CI.
+</Aside>
+
+## Environment variables
+
+<Badge text="CI friendly" variant="success" />
+Every setting can be overridden with a `REDMINE_`-prefixed variable:
+
+```bash
+export REDMINE_SERVER=https://redmine.example.com
+export REDMINE_API_KEY=your-api-key
+export REDMINE_AUTH_METHOD=apikey
+
+# opt out of the startup update check
+export REDMINE_NO_UPDATE_CHECK=1
+```
+
+See [Self-Update](/redmine-cli/commands/other/#startup-update-check) for details on the update check.
+
+## Global flags
+
+Flags take precedence over config values and environment variables.
+
+| Flag | Description |
+|------|-------------|
+| `-s, --server`  | Redmine server URL |
+| `-k, --api-key` | API key for authentication |
+| `--profile`     | Use a specific auth profile |
+| `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
+| `--no-color`    | Disable colored output |
+| `-v, --verbose` | Enable debug logging |
+
+## Inspect current config
+
+```bash
+redmine config
+```
+
+Prints the active profile, server, auth method, default project, and output format.
+
+## Next
+
+<CardGrid>
+  <LinkCard
+    title="Quick Start"
+    href="/redmine-cli/getting-started/quick-start/"
+    description="First real commands: issues, time, search."
+  />
+  <LinkCard
+    title="Auth commands"
+    href="/redmine-cli/commands/auth/"
+    description="Full reference for the auth subcommand family."
+  />
+</CardGrid>

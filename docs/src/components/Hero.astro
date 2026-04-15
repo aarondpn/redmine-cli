@@ -1,0 +1,59 @@
+---
+// Custom Starlight Hero override. Reads `hero` frontmatter from the current route
+// and renders an asymmetric "ops console" layout with the terminal demo on the right.
+import Terminal from './Terminal.astro';
+import StatusBar from './StatusBar.astro';
+
+const { hero, title } = Astro.locals.starlightRoute.entry.data as {
+  hero?: {
+    tagline?: string;
+    actions?: { text: string; link: string; variant?: string; icon?: string }[];
+  };
+  title: string;
+};
+
+const t = Astro.locals.t;
+const tagline = hero?.tagline ?? '';
+const actions = hero?.actions ?? [];
+---
+
+<section class="rc-hero not-content" aria-labelledby="rc-hero-title">
+  <StatusBar />
+
+  <div class="rc-hero__stack">
+    <h1 id="rc-hero-title" class="rc-hero__title">
+      <span class="rc-hero__title-word">redmine</span><span
+        class="rc-hero__title-word rc-hero__title-word--accent">.cli</span>
+    </h1>
+
+    <p class="rc-hero__tagline">
+      <span class="rc-comment" aria-hidden="true">{'//'}</span>
+      {tagline || t('hero.fallbackTagline')}
+    </p>
+
+    {actions.length > 0 && (
+      <div class="rc-hero__actions">
+        {actions.map((a, i) => (
+          <a
+            href={a.link}
+            class={`rc-btn ${a.variant === 'minimal' ? 'rc-btn--ghost' : 'rc-btn--primary'}`}
+          >
+            {a.variant !== 'minimal' && (
+              <span class="rc-btn__index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+            )}
+            <span class="rc-btn__label">{a.text}</span>
+            <span class="rc-btn__arrow" aria-hidden="true">
+              {a.variant === 'minimal' ? '↗' : '→'}
+            </span>
+          </a>
+        ))}
+      </div>
+    )}
+
+    <div class="rc-hero__panel">
+      <Terminal />
+    </div>
+  </div>
+
+  <div class="rc-hero__scanlines" aria-hidden="true"></div>
+</section>

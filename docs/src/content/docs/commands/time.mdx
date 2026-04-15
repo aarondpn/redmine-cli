@@ -1,0 +1,120 @@
+---
+title: Time Entries
+description: Log, list, and manage time entries.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `time` command (alias `t`) manages time entries.
+
+<CardGrid>
+  <LinkCard title="log"     href="#log"     description="Log time interactively or via flags." />
+  <LinkCard title="list"    href="#list"    description="Filter and page through time entries." />
+  <LinkCard title="get"     href="#get"     description="View a single entry." />
+  <LinkCard title="update"  href="#update"  description="Change hours, activity, comment, or date." />
+  <LinkCard title="delete"  href="#delete"  description="Remove a time entry." />
+  <LinkCard title="summary" href="#summary" description="Aggregate by project and activity." />
+</CardGrid>
+
+## log
+
+```bash
+redmine time log [flags]
+```
+
+Without flags, opens an interactive form.
+
+| Flag | Description |
+|------|-------------|
+| `--issue`    | Issue ID |
+| `--project`  | Project (name or identifier) |
+| `--hours`    | Hours spent — <Badge text="required" variant="danger" /> |
+| `--activity` | Activity type (name or ID) |
+| `--comment`  | Description of work |
+| `--date`     | Date (YYYY-MM-DD, default: today) |
+
+<Tabs syncKey="time-log">
+  <TabItem label="Interactive">
+    ```bash
+    redmine time log
+    ```
+  </TabItem>
+  <TabItem label="One-shot">
+    ```bash
+    redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
+    ```
+  </TabItem>
+</Tabs>
+
+## list
+
+```bash
+redmine time list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Filter by project |
+| `--user`       | Filter by user: `me`, name, or ID |
+| `--issue`      | Filter by issue ID |
+| `--activity`   | Filter by activity (name or ID) |
+| `--from`       | Start date (YYYY-MM-DD or `today`) |
+| `--to`         | End date (YYYY-MM-DD or `today`) |
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format |
+
+<Tabs syncKey="time-list">
+  <TabItem label="This week">
+    ```bash
+    redmine time list --user me --from 2024-01-15 --to 2024-01-19
+    ```
+  </TabItem>
+  <TabItem label="By issue">
+    ```bash
+    redmine time list --issue 123
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine time get <id> [flags]
+```
+
+## update
+
+```bash
+redmine time update <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--hours`    | New hours |
+| `--activity` | New activity (name or ID) |
+| `--comment`  | New comment |
+| `--date`     | New date |
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+```bash
+redmine time delete <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |
+
+## summary
+
+```bash
+redmine time summary [flags]
+```
+
+Displays a summary of time entries grouped by project and activity. Accepts the same filter flags as [`list`](#list).
+
+<Aside type="tip">
+  Combine `summary` with `--from today --user me` for a quick end-of-day breakdown of your own work.
+</Aside>

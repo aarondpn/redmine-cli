@@ -1,0 +1,134 @@
+---
+title: 配置
+description: 配置 redmine-cli 以连接你的 Redmine 服务器。
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+## 交互式设置
+
+<Steps>
+
+1. 启动登录向导：
+
+   ```bash
+   redmine auth login
+   ```
+
+2. 提供你的 Redmine 服务器 URL 和身份验证方式（API 密钥或用户名/密码）。
+
+3. 可选：设置默认项目——该项目会在项目范围的命令中自动填充。
+
+4. 向导将配置写入 `~/.redmine-cli.yaml`，之后即可开始使用。
+
+</Steps>
+
+## 多个配置文件
+
+你可以对任意数量的 Redmine 实例进行身份验证。每次执行 `redmine auth login` 都会创建一个命名配置文件。
+
+<Tabs syncKey="profile-flow">
+  <TabItem label="添加">
+    ```bash
+    redmine auth login             # 第二个实例
+    redmine auth login --name work # 显式指定名称
+    ```
+  </TabItem>
+  <TabItem label="切换">
+    ```bash
+    redmine auth list    # 查看所有配置文件
+    redmine auth switch  # 交互式选择器
+    ```
+  </TabItem>
+  <TabItem label="临时使用">
+    ```bash
+    redmine --profile work issues list
+    ```
+  </TabItem>
+  <TabItem label="状态">
+    ```bash
+    redmine auth status
+    ```
+  </TabItem>
+</Tabs>
+
+## 配置文件
+
+<FileTree>
+- ~/
+  - **.redmine-cli.yaml** 活跃配置文件及所有配置数据
+  - .local/bin/
+    - redmine 二进制文件（安装脚本目标路径）
+</FileTree>
+
+```yaml title="~/.redmine-cli.yaml"
+active_profile: work
+profiles:
+  work:
+    server: https://redmine.work.com
+    auth_method: apikey
+    api_key: your-api-key
+    default_project: myproject
+    output_format: table
+  personal:
+    server: https://redmine.personal.com
+    auth_method: apikey
+    api_key: another-key
+    output_format: wide
+```
+
+<Aside type="caution" title="磁盘上的密钥">
+  配置文件以明文形式存储 API 密钥。请将其权限设置为 `0600`，并避免纳入 dotfile 仓库。在 CI 环境中请使用环境变量。
+</Aside>
+
+## 环境变量
+
+<Badge text="适用于 CI" variant="success" />
+所有配置项均可通过以 `REDMINE_` 为前缀的环境变量覆盖：
+
+```bash
+export REDMINE_SERVER=https://redmine.example.com
+export REDMINE_API_KEY=your-api-key
+export REDMINE_AUTH_METHOD=apikey
+
+# 关闭启动时的更新检查
+export REDMINE_NO_UPDATE_CHECK=1
+```
+
+参见 [自动更新](/redmine-cli/zh-cn/commands/other/#启动时更新检查) 了解更新检查的详细信息。
+
+## 全局标志
+
+标志优先级高于配置文件值和环境变量。
+
+| 标志 | 描述 |
+|------|------|
+| `-s, --server`  | Redmine 服务器 URL |
+| `-k, --api-key` | 用于身份验证的 API 密钥 |
+| `--profile`     | 使用指定的身份验证配置文件 |
+| `--config`      | 配置文件路径（默认为 `~/.redmine-cli.yaml`） |
+| `--no-color`    | 禁用彩色输出 |
+| `-v, --verbose` | 启用调试日志 |
+
+## 查看当前配置
+
+```bash
+redmine config
+```
+
+输出活跃配置文件、服务器、身份验证方式、默认项目及输出格式。
+
+## 下一步
+
+<CardGrid>
+  <LinkCard
+    title="快速开始"
+    href="/redmine-cli/zh-cn/getting-started/quick-start/"
+    description="第一批实用命令：工单、工时记录、搜索。"
+  />
+  <LinkCard
+    title="身份验证命令"
+    href="/redmine-cli/zh-cn/commands/auth/"
+    description="auth 子命令系列的完整参考。"
+  />
+</CardGrid>

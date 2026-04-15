@@ -1,0 +1,11 @@
+---
+import Default from '@astrojs/starlight/components/Head.astro';
+
+const base = '/redmine-cli';
+const pathname = Astro.url.pathname;
+const enPath = pathname.replace(new RegExp(`^${base}/zh-cn(/|$)`), `${base}$1`);
+const xDefault = new URL(enPath, Astro.site).href;
+---
+
+<Default />
+<link rel="alternate" hreflang="x-default" href={xDefault} />

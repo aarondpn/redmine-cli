@@ -7,16 +7,46 @@ hero:
   actions:
     - text: Get Started
       link: /redmine-cli/getting-started/installation/
-      icon: right-arrow
+      variant: primary
     - text: View on GitHub
       link: https://github.com/aarondpn/redmine-cli
-      icon: external
       variant: minimal
 ---
 
-import Terminal from '../../components/Terminal.astro';
-import Features from '../../components/Features.astro';
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import SectionRule from '../../components/SectionRule.astro';
+import CapabilityMatrix from '../../components/CapabilityMatrix.astro';
+import Contributors from '../../components/Contributors.astro';
 
-<Terminal />
+<SectionRule index="01" label="CAPABILITIES" />
 
-<Features />
+<CapabilityMatrix />
+
+<SectionRule index="02" label="QUICKSTART" />
+
+<CardGrid>
+  <LinkCard
+    title="Install"
+    href="/redmine-cli/getting-started/installation/"
+    description="Homebrew, install script, go install, or manual download."
+  />
+  <LinkCard
+    title="Configure"
+    href="/redmine-cli/getting-started/configuration/"
+    description="Profiles, env vars, and global flags explained."
+  />
+  <LinkCard
+    title="First commands"
+    href="/redmine-cli/getting-started/quick-start/"
+    description="Issues, time tracking, search — up and running in minutes."
+  />
+  <LinkCard
+    title="AI agent integration"
+    href="/redmine-cli/guides/ai-agents/"
+    description="Hook the CLI into Claude Code, Cursor, and friends."
+  />
+</CardGrid>
+
+<SectionRule index="03" label="CREW" />
+
+<Contributors />

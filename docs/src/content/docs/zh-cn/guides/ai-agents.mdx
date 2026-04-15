@@ -1,0 +1,80 @@
+---
+title: AI 代理集成
+description: 在 Claude Code、Cursor 等 AI 编程代理中使用 redmine-cli。
+---
+
+import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+redmine-cli 内置了一个 [agent skill](https://github.com/anthropics/skills)，用于教导 AI 编程代理（Claude Code、Cursor 等）如何高效使用该 CLI。该 skill 涵盖输出格式、分页、过滤、名称解析及常用工作流。
+
+## 安装 skill
+
+<Tabs syncKey="skill-scope">
+  <TabItem label="全局">
+    对本机所有项目生效。
+
+    ```bash
+    redmine install-skill --global
+    ```
+  </TabItem>
+  <TabItem label="项目本地">
+    仅对当前工作目录生效。
+
+    ```bash
+    redmine install-skill
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+  底层使用 [skills](https://github.com/anthropics/skills) CLI（`npx skills add`），需要将 Node.js 添加至 `PATH`。
+</Aside>
+
+## 代理学到什么
+
+<Badge text="行为" variant="tip" />
+安装 skill 后，代理将能够：
+
+- 对所有命令使用 `-o json` 以获取机器可读的输出。
+- 在创建或更新工单前，先查询可用选项（跟踪类型、状态、版本等），而非猜测值。
+- 当值存在歧义时，向用户展示选项供其选择。
+- 使用 `--limit` 和 `--offset` 处理分页。
+- 使用名称解析（例如使用 `--assignee "John Smith"` 而非 `--assignee 42`）。
+- 在适当场合使用 `me` 简写。
+- 使用 `redmine auth login` 进行初始设置，使用 `redmine auth switch` 切换服务器。
+- 配置了多个实例时，使用 `redmine --profile <name>` 指定目标 Redmine 实例。
+
+## 手动配置
+
+如果不想使用安装程序，可直接将 skill 配置到代理设置中。
+
+<Steps>
+
+1. **Claude Code** — 将 skill 引用添加到 `.claude/settings.json`：
+
+   ```json
+   {
+     "skills": ["aarondpn/redmine-cli:redmine-cli"]
+   }
+   ```
+
+2. **Cursor 等工具** — 将 [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md) 的内容复制到代理指令文件中（例如 `CLAUDE.md`、`.cursorrules`）。
+
+3. 重启代理以加载新指令。
+
+</Steps>
+
+## 相关资源
+
+<CardGrid>
+  <LinkCard
+    title="输出格式"
+    href="/redmine-cli/zh-cn/guides/output-formats/"
+    description="代理为何依赖 -o json 及其行为说明。"
+  />
+  <LinkCard
+    title="快速开始"
+    href="/redmine-cli/zh-cn/getting-started/quick-start/"
+    description="面向用户的命令介绍，涵盖代理所封装的操作。"
+  />
+</CardGrid>

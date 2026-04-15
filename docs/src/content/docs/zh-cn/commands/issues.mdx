@@ -1,0 +1,187 @@
+---
+title: 工单
+description: 创建、列出、更新及管理 Redmine 工单。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`issues` 命令（别名 `i`）提供对 Redmine 工单的全流程管理。
+
+<CardGrid>
+  <LinkCard title="list"    href="#list"    description="过滤并分页浏览工单。" />
+  <LinkCard title="get"     href="#get"     description="查看单个工单，包括日志和关联关系。" />
+  <LinkCard title="create"  href="#create"  description="创建工单，可选添加附件。" />
+  <LinkCard title="update"  href="#update"  description="修改字段、添加备注、附加文件。" />
+  <LinkCard title="close"   href="#close"   description="关闭工单，可选添加评论。" />
+  <LinkCard title="reopen"  href="#reopen"  description="重新打开已关闭的工单。" />
+  <LinkCard title="assign"  href="#assign"  description="将工单指派给用户。" />
+  <LinkCard title="comment" href="#comment" description="仅添加评论，不做其他修改。" />
+  <LinkCard title="delete"  href="#delete"  description="永久删除工单。" />
+  <LinkCard title="open"    href="#open"    description="在浏览器中打开工单。" />
+  <LinkCard title="browse"  href="#browse"  description="交互式终端浏览器。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine issues list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`     | 按项目过滤（名称、标识符或 ID） |
+| `--tracker`     | 按跟踪类型过滤（名称或 ID） |
+| `--status`      | 按状态过滤：`open`、`closed`、`*`、名称或 ID |
+| `--assignee`    | 按指派人过滤：`me`、名称或 ID |
+| `--version`     | 按目标版本过滤（名称或 ID） |
+| `--sort`        | 排序方式，例如 `updated_on:desc` |
+| `--include`     | 包含关联数据：`attachments`、`relations` |
+| `--attachments` | `--include attachments` 的简写 |
+| `--relations`   | `--include relations` 的简写 |
+| `--limit`       | 最大结果数（0 表示全部） |
+| `--offset`      | 分页偏移量 |
+| `-o, --output`  | 输出格式：`table`、`wide`、`json`、`csv` |
+
+<Tabs syncKey="issues-list">
+  <TabItem label="我的工单">
+    ```bash
+    redmine issues list --assignee me
+    ```
+  </TabItem>
+  <TabItem label="项目缺陷">
+    ```bash
+    redmine issues list --project myproject --tracker Bug
+    ```
+  </TabItem>
+  <TabItem label="最近关闭">
+    ```bash
+    redmine issues list --status closed --sort updated_on:desc
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine issues get <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--include`    | 包含关联数据：`journals`、`children`、`relations` |
+| `--journals`   | `--include journals` 的简写 |
+| `--children`   | `--include children` 的简写 |
+| `--relations`  | `--include relations` 的简写 |
+| `-o, --output` | 输出格式 |
+
+## create
+
+```bash
+redmine issues create [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`         | 项目（名称、标识符或 ID）——默认回退至活跃配置文件的默认项目 |
+| `--subject`         | 工单标题 — <Badge text="必填" variant="danger" /> |
+| `--tracker`         | 跟踪类型（名称或 ID） |
+| `--status`          | 状态（名称或 ID） |
+| `--priority`        | 优先级（名称或 ID） |
+| `--assignee`        | 指派人：`me`、名称或 ID |
+| `--description`     | 工单描述 |
+| `--parent`          | 父工单 ID |
+| `--category`        | 类别（名称或 ID） |
+| `--version`         | 目标版本（名称或 ID） |
+| `--estimated-hours` | 预估工时 |
+| `--private`         | 标记为私有 |
+| `--attach`          | 要附加的文件路径（可重复使用） |
+
+```bash
+redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
+
+redmine issues create --project myproject --subject "Bug report" \
+  --attach /path/to/screenshot.png --attach /path/to/log.txt
+```
+
+## update
+
+```bash
+redmine issues update <id> [flags]
+```
+
+接受与 `create` 相同的标志（`--project` 除外），并额外支持：
+
+| 标志 | 描述 |
+|------|------|
+| `--note`       | 添加评论 |
+| `--done-ratio` | 完成度百分比（0-100） |
+| `--attach`     | 要附加的文件路径（可重复使用） |
+
+```bash
+redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
+```
+
+## close
+
+```bash
+redmine issues close <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--note` | 添加关闭评论 |
+
+## reopen
+
+```bash
+redmine issues reopen <id> [flags]
+```
+
+## assign
+
+```bash
+redmine issues assign <id> <user-id-or-name> [flags]
+```
+
+用户参数接受数字 ID、登录名、全名或 `me`。
+
+## comment
+
+```bash
+redmine issues comment <id> --message "Your comment" [flags]
+```
+
+## delete
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine issues delete <id> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+<Aside type="caution">
+  删除操作不可逆，无法通过 CLI 撤销。除非确有必要，否则请优先使用 `close`。
+</Aside>
+
+## open
+
+```bash
+redmine issues open <id>
+```
+
+根据已配置的 Redmine 服务器构造工单 URL，并在默认浏览器中打开。
+
+```bash
+redmine issues open 123   # → https://redmine.example.com/issues/123
+```
+
+## browse
+
+```bash
+redmine issues browse [flags]
+```
+
+打开工单的交互式终端浏览器。接受与 [`list`](#list) 相同的过滤标志。

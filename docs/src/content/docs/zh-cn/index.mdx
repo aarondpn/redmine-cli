@@ -1,0 +1,52 @@
+---
+title: redmine-cli
+description: 一个用于 Redmine 项目管理的命令行工具。
+template: splash
+hero:
+  tagline: 快速、现代的 Redmine 项目管理 CLI 工具。
+  actions:
+    - text: 开始使用
+      link: /redmine-cli/zh-cn/getting-started/installation/
+      variant: primary
+    - text: 在 GitHub 上查看
+      link: https://github.com/aarondpn/redmine-cli
+      variant: minimal
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import SectionRule from '../../../components/SectionRule.astro';
+import CapabilityMatrix from '../../../components/CapabilityMatrix.astro';
+import Contributors from '../../../components/Contributors.astro';
+
+<SectionRule index="01" label="功能" />
+
+<CapabilityMatrix />
+
+<SectionRule index="02" label="快速开始" />
+
+<CardGrid>
+  <LinkCard
+    title="安装"
+    href="/redmine-cli/zh-cn/getting-started/installation/"
+    description="通过 Homebrew、安装脚本、go install 或手动下载安装。"
+  />
+  <LinkCard
+    title="配置"
+    href="/redmine-cli/zh-cn/getting-started/configuration/"
+    description="介绍配置文件、环境变量与全局标志。"
+  />
+  <LinkCard
+    title="第一个命令"
+    href="/redmine-cli/zh-cn/getting-started/quick-start/"
+    description="工单、工时记录、搜索——几分钟内快速上手。"
+  />
+  <LinkCard
+    title="AI 代理集成"
+    href="/redmine-cli/zh-cn/guides/ai-agents/"
+    description="将 CLI 集成到 Claude Code、Cursor 等 AI 工具中。"
+  />
+</CardGrid>
+
+<SectionRule index="03" label="贡献者" />
+
+<Contributors />

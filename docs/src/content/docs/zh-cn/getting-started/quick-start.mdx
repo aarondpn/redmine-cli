@@ -1,0 +1,139 @@
+---
+title: 快速开始
+description: 几分钟内快速上手 redmine-cli。
+---
+
+import { Steps, Tabs, TabItem, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+## 初次设置
+
+<Steps>
+
+1. 运行登录向导并指向你的 Redmine 服务器：
+
+   ```bash
+   redmine auth login
+   ```
+
+2. 确认连接是否正常：
+
+   ```bash
+   redmine auth status
+   ```
+
+3. 开始管理工单、工时记录等内容。
+
+</Steps>
+
+## 工单
+
+<Tabs syncKey="issue-verb">
+  <TabItem label="列表">
+    ```bash
+    redmine issues list --project myproject
+    redmine issues list --assignee me --status open
+    ```
+  </TabItem>
+  <TabItem label="查看">
+    ```bash
+    redmine issues get 123
+    ```
+  </TabItem>
+  <TabItem label="创建">
+    ```bash
+    redmine issues create \
+      --project myproject \
+      --subject "Fix login bug" \
+      --tracker Bug
+    ```
+  </TabItem>
+  <TabItem label="更新">
+    ```bash
+    redmine issues update 123 --status "In Progress" --assignee me
+    ```
+  </TabItem>
+  <TabItem label="关闭">
+    ```bash
+    redmine issues close 123 --notes "Fixed in commit abc123"
+    ```
+  </TabItem>
+  <TabItem label="浏览">
+    ```bash
+    redmine issues browse --project myproject
+    ```
+  </TabItem>
+</Tabs>
+
+## 工时记录
+
+```bash
+# interactive
+redmine time log
+
+# one-shot
+redmine time log --issue 123 --hours 2.5 --activity Development --comment "Code review"
+
+# today's entries
+redmine time list --user me --from today
+```
+
+## 搜索
+
+```bash
+redmine search "login bug"
+redmine search issues "login bug" --project myproject
+redmine search "login bug" --open-issues
+```
+
+## 名称解析
+
+<Badge text="无需 ID" variant="tip" />
+你无需记忆数字 ID。CLI 可通过名称解析跟踪类型、状态、优先级、项目和用户。
+
+```bash
+redmine issues create \
+  --project myproject \
+  --tracker Bug \
+  --priority High \
+  --assignee "John Smith"
+
+redmine issues list --assignee me
+```
+
+<Aside type="tip" title="`me` 关键字">
+  `me` 始终解析为当前活跃配置文件的用户——在跨账户脚本中非常实用。
+</Aside>
+
+## 输出格式
+
+```bash
+redmine issues list          # table (default)
+redmine issues list -o wide  # extra columns
+redmine issues list -o json  # scripting
+redmine issues list -o csv   # spreadsheets
+```
+
+## 下一步
+
+<CardGrid>
+  <LinkCard
+    title="工单命令参考"
+    href="/redmine-cli/zh-cn/commands/issues/"
+    description="工单各子命令的所有标志说明。"
+  />
+  <LinkCard
+    title="工时记录命令参考"
+    href="/redmine-cli/zh-cn/commands/time/"
+    description="工时记录功能的完整参考。"
+  />
+  <LinkCard
+    title="输出格式"
+    href="/redmine-cli/zh-cn/guides/output-formats/"
+    description="使用 JSON 和 CSV 进行脚本编写的技巧。"
+  />
+  <LinkCard
+    title="AI 代理集成"
+    href="/redmine-cli/zh-cn/guides/ai-agents/"
+    description="将 CLI 集成到 Claude Code、Cursor 等工具中。"
+  />
+</CardGrid>

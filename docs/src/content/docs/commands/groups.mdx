@@ -1,0 +1,85 @@
+---
+title: Groups
+description: Manage Redmine groups.
+---
+
+import { CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+The `groups` command (alias `g`) manages Redmine groups.
+
+<CardGrid>
+  <LinkCard title="list"         href="#list"         description="List all groups." />
+  <LinkCard title="get"          href="#get"          description="View a group by ID or name." />
+  <LinkCard title="create"       href="#create"       description="Create a new group." />
+  <LinkCard title="update"       href="#update"       description="Rename a group." />
+  <LinkCard title="add-user"     href="#add-user"     description="Add a user to a group." />
+  <LinkCard title="remove-user"  href="#remove-user"  description="Remove a user from a group." />
+  <LinkCard title="delete"       href="#delete"       description="Delete a group." />
+</CardGrid>
+
+## list
+
+```bash
+redmine groups list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format |
+
+## get
+
+```bash
+redmine groups get <id-or-name> [flags]
+```
+
+Accepts a numeric ID or group name.
+
+## create
+
+```bash
+redmine groups create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Group name — <Badge text="required" variant="danger" /> |
+
+## update
+
+```bash
+redmine groups update <id-or-name> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name` | New group name |
+
+## add-user
+
+```bash
+redmine groups add-user <group-id-or-name> <user-id-or-name>
+```
+
+Both arguments accept a numeric ID or name.
+
+## remove-user
+
+```bash
+redmine groups remove-user <group-id-or-name> <user-id-or-name>
+```
+
+Both arguments accept a numeric ID or name.
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+```bash
+redmine groups delete <id-or-name> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |

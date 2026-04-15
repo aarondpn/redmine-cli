@@ -1,0 +1,89 @@
+---
+title: Projects
+description: Manage Redmine projects.
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+The `projects` command (alias `p`) manages Redmine projects.
+
+<CardGrid>
+  <LinkCard title="list"    href="#list"    description="List all projects." />
+  <LinkCard title="get"     href="#get"     description="View a single project, optionally with related data." />
+  <LinkCard title="create"  href="#create"  description="Create a new project." />
+  <LinkCard title="update"  href="#update"  description="Update name, description, or visibility." />
+  <LinkCard title="delete"  href="#delete"  description="Permanently remove a project." />
+  <LinkCard title="members" href="#members" description="List members and their roles." />
+</CardGrid>
+
+## list
+
+```bash
+redmine projects list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format: `table`, `wide`, `json`, `csv` |
+
+## get
+
+```bash
+redmine projects get <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--include`    | Extra data: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities` |
+| `-o, --output` | Output format |
+
+## create
+
+```bash
+redmine projects create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name`        | Project name — <Badge text="required" variant="danger" /> |
+| `--identifier`  | URL-friendly identifier — <Badge text="required" variant="danger" /> |
+| `--description` | Project description |
+| `--public`      | Make the project public |
+| `--parent`      | Parent project ID |
+
+## update
+
+```bash
+redmine projects update <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name`        | New project name |
+| `--description` | New description |
+| `--public`      | Set public visibility |
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+```bash
+redmine projects delete <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |
+
+<Aside type="caution">
+  Deleting a project removes all its issues, time entries, and memberships. There is no undo.
+</Aside>
+
+## members
+
+```bash
+redmine projects members <identifier> [flags]
+```
+
+Lists all members and their roles for a project.

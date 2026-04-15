@@ -1,0 +1,81 @@
+---
+title: Search
+description: Search across Redmine resources.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The `search` command lets you search for issues, news, documents, wiki pages, messages, and projects.
+
+<CardGrid>
+  <LinkCard title="General search"     href="#general-search" description="One query across all resource types." />
+  <LinkCard title="Typed search"       href="#typed-search"   description="Scope to issues, projects, wiki, etc." />
+  <LinkCard title="Interactive browse" href="#interactive-browse" description="Browse results in a TUI." />
+</CardGrid>
+
+## General search
+
+```bash
+redmine search <query> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`     | Limit to a project identifier |
+| `--scope`       | Search scope: `all`, `my_projects`, `subprojects` |
+| `--all-words`   | Match all query words |
+| `--titles-only` | Search titles only |
+| `--open-issues` | Only return open issues |
+| `--attachments` | Attachment search: `0`, `1`, `only` |
+| `--issues`      | Include issues |
+| `--news`        | Include news |
+| `--documents`   | Include documents |
+| `--changesets`  | Include changesets |
+| `--wiki-pages`  | Include wiki pages |
+| `--messages`    | Include forum messages |
+| `--projects`    | Include projects |
+| `--limit`       | Maximum results |
+| `--offset`      | Result offset |
+| `-o, --output`  | Output format |
+
+<Tabs syncKey="search-examples">
+  <TabItem label="Everything">
+    ```bash
+    redmine search "login bug"
+    ```
+  </TabItem>
+  <TabItem label="Project-scoped">
+    ```bash
+    redmine search "login bug" --project myproject --open-issues
+    ```
+  </TabItem>
+  <TabItem label="Titles only">
+    ```bash
+    redmine search "login" --titles-only --issues
+    ```
+  </TabItem>
+</Tabs>
+
+## Typed search
+
+Search specific resource types directly:
+
+```bash
+redmine search issues   <query> [flags]
+redmine search projects <query> [flags]
+redmine search wiki     <query> [flags]
+redmine search news     <query> [flags]
+redmine search messages <query> [flags]
+```
+
+<Aside type="tip">
+  Typed search is equivalent to general search with the matching `--<type>` flag, but keeps the invocation shorter and the intent obvious in scripts.
+</Aside>
+
+## Interactive browse
+
+```bash
+redmine search browse <query> [flags]
+```
+
+Opens search results in an interactive terminal browser.

@@ -1,0 +1,82 @@
+---
+title: Memberships
+description: Manage Redmine project memberships.
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+The `memberships` command (alias `m`) manages project memberships — the mapping between users/groups and project roles.
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="List memberships for a project." />
+  <LinkCard title="get"    href="#get"    description="View a single membership." />
+  <LinkCard title="create" href="#create" description="Add a user or group with roles." />
+  <LinkCard title="update" href="#update" description="Change the assigned roles." />
+  <LinkCard title="delete" href="#delete" description="Remove a membership." />
+</CardGrid>
+
+## list
+
+```bash
+redmine memberships list --project <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project name, identifier, or ID — falls back to the default project of the active profile |
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format: `table`, `json`, `csv` |
+
+## get
+
+```bash
+redmine memberships get <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format |
+
+## create
+
+```bash
+redmine memberships create [flags]
+```
+
+Adds a user or group to a project with the specified roles.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project name, identifier, or ID — falls back to the default project of the active profile |
+| `--user-id`    | User ID to add |
+| `--group-id`   | Group ID to add |
+| `--role-ids`   | Comma-separated role IDs — <Badge text="required" variant="danger" /> |
+| `-o, --output` | Output format |
+
+<Aside type="note">
+  Exactly one of `--user-id` or `--group-id` must be supplied — they are mutually exclusive.
+</Aside>
+
+## update
+
+```bash
+redmine memberships update <id> [flags]
+```
+
+Only the assigned roles can be changed on an existing membership.
+
+| Flag | Description |
+|------|-------------|
+| `--role-ids` | Comma-separated role IDs — <Badge text="required" variant="danger" /> |
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+```bash
+redmine memberships delete <id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |

@@ -1,0 +1,47 @@
+---
+title: Versions
+description: Manage project versions (milestones).
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+The `versions` command (alias `v`) manages project versions — the Redmine equivalent of milestones.
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="List versions for a project." />
+  <LinkCard title="get"  href="#get"  description="View a single version by ID or name." />
+</CardGrid>
+
+## list
+
+```bash
+redmine versions list --project <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project identifier — falls back to the default project of the active profile |
+| `--status`     | Filter by status: `open`, `locked`, `closed` |
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset |
+| `-o, --output` | Output format |
+
+```bash
+redmine versions list --project myproject --status open
+```
+
+## get
+
+```bash
+redmine versions get <id-or-name> [flags]
+```
+
+Accepts a numeric ID or a version name.
+
+| Flag | Description |
+|------|-------------|
+| `--project` | Project identifier (used for name resolution; falls back to the default project) |
+
+<Aside type="note">
+  When resolving a version by name, a project must be known. The CLI uses `--project` if supplied, otherwise the `default_project` from the active profile.
+</Aside>

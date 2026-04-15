@@ -1,0 +1,103 @@
+---
+title: Installation
+description: How to install redmine-cli on your system.
+---
+
+import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+
+Pick the install path that suits your platform. All methods produce the same `redmine` binary.
+
+## Install
+
+<Tabs syncKey="installer">
+  <TabItem label="Homebrew" icon="apple">
+    For macOS and Linux. Ships shell completions for bash, zsh, and fish.
+
+    ```bash
+    brew tap aarondpn/tap
+    brew install redmine
+    ```
+  </TabItem>
+
+  <TabItem label="Install script" icon="seti:shell">
+    Auto-detects OS and architecture, verifies the SHA256 checksum, installs to `~/.local/bin`.
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
+    ```
+
+    <Aside type="tip" title="PATH">
+      Make sure `~/.local/bin` is on your `PATH`. Most modern shells add it automatically.
+    </Aside>
+  </TabItem>
+
+  <TabItem label="go install" icon="seti:go">
+    Builds from source via the Go toolchain. Requires Go 1.22+.
+
+    ```bash
+    go install github.com/aarondpn/redmine-cli@latest
+    ```
+  </TabItem>
+
+  <TabItem label="Manual" icon="download">
+    Grab a prebuilt release for your platform.
+
+    | Platform | Architecture | Asset |
+    |----------|--------------|-------|
+    | Linux    | x86_64       | `redmine-linux-amd64.tar.gz` |
+    | Linux    | ARM64        | `redmine-linux-arm64.tar.gz` |
+    | macOS    | Intel        | `redmine-darwin-amd64.tar.gz` |
+    | macOS    | Apple Silicon| `redmine-darwin-arm64.tar.gz` |
+    | Windows  | x86_64       | `redmine-windows-amd64.zip` |
+
+    Downloads live on [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest).
+  </TabItem>
+</Tabs>
+
+## Verify
+
+<Steps>
+
+1. Confirm the binary is resolvable and prints its version:
+
+   ```bash
+   redmine --version
+   ```
+
+2. Run the built-in health check to smoke-test the install:
+
+   ```bash
+   redmine --help
+   ```
+
+3. Continue to [Configuration](/redmine-cli/getting-started/configuration/) to wire up your Redmine server.
+
+</Steps>
+
+## Update
+
+<Badge text="self-update" variant="tip" />
+```bash
+redmine update
+```
+
+Pulls the latest release, verifies its SHA256 checksum, then replaces the running binary. See [Self-Update](/redmine-cli/commands/other/#startup-update-check) for flags.
+
+<Aside type="caution" title="Checksum verification">
+  The installer and self-updater both fail closed if the release checksum does not match. Never bypass this — report any mismatch as a security issue.
+</Aside>
+
+## Next
+
+<CardGrid>
+  <LinkCard
+    title="Configure"
+    href="/redmine-cli/getting-started/configuration/"
+    description="Set up your server, auth profile, and defaults."
+  />
+  <LinkCard
+    title="Quick Start"
+    href="/redmine-cli/getting-started/quick-start/"
+    description="Issues, time tracking, and search in 5 minutes."
+  />
+</CardGrid>

@@ -1,0 +1,47 @@
+---
+title: 版本
+description: 管理项目版本（里程碑）。
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+`versions` 命令（别名 `v`）用于管理项目版本——即 Redmine 中的里程碑。
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="列出项目的所有版本。" />
+  <LinkCard title="get"  href="#get"  description="通过 ID 或名称查看单个版本。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine versions list --project <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目标识符——默认回退至活跃配置文件的默认项目 |
+| `--status`     | 按状态过滤：`open`、`locked`、`closed` |
+| `--limit`      | 最大结果数 |
+| `--offset`     | 结果偏移量 |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine versions list --project myproject --status open
+```
+
+## get
+
+```bash
+redmine versions get <id-or-name> [flags]
+```
+
+接受数字 ID 或版本名称。
+
+| 标志 | 描述 |
+|------|------|
+| `--project` | 项目标识符（用于名称解析；默认回退至默认项目） |
+
+<Aside type="note">
+  通过名称解析版本时，必须已知项目信息。CLI 优先使用 `--project`，否则使用活跃配置文件中的 `default_project`。
+</Aside>

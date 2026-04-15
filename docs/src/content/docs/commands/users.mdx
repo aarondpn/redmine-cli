@@ -1,0 +1,86 @@
+---
+title: Users
+description: Manage Redmine users.
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+The `users` command (alias `u`) manages Redmine users.
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="List users with status, name, or group filters." />
+  <LinkCard title="get"    href="#get"    description="View a single user by ID, login, or name." />
+  <LinkCard title="me"     href="#me"     description="Show the authenticated user." />
+  <LinkCard title="create" href="#create" description="Create a new user account." />
+  <LinkCard title="update" href="#update" description="Change user fields." />
+  <LinkCard title="delete" href="#delete" description="Remove a user account." />
+</CardGrid>
+
+## list
+
+```bash
+redmine users list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--status`     | Filter by status: `active`, `registered`, `locked` |
+| `--name`       | Filter by name or login |
+| `--group`      | Filter by group name or ID |
+| `--limit`      | Maximum number of results |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format |
+
+## get
+
+```bash
+redmine users get <id-or-name> [flags]
+```
+
+Accepts a numeric ID, login, full name, or `me`.
+
+## me
+
+```bash
+redmine users me [flags]
+```
+
+Shows the authenticated user's details — useful in scripts to resolve the current account.
+
+## create
+
+```bash
+redmine users create [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--login`     | Login name — <Badge text="required" variant="danger" /> |
+| `--password`  | Password — <Badge text="required" variant="danger" /> |
+| `--firstname` | First name — <Badge text="required" variant="danger" /> |
+| `--lastname`  | Last name — <Badge text="required" variant="danger" /> |
+| `--mail`      | Email address — <Badge text="required" variant="danger" /> |
+| `--admin`     | Grant admin privileges |
+
+<Aside type="caution" title="Passwords on the command line">
+  Passing `--password` on the command line may leak the value to shell history. Prefer creating the account in Redmine UI, or pipe the value from a secure source.
+</Aside>
+
+## update
+
+```bash
+redmine users update <id-or-name> [flags]
+```
+
+Accepts the same flags as [`create`](#create) (all optional). The user argument accepts a numeric ID, login, full name, or `me`.
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+```bash
+redmine users delete <id-or-name> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |

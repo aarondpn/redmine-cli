@@ -1,0 +1,100 @@
+---
+title: 身份验证
+description: 管理多个 Redmine 身份验证配置文件。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`auth` 命令用于管理连接一个或多个 Redmine 实例的身份验证配置文件。
+
+<CardGrid>
+  <LinkCard title="login"  href="#login"  description="交互式登录向导，创建新的配置文件。" />
+  <LinkCard title="list"   href="#list"   description="列出所有已保存的身份验证配置文件。" />
+  <LinkCard title="switch" href="#switch" description="切换当前活跃的身份验证配置文件。" />
+  <LinkCard title="status" href="#status" description="显示当前身份验证状态。" />
+  <LinkCard title="logout" href="#logout" description="移除一个身份验证配置文件。" />
+</CardGrid>
+
+## login
+
+启动交互式登录向导：
+
+```bash
+redmine auth login
+redmine auth login --name work   # 显式指定配置文件名称
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--name` | 配置文件名称（默认：从服务器主机名派生） |
+
+<Aside type="tip">
+  随时再次执行 `redmine auth login` 即可添加新的配置文件——向导在未经确认的情况下绝不会覆盖已有配置文件。
+</Aside>
+
+## list
+
+```bash
+redmine auth list
+```
+
+显示每个配置文件的服务器 URL 及当前活跃的配置文件。
+
+## switch
+
+```bash
+redmine auth switch
+```
+
+打开交互式选择器。所选配置文件将成为后续命令的默认配置文件。
+
+## status
+
+```bash
+redmine auth status
+```
+
+显示活跃配置文件名称、服务器 URL 及身份验证方式。
+
+## logout
+
+<Badge text="危险操作" variant="caution" />
+```bash
+redmine auth logout              # 当前配置文件
+redmine auth logout work         # 指定名称的配置文件
+```
+
+移除前会提示你确认。
+
+<Aside type="caution" title="备份中的 API 密钥">
+  退出登录后，如果 API 密钥可能存在于 shell 历史记录或备份中，请在 Redmine 中撤销对应的 API 密钥。
+</Aside>
+
+## 快速参考
+
+<Tabs syncKey="auth-flow">
+  <TabItem label="新增账户">
+    ```bash
+    redmine auth login
+    redmine auth login --name work
+    redmine auth list
+    ```
+  </TabItem>
+  <TabItem label="切换配置文件">
+    ```bash
+    redmine auth switch
+    redmine auth status
+    ```
+  </TabItem>
+  <TabItem label="临时覆盖">
+    ```bash
+    redmine --profile work issues list
+    ```
+  </TabItem>
+  <TabItem label="移除账户">
+    ```bash
+    redmine auth logout
+    redmine auth logout work
+    ```
+  </TabItem>
+</Tabs>

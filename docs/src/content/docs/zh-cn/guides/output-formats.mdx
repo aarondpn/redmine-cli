@@ -1,0 +1,109 @@
+---
+title: 输出格式
+description: 控制 redmine-cli 的数据显示方式。
+---
+
+import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+大多数命令支持 `-o` / `--output` 来控制输出格式。根据实际用途选择合适的格式：阅读、脚本编写或数据导出。
+
+<Tabs syncKey="output-format">
+  <TabItem label="table">
+    默认格式，针对人类阅读优化。
+
+    ```bash
+    redmine issues list --project myproject
+    ```
+
+    ```
+    ID    TRACKER  STATUS  PRIORITY  SUBJECT
+    123   Bug      Open    High      Fix login timeout
+    124   Feature  Open    Normal    Add dark mode
+    ```
+  </TabItem>
+
+  <TabItem label="wide">
+    扩展表格，包含更多列（指派人、更新日期、完成度等）。
+
+    ```bash
+    redmine issues list --project myproject -o wide
+    ```
+  </TabItem>
+
+  <TabItem label="json">
+    机器可读的输出格式，适合脚本编写和管道操作。
+
+    ```bash
+    redmine issues list --project myproject -o json
+    ```
+
+    ```json
+    [
+      {
+        "id": 123,
+        "tracker": {"id": 1, "name": "Bug"},
+        "status":  {"id": 1, "name": "Open"},
+        "priority":{"id": 2, "name": "High"},
+        "subject": "Fix login timeout"
+      }
+    ]
+    ```
+  </TabItem>
+
+  <TabItem label="csv">
+    逗号分隔值格式，适用于电子表格和数据分析。
+
+    ```bash
+    redmine issues list --project myproject -o csv
+    ```
+
+    ```
+    ID,Tracker,Status,Priority,Subject
+    123,Bug,Open,High,Fix login timeout
+    124,Feature,Open,Normal,Add dark mode
+    ```
+  </TabItem>
+</Tabs>
+
+## 与 JSON 配合使用
+
+<Badge text="兼容 jq" variant="tip" />
+JSON 输出可与 `jq` 配合用于即席分析：
+
+```bash
+# IDs of all open bugs
+redmine issues list --tracker Bug -o json | jq '.[].id'
+
+# Count issues by status
+redmine issues list --project myproject -o json \
+  | jq 'group_by(.status.name) | map({status: .[0].status.name, count: length})'
+```
+
+<Aside type="note">
+  在 `-o json` 模式下，CLI 仅向 `stdout` 输出 JSON。人类可读的分页提示会被抑制，因此通过管道传给 `jq` 是安全的。如需捕获实际错误，请将 `stderr` 分开处理。
+</Aside>
+
+## 默认格式
+
+在配置文件中设置默认格式：
+
+```yaml title="~/.redmine-cli.yaml"
+output_format: table
+```
+
+`-o` 标志始终会覆盖单次命令的默认格式。
+
+## 相关资源
+
+<CardGrid>
+  <LinkCard
+    title="AI 代理集成"
+    href="/redmine-cli/zh-cn/guides/ai-agents/"
+    description="代理默认使用 -o json 以实现可靠的自动化。"
+  />
+  <LinkCard
+    title="工单命令参考"
+    href="/redmine-cli/zh-cn/commands/issues/"
+    description="所有支持 -o 输出格式的标志说明。"
+  />
+</CardGrid>

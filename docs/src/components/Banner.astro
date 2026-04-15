@@ -1,0 +1,72 @@
+---
+import Default from '@astrojs/starlight/components/Banner.astro';
+
+const t = Astro.locals.t;
+const locale = Astro.locals.starlightRoute.locale;
+const pathname = Astro.url.pathname.replace(/\/+$/, '/');
+const isLocaleLanding = locale ? pathname.endsWith(`/${locale}/`) : false;
+const notice = locale === 'zh-cn' && !isLocaleLanding ? t('banner.translationNotice') : '';
+const dismissLabel = t('banner.dismissLabel');
+const storageKey = `rc-translation-banner-dismissed-${locale ?? 'root'}`;
+---
+
+<Default />
+
+{notice && (
+  <aside class="rc-translation-banner" data-storage-key={storageKey} hidden>
+    <div class="rc-translation-banner__body" set:html={notice} />
+    <button type="button" class="rc-translation-banner__dismiss" aria-label={dismissLabel}>×</button>
+  </aside>
+)}
+
+<script is:inline define:vars={{ storageKey }}>
+  (function () {
+    const banner = document.querySelector(`.rc-translation-banner[data-storage-key="${storageKey}"]`);
+    if (!banner) return;
+    try {
+      if (localStorage.getItem(storageKey) === '1') return;
+    } catch (_) {}
+    banner.hidden = false;
+    const btn = banner.querySelector('.rc-translation-banner__dismiss');
+    btn?.addEventListener('click', () => {
+      banner.hidden = true;
+      try { localStorage.setItem(storageKey, '1'); } catch (_) {}
+    });
+  })();
+</script>
+
+<style>
+  .rc-translation-banner[hidden] { display: none; }
+  .rc-translation-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 0 0 1.25rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--sl-color-accent-low, rgba(255,255,255,0.12));
+    border-left-width: 3px;
+    border-left-color: var(--sl-color-accent, #e34f4f);
+    background: var(--sl-color-bg-nav, rgba(255,255,255,0.03));
+    color: var(--sl-color-text, inherit);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    border-radius: 4px;
+  }
+  .rc-translation-banner__body { flex: 1; }
+  .rc-translation-banner__body :global(a) {
+    color: var(--sl-color-text-accent, currentColor);
+    text-decoration: underline;
+  }
+  .rc-translation-banner__dismiss {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    opacity: 0.7;
+  }
+  .rc-translation-banner__dismiss:hover { opacity: 1; }
+</style>
