@@ -1,0 +1,157 @@
+---
+title: Wiki
+description: Browse, author, and maintain Redmine project wiki pages from the terminal.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `wiki` command (alias `w`) reads and writes pages on a project's wiki.
+
+Every subcommand needs a project. Pass `--project <identifier>`, or rely on the default project of the active profile (see [`auth`](/redmine-cli/commands/auth/)).
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="List wiki pages in a project." />
+  <LinkCard title="get"    href="#get"    description="View a page's content, metadata, and history." />
+  <LinkCard title="create" href="#create" description="Create a new page or overwrite an existing one." />
+  <LinkCard title="update" href="#update" description="Edit content, rename, or attach files." />
+  <LinkCard title="delete" href="#delete" description="Permanently remove a page." />
+</CardGrid>
+
+## list
+
+```bash
+redmine wiki list [flags]
+```
+
+Aliases: `ls`. Lists each page's title and last-modified timestamp. Results are paginated server-side; combine `--limit 0` with `--offset` to walk large wikis.
+
+| Flag | Description |
+|------|-------------|
+| `--project`     | Project identifier or numeric ID. Falls back to the default project of the active profile. |
+| `--limit`       | Maximum number of results (`0` for all) |
+| `--offset`      | Result offset for pagination |
+| `-o, --output`  | Output format: `table`, `wide`, `json`, `csv` |
+
+<Tabs syncKey="wiki-list">
+  <TabItem label="Default">
+    ```bash
+    redmine wiki list --project myproject
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine wiki list --project myproject -o json
+    ```
+  </TabItem>
+  <TabItem label="Paginated">
+    ```bash
+    redmine wiki list --project myproject --limit 10 --offset 20
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine wiki get <page> [flags]
+```
+
+Aliases: `show`. Prints the page metadata and full Textile/Markdown source. Pass `--version` to fetch a historical revision instead of the current one.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project identifier or numeric ID |
+| `--version`    | Page version to fetch (omit or `0` for the latest) |
+| `--include`    | Include related data. Only `attachments` is supported. |
+| `-o, --output` | Output format |
+
+```bash
+redmine wiki get WikiStart --project myproject
+redmine wiki get WikiStart --project myproject --version 3
+redmine wiki get WikiStart --project myproject --include attachments
+```
+
+<Aside>
+  Page names with spaces or slashes are URL-escaped automatically, so quote them in your shell: `redmine wiki get "Release Notes/2025-Q4" --project myproject`.
+</Aside>
+
+## create
+
+```bash
+redmine wiki create <page> [flags]
+```
+
+Aliases: `new`. Creates a new wiki page. If a page with the same name already exists, Redmine **overwrites** it. Use [`update`](#update) when you want to be sure you are editing rather than replacing.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project identifier or numeric ID |
+| `-t, --text`   | Page content in Textile/Markdown. <Badge text="required" variant="danger" /> |
+| `--title`      | Display title (defaults to the page name) |
+| `--comments`   | Change comment recorded in the page history |
+| `--attach`     | Path to a file to attach (repeatable) |
+| `-o, --output` | Output format |
+
+```bash
+redmine wiki create MyPage --project myproject --text "h1. Hello World"
+
+redmine wiki create MyPage --project myproject \
+  --text "Content here" --title "My Page" --comments "Initial draft"
+
+redmine wiki create MyPage --project myproject \
+  --text "See diagram" --attach ./diagram.png
+```
+
+<Aside type="tip">
+  Pipe long content from a file: `redmine wiki create Notes --project myproject --text "$(cat notes.md)"`.
+</Aside>
+
+## update
+
+```bash
+redmine wiki update <page> [flags]
+```
+
+Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `--text` is omitted, the current page text is fetched and resent unchanged so that retitling or re-commenting does not wipe content.
+
+| Flag | Description |
+|------|-------------|
+| `--project`  | Project identifier or numeric ID |
+| `-t, --text` | New page content. If omitted, the current text is preserved. |
+| `--title`    | New display title |
+| `--comments` | Change comment recorded in the page history |
+| `--attach`   | Path to a file to attach (repeatable) |
+
+```bash
+redmine wiki update MyPage --project myproject --text "Updated content"
+
+redmine wiki update MyPage --project myproject --comments "Fixed typo"
+
+redmine wiki update MyPage --project myproject --title "New Title"
+
+redmine wiki update MyPage --project myproject --attach ./screenshot.png
+```
+
+## delete
+
+<Badge text="destructive" variant="caution" />
+
+```bash
+redmine wiki delete <page> [flags]
+```
+
+Aliases: `rm`. Permanently removes the page along with all its attachments and version history. Child pages are re-parented to the wiki root rather than deleted.
+
+| Flag | Description |
+|------|-------------|
+| `--project`   | Project identifier or numeric ID |
+| `-f, --force` | Skip the confirmation prompt |
+
+```bash
+redmine wiki delete MyPage --project myproject
+redmine wiki delete MyPage --project myproject --force
+```
+
+<Aside type="caution">
+  There is no undo. Page history is destroyed in the same call, so make sure you have a copy if you might need the content back.
+</Aside>

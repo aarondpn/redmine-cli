@@ -1,0 +1,157 @@
+---
+title: 维基
+description: 在终端中浏览、编写并维护 Redmine 项目的 Wiki 页面。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`wiki` 命令（别名 `w`）用于读写项目 Wiki 中的页面。
+
+每个子命令都需要指定项目，可通过 `--project <identifier>` 传入，或依赖当前认证配置的默认项目（参见 [`auth`](/redmine-cli/zh-cn/commands/auth/)）。
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="列出项目中的 Wiki 页面。" />
+  <LinkCard title="get"    href="#get"    description="查看页面的内容、元数据与历史。" />
+  <LinkCard title="create" href="#create" description="创建新页面或覆盖已有页面。" />
+  <LinkCard title="update" href="#update" description="编辑内容、重命名或附加文件。" />
+  <LinkCard title="delete" href="#delete" description="永久删除页面。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine wiki list [flags]
+```
+
+别名：`ls`。列出每个页面的标题和最后修改时间。结果在服务器端分页；若需遍历较大的 Wiki，可结合 `--limit 0` 与 `--offset` 使用。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`     | 项目标识符或数字 ID。未指定时回退到当前认证配置的默认项目。 |
+| `--limit`       | 最大返回数量（`0` 表示全部） |
+| `--offset`      | 分页偏移量 |
+| `-o, --output`  | 输出格式：`table`、`wide`、`json`、`csv` |
+
+<Tabs syncKey="wiki-list">
+  <TabItem label="默认">
+    ```bash
+    redmine wiki list --project myproject
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine wiki list --project myproject -o json
+    ```
+  </TabItem>
+  <TabItem label="分页">
+    ```bash
+    redmine wiki list --project myproject --limit 10 --offset 20
+    ```
+  </TabItem>
+</Tabs>
+
+## get
+
+```bash
+redmine wiki get <page> [flags]
+```
+
+别名：`show`。打印页面的元数据以及完整的 Textile/Markdown 源文本。传入 `--version` 可获取历史版本而非当前版本。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目标识符或数字 ID |
+| `--version`    | 要获取的页面版本号（省略或填 `0` 表示最新版本） |
+| `--include`    | 包含关联数据，仅支持 `attachments`。 |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine wiki get WikiStart --project myproject
+redmine wiki get WikiStart --project myproject --version 3
+redmine wiki get WikiStart --project myproject --include attachments
+```
+
+<Aside>
+  含空格或斜杠的页面名会被自动 URL 转义，因此请在 shell 中使用引号包裹：`redmine wiki get "Release Notes/2025-Q4" --project myproject`。
+</Aside>
+
+## create
+
+```bash
+redmine wiki create <page> [flags]
+```
+
+别名：`new`。创建一个新的 Wiki 页面。若同名页面已存在，Redmine 会**覆盖**它；若希望确保是在编辑而非替换，请改用 [`update`](#update)。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目标识符或数字 ID |
+| `-t, --text`   | Textile/Markdown 格式的页面内容。<Badge text="必填" variant="danger" /> |
+| `--title`      | 显示标题（默认为页面名） |
+| `--comments`   | 记录在页面历史中的修改备注 |
+| `--attach`     | 要附加的文件路径（可重复） |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine wiki create MyPage --project myproject --text "h1. Hello World"
+
+redmine wiki create MyPage --project myproject \
+  --text "Content here" --title "My Page" --comments "Initial draft"
+
+redmine wiki create MyPage --project myproject \
+  --text "See diagram" --attach ./diagram.png
+```
+
+<Aside type="tip">
+  从文件管道传入较长内容：`redmine wiki create Notes --project myproject --text "$(cat notes.md)"`。
+</Aside>
+
+## update
+
+```bash
+redmine wiki update <page> [flags]
+```
+
+别名：`edit`。编辑已有页面，仅传入的字段会被修改。当省略 `--text` 时，命令会先获取当前页面文本并原样回传，因此只修改标题或备注时不会清空内容。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`  | 项目标识符或数字 ID |
+| `-t, --text` | 新的页面内容，省略时保留当前文本 |
+| `--title`    | 新的显示标题 |
+| `--comments` | 记录在页面历史中的修改备注 |
+| `--attach`   | 要附加的文件路径（可重复） |
+
+```bash
+redmine wiki update MyPage --project myproject --text "Updated content"
+
+redmine wiki update MyPage --project myproject --comments "Fixed typo"
+
+redmine wiki update MyPage --project myproject --title "New Title"
+
+redmine wiki update MyPage --project myproject --attach ./screenshot.png
+```
+
+## delete
+
+<Badge text="破坏性操作" variant="caution" />
+
+```bash
+redmine wiki delete <page> [flags]
+```
+
+别名：`rm`。永久删除该页面，包括其所有附件和版本历史。子页面不会被一并删除，而是重新挂载到 Wiki 根节点下。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`   | 项目标识符或数字 ID |
+| `-f, --force` | 跳过确认提示 |
+
+```bash
+redmine wiki delete MyPage --project myproject
+redmine wiki delete MyPage --project myproject --force
+```
+
+<Aside type="caution">
+  操作无法撤销。页面历史会在同一次调用中销毁，若日后可能需要这些内容，请务必先自行备份。
+</Aside>

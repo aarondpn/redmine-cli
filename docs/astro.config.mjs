@@ -44,6 +44,7 @@ export default defineConfig({
 						{ label: 'Users', translations: { 'zh-CN': '用户' }, slug: 'commands/users' },
 						{ label: 'Groups', translations: { 'zh-CN': '用户组' }, slug: 'commands/groups' },
 						{ label: 'Search', translations: { 'zh-CN': '搜索' }, slug: 'commands/search' },
+						{ label: 'Wiki', translations: { 'zh-CN': '维基' }, slug: 'commands/wiki' },
 						{ label: 'Other', translations: { 'zh-CN': '其他' }, slug: 'commands/other' },
 					],
 				},
