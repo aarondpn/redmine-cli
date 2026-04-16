@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -285,5 +288,61 @@ profiles:
 	}
 	if strings.Contains(output, "https://work.example.com") {
 		t.Errorf("output should not contain stored profile server after env override, got:\n%s", output)
+	}
+}
+
+func TestStatus_JSONMarksInactiveWhenUserProbeFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/current.json" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"errors":["invalid credentials"]}`))
+	}))
+	defer srv.Close()
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "server: " + srv.URL + "\nauth_method: apikey\napi_key: bad-key\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &cmdutil.Factory{
+		ConfigPath:   cfgPath,
+		OutputFormat: "json",
+		IOStreams: &cmdutil.IOStreams{
+			In:     strings.NewReader(""),
+			Out:    &strings.Builder{},
+			ErrOut: &strings.Builder{},
+			IsTTY:  false,
+		},
+	}
+
+	cmd := NewCmdStatus(f)
+	cmd.SetOut(f.IOStreams.Out)
+	cmd.SetErr(f.IOStreams.ErrOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var payload struct {
+		Active bool   `json:"active"`
+		User   string `json:"user"`
+		Server string `json:"server"`
+	}
+	if err := json.Unmarshal([]byte(f.IOStreams.Out.(*strings.Builder).String()), &payload); err != nil {
+		t.Fatalf("expected JSON output, got: %v", err)
+	}
+	if payload.Active {
+		t.Fatalf("expected active=false when current-user lookup fails, got %+v", payload)
+	}
+	if payload.User != "authentication failed" {
+		t.Fatalf("user = %q, want %q", payload.User, "authentication failed")
+	}
+	if payload.Server != srv.URL {
+		t.Fatalf("server = %q, want %q", payload.Server, srv.URL)
 	}
 }

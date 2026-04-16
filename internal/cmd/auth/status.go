@@ -88,6 +88,7 @@ func runStatus(f *cmdutil.Factory) error {
 		{Key: "Server", Value: cfg.Server},
 		{Key: "Auth Method", Value: cfg.AuthMethod},
 	}
+	authOK := true
 
 	// Try to fetch current user
 	client, err := f.ApiClient()
@@ -96,6 +97,7 @@ func runStatus(f *cmdutil.Factory) error {
 		if err == nil {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {
+			authOK = false
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: "authentication failed"})
 		}
 	}
@@ -106,7 +108,7 @@ func runStatus(f *cmdutil.Factory) error {
 
 	if printer.Format() == output.FormatJSON {
 		payload := make(map[string]any, len(kvs)+1)
-		payload["active"] = true
+		payload["active"] = authOK
 		for _, kv := range kvs {
 			payload[jsonKey(kv.Key)] = kv.Value
 		}
