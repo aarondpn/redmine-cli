@@ -37,11 +37,7 @@ func runList(f *cmdutil.Factory) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if len(pc.Profiles) == 0 {
-		printer := f.Printer("")
-		printer.Warning(noProfilesConfiguredMessage)
-		return nil
-	}
+	printer := f.Printer("")
 
 	// Sort profile names for stable output
 	names := make([]string, 0, len(pc.Profiles))
@@ -49,14 +45,37 @@ func runList(f *cmdutil.Factory) error {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	activeProfile := config.EffectiveProfileName(pc, f.ProfileOverride)
 
-	printer := f.Printer("")
+	if printer.Format() == output.FormatJSON {
+		type profileEntry struct {
+			Name   string `json:"name"`
+			Server string `json:"server"`
+			Active bool   `json:"active"`
+		}
+		profiles := make([]profileEntry, 0, len(names))
+		for _, name := range names {
+			p := pc.Profiles[name]
+			profiles = append(profiles, profileEntry{
+				Name:   name,
+				Server: p.Server,
+				Active: name == activeProfile,
+			})
+		}
+		printer.JSON(profiles)
+		return nil
+	}
+
+	if len(pc.Profiles) == 0 {
+		printer.Warning(noProfilesConfiguredMessage)
+		return nil
+	}
 
 	var kvs []output.KeyValue
 	for _, name := range names {
 		p := pc.Profiles[name]
 		marker := "  "
-		if name == pc.ActiveProfile {
+		if name == activeProfile {
 			marker = "* "
 		}
 		label := marker + name

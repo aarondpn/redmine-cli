@@ -31,6 +31,16 @@ func TestPrinterUsesConfiguredOutputFormatByDefault(t *testing.T) {
 	}
 }
 
+func TestPrinterRecordsConfiguredOutputFormatOnFactory(t *testing.T) {
+	f := testFactoryWithConfig(t, "output_format: json\n")
+
+	_ = f.Printer("")
+
+	if f.OutputFormat != output.FormatJSON {
+		t.Fatalf("factory.OutputFormat = %q, want %q", f.OutputFormat, output.FormatJSON)
+	}
+}
+
 func TestPrinterExplicitFormatOverridesConfig(t *testing.T) {
 	f := testFactoryWithConfig(t, "output_format: json\n")
 

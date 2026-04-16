@@ -8,7 +8,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
@@ -63,12 +62,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(m)
-				return nil
-			}
-
-			printer.Success(fmt.Sprintf("Created membership (ID: %d) for %s in project %s", m.ID, memberName(*m), m.Project.Name))
+			printer.Resource(m, fmt.Sprintf("Created membership (ID: %d) for %s in project %s", m.ID, memberName(*m), m.Project.Name))
 			return nil
 		},
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdComment creates the issues comment command.
@@ -47,7 +48,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to add comment to issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Success(fmt.Sprintf("Added comment to issue %s", fmt.Sprintf("#%d", id)))
+			printer.Action(output.ActionCommented, "issue", id, fmt.Sprintf("Added comment to issue #%d", id))
 			return nil
 		},
 	}

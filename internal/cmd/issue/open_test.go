@@ -2,6 +2,7 @@ package issue
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -45,8 +46,58 @@ func TestOpenURL(t *testing.T) {
 	if openedURL != expected {
 		t.Errorf("expected URL %q, got %q", expected, openedURL)
 	}
-	if !bytes.Contains(out.Bytes(), []byte(expected)) {
-		t.Errorf("expected output to contain %q, got %q", expected, out.String())
+	errOut := f.IOStreams.ErrOut.(*bytes.Buffer)
+	if !bytes.Contains(errOut.Bytes(), []byte(expected)) {
+		t.Errorf("expected stderr to contain %q, got %q", expected, errOut.String())
+	}
+}
+
+func TestOpenURL_JSONEnvelope(t *testing.T) {
+	var openedURL string
+	origOpen := openBrowser
+	t.Cleanup(func() { openBrowser = origOpen })
+	openBrowser = func(url string) error {
+		openedURL = url
+		return nil
+	}
+
+	tmp := t.TempDir()
+	cfgPath := tmp + "/config.yaml"
+	if err := os.WriteFile(cfgPath, []byte("server: https://redmine.example.com\napi_key: test\nauth_method: apikey\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := &bytes.Buffer{}
+	f := &cmdutil.Factory{
+		ConfigPath: cfgPath,
+		IOStreams: &cmdutil.IOStreams{
+			In:     os.Stdin,
+			Out:    out,
+			ErrOut: &bytes.Buffer{},
+		},
+	}
+
+	cmd := NewCmdOpen(f)
+	cmd.SetArgs([]string{"123", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if openedURL != "https://redmine.example.com/issues/123" {
+		t.Fatalf("unexpected URL %q", openedURL)
+	}
+
+	var env struct {
+		Ok       bool   `json:"ok"`
+		Action   string `json:"action"`
+		Resource string `json:"resource"`
+		ID       int    `json:"id"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("expected JSON output, got: %v\n%s", err, out.String())
+	}
+	if !env.Ok || env.Action != "opened" || env.Resource != "issue" || env.ID != 123 {
+		t.Fatalf("unexpected envelope: %+v", env)
 	}
 }
 

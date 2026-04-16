@@ -30,15 +30,24 @@ import (
 
 // NewRootCmd creates the root command.
 func NewRootCmd(version string) *cobra.Command {
+	cmd, _ := NewRootCmdWithFactory(version)
+	return cmd
+}
+
+// NewRootCmdWithFactory creates the root command and returns the shared
+// Factory so callers (e.g. main.go) can inspect runtime-resolved state like
+// the selected output format after execution.
+func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	f := cmdutil.NewFactory()
 
 	var (
-		server  string
-		apiKey  string
-		profile string
-		noColor bool
-		verbose bool
-		cfgFile string
+		server       string
+		apiKey       string
+		profile      string
+		noColor      bool
+		verbose      bool
+		cfgFile      string
+		outputFormat string
 	)
 
 	cmd := &cobra.Command{
@@ -55,6 +64,7 @@ func NewRootCmd(version string) *cobra.Command {
 				os.Setenv("NO_COLOR", "1")
 			}
 			f.Verbose = verbose
+			f.OutputFormat = outputFormat
 			return nil
 		},
 		SilenceUsage:  true,
@@ -68,6 +78,8 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
+	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
+	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
 
 	// Version
 	cmd.Version = version
@@ -89,10 +101,10 @@ func NewRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(wiki.NewCmdWiki(f))
 	cmd.AddCommand(completion.NewCmdCompletion())
 	cmd.AddCommand(installskill.NewCmdInstallSkill(f))
-	cmd.AddCommand(update.NewCmdUpdate(version))
+	cmd.AddCommand(update.NewCmdUpdate(f, version))
 	cmd.AddCommand(newCmdConfig(f))
 
-	return cmd
+	return cmd, f
 }
 
 func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
@@ -115,6 +127,16 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer("")
+			if printer.Format() == output.FormatJSON {
+				printer.JSON(map[string]string{
+					"profile":         profileName,
+					"server":          cfg.Server,
+					"auth_method":     cfg.AuthMethod,
+					"default_project": cfg.DefaultProject,
+					"output_format":   cfg.OutputFormat,
+				})
+				return nil
+			}
 			printer.Detail([]output.KeyValue{
 				{Key: "Profile", Value: profileName},
 				{Key: "Server", Value: cfg.Server},

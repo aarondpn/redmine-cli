@@ -9,7 +9,6 @@ import (
 // Format constants for output modes.
 const (
 	FormatTable = "table"
-	FormatWide  = "wide"
 	FormatJSON  = "json"
 	FormatCSV   = "csv"
 )

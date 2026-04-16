@@ -6,7 +6,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -38,12 +37,7 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(group)
-				return nil
-			}
-
-			printer.Success(fmt.Sprintf("Created group %q (ID: %d)", group.Name, group.ID))
+			printer.Resource(group, fmt.Sprintf("Created group %q (ID: %d)", group.Name, group.ID))
 			return nil
 		},
 	}

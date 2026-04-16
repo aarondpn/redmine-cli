@@ -14,7 +14,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	redmineapi "github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdAPI creates the `api` command for raw Redmine API access.
@@ -26,6 +28,7 @@ func NewCmdAPI(f *cmdutil.Factory) *cobra.Command {
 		input     string
 		include   bool
 		silent    bool
+		format    string
 	)
 
 	cmd := &cobra.Command{
@@ -58,7 +61,7 @@ the method defaults to POST instead.`,
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAPI(f, args[0], method, fields, rawFields, input, include, silent)
+			return runAPI(f, args[0], method, fields, rawFields, input, include, silent, format)
 		},
 	}
 
@@ -68,11 +71,12 @@ the method defaults to POST instead.`,
 	cmd.Flags().StringVar(&input, "input", "", "Read request body from file (use - for stdin)")
 	cmd.Flags().BoolVarP(&include, "include", "i", false, "Show response status and headers")
 	cmd.Flags().BoolVar(&silent, "silent", false, "Suppress response output")
+	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd
 }
 
-func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool) error {
+func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool, format string) error {
 	// Validate mutual exclusion.
 	if len(rawFields) > 0 && input != "" {
 		return fmt.Errorf("--raw-field and --input are mutually exclusive")
@@ -129,44 +133,100 @@ func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []str
 		return err
 	}
 
+	printer := f.Printer(format)
+	if resp.StatusCode >= 400 {
+		if silent {
+			return &cmdutil.SilentError{Code: 1}
+		}
+		if printer.Format() == output.FormatJSON && !include {
+			return rawResponseError(resp, endpoint)
+		}
+	}
+
 	if !silent {
-		out := f.IOStreams.Out
-
-		if include {
-			fmt.Fprintf(out, "%s\n", resp.Status)
-			// Sort header keys for stable output.
-			keys := make([]string, 0, len(resp.Headers))
-			for k := range resp.Headers {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			for _, k := range keys {
-				for _, v := range resp.Headers[k] {
-					fmt.Fprintf(out, "%s: %s\n", k, v)
-				}
-			}
-			fmt.Fprintln(out)
-		}
-
-		if len(resp.Body) > 0 {
-			if f.IOStreams.IsTTY && isJSON(resp.Body) {
-				var buf bytes.Buffer
-				if json.Indent(&buf, resp.Body, "", "  ") == nil {
-					buf.WriteByte('\n')
-					_, _ = buf.WriteTo(out)
-				} else {
-					_, _ = out.Write(resp.Body)
-				}
-			} else {
-				_, _ = out.Write(resp.Body)
-			}
-		}
+		renderAPIResponse(printer, f.IOStreams.Out, f.IOStreams.IsTTY, resp, include)
 	}
 
 	if resp.StatusCode >= 400 {
 		return &cmdutil.SilentError{Code: 1}
 	}
 	return nil
+}
+
+func renderAPIResponse(printer output.Printer, out io.Writer, isTTY bool, resp *redmineapi.RawResponse, include bool) {
+	if printer.Format() == output.FormatJSON {
+		renderAPIJSON(printer, resp, include)
+		return
+	}
+
+	if include {
+		fmt.Fprintf(out, "%s\n", resp.Status)
+		// Sort header keys for stable output.
+		keys := make([]string, 0, len(resp.Headers))
+		for k := range resp.Headers {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			for _, v := range resp.Headers[k] {
+				fmt.Fprintf(out, "%s: %s\n", k, v)
+			}
+		}
+		fmt.Fprintln(out)
+	}
+
+	if len(resp.Body) > 0 {
+		if isTTY && isJSON(resp.Body) {
+			var buf bytes.Buffer
+			if json.Indent(&buf, resp.Body, "", "  ") == nil {
+				buf.WriteByte('\n')
+				_, _ = buf.WriteTo(out)
+				return
+			}
+		}
+		_, _ = out.Write(resp.Body)
+	}
+}
+
+func renderAPIJSON(printer output.Printer, resp *redmineapi.RawResponse, include bool) {
+	body := any(nil)
+	if len(resp.Body) > 0 {
+		body = decodeAPIJSONBody(resp.Body)
+	}
+	if include {
+		printer.JSON(map[string]any{
+			"status_code": resp.StatusCode,
+			"status":      resp.Status,
+			"headers":     resp.Headers,
+			"body":        body,
+		})
+		return
+	}
+	printer.JSON(body)
+}
+
+func decodeAPIJSONBody(body []byte) any {
+	var value any
+	if err := json.Unmarshal(body, &value); err == nil {
+		return value
+	}
+	return map[string]any{"body": string(body)}
+}
+
+func rawResponseError(resp *redmineapi.RawResponse, endpoint string) error {
+	apiErr := &redmineapi.APIError{
+		StatusCode: resp.StatusCode,
+		URL:        endpoint,
+	}
+
+	var payload struct {
+		Errors []string `json:"errors"`
+	}
+	if err := json.Unmarshal(resp.Body, &payload); err == nil && len(payload.Errors) > 0 {
+		apiErr.Errors = append(apiErr.Errors, payload.Errors...)
+	}
+
+	return apiErr
 }
 
 // buildJSONBody constructs a JSON object from key=value pairs.

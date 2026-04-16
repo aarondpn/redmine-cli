@@ -11,6 +11,8 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmd"
 	"github.com/aarondpn/redmine-cli/internal/cmd/update"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/spf13/cobra"
 )
 
 var version = "dev"
@@ -33,7 +35,7 @@ func main() {
 		}()
 	}
 
-	rootCmd := cmd.NewRootCmd(version)
+	rootCmd, factory := cmd.NewRootCmdWithFactory(version)
 	err := rootCmd.Execute()
 
 	if err != nil {
@@ -44,7 +46,12 @@ func main() {
 		if errors.As(err, &silent) {
 			os.Exit(silent.Code)
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
+		selectedFormat := selectedOutputFormat(rootCmd, factory, os.Args[1:])
+		if selectedFormat == output.FormatJSON {
+			_ = output.RenderErrorJSON(os.Stdout, cmdutil.BuildErrorEnvelope(err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
+		}
 		os.Exit(1)
 	}
 
@@ -84,4 +91,41 @@ func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan 
 			cancel()
 		}
 	}
+}
+
+func selectedOutputFormat(rootCmd *cobra.Command, factory *cmdutil.Factory, args []string) string {
+	if factory != nil && factory.OutputFormat != "" {
+		return factory.OutputFormat
+	}
+
+	// Resolve the leaf command cobra was asked to run so we pick up
+	// --output from a local flag (shadowing the persistent one) or from
+	// commands that failed before PersistentPreRunE (e.g. cobra's Args
+	// validation).
+	if rootCmd != nil {
+		if targetCmd, _, findErr := rootCmd.Find(args); findErr == nil && targetCmd != nil {
+			if of := targetCmd.Flags().Lookup("output"); of != nil && of.Value.String() != "" {
+				return of.Value.String()
+			}
+		}
+		if of := rootCmd.PersistentFlags().Lookup("output"); of != nil && of.Value.String() != "" {
+			return of.Value.String()
+		}
+	}
+
+	if factory != nil {
+		if rootCmd != nil {
+			if cfgFile := rootCmd.PersistentFlags().Lookup("config"); cfgFile != nil && cfgFile.Value.String() != "" {
+				factory.ConfigPath = cfgFile.Value.String()
+			}
+			if profile := rootCmd.PersistentFlags().Lookup("profile"); profile != nil && profile.Value.String() != "" {
+				factory.ProfileOverride = profile.Value.String()
+			}
+		}
+		if cfg, err := factory.Config(); err == nil {
+			return cfg.OutputFormat
+		}
+	}
+
+	return ""
 }

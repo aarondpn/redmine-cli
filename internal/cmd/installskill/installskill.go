@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdInstallSkill creates the install-skill command.
@@ -33,15 +34,15 @@ func NewCmdInstallSkill(f *cmdutil.Factory) *cobra.Command {
 			out, err := exec.Command("npx", skillArgs...).CombinedOutput()
 			stop()
 			if err != nil {
-				printer.Warning(fmt.Sprintf("Installation failed: %s\n%s", err, string(out)))
-				return fmt.Errorf("could not install agent skill")
+				return fmt.Errorf("could not install agent skill: %s\n%s", err, string(out))
 			}
 
 			scope := "project"
 			if global {
 				scope = "globally"
 			}
-			printer.Success(fmt.Sprintf("Agent skill installed %s. AI agents will now know how to use redmine-cli.", scope))
+			printer.Action(output.ActionInstalled, "agent_skill", scope,
+				fmt.Sprintf("Agent skill installed %s. AI agents will now know how to use redmine-cli.", scope))
 			return nil
 		},
 	}

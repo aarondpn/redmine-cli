@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdClose creates the issues close command.
@@ -64,7 +65,7 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to close issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Success(fmt.Sprintf("Closed issue %s", fmt.Sprintf("#%d", id)))
+			printer.Action(output.ActionClosed, "issue", id, fmt.Sprintf("Closed issue #%d", id))
 			return nil
 		},
 	}

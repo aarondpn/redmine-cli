@@ -22,6 +22,10 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 		Use:   "browse",
 		Short: "Interactive issue browser (TUI)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
+
 			ctx := context.Background()
 			project, err := cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {

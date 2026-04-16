@@ -10,6 +10,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdLogin creates the auth login command.
@@ -21,6 +22,9 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 		Short: "Log in to a Redmine instance",
 		Long:  "Interactive setup to authenticate with a Redmine server and save the profile.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
 			return runLogin(f, name)
 		},
 	}
@@ -146,7 +150,7 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatError(err))
-		return fmt.Errorf("could not connect to Redmine server")
+		return fmt.Errorf("could not connect to Redmine server: %w", err)
 	}
 
 	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
@@ -194,7 +198,8 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		return fmt.Errorf("setting active profile: %w", err)
 	}
 
-	printer.Success(fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
+	printer.Action(output.ActionLoggedIn, "profile", profileName,
+		fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
 }

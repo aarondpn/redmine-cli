@@ -38,29 +38,13 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(groups)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name"}
-				rows := make([][]string, len(groups))
-				for i, g := range groups {
-					rows[i] = []string{
-						fmt.Sprintf("%d", g.ID), g.Name,
-					}
+			cmdutil.RenderCollection(printer, groups, []string{"ID", "Name"}, func(g models.Group, styled bool) []string {
+				id := fmt.Sprintf("%d", g.ID)
+				if styled {
+					id = output.StyleID.Render(id)
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Name"}
-				rows := make([][]string, len(groups))
-				for i, g := range groups {
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("%d", g.ID)),
-						g.Name,
-					}
-				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, g.Name}
+			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(groups), Total: total, Limit: limit, Offset: offset, Noun: "groups",

@@ -21,6 +21,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 		activity string
 		date     string
 		comment  string
+		format   string
 	)
 
 	cmd := &cobra.Command{
@@ -64,9 +65,10 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer := f.Printer("")
-			printer.Success(fmt.Sprintf("Time entry #%s created (%.2f hours on %s)",
-				strconv.Itoa(created.ID), created.Hours, created.SpentOn))
+			printer := f.Printer(format)
+			printer.Resource(created,
+				fmt.Sprintf("Time entry #%s created (%.2f hours on %s)",
+					strconv.Itoa(created.ID), created.Hours, created.SpentOn))
 
 			return nil
 		},
@@ -78,6 +80,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD, default today)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
+	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("hours")
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +51,7 @@ func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Updated group %d", id))
+			printer.Action(output.ActionUpdated, "group", id, fmt.Sprintf("Updated group %d", id))
 			return nil
 		},
 	}

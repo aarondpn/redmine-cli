@@ -104,3 +104,36 @@ func TestLogout_NoProfilesConfiguredWarns(t *testing.T) {
 		t.Fatalf("expected warning %q, got:\n%s", noProfilesConfiguredMessage, output)
 	}
 }
+
+func TestLogout_NoProfilesConfigured_IgnoresJSONDefault(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("profiles: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &cmdutil.Factory{
+		ConfigPath:   cfgPath,
+		OutputFormat: "json",
+		IOStreams: &cmdutil.IOStreams{
+			In:     strings.NewReader(""),
+			Out:    &strings.Builder{},
+			ErrOut: &strings.Builder{},
+			IsTTY:  false,
+		},
+	}
+
+	cmd := NewCmdLogout(f)
+	cmd.SetOut(f.IOStreams.Out)
+	cmd.SetErr(f.IOStreams.ErrOut)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected no error for empty profiles, got: %v", err)
+	}
+
+	if out := f.IOStreams.Out.(*strings.Builder).String(); out != "" {
+		t.Fatalf("expected no stdout output, got %q", out)
+	}
+	if errOut := f.IOStreams.ErrOut.(*strings.Builder).String(); !strings.Contains(errOut, noProfilesConfiguredMessage) {
+		t.Fatalf("expected warning %q, got:\n%s", noProfilesConfiguredMessage, errOut)
+	}
+}

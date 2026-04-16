@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
@@ -29,7 +30,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Are you sure you want to delete project %q?", identifier)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Deletion cancelled")
+					printer.Outcome(false, output.ActionDeleted, "project", identifier, "Deletion cancelled")
 					return nil
 				}
 			}
@@ -39,7 +40,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Project %q deleted", identifier))
+			printer.Action(output.ActionDeleted, "project", identifier, fmt.Sprintf("Project %q deleted", identifier))
 			return nil
 		},
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/api"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // SilentError is returned when the error message has already been printed
@@ -41,4 +42,37 @@ func FormatError(err error) string {
 	default:
 		return apiErr.Error()
 	}
+}
+
+// BuildErrorEnvelope produces a structured error payload suitable for JSON
+// rendering. It reuses FormatError for the human-readable message and derives
+// a stable code from the underlying api.APIError classification.
+func BuildErrorEnvelope(err error) output.ErrorEnvelope {
+	env := output.ErrorEnvelope{
+		Error: output.ErrorDetail{
+			Message: FormatError(err),
+			Code:    output.ErrCodeUnknown,
+		},
+	}
+
+	var apiErr *api.APIError
+	if errors.As(err, &apiErr) {
+		switch {
+		case apiErr.IsAuthError():
+			env.Error.Code = output.ErrCodeAuthFailed
+		case apiErr.IsForbidden():
+			env.Error.Code = output.ErrCodeForbidden
+		case apiErr.IsNotFound():
+			env.Error.Code = output.ErrCodeNotFound
+		case apiErr.IsValidationError():
+			env.Error.Code = output.ErrCodeValidationFailed
+			if len(apiErr.Errors) > 0 {
+				env.Error.Details = append([]string(nil), apiErr.Errors...)
+			}
+		case apiErr.StatusCode >= 500:
+			env.Error.Code = output.ErrCodeServerError
+		}
+	}
+
+	return env
 }

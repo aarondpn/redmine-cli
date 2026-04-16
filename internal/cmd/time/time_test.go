@@ -288,6 +288,39 @@ func TestTimeLog_Success(t *testing.T) {
 	}
 }
 
+func TestTimeLog_JSONReturnsCreatedEntry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":2.5,"spent_on":"2025-06-15","comments":"Fixed bug","project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"activity":{"id":9,"name":"Development"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "2.5", "--date", "2025-06-15", "--comment", "Fixed bug", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &entry); err != nil {
+		t.Fatalf("expected JSON output, got: %v", err)
+	}
+	if entry["id"] != float64(99) {
+		t.Fatalf("id = %v, want 99", entry["id"])
+	}
+	if entry["hours"] != 2.5 {
+		t.Fatalf("hours = %v, want 2.5", entry["hours"])
+	}
+	if entry["comments"] != "Fixed bug" {
+		t.Fatalf("comments = %v, want Fixed bug", entry["comments"])
+	}
+	if got := testutil.Stderr(f); got != "" {
+		t.Fatalf("stderr = %q, want empty", got)
+	}
+}
+
 func TestTimeLog_MissingHours(t *testing.T) {
 	f := testutil.NewFactory(t, "http://unused")
 	cmd := newCmdTimeLog(f)
@@ -391,6 +424,39 @@ func TestTimeDelete_Cancelled(t *testing.T) {
 	}
 	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Delete cancelled") {
 		t.Errorf("stderr = %q, want 'Delete cancelled'", stderr)
+	}
+}
+
+func TestTimeDelete_Cancelled_JSONEnvelope(t *testing.T) {
+	f := testutil.NewFactory(t, "http://unused")
+	f.IOStreams.In = strings.NewReader("n\n")
+	f.OutputFormat = "json"
+
+	cmd := newCmdTimeDelete(f)
+	cmd.SetArgs([]string{"42"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var env struct {
+		Ok       bool   `json:"ok"`
+		Action   string `json:"action"`
+		Resource string `json:"resource"`
+		ID       int    `json:"id"`
+		Message  string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &env); err != nil {
+		t.Fatalf("expected JSON output, got: %v", err)
+	}
+	if env.Ok {
+		t.Fatalf("expected ok=false envelope, got %+v", env)
+	}
+	if env.Action != "deleted" || env.Resource != "time_entry" || env.ID != 42 || env.Message != "Delete cancelled" {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if stderr := testutil.Stderr(f); strings.Contains(stderr, "Delete cancelled") {
+		t.Errorf("stderr = %q, did not expect duplicate warning in JSON mode", stderr)
 	}
 }
 

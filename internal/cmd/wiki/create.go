@@ -8,7 +8,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
@@ -76,16 +75,11 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to create wiki page %q: %w", args[0], err)
 			}
 
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(page)
-				return nil
-			}
-
 			effective := args[0]
 			if page.Title != "" {
 				effective = page.Title
 			}
-			printer.Success(fmt.Sprintf("Wiki page %q created", effective))
+			printer.Resource(page, fmt.Sprintf("Wiki page %q created", effective))
 			return nil
 		},
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
@@ -46,7 +47,7 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Updated membership %d", id))
+			printer.Action(output.ActionUpdated, "membership", id, fmt.Sprintf("Updated membership %d", id))
 			return nil
 		},
 	}

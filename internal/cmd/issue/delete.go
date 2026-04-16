@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdDelete creates the issues delete command.
@@ -31,7 +32,7 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Are you sure you want to delete issue #%d?", id)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Delete cancelled")
+					printer.Outcome(false, output.ActionDeleted, "issue", id, "Delete cancelled")
 					return nil
 				}
 			}
@@ -48,7 +49,7 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to delete issue #%d: %w", id, err)
 			}
 
-			printer.Success(fmt.Sprintf("Deleted issue #%d", id))
+			printer.Action(output.ActionDeleted, "issue", id, fmt.Sprintf("Deleted issue #%d", id))
 			return nil
 		},
 	}

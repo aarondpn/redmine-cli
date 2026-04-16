@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -43,21 +45,25 @@ type GithubAsset struct {
 }
 
 // NewCmdUpdate creates the update command.
-func NewCmdUpdate(version string) *cobra.Command {
+func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
+	var format string
+
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update redmine CLI to the latest version",
 		Long:  "Check GitHub releases for a newer version and replace the current binary.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpdate(version)
+			return runUpdateWithFormat(version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format))
 		},
 	}
+	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }
 
 // checkHomebrew and upgradeHomebrew are package-level functions to allow
 // test overrides.
 var checkHomebrew = defaultCheckHomebrew
+var checkHomebrewOutdated = defaultCheckHomebrewOutdated
 var upgradeHomebrew = defaultUpgradeHomebrew
 
 // defaultCheckHomebrew checks if redmine is installed via Homebrew by querying brew.
@@ -69,11 +75,22 @@ func defaultCheckHomebrew() bool {
 	return exec.Command("brew", "list", "--cask", "redmine").Run() == nil
 }
 
-func defaultUpgradeHomebrew() error {
-	fmt.Println("Installed via Homebrew, running: brew upgrade redmine")
+func defaultCheckHomebrewOutdated() (bool, error) {
+	cmd := exec.Command("brew", "outdated", "--cask", "redmine")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		return false, fmt.Errorf("brew outdated failed: %w", err)
+	}
+	return strings.TrimSpace(out.String()) != "", nil
+}
+
+func defaultUpgradeHomebrew(stdout, stderr io.Writer) error {
+	fmt.Fprintln(stderr, "Installed via Homebrew, running: brew upgrade redmine")
 	cmd := exec.Command("brew", "upgrade", "redmine")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("brew upgrade failed: %w", err)
 	}
@@ -82,13 +99,32 @@ func defaultUpgradeHomebrew() error {
 
 var fetchRelease = FetchLatestRelease
 
-func runUpdate(currentVersion string) error {
+func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer) error {
 	if checkHomebrew() {
-		return upgradeHomebrew()
+		outdated, err := checkHomebrewOutdated()
+		if err != nil {
+			return err
+		}
+		if !outdated {
+			printer.Outcome(false, output.ActionUpdated, "cli", "homebrew", "Already up to date via Homebrew.")
+			return nil
+		}
+
+		brewStdout := stdout
+		brewStderr := stderr
+		if printer.Format() == output.FormatJSON {
+			brewStdout = io.Discard
+			brewStderr = io.Discard
+		}
+		if err := upgradeHomebrew(brewStdout, brewStderr); err != nil {
+			return err
+		}
+		printer.Action(output.ActionUpdated, "cli", "homebrew", "Updated redmine via Homebrew")
+		return nil
 	}
 
-	fmt.Printf("Current version: %s\n", currentVersion)
-	fmt.Println("Checking for updates...")
+	logStep(printer, stderr, "Current version: %s\n", currentVersion)
+	logLine(printer, stderr, "Checking for updates...")
 
 	release, err := fetchRelease(context.Background())
 	if err != nil {
@@ -99,7 +135,7 @@ func runUpdate(currentVersion string) error {
 	currentClean := strings.TrimPrefix(currentVersion, "v")
 
 	if currentClean != "dev" && !IsNewer(latestVersion, currentClean) {
-		fmt.Printf("Already up to date (%s).\n", currentVersion)
+		printer.Outcome(false, output.ActionUpdated, "cli", currentVersion, fmt.Sprintf("Already up to date (%s).", currentVersion))
 		return nil
 	}
 
@@ -126,14 +162,14 @@ func runUpdate(currentVersion string) error {
 		return err
 	}
 
-	fmt.Printf("Downloading %s...\n", release.TagName)
+	logStep(printer, stderr, "Downloading %s...\n", release.TagName)
 
 	archiveData, err := downloadBytes(downloadURL)
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
 	}
 
-	fmt.Println("Verifying checksum...")
+	logLine(printer, stderr, "Verifying checksum...")
 	if err := verifyChecksum(archiveData, assetName, checksumsURL); err != nil {
 		return fmt.Errorf("checksum verification failed: %w", err)
 	}
@@ -147,8 +183,23 @@ func runUpdate(currentVersion string) error {
 		return fmt.Errorf("failed to replace binary: %w", err)
 	}
 
-	fmt.Printf("Updated successfully: %s → %s\n", currentVersion, release.TagName)
+	printer.Action(output.ActionUpdated, "cli", release.TagName,
+		fmt.Sprintf("Updated successfully: %s -> %s", currentVersion, release.TagName))
 	return nil
+}
+
+func logLine(printer output.Printer, w io.Writer, msg string) {
+	if printer.Format() == output.FormatJSON {
+		return
+	}
+	fmt.Fprintln(w, msg)
+}
+
+func logStep(printer output.Printer, w io.Writer, format string, args ...any) {
+	if printer.Format() == output.FormatJSON {
+		return
+	}
+	fmt.Fprintf(w, format, args...)
 }
 
 // FetchLatestRelease fetches the latest release from GitHub.

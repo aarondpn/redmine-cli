@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
@@ -62,7 +63,7 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Updated user %d", id))
+			printer.Action(output.ActionUpdated, "user", id, fmt.Sprintf("Updated user %d", id))
 			return nil
 		},
 	}

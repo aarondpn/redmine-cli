@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
@@ -161,7 +162,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Success(fmt.Sprintf("Updated issue %s", fmt.Sprintf("#%d", id)))
+			printer.Action(output.ActionUpdated, "issue", id, fmt.Sprintf("Updated issue #%d", id))
 			return nil
 		},
 	}

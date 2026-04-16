@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	redmineapi "github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/testutil"
 )
@@ -218,6 +219,60 @@ func TestIncludeHeaders(t *testing.T) {
 	}
 }
 
+func TestJSONOutput_PrettyPrintsBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"id":42}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/test.json", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if ok, _ := payload["ok"].(bool); !ok {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestJSONOutput_IncludeWrapsMetadata(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Custom", "value")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/test.json", "--output", "json", "-i"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var payload struct {
+		StatusCode int                 `json:"status_code"`
+		Status     string              `json:"status"`
+		Headers    map[string][]string `json:"headers"`
+		Body       map[string]any      `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if payload.StatusCode != http.StatusCreated || payload.Body["ok"] != true {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if values := payload.Headers["X-Custom"]; len(values) != 1 || values[0] != "value" {
+		t.Fatalf("unexpected headers: %+v", payload.Headers)
+	}
+}
+
 func TestSilentSuppressesOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"data":"secret"}`))
@@ -256,6 +311,77 @@ func TestNon2xxReturnsErrorWithBody(t *testing.T) {
 	// Body should still be written.
 	if out := testutil.Stdout(f); !strings.Contains(out, "not found") {
 		t.Errorf("expected error body in output, got: %s", out)
+	}
+}
+
+func TestJSONOutput_Non2xxReturnsAPIErrorWithoutWritingBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"errors":["not found"]}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/missing.json", "--output", "json"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for 404")
+	}
+
+	var apiErr *redmineapi.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", apiErr.StatusCode, http.StatusNotFound)
+	}
+	if len(apiErr.Errors) != 1 || apiErr.Errors[0] != "not found" {
+		t.Fatalf("errors = %v, want [not found]", apiErr.Errors)
+	}
+	if out := testutil.Stdout(f); out != "" {
+		t.Fatalf("expected no stdout body before main renders JSON envelope, got: %q", out)
+	}
+}
+
+func TestJSONOutput_IncludeNon2xxWritesMetadataAndReturnsSilentError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"errors":["rate limited"]}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/limited.json", "--output", "json", "-i"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected non-zero result for 429")
+	}
+
+	var silentErr *cmdutil.SilentError
+	if !errors.As(err, &silentErr) {
+		t.Fatalf("expected SilentError, got %T: %v", err, err)
+	}
+
+	var payload struct {
+		StatusCode int                 `json:"status_code"`
+		Status     string              `json:"status"`
+		Headers    map[string][]string `json:"headers"`
+		Body       map[string]any      `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if payload.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", payload.StatusCode, http.StatusTooManyRequests)
+	}
+	if payload.Body["errors"] == nil {
+		t.Fatalf("expected response body in payload, got %+v", payload.Body)
+	}
+	if values := payload.Headers["Retry-After"]; len(values) != 1 || values[0] != "60" {
+		t.Fatalf("unexpected headers: %+v", payload.Headers)
 	}
 }
 

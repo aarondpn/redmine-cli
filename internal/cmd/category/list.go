@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -61,36 +62,17 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(categories)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name", "Assigned To"}
-				rows := make([][]string, len(categories))
-				for i, c := range categories {
-					assignee := ""
-					if c.AssignedTo != nil {
-						assignee = c.AssignedTo.Name
-					}
-					rows[i] = []string{fmt.Sprintf("%d", c.ID), c.Name, assignee}
+			cmdutil.RenderCollection(printer, categories, []string{"ID", "Name", "Assigned To"}, func(c models.IssueCategory, styled bool) []string {
+				id := fmt.Sprintf("%d", c.ID)
+				assignee := ""
+				if c.AssignedTo != nil {
+					assignee = c.AssignedTo.Name
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Name", "Assigned To"}
-				rows := make([][]string, len(categories))
-				for i, c := range categories {
-					assignee := ""
-					if c.AssignedTo != nil {
-						assignee = c.AssignedTo.Name
-					}
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("%d", c.ID)),
-						c.Name,
-						assignee,
-					}
+				if styled {
+					id = output.StyleID.Render(id)
 				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, c.Name, assignee}
+			})
 			return nil
 		},
 	}

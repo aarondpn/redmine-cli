@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
@@ -47,7 +48,7 @@ func NewCmdAssign(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to assign issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Success(fmt.Sprintf("Assigned issue %s to user %d", fmt.Sprintf("#%d", id), userID))
+			printer.Action(output.ActionAssigned, "issue", id, fmt.Sprintf("Assigned issue #%d to user %d", id, userID))
 			return nil
 		},
 	}

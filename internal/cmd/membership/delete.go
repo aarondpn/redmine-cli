@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdMembershipDelete(f *cmdutil.Factory) *cobra.Command {
@@ -35,7 +36,7 @@ func newCmdMembershipDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Are you sure you want to delete membership %d?", id)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Delete cancelled")
+					printer.Outcome(false, output.ActionDeleted, "membership", id, "Delete cancelled")
 					return nil
 				}
 			}
@@ -47,7 +48,7 @@ func newCmdMembershipDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Deleted membership %d", id))
+			printer.Action(output.ActionDeleted, "membership", id, fmt.Sprintf("Deleted membership %d", id))
 			return nil
 		},
 	}

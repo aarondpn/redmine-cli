@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
@@ -45,7 +46,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Delete wiki page %q?\nThis also removes all attachments and the page history. Any child pages will be re-parented to the wiki root.", pageTitle)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Deletion cancelled")
+					printer.Outcome(false, output.ActionDeleted, "wiki_page", pageTitle, "Deletion cancelled")
 					return nil
 				}
 			}
@@ -57,7 +58,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to delete wiki page %q: %w", pageTitle, err)
 			}
 
-			printer.Success(fmt.Sprintf("Wiki page %q deleted", pageTitle))
+			printer.Action(output.ActionDeleted, "wiki_page", pageTitle, fmt.Sprintf("Wiki page %q deleted", pageTitle))
 			return nil
 		},
 	}

@@ -119,34 +119,17 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 
 // printResults renders search results using the printer.
 func printResults(printer output.Printer, results []models.SearchResult, total, limit, offset int) {
-	switch printer.Format() {
-	case output.FormatJSON:
-		printer.JSON(results)
-	case output.FormatCSV:
-		headers := []string{"ID", "Type", "Title", "Date"}
-		rows := make([][]string, len(results))
-		for i, r := range results {
-			rows[i] = []string{
-				fmt.Sprintf("%d", r.ID),
-				r.Type,
-				r.Title,
-				r.DateTime,
-			}
+	cmdutil.RenderCollection(printer, results, []string{"ID", "Type", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
+		id := fmt.Sprintf("%d", r.ID)
+		typ := r.Type
+		date := r.DateTime
+		if styled {
+			id = output.StyleID.Render(fmt.Sprintf("%d", r.ID))
+			typ = typeStyle(r.Type).Render(r.Type)
+			date = formatDate(r.DateTime)
 		}
-		printer.CSV(headers, rows)
-	default:
-		headers := []string{"ID", "Type", "Title", "Date"}
-		rows := make([][]string, len(results))
-		for i, r := range results {
-			rows[i] = []string{
-				output.StyleID.Render(fmt.Sprintf("%d", r.ID)),
-				typeStyle(r.Type).Render(r.Type),
-				r.Title,
-				formatDate(r.DateTime),
-			}
-		}
-		printer.Table(headers, rows)
-	}
+		return []string{id, typ, r.Title, date}
+	})
 
 	cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 		Shown: len(results), Total: total, Limit: limit, Offset: offset, Noun: "results",
