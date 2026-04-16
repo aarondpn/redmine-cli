@@ -34,8 +34,7 @@ func NewCmdInstallSkill(f *cmdutil.Factory) *cobra.Command {
 			out, err := exec.Command("npx", skillArgs...).CombinedOutput()
 			stop()
 			if err != nil {
-				printer.Warning(fmt.Sprintf("Installation failed: %s\n%s", err, string(out)))
-				return fmt.Errorf("could not install agent skill")
+				return fmt.Errorf("could not install agent skill: %s\n%s", err, string(out))
 			}
 
 			scope := "project"

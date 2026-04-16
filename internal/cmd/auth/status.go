@@ -92,7 +92,10 @@ func runStatus(f *cmdutil.Factory) error {
 
 	// Try to fetch current user
 	client, err := f.ApiClient()
-	if err == nil {
+	if err != nil {
+		authOK = false
+		kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("unavailable: %s", err)})
+	} else {
 		user, err := client.Users.Current(context.Background())
 		if err == nil {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})

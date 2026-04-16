@@ -153,9 +153,7 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		return fmt.Errorf("could not connect to Redmine server: %w", err)
 	}
 
-	if printer.Format() != output.FormatJSON {
-		printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
-	}
+	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
 
 	// Step 5: Default project (optional)
 	stop = printer.Spinner("Fetching projects...")
