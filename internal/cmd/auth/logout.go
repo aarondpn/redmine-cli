@@ -10,6 +10,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/config"
 	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdLogout creates the auth logout command.
@@ -42,6 +43,15 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		if err.Error() == noProfilesConfiguredMessage {
 			printer := f.Printer("")
+			if printer.Format() == output.FormatJSON {
+				printer.JSON(output.ActionEnvelope{
+					Ok:       false,
+					Action:   output.ActionLoggedOut,
+					Resource: "profile",
+					Message:  noProfilesConfiguredMessage,
+				})
+				return nil
+			}
 			printer.Warning(noProfilesConfiguredMessage)
 			return nil
 		}
@@ -75,7 +85,7 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 		return fmt.Errorf("removing profile: %w", err)
 	}
 
-	printer.Success(fmt.Sprintf("Profile %q removed", name))
+	printer.Action(output.ActionLoggedOut, "profile", name, fmt.Sprintf("Profile %q removed", name))
 	return nil
 }
 

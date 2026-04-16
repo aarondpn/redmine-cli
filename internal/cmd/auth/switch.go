@@ -10,6 +10,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/config"
 	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdSwitch creates the auth switch command.
@@ -40,6 +41,15 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 
 	if len(pc.Profiles) == 0 {
 		printer := f.Printer("")
+		if printer.Format() == output.FormatJSON {
+			printer.JSON(output.ActionEnvelope{
+				Ok:       false,
+				Action:   output.ActionSwitched,
+				Resource: "profile",
+				Message:  noProfilesConfiguredMessage,
+			})
+			return nil
+		}
 		printer.Warning(noProfilesConfiguredMessage)
 		return nil
 	}
@@ -85,6 +95,7 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 	}
 
 	printer := f.Printer("")
-	printer.Success(fmt.Sprintf("Switched to profile %q (%s)", name, pc.Profiles[name].Server))
+	printer.Action(output.ActionSwitched, "profile", name,
+		fmt.Sprintf("Switched to profile %q (%s)", name, pc.Profiles[name].Server))
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
@@ -39,7 +40,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Project %q deleted", identifier))
+			printer.Action(output.ActionDeleted, "project", identifier, fmt.Sprintf("Project %q deleted", identifier))
 			return nil
 		},
 	}

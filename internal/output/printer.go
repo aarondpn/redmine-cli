@@ -14,6 +14,10 @@ type Printer interface {
 	Success(msg string)
 	Error(msg string)
 	Warning(msg string)
+	// Action emits a completed-mutation result. In JSON mode this writes a
+	// compact action envelope to stdout. In any other mode it writes the
+	// human message to stderr via Success.
+	Action(action, resource string, id any, humanMsg string)
 	Spinner(msg string) func()
 	Format() string
 }
@@ -108,6 +112,20 @@ func (p *StdPrinter) Warning(msg string) {
 	} else {
 		fmt.Fprintln(p.errOut, StyleWarning.Render("! "+msg))
 	}
+}
+
+func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
+	if p.format == FormatJSON {
+		_ = RenderActionJSON(p.out, ActionEnvelope{
+			Ok:       true,
+			Action:   action,
+			Resource: resource,
+			ID:       id,
+			Message:  humanMsg,
+		})
+		return
+	}
+	p.Success(humanMsg)
 }
 
 func (p *StdPrinter) Spinner(msg string) func() {

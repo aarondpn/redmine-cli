@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +47,7 @@ func newCmdUserDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Deleted user %d", id))
+			printer.Action(output.ActionDeleted, "user", id, fmt.Sprintf("Deleted user %d", id))
 			return nil
 		},
 	}

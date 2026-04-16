@@ -10,6 +10,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
@@ -65,8 +66,9 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer("")
-			printer.Success(fmt.Sprintf("Time entry #%s created (%.2f hours on %s)",
-				strconv.Itoa(created.ID), created.Hours, created.SpentOn))
+			printer.Action(output.ActionLogged, "time_entry", created.ID,
+				fmt.Sprintf("Time entry #%s created (%.2f hours on %s)",
+					strconv.Itoa(created.ID), created.Hours, created.SpentOn))
 
 			return nil
 		},

@@ -30,6 +30,10 @@ type Factory struct {
 	APIKeyOverride  string
 	NoColorOverride bool
 
+	// OutputFormat is set by the root persistent --output/-o flag and used
+	// as the default format when commands call Printer("").
+	OutputFormat string
+
 	config    *config.Config
 	client    *api.Client
 	debugLog  *debug.Logger
@@ -115,6 +119,15 @@ func (f *Factory) ApiClient() (*api.Client, error) {
 // Printer creates and returns a new output printer for the given format.
 func (f *Factory) Printer(format string) output.Printer {
 	noColor := os.Getenv("NO_COLOR") != ""
+	if format == "" {
+		format = f.OutputFormat
+	} else if f.OutputFormat == "" {
+		// A leaf command registered its own --output via AddOutputFlag and
+		// captured the user's choice into a local variable. Record it on the
+		// factory so the top-level error path (and any later Printer call)
+		// can see the effective format.
+		f.OutputFormat = format
+	}
 	if cfg, err := f.Config(); err == nil {
 		noColor = noColor || cfg.NoColor
 		if format == "" {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/spf13/cobra"
 )
 
 func TestRootCmdGeneratesCompletions(t *testing.T) {
@@ -31,6 +32,53 @@ func TestRootCmdGeneratesCompletions(t *testing.T) {
 				t.Fatalf("completion generation failed: %v", err)
 			}
 		})
+	}
+}
+
+func TestRootCmd_PersistentOutputFlag_InheritedByLeafCommands(t *testing.T) {
+	root := NewRootCmd("test")
+
+	// The persistent flag must be registered on the root.
+	if root.PersistentFlags().Lookup("output") == nil {
+		t.Fatal("root command missing persistent --output flag")
+	}
+
+	// Walk all leaf commands and verify they can see the inherited flag.
+	var missing []string
+	walk(root, func(c *cobra.Command) {
+		if c.Runnable() && !c.Hidden {
+			if c.Flags().Lookup("output") == nil && c.InheritedFlags().Lookup("output") == nil {
+				missing = append(missing, c.CommandPath())
+			}
+		}
+	})
+	if len(missing) > 0 {
+		t.Fatalf("leaf commands missing --output: %v", missing)
+	}
+}
+
+func TestRootCmdWithFactory_ReturnsFactoryAndSetsOutputFormat(t *testing.T) {
+	root, factory := NewRootCmdWithFactory("test")
+	if factory == nil {
+		t.Fatal("factory must not be nil")
+	}
+
+	// Execute PersistentPreRunE with -o json to confirm factory wiring.
+	root.SetArgs([]string{"--output", "json", "config"})
+	_ = root.PersistentFlags().Set("output", "json")
+
+	if err := root.PersistentPreRunE(root, []string{}); err != nil {
+		t.Fatalf("PersistentPreRunE: %v", err)
+	}
+	if factory.OutputFormat != "json" {
+		t.Errorf("factory.OutputFormat = %q, want %q", factory.OutputFormat, "json")
+	}
+}
+
+func walk(c *cobra.Command, fn func(*cobra.Command)) {
+	fn(c)
+	for _, child := range c.Commands() {
+		walk(child, fn)
 	}
 }
 

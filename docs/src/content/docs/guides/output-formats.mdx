@@ -5,7 +5,7 @@ description: Controlling how redmine-cli displays data.
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-Most commands accept `-o` / `--output` to control the output format. Pick the one that matches what you're doing: reading, scripting, or exporting.
+Every command accepts `-o` / `--output` to control the output format. The flag is registered globally, so read, write, delete, and every other subcommand honour it uniformly. Pick the one that matches what you're doing: reading, scripting, or exporting.
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
@@ -82,6 +82,60 @@ redmine issues list --project myproject -o json \
 <Aside type="note">
   In `-o json` mode the CLI emits JSON only on `stdout`. Human-readable pagination hints are suppressed, so piping to `jq` is safe. Keep `stderr` separate if you want to surface actual errors.
 </Aside>
+
+## JSON output shapes
+
+`-o json` produces two top-level shapes on `stdout`:
+
+1. **Raw resources** for commands that fetch or return data
+   (`issues list`, `issues get`, `project create`, ...). The payload is the
+   resource object (or array of objects) exactly as the API returned it.
+
+2. **Action envelope** for mutators that have no natural response body
+   (`issues close`, `issues delete`, `issues assign`, `wiki delete`,
+   `memberships delete`, ...). The envelope is stable and minimal:
+
+   ```json
+   {
+     "ok": true,
+     "action": "deleted",
+     "resource": "project",
+     "id": "demo",
+     "message": "Project \"demo\" deleted"
+   }
+   ```
+
+   The `action` vocabulary is small and intentional: `created`, `updated`,
+   `deleted`, `closed`, `reopened`, `assigned`, `commented`, `logged`,
+   `user_added`, `user_removed`.
+
+## JSON error envelope
+
+When `-o json` is active and a command fails, the CLI writes a structured
+error envelope to `stdout` and exits non-zero:
+
+```json
+{
+  "error": {
+    "message": "Resource not found.",
+    "code": "not_found"
+  }
+}
+```
+
+`code` comes from a small stable set: `not_found`, `auth_failed`,
+`forbidden`, `validation_failed`, `server_error`, `unknown`. Validation
+errors include a `details` array with the individual field messages from
+Redmine.
+
+## stdout vs stderr
+
+- Machine-readable output (JSON, CSV, table rows) always goes to `stdout`.
+- Human-oriented messages (success confirmations in non-JSON mode,
+  warnings, progress spinners, update-check hints) always go to `stderr`.
+
+This split is stable — scripts can safely redirect `stdout` to a file or
+pipe it into `jq` without worrying about interleaved status noise.
 
 ## Default format
 

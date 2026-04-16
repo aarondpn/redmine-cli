@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
@@ -85,7 +86,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to update wiki page %q: %w", args[0], err)
 			}
 
-			printer.Success(fmt.Sprintf("Wiki page %q updated", args[0]))
+			printer.Action(output.ActionUpdated, "wiki_page", args[0], fmt.Sprintf("Wiki page %q updated", args[0]))
 			return nil
 		},
 	}

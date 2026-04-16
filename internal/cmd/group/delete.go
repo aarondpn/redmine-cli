@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +47,7 @@ func newCmdGroupDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Deleted group %d", id))
+			printer.Action(output.ActionDeleted, "group", id, fmt.Sprintf("Deleted group %d", id))
 			return nil
 		},
 	}

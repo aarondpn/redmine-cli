@@ -10,6 +10,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdLogin creates the auth login command.
@@ -149,7 +150,9 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		return fmt.Errorf("could not connect to Redmine server")
 	}
 
-	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
+	if printer.Format() != output.FormatJSON {
+		printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
+	}
 
 	// Step 5: Default project (optional)
 	stop = printer.Spinner("Fetching projects...")
@@ -194,7 +197,8 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		return fmt.Errorf("setting active profile: %w", err)
 	}
 
-	printer.Success(fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
+	printer.Action(output.ActionLoggedIn, "profile", profileName,
+		fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
@@ -43,7 +44,7 @@ func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Success(fmt.Sprintf("Time entry #%d deleted", id))
+			printer.Action(output.ActionDeleted, "time_entry", id, fmt.Sprintf("Time entry #%d deleted", id))
 
 			return nil
 		},

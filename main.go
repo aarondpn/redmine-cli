@@ -11,6 +11,7 @@ import (
 	"github.com/aarondpn/redmine-cli/internal/cmd"
 	"github.com/aarondpn/redmine-cli/internal/cmd/update"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 var version = "dev"
@@ -33,7 +34,7 @@ func main() {
 		}()
 	}
 
-	rootCmd := cmd.NewRootCmd(version)
+	rootCmd, factory := cmd.NewRootCmdWithFactory(version)
 	err := rootCmd.Execute()
 
 	if err != nil {
@@ -44,7 +45,31 @@ func main() {
 		if errors.As(err, &silent) {
 			os.Exit(silent.Code)
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
+		selectedFormat := ""
+		if factory != nil {
+			selectedFormat = factory.OutputFormat
+		}
+		if selectedFormat == "" {
+			// Resolve the leaf command cobra was asked to run so we pick up
+			// --output from a local flag (shadowing the persistent one) or
+			// from commands that failed before PersistentPreRunE (e.g.
+			// cobra's Args validation).
+			if targetCmd, _, findErr := rootCmd.Find(os.Args[1:]); findErr == nil && targetCmd != nil {
+				if of := targetCmd.Flags().Lookup("output"); of != nil {
+					selectedFormat = of.Value.String()
+				}
+			}
+		}
+		if selectedFormat == "" {
+			if of := rootCmd.PersistentFlags().Lookup("output"); of != nil {
+				selectedFormat = of.Value.String()
+			}
+		}
+		if selectedFormat == output.FormatJSON {
+			_ = output.RenderErrorJSON(os.Stdout, cmdutil.BuildErrorEnvelope(err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
+		}
 		os.Exit(1)
 	}
 

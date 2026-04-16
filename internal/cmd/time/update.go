@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/aarondpn/redmine-cli/internal/resolver"
 )
 
@@ -60,7 +61,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer("")
-			printer.Success(fmt.Sprintf("Time entry #%d updated", id))
+			printer.Action(output.ActionUpdated, "time_entry", id, fmt.Sprintf("Time entry #%d updated", id))
 
 			return nil
 		},

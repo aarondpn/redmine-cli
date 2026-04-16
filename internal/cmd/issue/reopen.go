@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // NewCmdReopen creates the issues reopen command.
@@ -64,7 +65,7 @@ func NewCmdReopen(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to reopen issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Success(fmt.Sprintf("Reopened issue %s", fmt.Sprintf("#%d", id)))
+			printer.Action(output.ActionReopened, "issue", id, fmt.Sprintf("Reopened issue #%d", id))
 			return nil
 		},
 	}
