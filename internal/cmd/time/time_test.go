@@ -288,6 +288,39 @@ func TestTimeLog_Success(t *testing.T) {
 	}
 }
 
+func TestTimeLog_JSONReturnsCreatedEntry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":2.5,"spent_on":"2025-06-15","comments":"Fixed bug","project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"activity":{"id":9,"name":"Development"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "2.5", "--date", "2025-06-15", "--comment", "Fixed bug", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &entry); err != nil {
+		t.Fatalf("expected JSON output, got: %v", err)
+	}
+	if entry["id"] != float64(99) {
+		t.Fatalf("id = %v, want 99", entry["id"])
+	}
+	if entry["hours"] != 2.5 {
+		t.Fatalf("hours = %v, want 2.5", entry["hours"])
+	}
+	if entry["comments"] != "Fixed bug" {
+		t.Fatalf("comments = %v, want Fixed bug", entry["comments"])
+	}
+	if got := testutil.Stderr(f); got != "" {
+		t.Fatalf("stderr = %q, want empty", got)
+	}
+}
+
 func TestTimeLog_MissingHours(t *testing.T) {
 	f := testutil.NewFactory(t, "http://unused")
 	cmd := newCmdTimeLog(f)

@@ -344,6 +344,47 @@ func TestJSONOutput_Non2xxReturnsAPIErrorWithoutWritingBody(t *testing.T) {
 	}
 }
 
+func TestJSONOutput_IncludeNon2xxWritesMetadataAndReturnsSilentError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"errors":["rate limited"]}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/limited.json", "--output", "json", "-i"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected non-zero result for 429")
+	}
+
+	var silentErr *cmdutil.SilentError
+	if !errors.As(err, &silentErr) {
+		t.Fatalf("expected SilentError, got %T: %v", err, err)
+	}
+
+	var payload struct {
+		StatusCode int                 `json:"status_code"`
+		Status     string              `json:"status"`
+		Headers    map[string][]string `json:"headers"`
+		Body       map[string]any      `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if payload.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", payload.StatusCode, http.StatusTooManyRequests)
+	}
+	if payload.Body["errors"] == nil {
+		t.Fatalf("expected response body in payload, got %+v", payload.Body)
+	}
+	if values := payload.Headers["Retry-After"]; len(values) != 1 || values[0] != "60" {
+		t.Fatalf("unexpected headers: %+v", payload.Headers)
+	}
+}
+
 func TestMutualExclusion(t *testing.T) {
 	f := testutil.NewFactory(t, "http://unused")
 	cmd := NewCmdAPI(f)

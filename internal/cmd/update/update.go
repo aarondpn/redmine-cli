@@ -63,6 +63,7 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 // checkHomebrew and upgradeHomebrew are package-level functions to allow
 // test overrides.
 var checkHomebrew = defaultCheckHomebrew
+var checkHomebrewOutdated = defaultCheckHomebrewOutdated
 var upgradeHomebrew = defaultUpgradeHomebrew
 
 // defaultCheckHomebrew checks if redmine is installed via Homebrew by querying brew.
@@ -72,6 +73,17 @@ func defaultCheckHomebrew() bool {
 	}
 	// brew list --cask exits 0 if the cask is installed, non-zero otherwise
 	return exec.Command("brew", "list", "--cask", "redmine").Run() == nil
+}
+
+func defaultCheckHomebrewOutdated() (bool, error) {
+	cmd := exec.Command("brew", "outdated", "--cask", "redmine")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		return false, fmt.Errorf("brew outdated failed: %w", err)
+	}
+	return strings.TrimSpace(out.String()) != "", nil
 }
 
 func defaultUpgradeHomebrew(stdout, stderr io.Writer) error {
@@ -89,6 +101,15 @@ var fetchRelease = FetchLatestRelease
 
 func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer) error {
 	if checkHomebrew() {
+		outdated, err := checkHomebrewOutdated()
+		if err != nil {
+			return err
+		}
+		if !outdated {
+			printer.Outcome(false, output.ActionUpdated, "cli", "homebrew", "Already up to date via Homebrew.")
+			return nil
+		}
+
 		brewStdout := stdout
 		brewStderr := stderr
 		if printer.Format() == output.FormatJSON {

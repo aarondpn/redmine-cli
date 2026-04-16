@@ -138,7 +138,7 @@ func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []str
 		if silent {
 			return &cmdutil.SilentError{Code: 1}
 		}
-		if printer.Format() == output.FormatJSON {
+		if printer.Format() == output.FormatJSON && !include {
 			return rawResponseError(resp, endpoint)
 		}
 	}

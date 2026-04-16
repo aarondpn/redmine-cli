@@ -25,12 +25,15 @@ import (
 func stubHomebrew(t *testing.T, isBrew bool, upgradeErr error) {
 	t.Helper()
 	origCheck := checkHomebrew
+	origOutdated := checkHomebrewOutdated
 	origUpgrade := upgradeHomebrew
 	t.Cleanup(func() {
 		checkHomebrew = origCheck
+		checkHomebrewOutdated = origOutdated
 		upgradeHomebrew = origUpgrade
 	})
 	checkHomebrew = func() bool { return isBrew }
+	checkHomebrewOutdated = func() (bool, error) { return true, nil }
 	upgradeHomebrew = func(stdout, stderr io.Writer) error { return upgradeErr }
 }
 
@@ -43,12 +46,15 @@ func runUpdateForTest(t *testing.T, version string) error {
 func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
 	var brewUpgradeCalled bool
 	origCheck := checkHomebrew
+	origOutdated := checkHomebrewOutdated
 	origUpgrade := upgradeHomebrew
 	t.Cleanup(func() {
 		checkHomebrew = origCheck
+		checkHomebrewOutdated = origOutdated
 		upgradeHomebrew = origUpgrade
 	})
 	checkHomebrew = func() bool { return true }
+	checkHomebrewOutdated = func() (bool, error) { return true, nil }
 	upgradeHomebrew = func(stdout, stderr io.Writer) error {
 		brewUpgradeCalled = true
 		return nil
@@ -123,6 +129,45 @@ func TestRunUpdate_JSONOutput_AlreadyUpToDate(t *testing.T) {
 		t.Fatalf("expected JSON output, got: %v\n%s", err, out.String())
 	}
 	if env.Ok || env.Action != "updated" || !strings.Contains(env.Message, "Already up to date") {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("expected no stderr in JSON mode, got %q", errOut.String())
+	}
+}
+
+func TestRunUpdate_HomebrewNoopReturnsFalseOutcome(t *testing.T) {
+	origCheck := checkHomebrew
+	origOutdated := checkHomebrewOutdated
+	origUpgrade := upgradeHomebrew
+	t.Cleanup(func() {
+		checkHomebrew = origCheck
+		checkHomebrewOutdated = origOutdated
+		upgradeHomebrew = origUpgrade
+	})
+	checkHomebrew = func() bool { return true }
+	checkHomebrewOutdated = func() (bool, error) { return false, nil }
+	upgradeHomebrew = func(stdout, stderr io.Writer) error {
+		t.Fatal("did not expect brew upgrade to run")
+		return nil
+	}
+
+	var out, errOut bytes.Buffer
+	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var env struct {
+		Ok      bool   `json:"ok"`
+		Action  string `json:"action"`
+		ID      string `json:"id"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("expected JSON output, got: %v\n%s", err, out.String())
+	}
+	if env.Ok || env.Action != "updated" || env.ID != "homebrew" || !strings.Contains(env.Message, "Already up to date") {
 		t.Fatalf("unexpected envelope: %+v", env)
 	}
 	if errOut.Len() != 0 {

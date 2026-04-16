@@ -15,23 +15,28 @@ import (
 
 // NewCmdSwitch creates the auth switch command.
 func NewCmdSwitch(f *cmdutil.Factory) *cobra.Command {
+	var format string
+
 	cmd := &cobra.Command{
 		Use:   "switch [profile]",
 		Short: "Switch the active profile",
 		Long:  "Set which profile to use by default. Shows an interactive selector if no name given.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
-				return err
+			if len(args) == 0 {
+				if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+					return err
+				}
 			}
-			return runSwitch(f, args)
+			return runSwitch(f, args, format)
 		},
 	}
 
+	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }
 
-func runSwitch(f *cmdutil.Factory, args []string) error {
+func runSwitch(f *cmdutil.Factory, args []string, format string) error {
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
@@ -42,8 +47,9 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	printer := f.Printer(format)
+
 	if len(pc.Profiles) == 0 {
-		printer := f.Printer("")
 		printer.Outcome(false, output.ActionSwitched, "profile", nil, noProfilesConfiguredMessage)
 		return nil
 	}
@@ -88,7 +94,6 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	printer := f.Printer("")
 	printer.Action(output.ActionSwitched, "profile", name,
 		fmt.Sprintf("Switched to profile %q (%s)", name, pc.Profiles[name].Server))
 	return nil
