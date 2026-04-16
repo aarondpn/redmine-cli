@@ -218,6 +218,60 @@ func TestIncludeHeaders(t *testing.T) {
 	}
 }
 
+func TestJSONOutput_PrettyPrintsBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"id":42}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/test.json", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if ok, _ := payload["ok"].(bool); !ok {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestJSONOutput_IncludeWrapsMetadata(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Custom", "value")
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/test.json", "--output", "json", "-i"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var payload struct {
+		StatusCode int                 `json:"status_code"`
+		Status     string              `json:"status"`
+		Headers    map[string][]string `json:"headers"`
+		Body       map[string]any      `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &payload); err != nil {
+		t.Fatalf("expected valid JSON output, got: %v", err)
+	}
+	if payload.StatusCode != http.StatusCreated || payload.Body["ok"] != true {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if values := payload.Headers["X-Custom"]; len(values) != 1 || values[0] != "value" {
+		t.Fatalf("unexpected headers: %+v", payload.Headers)
+	}
+}
+
 func TestSilentSuppressesOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"data":"secret"}`))

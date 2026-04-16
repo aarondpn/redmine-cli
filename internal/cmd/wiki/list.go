@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -56,27 +57,13 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			headers := []string{"Title", "Updated"}
-
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(pages)
-			case output.FormatCSV:
-				rows := make([][]string, 0, len(pages))
-				for _, p := range pages {
-					rows = append(rows, []string{p.Title, p.UpdatedOn})
+			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex, styled bool) []string {
+				title := p.Title
+				if styled {
+					title = output.StyleID.Render(title)
 				}
-				printer.CSV(headers, rows)
-			default:
-				rows := make([][]string, 0, len(pages))
-				for _, p := range pages {
-					rows = append(rows, []string{
-						output.StyleID.Render(p.Title),
-						p.UpdatedOn,
-					})
-				}
-				printer.Table(headers, rows)
-			}
+				return []string{title, p.UpdatedOn}
+			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(pages), Total: total, Limit: limit, Offset: offset, Noun: "wiki pages",

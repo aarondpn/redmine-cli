@@ -53,6 +53,7 @@ const (
 	ActionLoggedOut   = "logged_out"
 	ActionSwitched    = "switched"
 	ActionInstalled   = "installed"
+	ActionOpened      = "opened"
 )
 
 // RenderActionJSON writes an action envelope as pretty-printed JSON.

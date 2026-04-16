@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -67,32 +68,15 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(results)
-			case output.FormatCSV:
-				headers := []string{"ID", "Title", "Date"}
-				rows := make([][]string, len(results))
-				for i, r := range results {
-					rows[i] = []string{
-						fmt.Sprintf("%d", r.ID),
-						r.Title,
-						r.DateTime,
-					}
+			cmdutil.RenderCollection(printer, results, []string{"ID", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
+				id := fmt.Sprintf("%d", r.ID)
+				date := r.DateTime
+				if styled {
+					id = output.StyleID.Render(fmt.Sprintf("#%d", r.ID))
+					date = formatDate(r.DateTime)
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Title", "Date"}
-				rows := make([][]string, len(results))
-				for i, r := range results {
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("#%d", r.ID)),
-						r.Title,
-						formatDate(r.DateTime),
-					}
-				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, r.Title, date}
+			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(results), Total: total, Limit: limit, Offset: offset, Noun: "results",

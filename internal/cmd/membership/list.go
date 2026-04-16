@@ -55,32 +55,15 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(memberships)
-			case output.FormatCSV:
-				headers := []string{"ID", "User/Group", "Roles"}
-				rows := make([][]string, len(memberships))
-				for i, m := range memberships {
-					rows[i] = []string{
-						fmt.Sprintf("%d", m.ID),
-						memberName(m),
-						formatRoles(m.Roles),
+			cmdutil.RenderCollection(printer, memberships, []string{"ID", "User/Group", "Roles"},
+				func(m models.Membership, styled bool) []string {
+					id := strconv.Itoa(m.ID)
+					if styled {
+						id = output.StyleID.Render(id)
 					}
-				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "User/Group", "Roles"}
-				rows := make([][]string, len(memberships))
-				for i, m := range memberships {
-					rows[i] = []string{
-						output.StyleID.Render(strconv.Itoa(m.ID)),
-						memberName(m),
-						formatRoles(m.Roles),
-					}
-				}
-				printer.Table(headers, rows)
-			}
+					return []string{id, memberName(m), formatRoles(m.Roles)}
+				},
+			)
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(memberships), Total: total, Limit: limit, Offset: offset, Noun: "memberships",

@@ -6,7 +6,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -46,12 +45,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(user)
-				return nil
-			}
-
-			printer.Success(fmt.Sprintf("Created user %q (ID: %d)", user.Login, user.ID))
+			printer.Resource(user, fmt.Sprintf("Created user %q (ID: %d)", user.Login, user.ID))
 			return nil
 		},
 	}

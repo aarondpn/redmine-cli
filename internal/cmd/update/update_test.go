@@ -7,13 +7,17 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // --- Homebrew detection ---
@@ -27,7 +31,13 @@ func stubHomebrew(t *testing.T, isBrew bool, upgradeErr error) {
 		upgradeHomebrew = origUpgrade
 	})
 	checkHomebrew = func() bool { return isBrew }
-	upgradeHomebrew = func() error { return upgradeErr }
+	upgradeHomebrew = func(stdout, stderr io.Writer) error { return upgradeErr }
+}
+
+func runUpdateForTest(t *testing.T, version string) error {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	return runUpdateWithFormat(version, &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable))
 }
 
 func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
@@ -39,12 +49,12 @@ func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
 		upgradeHomebrew = origUpgrade
 	})
 	checkHomebrew = func() bool { return true }
-	upgradeHomebrew = func() error {
+	upgradeHomebrew = func(stdout, stderr io.Writer) error {
 		brewUpgradeCalled = true
 		return nil
 	}
 
-	err := runUpdate("1.0.0")
+	err := runUpdateForTest(t, "1.0.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +66,7 @@ func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
 func TestRunUpdate_BrewUpgradeError(t *testing.T) {
 	stubHomebrew(t, true, errors.New("brew is broken"))
 
-	err := runUpdate("1.0.0")
+	err := runUpdateForTest(t, "1.0.0")
 	if err == nil {
 		t.Fatal("expected error from brew upgrade, got nil")
 	}
@@ -80,9 +90,43 @@ func TestRunUpdate_SkipsBrewWhenNotInstalled(t *testing.T) {
 		}, nil
 	}
 
-	err := runUpdate("1.0.0")
+	err := runUpdateForTest(t, "1.0.0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunUpdate_JSONOutput_AlreadyUpToDate(t *testing.T) {
+	stubHomebrew(t, false, nil)
+
+	origFetch := fetchRelease
+	t.Cleanup(func() { fetchRelease = origFetch })
+	fetchRelease = func(ctx context.Context) (*GithubRelease, error) {
+		return &GithubRelease{
+			TagName: "v1.0.0",
+			Assets:  []GithubAsset{},
+		}, nil
+	}
+
+	var out, errOut bytes.Buffer
+	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var env struct {
+		Ok      bool   `json:"ok"`
+		Action  string `json:"action"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("expected JSON output, got: %v\n%s", err, out.String())
+	}
+	if env.Ok || env.Action != "updated" || !strings.Contains(env.Message, "Already up to date") {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("expected no stderr in JSON mode, got %q", errOut.String())
 	}
 }
 
@@ -306,7 +350,7 @@ func TestRunUpdate_RefusesWithoutChecksumsAsset(t *testing.T) {
 		}, nil
 	}
 
-	err := runUpdate("1.0.0")
+	err := runUpdateForTest(t, "1.0.0")
 	if err == nil {
 		t.Fatal("expected error when checksums asset is missing, got nil")
 	}
@@ -349,7 +393,7 @@ func TestRunUpdate_RefusesOnChecksumMismatch(t *testing.T) {
 		}, nil
 	}
 
-	err := runUpdate("1.0.0")
+	err := runUpdateForTest(t, "1.0.0")
 	if err == nil {
 		t.Fatal("expected checksum verification error, got nil")
 	}

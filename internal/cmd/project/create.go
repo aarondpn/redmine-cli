@@ -8,7 +8,6 @@ import (
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
@@ -53,12 +52,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(project)
-				return nil
-			}
-
-			printer.Success(fmt.Sprintf("Project %q created (ID: %d)", project.Name, project.ID))
+			printer.Resource(project, fmt.Sprintf("Project %q created (ID: %d)", project.Name, project.ID))
 			return nil
 		},
 	}

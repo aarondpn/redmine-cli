@@ -41,16 +41,7 @@ func runSwitch(f *cmdutil.Factory, args []string) error {
 
 	if len(pc.Profiles) == 0 {
 		printer := f.Printer("")
-		if printer.Format() == output.FormatJSON {
-			printer.JSON(output.ActionEnvelope{
-				Ok:       false,
-				Action:   output.ActionSwitched,
-				Resource: "profile",
-				Message:  noProfilesConfiguredMessage,
-			})
-			return nil
-		}
-		printer.Warning(noProfilesConfiguredMessage)
+		printer.Outcome(false, output.ActionSwitched, "profile", nil, noProfilesConfiguredMessage)
 		return nil
 	}
 

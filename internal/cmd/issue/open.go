@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 // openBrowser is a package-level variable so tests can stub it.
@@ -30,6 +31,8 @@ var openBrowser = func(url string) error {
 
 // NewCmdOpen creates the issues open command.
 func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
+	var format string
+
 	cmd := &cobra.Command{
 		Use:   "open <id>",
 		Short: "Open an issue in the browser",
@@ -51,10 +54,13 @@ func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to open browser: %w", err)
 			}
 
-			fmt.Fprintf(f.IOStreams.Out, "Opening %s\n", url)
+			printer := f.Printer(format)
+			printer.Action(output.ActionOpened, "issue", id, fmt.Sprintf("Opened issue #%d in browser (%s)", id, url))
 			return nil
 		},
 	}
+
+	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd
 }

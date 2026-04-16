@@ -25,6 +25,17 @@ func (s *spyPrinter) Detail(pairs []output.KeyValue)          {}
 func (s *spyPrinter) CSV(headers []string, rows [][]string)   {}
 func (s *spyPrinter) Success(msg string)                      {}
 func (s *spyPrinter) Error(msg string)                        {}
+func (s *spyPrinter) Outcome(ok bool, action, resource string, id any, humanMsg string) {
+	_ = ok
+	_ = action
+	_ = resource
+	_ = id
+	_ = humanMsg
+}
+func (s *spyPrinter) Resource(v any, humanMsg string) {
+	_ = v
+	_ = humanMsg
+}
 func (s *spyPrinter) Action(action, resource string, id any, humanMsg string) {
 	_ = action
 	_ = resource

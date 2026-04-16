@@ -101,7 +101,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(wiki.NewCmdWiki(f))
 	cmd.AddCommand(completion.NewCmdCompletion())
 	cmd.AddCommand(installskill.NewCmdInstallSkill(f))
-	cmd.AddCommand(update.NewCmdUpdate(version))
+	cmd.AddCommand(update.NewCmdUpdate(f, version))
 	cmd.AddCommand(newCmdConfig(f))
 
 	return cmd, f

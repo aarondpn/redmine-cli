@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -41,28 +42,13 @@ func newCmdTrackerList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(trackers)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name", "Description"}
-				rows := make([][]string, len(trackers))
-				for i, t := range trackers {
-					rows[i] = []string{fmt.Sprintf("%d", t.ID), t.Name, t.Description}
+			cmdutil.RenderCollection(printer, trackers, []string{"ID", "Name", "Description"}, func(t models.Tracker, styled bool) []string {
+				id := fmt.Sprintf("%d", t.ID)
+				if styled {
+					id = output.StyleID.Render(id)
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Name", "Description"}
-				rows := make([][]string, len(trackers))
-				for i, t := range trackers {
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("%d", t.ID)),
-						t.Name,
-						t.Description,
-					}
-				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, t.Name, t.Description}
+			})
 			return nil
 		},
 	}

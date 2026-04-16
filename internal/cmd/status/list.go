@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -41,36 +42,19 @@ func newCmdStatusList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(statuses)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name", "Closed"}
-				rows := make([][]string, len(statuses))
-				for i, s := range statuses {
-					closed := "no"
-					if s.IsClosed {
-						closed = "yes"
-					}
-					rows[i] = []string{fmt.Sprintf("%d", s.ID), s.Name, closed}
+			cmdutil.RenderCollection(printer, statuses, []string{"ID", "Name", "Closed"}, func(s models.IssueStatus, styled bool) []string {
+				id := fmt.Sprintf("%d", s.ID)
+				name := s.Name
+				closed := "no"
+				if s.IsClosed {
+					closed = "yes"
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Name", "Closed"}
-				rows := make([][]string, len(statuses))
-				for i, s := range statuses {
-					closed := "no"
-					if s.IsClosed {
-						closed = "yes"
-					}
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("%d", s.ID)),
-						output.StatusStyle(s.Name).Render(s.Name),
-						closed,
-					}
+				if styled {
+					id = output.StyleID.Render(id)
+					name = output.StatusStyle(s.Name).Render(s.Name)
 				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, name, closed}
+			})
 			return nil
 		},
 	}

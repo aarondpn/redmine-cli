@@ -14,6 +14,13 @@ type Printer interface {
 	Success(msg string)
 	Error(msg string)
 	Warning(msg string)
+	// Outcome emits a completed command result. In JSON mode this writes a
+	// stable envelope to stdout. In other modes it writes the human message to
+	// stderr as either success or warning text.
+	Outcome(ok bool, action, resource string, id any, humanMsg string)
+	// Resource emits a resource body in JSON mode and a human success message
+	// in other formats.
+	Resource(v any, humanMsg string)
 	// Action emits a completed-mutation result. In JSON mode this writes a
 	// compact action envelope to stdout. In any other mode it writes the
 	// human message to stderr via Success.
@@ -114,10 +121,10 @@ func (p *StdPrinter) Warning(msg string) {
 	}
 }
 
-func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
+func (p *StdPrinter) Outcome(ok bool, action, resource string, id any, humanMsg string) {
 	if p.format == FormatJSON {
 		_ = RenderActionJSON(p.out, ActionEnvelope{
-			Ok:       true,
+			Ok:       ok,
 			Action:   action,
 			Resource: resource,
 			ID:       id,
@@ -125,7 +132,23 @@ func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
 		})
 		return
 	}
+	if ok {
+		p.Success(humanMsg)
+		return
+	}
+	p.Warning(humanMsg)
+}
+
+func (p *StdPrinter) Resource(v any, humanMsg string) {
+	if p.format == FormatJSON {
+		p.JSON(v)
+		return
+	}
 	p.Success(humanMsg)
+}
+
+func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
+	p.Outcome(true, action, resource, id, humanMsg)
 }
 
 func (p *StdPrinter) Spinner(msg string) func() {

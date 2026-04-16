@@ -105,9 +105,14 @@ redmine issues list --project myproject -o json \
    }
    ```
 
+   `ok` tells you whether the command changed state. Commands that complete
+   successfully but have nothing to change may return the same envelope with
+   `ok: false` and a descriptive `message`.
+
    The `action` vocabulary is small and intentional: `created`, `updated`,
    `deleted`, `closed`, `reopened`, `assigned`, `commented`, `logged`,
-   `user_added`, `user_removed`.
+   `user_added`, `user_removed`, `logged_in`, `logged_out`, `switched`,
+   `installed`, `opened`.
 
 ## JSON error envelope
 

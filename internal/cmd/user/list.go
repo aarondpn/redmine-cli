@@ -53,39 +53,27 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(users)
-			case output.FormatCSV:
-				headers := []string{"ID", "Login", "Name", "Email", "Admin", "Status"}
-				rows := make([][]string, len(users))
-				for i, u := range users {
-					rows[i] = []string{
-						fmt.Sprintf("%d", u.ID), u.Login,
-						u.FirstName + " " + u.LastName,
-						u.Mail, fmt.Sprintf("%t", u.Admin),
-						userStatusName(u.Status),
+			cmdutil.RenderCollection(printer, users, []string{"ID", "Login", "Name", "Email", "Admin", "Status"},
+				func(u models.User, styled bool) []string {
+					id := fmt.Sprintf("%d", u.ID)
+					admin := fmt.Sprintf("%t", u.Admin)
+					if styled {
+						id = output.StyleID.Render(id)
+						admin = ""
+						if u.Admin {
+							admin = "yes"
+						}
 					}
-				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Login", "Name", "Email", "Admin", "Status"}
-				rows := make([][]string, len(users))
-				for i, u := range users {
-					admin := ""
-					if u.Admin {
-						admin = "yes"
-					}
-					rows[i] = []string{
-						output.StyleID.Render(fmt.Sprintf("%d", u.ID)),
+					return []string{
+						id,
 						u.Login,
 						u.FirstName + " " + u.LastName,
-						u.Mail, admin,
+						u.Mail,
+						admin,
 						userStatusName(u.Status),
 					}
-				}
-				printer.Table(headers, rows)
-			}
+				},
+			)
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(users), Total: total, Limit: limit, Offset: offset, Noun: "users",

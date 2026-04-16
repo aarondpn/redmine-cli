@@ -43,16 +43,7 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		if err.Error() == noProfilesConfiguredMessage {
 			printer := f.Printer("")
-			if printer.Format() == output.FormatJSON {
-				printer.JSON(output.ActionEnvelope{
-					Ok:       false,
-					Action:   output.ActionLoggedOut,
-					Resource: "profile",
-					Message:  noProfilesConfiguredMessage,
-				})
-				return nil
-			}
-			printer.Warning(noProfilesConfiguredMessage)
+			printer.Outcome(false, output.ActionLoggedOut, "profile", nil, noProfilesConfiguredMessage)
 			return nil
 		}
 		return err

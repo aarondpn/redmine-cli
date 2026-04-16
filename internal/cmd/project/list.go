@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/internal/models"
 	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
@@ -38,36 +39,15 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			headers := []string{"ID", "Identifier", "Name", "Status", "Public"}
-
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(projects)
-			case output.FormatCSV:
-				rows := make([][]string, 0, len(projects))
-				for _, p := range projects {
-					rows = append(rows, []string{
-						strconv.Itoa(p.ID),
-						p.Identifier,
-						p.Name,
-						projectStatusLabel(p.Status),
-						formatBool(p.IsPublic),
-					})
-				}
-				printer.CSV(headers, rows)
-			default:
-				rows := make([][]string, 0, len(projects))
-				for _, p := range projects {
-					rows = append(rows, []string{
-						output.StyleID.Render(strconv.Itoa(p.ID)),
-						p.Identifier,
-						p.Name,
-						projectStatusLabel(p.Status),
-						formatBool(p.IsPublic),
-					})
-				}
-				printer.Table(headers, rows)
-			}
+			cmdutil.RenderCollection(printer, projects, []string{"ID", "Identifier", "Name", "Status", "Public"},
+				func(p models.Project, styled bool) []string {
+					id := strconv.Itoa(p.ID)
+					if styled {
+						id = output.StyleID.Render(id)
+					}
+					return []string{id, p.Identifier, p.Name, projectStatusLabel(p.Status), formatBool(p.IsPublic)}
+				},
+			)
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(projects), Total: total, Limit: limit, Offset: offset, Noun: "projects",

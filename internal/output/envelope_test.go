@@ -99,3 +99,25 @@ func TestStdPrinter_Action_NonJSONMode_WritesToStderr(t *testing.T) {
 		t.Errorf("stderr: %q", errOut.String())
 	}
 }
+
+func TestStdPrinter_Outcome_JSONMode_WritesFalseOkEnvelope(t *testing.T) {
+	var out, errOut bytes.Buffer
+	p := NewStdPrinter(&out, &errOut, false, true, FormatJSON)
+
+	p.Outcome(false, ActionSwitched, "profile", nil, "No profiles configured")
+
+	if errOut.Len() != 0 {
+		t.Errorf("expected nothing on stderr, got %q", errOut.String())
+	}
+
+	var env ActionEnvelope
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("stdout not JSON: %v\n%s", err, out.String())
+	}
+	if env.Ok {
+		t.Errorf("ok: got true, want false")
+	}
+	if env.Action != ActionSwitched || env.Resource != "profile" {
+		t.Errorf("envelope: %+v", env)
+	}
+}
