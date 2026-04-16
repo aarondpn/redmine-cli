@@ -394,6 +394,39 @@ func TestTimeDelete_Cancelled(t *testing.T) {
 	}
 }
 
+func TestTimeDelete_Cancelled_JSONEnvelope(t *testing.T) {
+	f := testutil.NewFactory(t, "http://unused")
+	f.IOStreams.In = strings.NewReader("n\n")
+	f.OutputFormat = "json"
+
+	cmd := newCmdTimeDelete(f)
+	cmd.SetArgs([]string{"42"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	var env struct {
+		Ok       bool   `json:"ok"`
+		Action   string `json:"action"`
+		Resource string `json:"resource"`
+		ID       int    `json:"id"`
+		Message  string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &env); err != nil {
+		t.Fatalf("expected JSON output, got: %v", err)
+	}
+	if env.Ok {
+		t.Fatalf("expected ok=false envelope, got %+v", env)
+	}
+	if env.Action != "deleted" || env.Resource != "time_entry" || env.ID != 42 || env.Message != "Delete cancelled" {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if stderr := testutil.Stderr(f); strings.Contains(stderr, "Delete cancelled") {
+		t.Errorf("stderr = %q, did not expect duplicate warning in JSON mode", stderr)
+	}
+}
+
 // --- summary ---
 
 func TestTimeSummary_Table(t *testing.T) {

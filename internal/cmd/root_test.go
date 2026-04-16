@@ -37,6 +37,13 @@ func TestRootCmdGeneratesCompletions(t *testing.T) {
 
 func TestRootCmd_PersistentOutputFlag_InheritedByLeafCommands(t *testing.T) {
 	root := NewRootCmd("test")
+	optedOut := map[string]bool{
+		"redmine auth login":    true,
+		"redmine auth logout":   true,
+		"redmine auth switch":   true,
+		"redmine issues browse": true,
+		"redmine search browse": true,
+	}
 
 	// The persistent flag must be registered on the root.
 	if root.PersistentFlags().Lookup("output") == nil {
@@ -46,7 +53,7 @@ func TestRootCmd_PersistentOutputFlag_InheritedByLeafCommands(t *testing.T) {
 	// Walk all leaf commands and verify they can see the inherited flag.
 	var missing []string
 	walk(root, func(c *cobra.Command) {
-		if c.Runnable() && !c.Hidden {
+		if c.Runnable() && !c.Hidden && !optedOut[c.CommandPath()] {
 			if c.Flags().Lookup("output") == nil && c.InheritedFlags().Lookup("output") == nil {
 				missing = append(missing, c.CommandPath())
 			}
@@ -54,6 +61,29 @@ func TestRootCmd_PersistentOutputFlag_InheritedByLeafCommands(t *testing.T) {
 	})
 	if len(missing) > 0 {
 		t.Fatalf("leaf commands missing --output: %v", missing)
+	}
+}
+
+func TestRootCmd_InteractiveCommandsRejectOutputFlag(t *testing.T) {
+	for _, args := range [][]string{
+		{"auth", "login", "--output", "json"},
+		{"auth", "logout", "--output", "json"},
+		{"auth", "switch", "--output", "json"},
+		{"issues", "browse", "--output", "json"},
+		{"search", "browse", "--output", "json"},
+	} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			root := NewRootCmd("test")
+			root.SetArgs(args)
+
+			err := root.Execute()
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), "--output is not supported") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

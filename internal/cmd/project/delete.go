@@ -30,7 +30,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Are you sure you want to delete project %q?", identifier)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Deletion cancelled")
+					printer.Outcome(false, output.ActionDeleted, "project", identifier, "Deletion cancelled")
 					return nil
 				}
 			}

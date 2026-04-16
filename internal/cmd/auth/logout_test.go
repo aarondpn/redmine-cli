@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,7 +105,7 @@ func TestLogout_NoProfilesConfiguredWarns(t *testing.T) {
 	}
 }
 
-func TestLogout_NoProfilesConfigured_JSONEnvelope(t *testing.T) {
+func TestLogout_NoProfilesConfigured_IgnoresJSONDefault(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(cfgPath, []byte("profiles: {}\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -131,18 +130,10 @@ func TestLogout_NoProfilesConfigured_JSONEnvelope(t *testing.T) {
 		t.Fatalf("expected no error for empty profiles, got: %v", err)
 	}
 
-	var env struct {
-		Ok      bool   `json:"ok"`
-		Action  string `json:"action"`
-		Message string `json:"message"`
+	if out := f.IOStreams.Out.(*strings.Builder).String(); out != "" {
+		t.Fatalf("expected no stdout output, got %q", out)
 	}
-	if err := json.Unmarshal([]byte(f.IOStreams.Out.(*strings.Builder).String()), &env); err != nil {
-		t.Fatalf("expected JSON output, got: %v", err)
-	}
-	if env.Ok {
-		t.Fatalf("expected ok=false envelope, got %+v", env)
-	}
-	if env.Action != "logged_out" || env.Message != noProfilesConfiguredMessage {
-		t.Fatalf("unexpected envelope: %+v", env)
+	if errOut := f.IOStreams.ErrOut.(*strings.Builder).String(); !strings.Contains(errOut, noProfilesConfiguredMessage) {
+		t.Fatalf("expected warning %q, got:\n%s", noProfilesConfiguredMessage, errOut)
 	}
 }

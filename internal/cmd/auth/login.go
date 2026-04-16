@@ -22,6 +22,9 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 		Short: "Log in to a Redmine instance",
 		Long:  "Interactive setup to authenticate with a Redmine server and save the profile.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
 			return runLogin(f, name)
 		},
 	}
@@ -147,7 +150,7 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatError(err))
-		return fmt.Errorf("could not connect to Redmine server")
+		return fmt.Errorf("could not connect to Redmine server: %w", err)
 	}
 
 	if printer.Format() != output.FormatJSON {

@@ -21,6 +21,9 @@ func NewCmdSwitch(f *cmdutil.Factory) *cobra.Command {
 		Long:  "Set which profile to use by default. Shows an interactive selector if no name given.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
 			return runSwitch(f, args)
 		},
 	}

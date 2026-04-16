@@ -35,7 +35,7 @@ func newCmdUserDelete(f *cmdutil.Factory) *cobra.Command {
 			if !force {
 				msg := fmt.Sprintf("Are you sure you want to delete user %d?", id)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Warning("Delete cancelled")
+					printer.Outcome(false, output.ActionDeleted, "user", id, "Delete cancelled")
 					return nil
 				}
 			}

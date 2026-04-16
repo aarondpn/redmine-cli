@@ -30,10 +30,10 @@ type commandContract struct {
 var commandOutputContracts = map[string]commandContract{
 	"redmine api":                {Mode: outputContractStructured},
 	"redmine auth list":          {Mode: outputContractStructured},
-	"redmine auth login":         {Mode: outputContractStructured},
-	"redmine auth logout":        {Mode: outputContractStructured},
+	"redmine auth login":         {Mode: outputContractInteractive, Reason: "runs an interactive Huh form to collect credentials"},
+	"redmine auth logout":        {Mode: outputContractInteractive, Reason: "may prompt for interactive confirmation before deleting a profile"},
 	"redmine auth status":        {Mode: outputContractStructured},
-	"redmine auth switch":        {Mode: outputContractStructured},
+	"redmine auth switch":        {Mode: outputContractInteractive, Reason: "may prompt with an interactive profile selector"},
 	"redmine categories list":    {Mode: outputContractStructured},
 	"redmine completion":         {Mode: outputContractRawPassthrough, Reason: "streams generated shell completion scripts"},
 	"redmine config":             {Mode: outputContractStructured},

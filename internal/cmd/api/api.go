@@ -133,8 +133,17 @@ func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []str
 		return err
 	}
 
+	printer := f.Printer(format)
+	if resp.StatusCode >= 400 {
+		if silent {
+			return &cmdutil.SilentError{Code: 1}
+		}
+		if printer.Format() == output.FormatJSON {
+			return rawResponseError(resp, endpoint)
+		}
+	}
+
 	if !silent {
-		printer := f.Printer(format)
 		renderAPIResponse(printer, f.IOStreams.Out, f.IOStreams.IsTTY, resp, include)
 	}
 
@@ -202,6 +211,22 @@ func decodeAPIJSONBody(body []byte) any {
 		return value
 	}
 	return map[string]any{"body": string(body)}
+}
+
+func rawResponseError(resp *redmineapi.RawResponse, endpoint string) error {
+	apiErr := &redmineapi.APIError{
+		StatusCode: resp.StatusCode,
+		URL:        endpoint,
+	}
+
+	var payload struct {
+		Errors []string `json:"errors"`
+	}
+	if err := json.Unmarshal(resp.Body, &payload); err == nil && len(payload.Errors) > 0 {
+		apiErr.Errors = append(apiErr.Errors, payload.Errors...)
+	}
+
+	return apiErr
 }
 
 // buildJSONBody constructs a JSON object from key=value pairs.

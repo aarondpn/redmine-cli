@@ -132,6 +132,9 @@ func (f *Factory) Printer(format string) output.Printer {
 		noColor = noColor || cfg.NoColor
 		if format == "" {
 			format = cfg.OutputFormat
+			if f.OutputFormat == "" {
+				f.OutputFormat = format
+			}
 		}
 	}
 	if noColor {

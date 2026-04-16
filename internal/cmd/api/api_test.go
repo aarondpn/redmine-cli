@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	redmineapi "github.com/aarondpn/redmine-cli/internal/api"
 	"github.com/aarondpn/redmine-cli/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/internal/testutil"
 )
@@ -310,6 +311,36 @@ func TestNon2xxReturnsErrorWithBody(t *testing.T) {
 	// Body should still be written.
 	if out := testutil.Stdout(f); !strings.Contains(out, "not found") {
 		t.Errorf("expected error body in output, got: %s", out)
+	}
+}
+
+func TestJSONOutput_Non2xxReturnsAPIErrorWithoutWritingBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"errors":["not found"]}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/missing.json", "--output", "json"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for 404")
+	}
+
+	var apiErr *redmineapi.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", apiErr.StatusCode, http.StatusNotFound)
+	}
+	if len(apiErr.Errors) != 1 || apiErr.Errors[0] != "not found" {
+		t.Fatalf("errors = %v, want [not found]", apiErr.Errors)
+	}
+	if out := testutil.Stdout(f); out != "" {
+		t.Fatalf("expected no stdout body before main renders JSON envelope, got: %q", out)
 	}
 }
 

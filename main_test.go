@@ -3,11 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aarondpn/redmine-cli/internal/cmd"
 	"github.com/aarondpn/redmine-cli/internal/cmd/update"
+	"github.com/aarondpn/redmine-cli/internal/output"
 )
 
 func TestWaitForStartupUpdate_FastResult_NoHint(t *testing.T) {
@@ -95,5 +99,86 @@ func TestWaitForStartupUpdate_TimeoutCancelsCheck(t *testing.T) {
 	}
 	if strings.Contains(out, "A new version of redmine is available") {
 		t.Fatalf("did not expect update notice in output, got %q", out)
+	}
+}
+
+func TestSelectedOutputFormat_FallsBackToConfigDefault(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "server: https://example.invalid\napi_key: test\nauth_method: apikey\noutput_format: json\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root, factory := cmd.NewRootCmdWithFactory("test")
+	factory.ConfigPath = cfgPath
+
+	got := selectedOutputFormat(root, factory, []string{"versions", "list"})
+	if got != output.FormatJSON {
+		t.Fatalf("selectedOutputFormat() = %q, want %q", got, output.FormatJSON)
+	}
+}
+
+func TestSelectedOutputFormat_HonorsConfigFlagBeforePersistentPreRun(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "custom.yaml")
+	content := "server: https://example.invalid\napi_key: test\nauth_method: apikey\noutput_format: json\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root, factory := cmd.NewRootCmdWithFactory("test")
+	if err := root.PersistentFlags().Set("config", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	got := selectedOutputFormat(root, factory, []string{"versions", "get"})
+	if got != output.FormatJSON {
+		t.Fatalf("selectedOutputFormat() = %q, want %q", got, output.FormatJSON)
+	}
+}
+
+func TestSelectedOutputFormat_HonorsProfileFlagBeforePersistentPreRun(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "profiles.yaml")
+	content := `profiles:
+  a:
+    server: https://a.invalid
+    auth_method: apikey
+    api_key: a
+    output_format: table
+  b:
+    server: https://b.invalid
+    auth_method: apikey
+    api_key: b
+    output_format: json
+active_profile: a
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root, factory := cmd.NewRootCmdWithFactory("test")
+	if err := root.PersistentFlags().Set("config", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.PersistentFlags().Set("profile", "b"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := selectedOutputFormat(root, factory, []string{"versions", "get"})
+	if got != output.FormatJSON {
+		t.Fatalf("selectedOutputFormat() = %q, want %q", got, output.FormatJSON)
+	}
+}
+
+func TestSelectedOutputFormat_UsesClearedFactoryFormatForInteractiveRejection(t *testing.T) {
+	root, factory := cmd.NewRootCmdWithFactory("test")
+	factory.OutputFormat = output.FormatTable
+
+	if err := root.PersistentFlags().Set("output", output.FormatJSON); err != nil {
+		t.Fatal(err)
+	}
+
+	got := selectedOutputFormat(root, factory, []string{"issues", "browse", "--output", "json"})
+	if got != output.FormatTable {
+		t.Fatalf("selectedOutputFormat() = %q, want %q", got, output.FormatTable)
 	}
 }

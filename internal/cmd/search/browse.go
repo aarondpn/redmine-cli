@@ -37,6 +37,10 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 		Long:  "Browse search results interactively with a split-screen detail view and live search.",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
+
 			query := strings.Join(args, " ")
 
 			project, err := cmdutil.DefaultProjectIdentifier(context.Background(), f, project)

@@ -21,6 +21,9 @@ func NewCmdLogout(f *cmdutil.Factory) *cobra.Command {
 		Long:  "Remove the specified profile (or the active profile if none specified).",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+				return err
+			}
 			return runLogout(f, args)
 		},
 	}
@@ -66,11 +69,12 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
+	printer := f.Printer("")
+
 	if !confirm {
+		printer.Outcome(false, output.ActionLoggedOut, "profile", name, "Logout cancelled")
 		return nil
 	}
-
-	printer := f.Printer("")
 
 	if err := config.DeleteProfile(name, configPath); err != nil {
 		return fmt.Errorf("removing profile: %w", err)
