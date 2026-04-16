@@ -45,6 +45,7 @@ func runList(f *cmdutil.Factory) error {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	activeProfile := config.EffectiveProfileName(pc, f.ProfileOverride)
 
 	if printer.Format() == output.FormatJSON {
 		type profileEntry struct {
@@ -58,7 +59,7 @@ func runList(f *cmdutil.Factory) error {
 			profiles = append(profiles, profileEntry{
 				Name:   name,
 				Server: p.Server,
-				Active: name == pc.ActiveProfile,
+				Active: name == activeProfile,
 			})
 		}
 		printer.JSON(profiles)
@@ -74,7 +75,7 @@ func runList(f *cmdutil.Factory) error {
 	for _, name := range names {
 		p := pc.Profiles[name]
 		marker := "  "
-		if name == pc.ActiveProfile {
+		if name == activeProfile {
 			marker = "* "
 		}
 		label := marker + name
