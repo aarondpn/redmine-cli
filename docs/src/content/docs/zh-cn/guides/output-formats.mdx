@@ -5,7 +5,7 @@ description: 控制 redmine-cli 的数据显示方式。
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-大多数命令支持 `-o` / `--output` 来控制输出格式。根据实际用途选择合适的格式：阅读、脚本编写或数据导出。
+每个命令都支持 `-o` / `--output` 来控制输出格式。该标志在全局注册，因此读取、写入、删除以及其他所有子命令都会一致地遵循它。根据实际用途选择合适的格式：阅读、脚本编写或数据导出。
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
@@ -74,6 +74,52 @@ redmine issues list --project myproject -o json \
 <Aside type="note">
   在 `-o json` 模式下，CLI 仅向 `stdout` 输出 JSON。人类可读的分页提示会被抑制，因此通过管道传给 `jq` 是安全的。如需捕获实际错误，请将 `stderr` 分开处理。
 </Aside>
+
+## JSON 输出结构
+
+`-o json` 会在 `stdout` 上产生两种顶层结构：
+
+1. **原始资源**：用于获取或返回数据的命令
+   （例如 `issues list`、`issues get`、`project create` 等）。输出内容就是 API 返回的资源对象，或者资源对象数组。
+
+2. **动作信封**：用于那些没有自然响应体的变更类命令
+   （例如 `issues close`、`issues delete`、`issues assign`、`wiki delete`、`memberships delete` 等）。该信封结构稳定且精简：
+
+   ```json
+   {
+     "ok": true,
+     "action": "deleted",
+     "resource": "project",
+     "id": "demo",
+     "message": "Project \"demo\" deleted"
+   }
+   ```
+
+   `ok` 表示该命令是否实际改变了状态。某些命令即使成功执行，但没有内容需要变更，也可能返回相同结构且 `ok: false`，并附带说明性的 `message`。
+
+   `action` 的取值集合很小且刻意保持稳定：`created`、`updated`、`deleted`、`closed`、`reopened`、`assigned`、`commented`、`logged`、`user_added`、`user_removed`、`logged_in`、`logged_out`、`switched`、`installed`、`opened`。
+
+## JSON 错误信封
+
+启用 `-o json` 后，如果命令执行失败，CLI 会将结构化错误信封写到 `stdout`，并以非零状态码退出：
+
+```json
+{
+  "error": {
+    "message": "Resource not found.",
+    "code": "not_found"
+  }
+}
+```
+
+`code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`server_error`、`unknown`。校验错误还会包含 `details` 数组，其中列出 Redmine 返回的各项字段错误信息。
+
+## stdout 与 stderr
+
+- 机器可读输出（JSON、CSV、表格行）始终写入 `stdout`。
+- 面向人的信息（非 JSON 模式下的成功确认、警告、进度 spinner、更新检查提示）始终写入 `stderr`。
+
+这种分离是稳定的。脚本可以安全地把 `stdout` 重定向到文件，或者直接通过管道传给 `jq`，而不必担心状态提示混入输出。
 
 ## 默认格式
 
