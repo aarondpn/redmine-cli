@@ -49,7 +49,6 @@ func filterCompletions(items []string, toComplete string) []string {
 func CompleteOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return filterCompletions([]string{
 		"table\tDefault tabular output",
-		"wide\tWide tabular output",
 		"json\tJSON output",
 		"csv\tCSV output",
 	}, toComplete), cobra.ShellCompDirectiveNoFileComp

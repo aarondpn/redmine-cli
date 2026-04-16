@@ -78,7 +78,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
-	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, wide, json, csv")
+	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
 	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
 
 	// Version

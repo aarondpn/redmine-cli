@@ -19,7 +19,7 @@ func AddPaginationFlags(cmd *cobra.Command, limit, offset *int) {
 // commands in isolation, without the root). Local flags shadow the inherited
 // persistent flag, so the end-user behavior is identical.
 func AddOutputFlag(cmd *cobra.Command, format *string) {
-	cmd.Flags().StringVarP(format, "output", "o", "", "Output format: table, wide, json, csv")
+	cmd.Flags().StringVarP(format, "output", "o", "", "Output format: table, json, csv")
 	_ = cmd.RegisterFlagCompletionFunc("output", CompleteOutputFormat)
 }
 

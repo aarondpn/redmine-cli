@@ -8,7 +8,7 @@ type Config struct {
 	Password       string `mapstructure:"password" yaml:"password,omitempty"`
 	AuthMethod     string `mapstructure:"auth_method" yaml:"auth_method,omitempty"` // "apikey" or "basic"
 	DefaultProject string `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "wide", "json", "csv"
+	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
 	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
 }
 
