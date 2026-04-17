@@ -123,3 +123,24 @@ If you prefer not to use the skill installer, you can add the skill reference di
 ```
 
 Or copy the contents of [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) into your project's `CLAUDE.md` or equivalent agent instructions file.
+
+## Local E2E Testing
+
+If you want to exercise the CLI against a real Redmine instance locally, the repo now includes a Docker-based e2e harness under [e2e/README.md](/Users/aarond/Documents/Projects/github/redmine-cli/e2e/README.md:1).
+
+The setup uses Docker Official Images with Postgres and can target the supported Redmine lines `4.2`, `5.1`, and `6.1`. By default it uses `6.1` on `http://127.0.0.1:3000`. If you want a specific supported line, set `E2E_VERSION=...` before the Make target. If you want to point the harness at a custom image later, set `REDMINE_IMAGE=...`.
+
+```bash
+make e2e-up
+make e2e-config
+make e2e-test
+make e2e-down
+```
+
+Or run the full supported-version matrix:
+
+```bash
+make e2e-matrix
+```
+
+The Go e2e suite creates a real project and issue, checks list/get flows, and verifies close/reopen behavior against the local instance.

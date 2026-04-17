@@ -6,3 +6,4 @@ docs/node_modules/
 docs/dist/
 docs/.astro/
 .claude/
+.redmine-cli.e2e.yaml
