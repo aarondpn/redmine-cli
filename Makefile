@@ -13,7 +13,7 @@ E2E_PROJECT_NAME ?= e2e-$(subst .,-,$(E2E_VERSION))
 E2E_PASSWORD ?= admintest123
 SUPPORTED_E2E_VERSIONS=4.2 5.1 6.1
 
-.PHONY: build test lint clean install e2e-up e2e-down e2e-config e2e-test e2e-matrix
+.PHONY: build test lint clean install e2e-up e2e-down e2e-config e2e-test e2e-logs e2e-matrix
 
 build:
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) .
@@ -48,6 +48,9 @@ e2e-test:
 		COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) \
 		REDMINE_E2E_API_KEY="$$(COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) ./e2e/admin-api-key.sh)" \
 		go test -tags=e2e ./e2e -v
+
+e2e-logs:
+	COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) docker compose -f $(E2E_COMPOSE_FILE) logs --no-color
 
 e2e-matrix:
 	@set -e; \
