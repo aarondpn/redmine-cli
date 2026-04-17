@@ -44,7 +44,6 @@ REDMINE_IMAGE=your-registry/redmine:7.0-rc make e2e-up
 make e2e-config
 ```
 
-By default this writes `./.redmine-cli.e2e.yaml` in the repo root using basic auth against `http://127.0.0.1:3000`.
 By default this writes `./.redmine-cli.e2e.yaml` in the repo root using the admin user's Redmine API key against `http://127.0.0.1:3000`.
 
 ## Run the Go e2e suite

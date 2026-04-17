@@ -61,8 +61,15 @@ e2e-matrix:
 			6.1) port=3601 ;; \
 			*) port=3000 ;; \
 		esac; \
+		project_name=e2e-$$(echo $$version | tr . -); \
 		echo "==> Testing Redmine $$version"; \
-		$(MAKE) e2e-up E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=e2e-$$(echo $$version | tr . -); \
-		$(MAKE) e2e-test E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=e2e-$$(echo $$version | tr . -); \
-		$(MAKE) e2e-down E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=e2e-$$(echo $$version | tr . -); \
+		status=0; \
+		$(MAKE) e2e-up E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=$$project_name || status=$$?; \
+		if [ $$status -eq 0 ]; then \
+			$(MAKE) e2e-test E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=$$project_name || status=$$?; \
+		fi; \
+		$(MAKE) e2e-down E2E_VERSION=$$version E2E_IMAGE=redmine:$$version E2E_PORT=$$port E2E_PROJECT_NAME=$$project_name || status=$$?; \
+		if [ $$status -ne 0 ]; then \
+			exit $$status; \
+		fi; \
 	done
