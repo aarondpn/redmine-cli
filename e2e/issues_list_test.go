@@ -14,9 +14,14 @@ func TestIssues_ListFilters(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
+	trackers := trackerNames(t, r)
+	if len(trackers) < 2 {
+		t.Skip("need at least two trackers to validate tracker filtering")
+	}
 
-	open := createTestIssueWithSubject(t, r, proj.Identifier, "Open issue for filter test")
-	closed := createTestIssueWithSubject(t, r, proj.Identifier, "Closed issue for filter test")
+	open := createTestIssueWithTracker(t, r, proj.Identifier, trackers[0], "Open issue for filter test")
+	closed := createTestIssueWithTracker(t, r, proj.Identifier, trackers[0], "Closed issue for filter test")
+	differentTracker := createTestIssueWithTracker(t, r, proj.Identifier, trackers[1], "Different tracker issue for filter test")
 
 	var env actionEnvelope
 	r.runJSON(t, &env, "issues", "close", issueIDArg(closed.ID))
@@ -60,15 +65,24 @@ func TestIssues_ListFilters(t *testing.T) {
 		if !containsInt(ids, open.ID) {
 			t.Fatalf("assignee=me should include open issue %d; got %v", open.ID, ids)
 		}
+		if containsInt(ids, closed.ID) || containsInt(ids, differentTracker.ID) {
+			t.Fatalf("assignee=me should exclude unassigned issues; got %v", ids)
+		}
 	})
 
 	t.Run("tracker filter round-trips", func(t *testing.T) {
-		tracker := firstTrackerName(t, r)
+		tracker := trackers[0]
 		ids := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
 			"--tracker", tracker, "--limit", "100")
-		// Both fixtures used the first tracker.
 		if !containsInt(ids, open.ID) {
 			t.Fatalf("tracker=%s should include open issue %d; got %v", tracker, open.ID, ids)
+		}
+		if !containsInt(ids, closed.ID) {
+			t.Fatalf("tracker=%s should include closed issue %d; got %v", tracker, closed.ID, ids)
+		}
+		if containsInt(ids, differentTracker.ID) {
+			t.Fatalf("tracker=%s should exclude issue %d from tracker %s; got %v",
+				tracker, differentTracker.ID, trackers[1], ids)
 		}
 	})
 

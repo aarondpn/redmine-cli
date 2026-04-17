@@ -116,6 +116,25 @@ func TestIssues_Assign(t *testing.T) {
 	proj := createTestProject(t, r)
 	issue := createTestIssue(t, r, proj.Identifier)
 
+	var before struct {
+		AssignedTo struct {
+			Login string `json:"login"`
+			Name  string `json:"name"`
+		} `json:"assigned_to"`
+	}
+	r.runJSON(t, &before, "issues", "get", issueIDArg(issue.ID))
+	if before.AssignedTo.Name != "" || before.AssignedTo.Login != "" {
+		t.Fatalf("expected new issue to start unassigned, got %+v", before.AssignedTo)
+	}
+
+	var me struct {
+		Login     string `json:"login"`
+		FirstName string `json:"firstname"`
+		LastName  string `json:"lastname"`
+	}
+	r.runJSON(t, &me, "users", "me")
+	wantName := strings.TrimSpace(me.FirstName + " " + me.LastName)
+
 	var assigned actionEnvelope
 	r.runJSON(t, &assigned, "issues", "assign", issueIDArg(issue.ID), "me")
 	if !assigned.Ok || assigned.Action != "assigned" || assigned.Resource != "issue" {
@@ -131,6 +150,12 @@ func TestIssues_Assign(t *testing.T) {
 	r.runJSON(t, &after, "issues", "get", issueIDArg(issue.ID))
 	if after.AssignedTo.Name == "" {
 		t.Fatalf("expected issue to be assigned after `issues assign`, got %+v", after)
+	}
+	if wantName == "" {
+		t.Fatalf("users me returned empty name components: %+v", me)
+	}
+	if after.AssignedTo.Name != wantName {
+		t.Fatalf("assigned_to.name = %q, want %q (user %q)", after.AssignedTo.Name, wantName, me.Login)
 	}
 }
 

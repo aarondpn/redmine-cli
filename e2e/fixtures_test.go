@@ -67,7 +67,11 @@ func createTestIssue(t *testing.T, r *cliRunner, projectIdentifier string) *issu
 
 func createTestIssueWithSubject(t *testing.T, r *cliRunner, projectIdentifier, subject string) *issueFixture {
 	t.Helper()
-	tracker := firstTrackerName(t, r)
+	return createTestIssueWithTracker(t, r, projectIdentifier, firstTrackerName(t, r), subject)
+}
+
+func createTestIssueWithTracker(t *testing.T, r *cliRunner, projectIdentifier, tracker, subject string) *issueFixture {
+	t.Helper()
 
 	var created struct {
 		ID      int    `json:"id"`
@@ -89,6 +93,11 @@ func createTestIssueWithSubject(t *testing.T, r *cliRunner, projectIdentifier, s
 // than hard-coding a name (which differs across default Redmine data sets).
 func firstTrackerName(t *testing.T, r *cliRunner) string {
 	t.Helper()
+	return trackerNames(t, r)[0]
+}
+
+func trackerNames(t *testing.T, r *cliRunner) []string {
+	t.Helper()
 	var trackers []struct {
 		Name string `json:"name"`
 	}
@@ -96,7 +105,11 @@ func firstTrackerName(t *testing.T, r *cliRunner) string {
 	if len(trackers) == 0 {
 		t.Fatal("trackers list returned no trackers")
 	}
-	return trackers[0].Name
+	names := make([]string, 0, len(trackers))
+	for _, tracker := range trackers {
+		names = append(names, tracker.Name)
+	}
+	return names
 }
 
 // firstActivityName fetches /enumerations/time_entry_activities.json via the
