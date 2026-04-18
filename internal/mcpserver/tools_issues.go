@@ -55,9 +55,10 @@ type updateIssueArgs struct {
 	TrackerID      *int     `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
 	StatusID       *int     `json:"status_id,omitempty" jsonschema:"New status ID."`
 	PriorityID     *int     `json:"priority_id,omitempty" jsonschema:"New priority ID."`
-	AssignedToID   *int     `json:"assigned_to_id,omitempty" jsonschema:"User ID to assign. Pass 0 to unassign."`
+	AssignedToID   *int     `json:"assigned_to_id,omitempty" jsonschema:"Positive user ID to assign the issue to."`
 	CategoryID     *int     `json:"category_id,omitempty" jsonschema:"Issue category ID."`
 	FixedVersionID *int     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
+	ParentIssueID  *int     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
 	DoneRatio      *int     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
 	EstimatedHours *float64 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
 	DueDate        *string  `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
@@ -165,6 +166,7 @@ func registerIssueTools(s *mcp.Server, client *api.Client, opts Options) {
 			AssignedToID:   args.AssignedToID,
 			CategoryID:     args.CategoryID,
 			FixedVersionID: args.FixedVersionID,
+			ParentIssueID:  args.ParentIssueID,
 			DoneRatio:      args.DoneRatio,
 			EstimatedHours: args.EstimatedHours,
 			DueDate:        args.DueDate,
@@ -192,8 +194,11 @@ func registerIssueTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "Add a journal comment to an existing issue. Requires --enable-writes.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, args addIssueCommentArgs) (*mcp.CallToolResult, any, error) {
 		notes := args.Notes
-		private := args.PrivateNotes
-		upd := models.IssueUpdate{Notes: &notes, IsPrivate: &private}
+		upd := models.IssueUpdate{Notes: &notes}
+		if args.PrivateNotes {
+			private := true
+			upd.PrivateNotes = &private
+		}
 		if err := client.Issues.Update(ctx, args.ID, upd); err != nil {
 			return toolErrFromAPI[any](err)
 		}

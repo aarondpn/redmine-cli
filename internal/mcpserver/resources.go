@@ -12,8 +12,12 @@ import (
 )
 
 const (
-	mimeJSON     = "application/json"
-	mimeMarkdown = "text/markdown"
+	mimeJSON = "application/json"
+	// mimeWikiText is used for wiki page bodies. Redmine's default text
+	// formatter is Textile and CommonMark is opt-in per instance, so the
+	// server cannot safely advertise a specific markup dialect; text/plain
+	// keeps hosts from mis-rendering Textile as Markdown.
+	mimeWikiText = "text/plain"
 )
 
 // registerResources wires the read-only URI templates. Resources are exposed
@@ -50,8 +54,8 @@ func registerResources(s *mcp.Server, client *api.Client) {
 	s.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: tmplWiki,
 		Name:        "Redmine wiki page",
-		Description: "A Redmine wiki page rendered as Markdown.",
-		MIMEType:    mimeMarkdown,
+		Description: "A Redmine wiki page body. Markup is whatever the Redmine instance is configured to use (Textile by default, CommonMark optional).",
+		MIMEType:    mimeWikiText,
 	}, handleWikiResource(client))
 
 	s.AddResourceTemplate(&mcp.ResourceTemplate{
@@ -169,7 +173,7 @@ func handleWikiResource(client *api.Client) mcp.ResourceHandler {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
-				MIMEType: mimeMarkdown,
+				MIMEType: mimeWikiText,
 				Text:     page.Text,
 			}},
 		}, nil
