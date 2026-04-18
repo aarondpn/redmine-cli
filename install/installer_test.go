@@ -20,9 +20,12 @@ func TestInstallScriptMatchesGoReleaser(t *testing.T) {
 	cfg := loadGoReleaser(t, filepath.Join(repoRoot, ".goreleaser.yaml"))
 	script := string(readFile(t, filepath.Join(repoRoot, "install.sh")))
 
+	// Require an explicit project_name. GoReleaser's default derives from
+	// the module path's last segment, which is "v2" under SIV and would
+	// silently rename every release asset. Pinning here prevents that.
 	projectName := cfg.ProjectName
 	if projectName == "" {
-		projectName = filepath.Base(mustAbs(t, repoRoot))
+		t.Fatal(".goreleaser.yaml: project_name must be set explicitly")
 	}
 
 	archiveTmpl := cfg.archiveNameTemplate()
@@ -124,13 +127,4 @@ func readFile(t *testing.T, path string) []byte {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return b
-}
-
-func mustAbs(t *testing.T, path string) string {
-	t.Helper()
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		t.Fatalf("abs %s: %v", path, err)
-	}
-	return abs
 }

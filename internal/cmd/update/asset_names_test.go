@@ -17,9 +17,12 @@ import (
 func TestExpectedAssetNamesMatchGoReleaser(t *testing.T) {
 	cfg := loadGoReleaserConfig(t)
 
+	// Require an explicit project_name. GoReleaser's default derives from
+	// the module path's last segment, which is "v2" under SIV and would
+	// silently rename every release asset. Pinning here prevents that.
 	projectName := cfg.ProjectName
 	if projectName == "" {
-		projectName = RepoName
+		t.Fatal(".goreleaser.yaml: project_name must be set explicitly")
 	}
 
 	const sampleTag = "v1.2.3"
