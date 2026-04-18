@@ -1,14 +1,21 @@
 version: 2
 
+# Pinned explicitly: GoReleaser otherwise derives this from go.mod's last
+# path segment, which is now "v2" after the SIV migration. A "v2" project
+# name would rename release assets to v2-<os>-<arch>.tar.gz, breaking both
+# install.sh and the self-update path (which expect "redmine-cli-...").
+project_name: redmine-cli
+
 before:
   hooks:
     - mkdir -p completions
-    - sh -c "go run . completion bash > completions/redmine.bash"
-    - sh -c "go run . completion zsh > completions/redmine.zsh"
-    - sh -c "go run . completion fish > completions/redmine.fish"
+    - sh -c "go run ./cmd/redmine completion bash > completions/redmine.bash"
+    - sh -c "go run ./cmd/redmine completion zsh > completions/redmine.zsh"
+    - sh -c "go run ./cmd/redmine completion fish > completions/redmine.fish"
 
 builds:
   - binary: redmine
+    main: ./cmd/redmine
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/config"
-	"github.com/aarondpn/redmine-cli/internal/debug"
-	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 func testClient(t *testing.T) *api.Client {

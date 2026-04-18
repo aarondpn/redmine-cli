@@ -20,6 +20,25 @@ jobs:
         with:
           go-version: "1.26"
 
+      - name: Verify module path matches tag major version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          major="${tag#v}"
+          major="${major%%.*}"
+          module=$(awk '/^module /{print $2}' go.mod)
+          base="${module%/v[0-9]*}"
+          if [ "$major" -ge 2 ]; then
+            expected="${base}/v${major}"
+          else
+            expected="${base}"
+          fi
+          if [ "$module" != "$expected" ]; then
+            echo "::error::go.mod module path '$module' does not match tag '$tag' (expected '$expected')"
+            echo "For v2+ tags, bump go.mod module to end with /vN and rewrite imports accordingly."
+            exit 1
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
         with:

@@ -14,9 +14,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	redmineapi "github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	redmineapi "github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // NewCmdAPI creates the `api` command for raw Redmine API access.

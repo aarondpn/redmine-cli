@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aarondpn/redmine-cli/internal/config"
-	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // RawResponse holds the unprocessed HTTP response from DoRaw.

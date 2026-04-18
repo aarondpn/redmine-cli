@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aarondpn/redmine-cli/internal/resolver"
+	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
 // ResolveProjectID resolves a project input to its numeric ID string.

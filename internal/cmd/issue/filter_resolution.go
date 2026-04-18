@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/output"
-	"github.com/aarondpn/redmine-cli/internal/resolver"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
 func resolveIssueStatusFilter(ctx context.Context, client *api.Client, status string) (string, error) {

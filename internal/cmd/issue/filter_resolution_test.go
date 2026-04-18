@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/output"
-	"github.com/aarondpn/redmine-cli/internal/testutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 func TestResolveIssueAssigneeFilter_MeBypassesLookup(t *testing.T) {

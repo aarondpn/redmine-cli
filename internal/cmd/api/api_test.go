@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	redmineapi "github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/testutil"
+	redmineapi "github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 func TestGetDefaultMethod(t *testing.T) {

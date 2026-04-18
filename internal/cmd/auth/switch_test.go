@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 func TestSwitch_NoProfilesConfiguredWarns(t *testing.T) {

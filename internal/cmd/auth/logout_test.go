@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
 func TestResolveLogoutProfileName_HonorsProfileOverride(t *testing.T) {

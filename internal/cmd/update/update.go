@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -65,14 +65,44 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 var checkHomebrew = defaultCheckHomebrew
 var checkHomebrewOutdated = defaultCheckHomebrewOutdated
 var upgradeHomebrew = defaultUpgradeHomebrew
+var resolveExecPath = defaultResolveExecPath
+var brewPrefix = defaultBrewPrefix
 
-// defaultCheckHomebrew checks if redmine is installed via Homebrew by querying brew.
-func defaultCheckHomebrew() bool {
+func defaultResolveExecPath() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(execPath)
+}
+
+func defaultBrewPrefix() (string, error) {
 	if _, err := exec.LookPath("brew"); err != nil {
+		return "", err
+	}
+	out, err := exec.Command("brew", "--prefix").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// defaultCheckHomebrew reports whether the currently running binary resolves
+// into Homebrew's cask installation for redmine. Users may have a cask
+// installed alongside a manual or go-installed copy, including inside
+// /opt/homebrew/bin or /usr/local/bin, so checking for brew presence or the
+// top-level prefix alone would misroute self-update to `brew upgrade`.
+func defaultCheckHomebrew() bool {
+	execPath, err := resolveExecPath()
+	if err != nil {
 		return false
 	}
-	// brew list --cask exits 0 if the cask is installed, non-zero otherwise
-	return exec.Command("brew", "list", "--cask", "redmine").Run() == nil
+	prefix, err := brewPrefix()
+	if err != nil || prefix == "" {
+		return false
+	}
+	caskDir := filepath.Join(prefix, "Caskroom", "redmine")
+	return strings.HasPrefix(execPath, caskDir+string(filepath.Separator))
 }
 
 func defaultCheckHomebrewOutdated() (bool, error) {

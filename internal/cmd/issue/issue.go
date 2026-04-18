@@ -3,8 +3,8 @@ package issue
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 // assigneeName returns the name of the assignee or an empty string if nil.

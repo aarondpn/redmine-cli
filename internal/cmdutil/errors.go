@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // SilentError is returned when the error message has already been printed

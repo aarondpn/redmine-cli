@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 	"gopkg.in/yaml.v3"
 )
 

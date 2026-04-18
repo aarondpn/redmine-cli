@@ -16,7 +16,7 @@ SUPPORTED_E2E_VERSIONS=4.2 5.1 6.1
 .PHONY: build test lint clean install e2e-up e2e-down e2e-config e2e-test e2e-logs e2e-matrix
 
 build:
-	go build $(LDFLAGS) -o bin/$(BINARY_NAME) .
+	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/redmine
 
 test:
 	go test ./...
@@ -28,7 +28,7 @@ clean:
 	rm -rf bin/
 
 install:
-	go install $(LDFLAGS) .
+	go install $(LDFLAGS) ./cmd/redmine
 
 e2e-up:
 	COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) REDMINE_IMAGE=$(E2E_IMAGE) REDMINE_E2E_PORT=$(E2E_PORT) docker compose -f $(E2E_COMPOSE_FILE) up -d

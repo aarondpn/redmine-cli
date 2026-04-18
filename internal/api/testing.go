@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // NewTestClient constructs a Client wired to a given http.Client and base URL

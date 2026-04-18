@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/testutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 const userJSON = `{"id":1,"login":"admin","admin":true,"firstname":"John","lastname":"Doe","mail":"john@example.com","created_on":"2025-01-01T00:00:00Z","last_login_on":"2025-06-15T08:00:00Z","status":1}`

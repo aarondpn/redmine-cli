@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/testutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 func TestCmdIssueList_EmptyJSON(t *testing.T) {
