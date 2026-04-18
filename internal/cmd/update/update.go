@@ -87,10 +87,11 @@ func defaultBrewPrefix() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// defaultCheckHomebrew reports whether the currently running binary lives
-// inside Homebrew's prefix. A user may have the cask installed alongside a
-// non-brew copy (curl/go install), so checking cask presence alone would
-// misroute that binary's self-update to `brew upgrade`.
+// defaultCheckHomebrew reports whether the currently running binary resolves
+// into Homebrew's cask installation for redmine. Users may have a cask
+// installed alongside a manual or go-installed copy, including inside
+// /opt/homebrew/bin or /usr/local/bin, so checking for brew presence or the
+// top-level prefix alone would misroute self-update to `brew upgrade`.
 func defaultCheckHomebrew() bool {
 	execPath, err := resolveExecPath()
 	if err != nil {
@@ -100,7 +101,8 @@ func defaultCheckHomebrew() bool {
 	if err != nil || prefix == "" {
 		return false
 	}
-	return strings.HasPrefix(execPath, prefix+string(filepath.Separator))
+	caskDir := filepath.Join(prefix, "Caskroom", "redmine")
+	return strings.HasPrefix(execPath, caskDir+string(filepath.Separator))
 }
 
 func defaultCheckHomebrewOutdated() (bool, error) {

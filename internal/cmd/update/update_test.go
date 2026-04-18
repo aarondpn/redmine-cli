@@ -34,10 +34,10 @@ func stubBrewEnv(t *testing.T, execPath, prefix string, prefixErr error) {
 	brewPrefix = func() (string, error) { return prefix, prefixErr }
 }
 
-func TestDefaultCheckHomebrew_ExecUnderPrefix(t *testing.T) {
-	stubBrewEnv(t, "/opt/homebrew/bin/redmine", "/opt/homebrew", nil)
+func TestDefaultCheckHomebrew_ExecUnderCaskDir(t *testing.T) {
+	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine/2.1.1/redmine", "/opt/homebrew", nil)
 	if !defaultCheckHomebrew() {
-		t.Error("expected true when exec path is under brew prefix")
+		t.Error("expected true when exec path resolves into the redmine cask dir")
 	}
 }
 
@@ -50,17 +50,26 @@ func TestDefaultCheckHomebrew_ExecOutsidePrefix(t *testing.T) {
 	}
 }
 
-func TestDefaultCheckHomebrew_PrefixPrefixMatch(t *testing.T) {
-	// Guards against naive string prefix match: "/opt/homebrew-sibling/..."
-	// must not count as being under "/opt/homebrew".
-	stubBrewEnv(t, "/opt/homebrew-sibling/bin/redmine", "/opt/homebrew", nil)
+func TestDefaultCheckHomebrew_ExecUnderPrefixButOutsideCaskDir(t *testing.T) {
+	// A manually copied binary in /opt/homebrew/bin must not be treated as the
+	// brew-managed cask binary.
+	stubBrewEnv(t, "/opt/homebrew/bin/redmine", "/opt/homebrew", nil)
 	if defaultCheckHomebrew() {
-		t.Error("expected false for sibling dir sharing brew prefix as string prefix")
+		t.Error("expected false when exec path is under brew prefix but outside the cask dir")
+	}
+}
+
+func TestDefaultCheckHomebrew_CaskDirPrefixMatch(t *testing.T) {
+	// Guards against naive string prefix match: "/opt/homebrew/Caskroom/redmine-sibling/..."
+	// must not count as being under "/opt/homebrew/Caskroom/redmine".
+	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine-sibling/2.1.1/redmine", "/opt/homebrew", nil)
+	if defaultCheckHomebrew() {
+		t.Error("expected false for sibling dir sharing redmine cask dir as string prefix")
 	}
 }
 
 func TestDefaultCheckHomebrew_BrewNotInstalled(t *testing.T) {
-	stubBrewEnv(t, "/opt/homebrew/bin/redmine", "", errors.New("brew not found"))
+	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine/2.1.1/redmine", "", errors.New("brew not found"))
 	if defaultCheckHomebrew() {
 		t.Error("expected false when brew is unavailable")
 	}
