@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 	repoRoot := repoRootFromCaller()
 	builtCLIPath = filepath.Join(os.TempDir(), fmt.Sprintf("redmine-e2e-%d", time.Now().UnixNano()))
 
-	buildCmd := exec.Command("go", "build", "-o", builtCLIPath, ".")
+	buildCmd := exec.Command("go", "build", "-o", builtCLIPath, "./cmd/redmine")
 	buildCmd.Dir = repoRoot
 	buildCmd.Env = append(os.Environ(), "REDMINE_NO_UPDATE_CHECK=1")
 	out, err := buildCmd.CombinedOutput()
