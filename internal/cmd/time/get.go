@@ -14,7 +14,7 @@ import (
 func newCmdTimeGet(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "get <id>",
-		Aliases: []string{"show"},
+		Aliases: []string{"show", "view"},
 		Short:   "Show a time entry",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

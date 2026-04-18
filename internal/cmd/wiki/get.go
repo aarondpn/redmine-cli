@@ -22,7 +22,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "get <page>",
-		Aliases: []string{"show"},
+		Aliases: []string{"show", "view"},
 		Short:   "Get wiki page details",
 		Long:    "Display detailed information about a Redmine wiki page.",
 		Example: `  # View a wiki page

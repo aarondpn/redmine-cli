@@ -16,7 +16,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "get <identifier>",
-		Aliases: []string{"show"},
+		Aliases: []string{"show", "view"},
 		Short:   "Get project details",
 		Long:    "Display detailed information about a Redmine project.",
 		Args:    cobra.ExactArgs(1),

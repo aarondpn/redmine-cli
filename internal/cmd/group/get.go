@@ -22,7 +22,7 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 		Use:     "get <id-or-name>",
 		Short:   "Show group details",
 		Long:    "Show group details. Accepts a numeric ID or group name.",
-		Aliases: []string{"show"},
+		Aliases: []string{"show", "view"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
