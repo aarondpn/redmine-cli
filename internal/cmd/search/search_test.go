@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/testutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 func TestCmdSearchProjects_EmptyJSON(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // pngSignature is a 1x1 transparent PNG used to verify content-type sniffing

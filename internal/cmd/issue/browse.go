@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/models"
-	"github.com/aarondpn/redmine-cli/internal/tui"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/tui"
 	"github.com/spf13/cobra"
 )
 

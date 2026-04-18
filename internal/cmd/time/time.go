@@ -3,7 +3,7 @@ package time
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 // NewCmdTime creates the parent time command.

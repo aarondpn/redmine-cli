@@ -3,7 +3,7 @@ package cmdutil
 import (
 	"fmt"
 
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // DefaultProject returns the given project string if non-empty, otherwise

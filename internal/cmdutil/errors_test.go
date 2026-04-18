@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 func TestBuildErrorEnvelope_NotFound(t *testing.T) {

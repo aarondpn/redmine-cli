@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aarondpn/redmine-cli/internal/api"
-	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	lfuzzy "github.com/lithammer/fuzzysearch/fuzzy"
 )
 

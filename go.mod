@@ -1,4 +1,4 @@
-module github.com/aarondpn/redmine-cli
+module github.com/aarondpn/redmine-cli/v2
 
 go 1.25.0
 

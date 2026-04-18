@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 func TestStatus_HonorsProfileOverride(t *testing.T) {

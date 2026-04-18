@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/config"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // writeConfigFile creates a temporary YAML config file and returns its path.

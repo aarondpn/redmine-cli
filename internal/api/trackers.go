@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 // TrackerService handles tracker-related API calls.

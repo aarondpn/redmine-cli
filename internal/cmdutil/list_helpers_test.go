@@ -3,7 +3,7 @@ package cmdutil
 import (
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // spyPrinter records calls made to the Printer interface.

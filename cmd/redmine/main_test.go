@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aarondpn/redmine-cli/internal/cmd"
-	"github.com/aarondpn/redmine-cli/internal/cmd/update"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/update"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 func TestWaitForStartupUpdate_FastResult_NoHint(t *testing.T) {

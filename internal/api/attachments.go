@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/aarondpn/redmine-cli/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // AttachmentService handles file upload API calls.

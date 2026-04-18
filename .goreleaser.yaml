@@ -3,12 +3,13 @@ version: 2
 before:
   hooks:
     - mkdir -p completions
-    - sh -c "go run . completion bash > completions/redmine.bash"
-    - sh -c "go run . completion zsh > completions/redmine.zsh"
-    - sh -c "go run . completion fish > completions/redmine.fish"
+    - sh -c "go run ./cmd/redmine completion bash > completions/redmine.bash"
+    - sh -c "go run ./cmd/redmine completion zsh > completions/redmine.zsh"
+    - sh -c "go run ./cmd/redmine completion fish > completions/redmine.fish"
 
 builds:
   - binary: redmine
+    main: ./cmd/redmine
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:

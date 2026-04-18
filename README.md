@@ -43,7 +43,7 @@ Auto-detects your OS and architecture, downloads the latest release with checksu
 ### Install with Go
 
 ```bash
-go install github.com/aarondpn/redmine-cli@latest
+go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
 ```
 
 ### Manual Download

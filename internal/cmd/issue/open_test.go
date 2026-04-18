@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 func TestOpenURL(t *testing.T) {

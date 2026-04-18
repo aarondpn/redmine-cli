@@ -1,6 +1,6 @@
 package cmdutil
 
-import "github.com/aarondpn/redmine-cli/internal/output"
+import "github.com/aarondpn/redmine-cli/v2/internal/output"
 
 // RowBuilder builds one output row for an item. When styled is true, callers
 // may apply ANSI/color formatting suitable for table output.

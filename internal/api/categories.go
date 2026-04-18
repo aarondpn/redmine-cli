@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aarondpn/redmine-cli/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 // CategoryService handles issue category-related API calls.

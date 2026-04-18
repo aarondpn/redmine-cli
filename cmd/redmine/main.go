@@ -8,10 +8,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/aarondpn/redmine-cli/internal/cmd"
-	"github.com/aarondpn/redmine-cli/internal/cmd/update"
-	"github.com/aarondpn/redmine-cli/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/update"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
 
