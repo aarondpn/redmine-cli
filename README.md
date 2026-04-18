@@ -27,6 +27,13 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
 </p>
 
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#getting-started">Getting Started</a> ·
+  <a href="#agent-skill">Agent Skill</a> ·
+  <a href="#mcp-server">MCP Server</a>
+</p>
+
 ## Installation
 
 ### Homebrew (macOS & Linux)
@@ -92,9 +99,11 @@ Run `redmine --help` to see all available commands.
 
 ## Using with AI Agents
 
-redmine-cli ships with an [agent skill](https://github.com/anthropics/skills) that teaches AI coding agents (Claude Code, Cursor, etc.) how to use the CLI effectively. The skill covers output formats, pagination, filtering, name resolution, and common workflows -- so the agent knows to use `-o json`, resolve ambiguous values by querying first, and use the right flags without guessing.
+Two integration paths, depending on how your agent talks to tools:
 
-### Install the skill
+### Agent Skill
+
+For agents that load skills as instructions, redmine-cli ships with a skill that teaches the agent how to drive the CLI effectively -- output formats, pagination, filtering, name resolution, and common workflows -- so it uses `-o json`, resolves ambiguous values by querying first, and picks the right flags without guessing.
 
 ```bash
 # Install globally (available in all projects)
@@ -104,70 +113,16 @@ redmine install-skill --global
 redmine install-skill
 ```
 
-This uses the [skills](https://github.com/anthropics/skills) CLI under the hood (`npx skills add`), which requires Node.js.
+This uses the [skills.sh](https://skills.sh) installer (`npx skills add`) under the hood, which requires Node.js on your `PATH`.
 
-### What the agent learns
+See [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) for the full skill contents -- what the agent learns, and what you can copy into your agent's instructions file if you prefer not to use the installer.
 
-Once installed, the agent will:
+### MCP Server
 
-- Use `-o json` for all commands to get machine-readable output
-- Keep `stderr` separate when capturing `-o json`; JSON is written only to `stdout`
-- Query available options (trackers, statuses, versions, etc.) before creating or updating issues, rather than guessing values
-- Present options to the user for selection when values are ambiguous
-- Handle pagination with `--limit` and `--offset`
-- Use name resolution (e.g. `--assignee "John Smith"` instead of `--assignee 42`)
-- Use the `me` shorthand for `--assignee me`
+For hosts that speak the [Model Context Protocol](https://modelcontextprotocol.io), `redmine mcp serve` exposes the CLI as an MCP server over stdio, reusing the same profile-backed authentication as every other `redmine` command.
 
-### Manual setup
-
-If you prefer not to use the skill installer, you can add the skill reference directly to your agent configuration. For Claude Code, add to `.claude/settings.json`:
-
-```json
-{
-  "skills": ["aarondpn/redmine-cli:redmine-cli"]
-}
-```
-
-Or copy the contents of [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) into your project's `CLAUDE.md` or equivalent agent instructions file.
-
-## MCP Server
-
-`redmine mcp serve` exposes the CLI as a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so MCP-aware hosts (Claude Desktop, Claude Code, Cursor, ...) can drive Redmine with the same profile-backed authentication the CLI already uses.
-
-### Features
-
-- **Tools** mapped 1:1 onto the CLI: `list_issues`, `get_issue`, `list_projects`, `get_project`, `list_project_members`, `list_time_entries`, `summary_time_entries`, `list_users`, `me`, `search`, `list_versions`, `list_trackers`, `list_statuses`, `list_categories`, `list_wiki_pages`, `get_wiki_page`, `list_memberships`, and more.
-- **Resources** for URI-addressable reads: `redmine://issue/{id}`, `redmine://project/{id-or-identifier}`, `redmine://user/{id|me}`, `redmine://time-entry/{id}`, `redmine://wiki/{project}/{page}`, `redmine://version/{id}`.
-- **Read-only by default.** Mutating tools (`create_*`, `update_*`, `delete_*`, `add_issue_comment`, `assign_issue`, `close_issue`, `reopen_issue`) are only registered when `--enable-writes` is passed; without the flag they never appear in `tools/list`.
-- **Authentication reuses the active profile** (or `--profile`, `--server/--api-key`, `REDMINE_*` env vars) just like every other `redmine` command.
-
-### Configure Claude Desktop / Claude Code
-
-Add to the host's `mcpServers` config block:
-
-```json
-{
-  "mcpServers": {
-    "redmine": {
-      "command": "redmine",
-      "args": ["mcp", "serve", "--profile", "work"]
-    }
-  }
-}
-```
-
-To also allow the assistant to create, update, and delete issues / time entries / wiki pages, enable writes explicitly:
-
-```json
-{
-  "mcpServers": {
-    "redmine-write": {
-      "command": "redmine",
-      "args": ["mcp", "serve", "--profile", "work", "--enable-writes"]
-    }
-  }
-}
-```
+- **Read-only by default.** Mutating tools are only registered when `--enable-writes` is passed; without the flag they never appear in `tools/list`.
+- **Authentication reuses the active profile** (or `--profile`, `--server/--api-key`, `REDMINE_*` env vars).
 
 Write tools are destructive; prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
 

@@ -1,13 +1,22 @@
 ---
 title: AI Agent Integration
-description: Use redmine-cli with AI coding agents like Claude Code and Cursor.
+description: Drive redmine-cli from AI agents via the bundled skill or the built-in MCP server.
 ---
 
 import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
 
-redmine-cli ships with an [agent skill](https://github.com/anthropics/skills) that teaches AI coding agents (Claude Code, Cursor, …) how to use the CLI effectively. The skill covers output formats, pagination, filtering, name resolution, and common workflows.
+redmine-cli offers two integration paths for AI agents, depending on how your tool talks to external software.
 
-## Install the skill
+- **Agent Skill** -- a set of instructions the agent loads to drive the `redmine` CLI effectively. Best for coding agents that shell out to CLIs.
+- **MCP Server** -- `redmine mcp serve` exposes the CLI over the [Model Context Protocol](https://modelcontextprotocol.io). Best for hosts that discover tools through MCP.
+
+Pick whichever fits your host. You can also install both.
+
+## Agent Skill
+
+The skill teaches the agent what `--help` cannot: output formats, pagination, filtering, name resolution, and common workflows. After installing it the agent knows to use `-o json`, resolve ambiguous values by querying first, and pick the right flags without guessing.
+
+### Install
 
 <Tabs syncKey="skill-scope">
   <TabItem label="Global">
@@ -27,40 +36,127 @@ redmine-cli ships with an [agent skill](https://github.com/anthropics/skills) th
 </Tabs>
 
 <Aside type="note">
-  Under the hood this uses the [skills](https://github.com/anthropics/skills) CLI (`npx skills add`), which requires Node.js on the `PATH`.
+  Under the hood this uses the [skills.sh](https://skills.sh) installer (`npx skills add`), which requires Node.js on your `PATH`.
 </Aside>
 
-## What the agent learns
+### Manual setup
 
-<Badge text="behaviour" variant="tip" />
-Once the skill is installed, the agent will:
+If you prefer not to run the installer, copy the contents of [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md) into your agent's instructions file and restart the agent.
 
-- Use `-o json` for all commands to get machine-readable output.
-- Query available options (trackers, statuses, versions, …) before creating or updating issues, rather than guessing values.
-- Present options to the user for selection when values are ambiguous.
-- Handle pagination with `--limit` and `--offset`.
-- Use name resolution (e.g. `--assignee "John Smith"` instead of `--assignee 42`).
-- Use the `me` shorthand where appropriate.
-- Use `redmine auth login` for initial setup and `redmine auth switch` to change servers.
-- Use `redmine --profile <name>` to target a specific Redmine instance when multiple are configured.
+The same file is the source of truth for what the agent learns -- read it directly if you want to know exactly which behaviours the skill encodes.
 
-## Manual setup
+## MCP Server
 
-If you prefer not to use the installer, wire the skill into your agent configuration directly.
+`redmine mcp serve` exposes the CLI as a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio. MCP-aware hosts can then drive Redmine through tool calls, reusing the same profile-backed authentication as every other `redmine` command.
+
+### How it works
+
+- **Transport:** stdio. The host spawns `redmine mcp serve` and talks JSON-RPC over its standard streams.
+- **Authentication:** the active profile is used by default. Override with `--profile <name>`, `--server` / `--api-key`, or the `REDMINE_*` environment variables -- exactly like every other subcommand.
+- **Read-only by default.** Mutating tools (create / update / delete, comment, assign, close, reopen) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`.
+
+<Aside type="caution">
+  Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
+</Aside>
+
+### Prerequisite
+
+`redmine` must be on the host's `PATH` and a profile must already be logged in (`redmine auth login`). No Node.js required.
+
+### Host configuration
+
+<Tabs syncKey="mcp-host">
+  <TabItem label="Claude Desktop">
+    Edit `claude_desktop_config.json`:
+
+    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+    ```json
+    {
+      "mcpServers": {
+        "redmine": {
+          "command": "redmine",
+          "args": ["mcp", "serve", "--profile", "work"]
+        }
+      }
+    }
+    ```
+
+    To enable writes, add a second entry or replace the `args`:
+
+    ```json
+    {
+      "mcpServers": {
+        "redmine-write": {
+          "command": "redmine",
+          "args": ["mcp", "serve", "--profile", "work", "--enable-writes"]
+        }
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Cursor">
+    Create `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` in your project root:
+
+    ```json
+    {
+      "mcpServers": {
+        "redmine": {
+          "command": "redmine",
+          "args": ["mcp", "serve", "--profile", "work"]
+        }
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Zed">
+    Add a context server to `settings.json` (`cmd+,` -> "Open Settings"):
+
+    ```json
+    {
+      "context_servers": {
+        "redmine": {
+          "command": {
+            "path": "redmine",
+            "args": ["mcp", "serve", "--profile", "work"]
+          }
+        }
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="GitHub Copilot">
+    In VS Code, create `.vscode/mcp.json` in your workspace (or add to user settings):
+
+    ```json
+    {
+      "servers": {
+        "redmine": {
+          "type": "stdio",
+          "command": "redmine",
+          "args": ["mcp", "serve", "--profile", "work"]
+        }
+      }
+    }
+    ```
+
+    Enable MCP in Copilot Chat by selecting the `redmine` server from the tool picker.
+  </TabItem>
+</Tabs>
+
+### Troubleshooting
 
 <Steps>
 
-1. **Claude Code** — add the skill reference to `.claude/settings.json`:
+1. **Host reports "command not found".** The spawned process inherits the host's `PATH`, which often differs from your shell. Use an absolute path (`which redmine`) in the `command` field.
 
-   ```json
-   {
-     "skills": ["aarondpn/redmine-cli:redmine-cli"]
-   }
-   ```
+2. **Tools list is empty or missing mutations.** `--enable-writes` was not passed, or the host cached an older `tools/list`. Restart the host after changing args.
 
-2. **Cursor and friends** — copy the contents of [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md) into your agent instructions file (e.g. `CLAUDE.md`, `.cursorrules`).
-
-3. Restart the agent so the new instructions are loaded.
+3. **401 / "no profile" errors.** No profile is logged in, or `--profile <name>` points at one that does not exist. Run `redmine auth list` to confirm.
 
 </Steps>
 
