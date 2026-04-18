@@ -27,6 +27,13 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
 </p>
 
+<p align="center">
+  <a href="#安装">安装</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#agent-skill">Agent Skill</a> ·
+  <a href="#mcp-server">MCP Server</a>
+</p>
+
 ## 安装
 
 ### Homebrew（macOS 和 Linux）
@@ -92,9 +99,11 @@ redmine time log
 
 ## 与 AI 代理配合使用
 
-redmine-cli 附带了一个 [agent skill](https://github.com/anthropics/skills)，用于指导 AI 编码代理（Claude Code、Cursor 等）如何高效使用本 CLI。该 skill 涵盖了输出格式、分页、过滤、名称解析以及常见工作流，帮助代理使用 `-o json`、先查询再处理有歧义的值、使用正确的参数而不是靠猜测。
+根据代理与工具的通信方式，提供两种集成方式：
 
-### 安装 skill
+### Agent Skill
+
+对于将 skill 作为指令加载的代理，redmine-cli 附带了一个 skill，用于教代理如何高效驱动本 CLI，涵盖输出格式、分页、过滤、名称解析以及常见工作流，使其使用 `-o json`、先查询再处理有歧义的值、选择正确的参数而无需猜测。
 
 ```bash
 # 全局安装（在所有项目中可用）
@@ -104,31 +113,18 @@ redmine install-skill --global
 redmine install-skill
 ```
 
-它使用 [skills](https://github.com/anthropics/skills) CLI（`npx skills add`），需要 Node.js。
+底层使用 [skills.sh](https://skills.sh) 安装器（`npx skills add`），需要 `PATH` 中有 Node.js。
 
-### 代理能学到什么
+完整的 skill 内容请参见 [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md)：其中说明了代理会学到什么，若不想使用安装器，也可以将相应内容复制到你的代理指令文件中。
 
-安装后，代理将会：
+### MCP Server
 
-- 在所有命令中使用 `-o json` 以获得机器可读的输出
-- 当使用 `-o json` 时，将 `stderr` 单独保留；JSON 仅输出到 `stdout`
-- 在创建或更新 issue 之前，先查询可用选项（trackers、statuses、versions 等），而不是凭猜测填入值
-- 在取值不明确时，将选项呈现给用户选择
-- 使用 `--limit` 和 `--offset` 处理分页
-- 使用名称解析（例如 `--assignee "John Smith"` 而不是 `--assignee 42`）
-- 支持 `me` 作为指派给当前用户的快捷写法（例如 `--assignee me`）
+对于支持 [Model Context Protocol](https://modelcontextprotocol.io) 的宿主，`redmine mcp serve` 通过 stdio 将 CLI 暴露为一个 MCP 服务器，并复用与其他所有 `redmine` 命令相同的基于 profile 的认证。
 
-### 手动配置
+- **默认只读。** 仅在传入 `--enable-writes` 时才会注册修改类工具；未传入该参数时，这些工具不会出现在 `tools/list` 中。
+- **认证复用当前激活的 profile**（或 `--profile`、`--server/--api-key`、`REDMINE_*` 环境变量）。
 
-如果你不想使用 skill 安装器，也可以直接将 skill 引用添加到代理配置中。对于 Claude Code，添加到 `.claude/settings.json`：
-
-```json
-{
-  "skills": ["aarondpn/redmine-cli:redmine-cli"]
-}
-```
-
-或者将 [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) 的内容复制到项目的 `CLAUDE.md` 或类似的代理指令文件中。
+写入工具具有破坏性；除非宿主提供你信任的按调用审批 UI，否则建议保持禁用。
 
 ## 本地端到端测试
 

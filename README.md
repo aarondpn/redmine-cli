@@ -128,7 +128,7 @@ Write tools are destructive; prefer leaving them disabled unless the host surfac
 
 ## Local E2E Testing
 
-If you want to exercise the CLI against a real Redmine instance locally, the repo now includes a Docker-based e2e harness under [e2e/README.md](/Users/aarond/Documents/Projects/github/redmine-cli/e2e/README.md:1).
+If you want to exercise the CLI against a real Redmine instance locally, the repo now includes a Docker-based e2e harness under [e2e/README.md](/e2e/README.md).
 
 The setup uses Docker Official Images with Postgres and can target the supported Redmine lines `4.2`, `5.1`, and `6.1`. By default it uses `6.1` on `http://127.0.0.1:3000`. If you want a specific supported line, set `E2E_VERSION=...` before the Make target. If you want to point the harness at a custom image later, set `REDMINE_IMAGE=...`.
 
