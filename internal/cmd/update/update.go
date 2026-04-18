@@ -106,14 +106,29 @@ func defaultCheckHomebrew() bool {
 }
 
 func defaultCheckHomebrewOutdated() (bool, error) {
+	// `brew outdated --cask <name>` exits 0 with empty stdout when the cask
+	// is up to date, exits 1 with the cask name on stdout when outdated, and
+	// exits non-zero with stderr output on actual errors (e.g. unknown cask).
+	// Treating any non-zero exit as an error would misclassify the common
+	// "outdated" case, blocking self-update right when it should run.
 	cmd := exec.Command("brew", "outdated", "--cask", "redmine")
-	var out bytes.Buffer
+	var out, errBuf bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
-		return false, fmt.Errorf("brew outdated failed: %w", err)
+	cmd.Stderr = &errBuf
+	runErr := cmd.Run()
+	stdout := strings.TrimSpace(out.String())
+
+	if stdout != "" {
+		return true, nil
 	}
-	return strings.TrimSpace(out.String()) != "", nil
+	if runErr != nil {
+		stderr := strings.TrimSpace(errBuf.String())
+		if stderr != "" {
+			return false, fmt.Errorf("brew outdated failed: %w: %s", runErr, stderr)
+		}
+		return false, fmt.Errorf("brew outdated failed: %w", runErr)
+	}
+	return false, nil
 }
 
 func defaultUpgradeHomebrew(stdout, stderr io.Writer) error {

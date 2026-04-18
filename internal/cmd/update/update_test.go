@@ -14,6 +14,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -72,6 +74,62 @@ func TestDefaultCheckHomebrew_BrewNotInstalled(t *testing.T) {
 	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine/2.1.1/redmine", "", errors.New("brew not found"))
 	if defaultCheckHomebrew() {
 		t.Error("expected false when brew is unavailable")
+	}
+}
+
+// withBrewShim prepends a temp dir containing a fake `brew` shell script to
+// PATH. The script's body is the argument verbatim. Returns nothing; the
+// original PATH is restored via t.Cleanup.
+func withBrewShim(t *testing.T, body string) {
+	t.Helper()
+	dir := t.TempDir()
+	script := "#!/bin/sh\n" + body + "\n"
+	shimPath := filepath.Join(dir, "brew")
+	if err := os.WriteFile(shimPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write brew shim: %v", err)
+	}
+	origPath := os.Getenv("PATH")
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+origPath)
+}
+
+func TestDefaultCheckHomebrewOutdated_Outdated(t *testing.T) {
+	// brew outdated --cask <name> exits 1 and prints the cask name when
+	// the cask is outdated. Must be read as outdated=true, not as an error.
+	withBrewShim(t, `echo redmine; exit 1`)
+
+	outdated, err := defaultCheckHomebrewOutdated()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !outdated {
+		t.Error("expected outdated=true when brew prints cask name and exits 1")
+	}
+}
+
+func TestDefaultCheckHomebrewOutdated_UpToDate(t *testing.T) {
+	withBrewShim(t, `exit 0`)
+
+	outdated, err := defaultCheckHomebrewOutdated()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if outdated {
+		t.Error("expected outdated=false for exit 0 with empty stdout")
+	}
+}
+
+func TestDefaultCheckHomebrewOutdated_ActualError(t *testing.T) {
+	withBrewShim(t, `echo "Error: Cask unavailable" >&2; exit 1`)
+
+	outdated, err := defaultCheckHomebrewOutdated()
+	if err == nil {
+		t.Fatal("expected error when stdout is empty and stderr has a message")
+	}
+	if outdated {
+		t.Error("expected outdated=false on error path")
+	}
+	if !strings.Contains(err.Error(), "Cask unavailable") {
+		t.Errorf("expected error to surface stderr, got: %v", err)
 	}
 }
 
