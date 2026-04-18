@@ -17,7 +17,7 @@ func newCmdUserGet(f *cmdutil.Factory) *cobra.Command {
 		Use:     "get <id-or-name>",
 		Short:   "Show user details",
 		Long:    "Show user details. Accepts a numeric ID, login, full name, or 'me'.",
-		Aliases: []string{"show"},
+		Aliases: []string{"show", "view"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
