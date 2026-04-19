@@ -27,6 +27,13 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
 </p>
 
+<p align="center">
+  <a href="#インストール">インストール</a> ·
+  <a href="#はじめに">はじめに</a> ·
+  <a href="#agent-skill">Agent Skill</a> ·
+  <a href="#mcp-server">MCP Server</a>
+</p>
+
 ## インストール
 
 ### Homebrew（macOS および Linux）
@@ -92,9 +99,11 @@ redmine time log
 
 ## AI エージェントとの併用
 
-redmine-cli には [agent skill](https://github.com/anthropics/skills) が同梱されており、AI コーディングエージェント（Claude Code、Cursor など）に本 CLI の効果的な使い方を教えます。この skill は出力形式、ページネーション、フィルタリング、名前解決、一般的なワークフローを扱い、エージェントが `-o json` を使用し、あいまいな値は推測せずに先にクエリで確認し、適切なフラグを正しく使えるようにします。
+エージェントがツールとやり取りする方法に応じて、2 つの統合パスを用意しています。
 
-### skill のインストール
+### Agent Skill
+
+skill を指示として読み込むエージェント向けに、redmine-cli には CLI を効果的に操作する方法を教える skill が同梱されています。出力形式、ページネーション、フィルタリング、名前解決、一般的なワークフローを扱い、エージェントが `-o json` を使用し、あいまいな値は先にクエリで確認し、推測せずに適切なフラグを選択できるようにします。
 
 ```bash
 # グローバルにインストール（すべてのプロジェクトで利用可能）
@@ -104,31 +113,18 @@ redmine install-skill --global
 redmine install-skill
 ```
 
-これは内部で [skills](https://github.com/anthropics/skills) CLI（`npx skills add`）を使用するため、Node.js が必要です。
+内部では [skills.sh](https://skills.sh) インストーラー（`npx skills add`）を利用しているため、`PATH` 上に Node.js が必要です。
 
-### エージェントが学ぶこと
+skill の完全な内容については [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) を参照してください。エージェントが何を学ぶかが記載されており、インストーラーを使いたくない場合はこの内容をエージェントの指示ファイルにコピーして利用できます。
 
-インストール後、エージェントは次のことを行います：
+### MCP Server
 
-- すべてのコマンドで `-o json` を使用し、機械可読な出力を取得する
-- `-o json` をキャプチャする際は `stderr` を分離して保持する。JSON は `stdout` のみに出力される
-- issue を作成または更新する前に、値を推測せず、利用可能な選択肢（trackers、statuses、versions など）をクエリする
-- 値があいまいな場合、選択肢をユーザーに提示して選ばせる
-- `--limit` と `--offset` でページネーションを処理する
-- 名前解決を使用する（例：`--assignee 42` ではなく `--assignee "John Smith"`）
-- 現在のユーザーを指定する省略形として `me` を使用する（例：`--assignee me`）
+[Model Context Protocol](https://modelcontextprotocol.io) に対応したホスト向けに、`redmine mcp serve` は CLI を stdio 経由で MCP サーバーとして公開します。認証は他のすべての `redmine` コマンドと同じ profile ベースの仕組みを再利用します。
 
-### 手動セットアップ
+- **デフォルトは読み取り専用。** 変更系ツールは `--enable-writes` を指定したときのみ登録されます。このフラグがなければ `tools/list` に表示されることはありません。
+- **認証はアクティブな profile を再利用します**（または `--profile`、`--server/--api-key`、`REDMINE_*` 環境変数）。
 
-skill インストーラーを使用したくない場合は、skill 参照をエージェント設定に直接追加することもできます。Claude Code の場合、`.claude/settings.json` に追加します：
-
-```json
-{
-  "skills": ["aarondpn/redmine-cli:redmine-cli"]
-}
-```
-
-または、[`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) の内容をプロジェクトの `CLAUDE.md` または同等のエージェント指示ファイルにコピーしてください。
+書き込みツールは破壊的です。ホスト側に信頼できる呼び出しごとの承認 UI がない限り、無効のままにしておくことをおすすめします。
 
 ## ローカル E2E テスト
 

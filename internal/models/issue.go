@@ -81,6 +81,7 @@ type IssueUpdate struct {
 	AssignedToID   *int     `json:"assigned_to_id,omitempty"`
 	DoneRatio      *int     `json:"done_ratio,omitempty"`
 	Notes          *string  `json:"notes,omitempty"`
+	PrivateNotes   *bool    `json:"private_notes,omitempty"`
 	DueDate        *string  `json:"due_date,omitempty"`
 	ParentIssueID  *int     `json:"parent_issue_id,omitempty"`
 	CategoryID     *int     `json:"category_id,omitempty"`
