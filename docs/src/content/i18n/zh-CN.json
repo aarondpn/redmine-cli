@@ -30,7 +30,7 @@
 	"capability.formats.title": "输出格式",
 	"capability.formats.desc": "表格、宽表、JSON 与 CSV——阅读与脚本化同样得心应手。",
 	"capability.agents.title": "AI 代理就绪",
-	"capability.agents.desc": "为 Claude Code、Cursor 等代理提供一流的 skill 集成。",
+	"capability.agents.desc": "内置 skill 与 MCP 服务器，适用于任何兼容的代理或宿主。",
 	"banner.translationNotice": "本文档由 AI 辅助翻译，可能存在不准确之处。如发现问题或有改进建议，欢迎在 <a href=\"https://github.com/aarondpn/redmine-cli/issues/new\">GitHub 上提交 issue</a>。",
 	"banner.dismissLabel": "关闭"
 }
