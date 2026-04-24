@@ -50,7 +50,8 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.ActivityID = &activityID
 			}
 			if cmd.Flags().Changed("date") {
-				update.SpentOn = &date
+				resolved := cmdutil.ResolveDateKeyword(date)
+				update.SpentOn = &resolved
 			}
 			if cmd.Flags().Changed("comment") {
 				update.Comments = &comment
@@ -69,7 +70,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().Float64Var(&hours, "hours", 0, "Hours spent")
 	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
-	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 
 	_ = cmd.RegisterFlagCompletionFunc("activity", cmdutil.CompleteActivities(f))

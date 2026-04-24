@@ -8,9 +8,35 @@ import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components'
 The `versions` command (alias `v`) manages project versions — the Redmine equivalent of milestones.
 
 <CardGrid>
+  <LinkCard title="create" href="#create" description="Create a project version." />
   <LinkCard title="list" href="#list" description="List versions for a project." />
   <LinkCard title="get"  href="#get"  description="View a single version by ID or name." />
+  <LinkCard title="update" href="#update" description="Update a project version." />
+  <LinkCard title="delete" href="#delete" description="Delete a project version." />
 </CardGrid>
+
+## create
+
+```bash
+redmine versions create --name <name> [flags]
+```
+
+Aliases: `new`.
+
+| Flag | Description |
+|------|-------------|
+| `--project`         | Project identifier — falls back to the default project of the active profile |
+| `--name`            | Version name (required) |
+| `--status`          | Status: `open`, `locked`, `closed` |
+| `--sharing`         | Sharing: `none`, `descendants`, `hierarchy`, `tree`, `system` |
+| `--due-date`        | Due date (`YYYY-MM-DD` or `today`) |
+| `--description`     | Version description |
+| `--wiki-page-title` | Associated wiki page title |
+| `-o, --output`      | Output format |
+
+```bash
+redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30
+```
 
 ## list
 
@@ -44,4 +70,49 @@ Aliases: `show`, `view`. Accepts a numeric ID or a version name.
 
 <Aside type="note">
   When resolving a version by name, a project must be known. The CLI uses `--project` if supplied, otherwise the `default_project` from the active profile.
+</Aside>
+
+## update
+
+```bash
+redmine versions update <id-or-name> [flags]
+```
+
+Aliases: `edit`. Accepts a numeric ID or a version name.
+
+| Flag | Description |
+|------|-------------|
+| `--project`         | Project identifier (used for name resolution; falls back to the default project) |
+| `--name`            | New version name |
+| `--status`          | New status: `open`, `locked`, `closed` |
+| `--sharing`         | New sharing: `none`, `descendants`, `hierarchy`, `tree`, `system` |
+| `--due-date`        | New due date (`YYYY-MM-DD` or `today`) |
+| `--description`     | New version description |
+| `--wiki-page-title` | New associated wiki page title |
+
+```bash
+redmine versions update 42 --status closed
+redmine versions update 1.2.0 --project myproject --due-date 2026-07-15
+```
+
+## delete
+
+```bash
+redmine versions delete <id-or-name> [flags]
+```
+
+Aliases: `rm`. Accepts a numeric ID or a version name.
+
+| Flag | Description |
+|------|-------------|
+| `--project` | Project identifier (used for name resolution; falls back to the default project) |
+| `--force`   | Delete without asking for confirmation |
+
+```bash
+redmine versions delete 42
+redmine versions delete 1.2.0 --project myproject --force
+```
+
+<Aside type="caution">
+  Deleting a version is destructive. Without `--force`, the CLI asks for confirmation before sending the delete request.
 </Aside>

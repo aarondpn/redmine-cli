@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	stdtime "time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
@@ -486,5 +488,96 @@ func TestTimeSummary_Table(t *testing.T) {
 	stderr := testutil.Stderr(f)
 	if !strings.Contains(stderr, "4.00") {
 		t.Errorf("stderr = %q, want total hours", stderr)
+	}
+}
+
+// --- today keyword ---
+
+// TestTimeLog_DateTodayKeyword pins that --date today resolves to today's
+// YYYY-MM-DD in the outgoing payload.
+func TestTimeLog_DateTodayKeyword(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &capturedBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":1,"spent_on":"","project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"activity":{"id":9,"name":"Development"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "10", "--date", "today"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	got, _ := te["spent_on"].(string)
+	want := stdtime.Now().Format("2006-01-02")
+	if got != want {
+		t.Errorf("spent_on = %q, want %q (today)", got, want)
+	}
+}
+
+// TestTimeUpdate_DateTodayKeyword pins that the keyword is also resolved on
+// the update path.
+func TestTimeUpdate_DateTodayKeyword(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &capturedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeUpdate(f)
+	cmd.SetArgs([]string{"42", "--date", "today"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	got, _ := te["spent_on"].(string)
+	want := stdtime.Now().Format("2006-01-02")
+	if got != want {
+		t.Errorf("spent_on = %q, want %q (today)", got, want)
+	}
+}
+
+// TestTimeList_RangeTodayKeyword pins that --from today and --to today are
+// forwarded to the filter as resolved ISO dates.
+func TestTimeList_RangeTodayKeyword(t *testing.T) {
+	var capturedQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entries":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeList(f)
+	cmd.SetArgs([]string{"--from", "today", "--to", "today", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	want := stdtime.Now().Format("2006-01-02")
+	if got := capturedQuery.Get("from"); got != want {
+		t.Errorf("from query = %q, want %q", got, want)
+	}
+	if got := capturedQuery.Get("to"); got != want {
+		t.Errorf("to query = %q, want %q", got, want)
 	}
 }

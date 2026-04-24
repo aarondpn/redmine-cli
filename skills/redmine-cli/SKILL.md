@@ -16,7 +16,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues |
 | `projects` | List, get, create, update, delete projects; list project members |
 | `time` | Log, list, get, update, delete, summarize time entries |
-| `versions` | List, get project versions (milestones) |
+| `versions` | Create, list, get, update, delete project versions (milestones) |
 | `memberships` | List, get, create, update, delete project memberships |
 | `users` | List, get, create, update, delete users |
 | `groups` | List, get, create, update, delete groups; add/remove users |
@@ -94,4 +94,5 @@ Get the server URL from `redmine config` (or from the JSON output's hints). Alwa
 - `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
-- Version status filters (`--open`, `--closed`, `--locked`) on `redmine versions list` are applied client-side.
+- Projects can accumulate hundreds of versions, most of them closed or locked. When you need a version for a new issue, time entry, or similar workflow, always start from `redmine versions list --open` so the shortlist stays small and you don't pick a version that can no longer accept work.
+- Any date flag (`--due-date`, `--date`, `--from`, `--to`) accepts the literal keyword `today` as a shortcut for the current date.

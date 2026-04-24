@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -25,6 +26,30 @@ type getVersionArgs struct {
 	ID int `json:"id" jsonschema:"Numeric version (milestone) ID."`
 }
 
+type createVersionArgs struct {
+	ProjectID     string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Name          string `json:"name" jsonschema:"Version name."`
+	Status        string `json:"status,omitempty" jsonschema:"Version status: open, locked, or closed."`
+	Sharing       string `json:"sharing,omitempty" jsonschema:"Version sharing: none, descendants, hierarchy, tree, or system."`
+	DueDate       string `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
+	Description   string `json:"description,omitempty" jsonschema:"Version description."`
+	WikiPageTitle string `json:"wiki_page_title,omitempty" jsonschema:"Associated wiki page title."`
+}
+
+type updateVersionArgs struct {
+	ID            int     `json:"id" jsonschema:"Numeric version (milestone) ID."`
+	Name          *string `json:"name,omitempty" jsonschema:"New version name."`
+	Status        *string `json:"status,omitempty" jsonschema:"New status: open, locked, or closed."`
+	Sharing       *string `json:"sharing,omitempty" jsonschema:"New sharing: none, descendants, hierarchy, tree, or system."`
+	DueDate       *string `json:"due_date,omitempty" jsonschema:"New due date (YYYY-MM-DD)."`
+	Description   *string `json:"description,omitempty" jsonschema:"New description."`
+	WikiPageTitle *string `json:"wiki_page_title,omitempty" jsonschema:"New associated wiki page title."`
+}
+
+type deleteVersionArgs struct {
+	ID int `json:"id" jsonschema:"Numeric version (milestone) ID to delete. Destructive."`
+}
+
 type listCategoriesArgs struct {
 	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 }
@@ -45,7 +70,7 @@ type statusesListResult struct {
 	Count    int                  `json:"count"`
 }
 
-func registerMetaTools(s *mcp.Server, client *api.Client) {
+func registerMetaTools(s *mcp.Server, client *api.Client, opts Options) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_versions",
 		Description: "List versions (milestones) for a project.",
@@ -67,6 +92,53 @@ func registerMetaTools(s *mcp.Server, client *api.Client) {
 		}
 		return toolOK[any](version)
 	})
+
+	if opts.EnableWrites {
+		mcp.AddTool(s, &mcp.Tool{
+			Name:        "create_version",
+			Description: "Create a project version (milestone). Requires --enable-writes.",
+		}, func(ctx context.Context, _ *mcp.CallToolRequest, args createVersionArgs) (*mcp.CallToolResult, any, error) {
+			version, err := client.Versions.Create(ctx, args.ProjectID, models.VersionCreate{
+				Name:          args.Name,
+				Status:        args.Status,
+				Sharing:       args.Sharing,
+				DueDate:       args.DueDate,
+				Description:   args.Description,
+				WikiPageTitle: args.WikiPageTitle,
+			})
+			if err != nil {
+				return toolErrFromAPI[any](err)
+			}
+			return toolOK[any](version)
+		})
+
+		mcp.AddTool(s, &mcp.Tool{
+			Name:        "update_version",
+			Description: "Update an existing version (milestone). Requires --enable-writes.",
+		}, func(ctx context.Context, _ *mcp.CallToolRequest, args updateVersionArgs) (*mcp.CallToolResult, any, error) {
+			if err := client.Versions.Update(ctx, args.ID, models.VersionUpdate{
+				Name:          args.Name,
+				Status:        args.Status,
+				Sharing:       args.Sharing,
+				DueDate:       args.DueDate,
+				Description:   args.Description,
+				WikiPageTitle: args.WikiPageTitle,
+			}); err != nil {
+				return toolErrFromAPI[any](err)
+			}
+			return toolOKMsg(fmt.Sprintf("Updated version %d", args.ID))
+		})
+
+		mcp.AddTool(s, &mcp.Tool{
+			Name:        "delete_version",
+			Description: "Delete a version (milestone). Destructive. Requires --enable-writes.",
+		}, func(ctx context.Context, _ *mcp.CallToolRequest, args deleteVersionArgs) (*mcp.CallToolResult, any, error) {
+			if err := client.Versions.Delete(ctx, args.ID); err != nil {
+				return toolErrFromAPI[any](err)
+			}
+			return toolOKMsg(fmt.Sprintf("Deleted version %d", args.ID))
+		})
+	}
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_trackers",

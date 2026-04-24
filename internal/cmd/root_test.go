@@ -91,6 +91,7 @@ func TestRootCmdWithFactory_ReturnsFactoryAndSetsOutputFormat(t *testing.T) {
 	root, factory := NewRootCmdWithFactory("test")
 	if factory == nil {
 		t.Fatal("factory must not be nil")
+		return
 	}
 
 	// Execute PersistentPreRunE with -o json to confirm factory wiring.

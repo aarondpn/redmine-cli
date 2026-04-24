@@ -67,6 +67,7 @@ func TestCheckForUpdate_NewerAvailable(t *testing.T) {
 	result := CheckForUpdate(context.Background(), "1.0.0")
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.NewVersion != "2.0.0" {
 		t.Errorf("NewVersion = %q, want %q", result.NewVersion, "2.0.0")
@@ -196,6 +197,7 @@ func TestCheckForUpdateCached_PositiveCacheHit(t *testing.T) {
 	result := CheckForUpdateCached(context.Background(), "1.0.0")
 	if result == nil {
 		t.Fatal("expected cached result")
+		return
 	}
 	if result.NewVersion != "2.0.0" {
 		t.Errorf("NewVersion = %q, want %q", result.NewVersion, "2.0.0")
@@ -258,6 +260,7 @@ func TestCheckForUpdateCached_InvalidPositiveCacheFallsBackToFetch(t *testing.T)
 	cache := readTestCache(t)
 	if cache == nil {
 		t.Fatal("expected cache to be rewritten")
+		return
 	}
 	if cache.UpdateAvailable {
 		t.Errorf("cache should reflect no update available, got update_available=true")
@@ -353,6 +356,7 @@ func TestCheckForUpdateCached_CacheWritePositive(t *testing.T) {
 	cache := readTestCache(t)
 	if cache == nil {
 		t.Fatal("expected cache to be written")
+		return
 	}
 	if cache.CheckedFromVersion != "1.0.0" {
 		t.Errorf("CheckedFromVersion = %q, want %q", cache.CheckedFromVersion, "1.0.0")
@@ -384,6 +388,7 @@ func TestCheckForUpdateCached_CacheWriteNoUpdate(t *testing.T) {
 	cache := readTestCache(t)
 	if cache == nil {
 		t.Fatal("expected cache to be written")
+		return
 	}
 	if cache.UpdateAvailable {
 		t.Errorf("UpdateAvailable = %v, want false", cache.UpdateAvailable)
@@ -453,6 +458,7 @@ func TestCheckForUpdateCached_CacheBypassByVersionMismatch(t *testing.T) {
 	result := CheckForUpdateCached(context.Background(), "1.1.0")
 	if result == nil {
 		t.Fatal("expected live result after version mismatch invalidated the cache")
+		return
 	}
 	if result.NewVersion != "2.0.0" {
 		t.Errorf("NewVersion = %q, want %q", result.NewVersion, "2.0.0")
@@ -480,6 +486,7 @@ func TestCheckForUpdateCached_PositiveCacheHitWithVPrefixVersion(t *testing.T) {
 	result := CheckForUpdateCached(context.Background(), "v1.0.0")
 	if result == nil {
 		t.Fatal("expected cached result")
+		return
 	}
 	if result.NewVersion != "2.0.0" {
 		t.Errorf("NewVersion = %q, want %q", result.NewVersion, "2.0.0")
@@ -495,6 +502,7 @@ func TestCheckForUpdate_Regression(t *testing.T) {
 	result := CheckForUpdate(context.Background(), "1.0.0")
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.NewVersion != "2.0.0" {
 		t.Errorf("NewVersion = %q, want %q", result.NewVersion, "2.0.0")

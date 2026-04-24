@@ -107,6 +107,7 @@ func TestWikiService_Create_Body(t *testing.T) {
 	}
 	if page == nil {
 		t.Fatal("expected non-nil page")
+		return
 	}
 	if page.Title != "NewPage" {
 		t.Errorf("page.Title = %q, want NewPage", page.Title)

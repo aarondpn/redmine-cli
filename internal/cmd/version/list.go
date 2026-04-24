@@ -17,11 +17,14 @@ func NewCmdVersions(f *cmdutil.Factory) *cobra.Command {
 		Use:     "versions",
 		Aliases: []string{"v"},
 		Short:   "Manage project versions",
-		Long:    "List and view Redmine project versions (milestones).",
+		Long:    "Create, list, view, update, and delete Redmine project versions (milestones).",
 	}
 
 	cmd.AddCommand(newCmdVersionList(f))
 	cmd.AddCommand(newCmdVersionGet(f))
+	cmd.AddCommand(newCmdVersionCreate(f))
+	cmd.AddCommand(newCmdVersionUpdate(f))
+	cmd.AddCommand(newCmdVersionDelete(f))
 	return cmd
 }
 

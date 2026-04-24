@@ -8,9 +8,35 @@ import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components'
 `versions` 命令（别名 `v`）用于管理项目版本——即 Redmine 中的里程碑。
 
 <CardGrid>
+  <LinkCard title="create" href="#create" description="创建项目版本。" />
   <LinkCard title="list" href="#list" description="列出项目的所有版本。" />
   <LinkCard title="get"  href="#get"  description="通过 ID 或名称查看单个版本。" />
+  <LinkCard title="update" href="#update" description="更新项目版本。" />
+  <LinkCard title="delete" href="#delete" description="删除项目版本。" />
 </CardGrid>
+
+## create
+
+```bash
+redmine versions create --name <name> [flags]
+```
+
+别名：`new`。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`         | 项目标识符——默认回退至活跃配置文件的默认项目 |
+| `--name`            | 版本名称（必填） |
+| `--status`          | 状态：`open`、`locked`、`closed` |
+| `--sharing`         | 共享范围：`none`、`descendants`、`hierarchy`、`tree`、`system` |
+| `--due-date`        | 截止日期（`YYYY-MM-DD` 或 `today`） |
+| `--description`     | 版本描述 |
+| `--wiki-page-title` | 关联的 Wiki 页面标题 |
+| `-o, --output`      | 输出格式 |
+
+```bash
+redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30
+```
 
 ## list
 
@@ -44,4 +70,49 @@ redmine versions get <id-or-name> [flags]
 
 <Aside type="note">
   通过名称解析版本时，必须已知项目信息。CLI 优先使用 `--project`，否则使用活跃配置文件中的 `default_project`。
+</Aside>
+
+## update
+
+```bash
+redmine versions update <id-or-name> [flags]
+```
+
+别名：`edit`。接受数字 ID 或版本名称。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`         | 项目标识符（用于名称解析；默认回退至默认项目） |
+| `--name`            | 新版本名称 |
+| `--status`          | 新状态：`open`、`locked`、`closed` |
+| `--sharing`         | 新共享范围：`none`、`descendants`、`hierarchy`、`tree`、`system` |
+| `--due-date`        | 新截止日期（`YYYY-MM-DD` 或 `today`） |
+| `--description`     | 新版本描述 |
+| `--wiki-page-title` | 新关联的 Wiki 页面标题 |
+
+```bash
+redmine versions update 42 --status closed
+redmine versions update 1.2.0 --project myproject --due-date 2026-07-15
+```
+
+## delete
+
+```bash
+redmine versions delete <id-or-name> [flags]
+```
+
+别名：`rm`。接受数字 ID 或版本名称。
+
+| 标志 | 描述 |
+|------|------|
+| `--project` | 项目标识符（用于名称解析；默认回退至默认项目） |
+| `--force`   | 删除前不询问确认 |
+
+```bash
+redmine versions delete 42
+redmine versions delete 1.2.0 --project myproject --force
+```
+
+<Aside type="caution">
+  删除版本是破坏性操作。未使用 `--force` 时，CLI 会在发送删除请求前要求确认。
 </Aside>
