@@ -5,6 +5,7 @@ package e2e
 import (
 	"strconv"
 	"testing"
+	"time"
 )
 
 // TestVersions_Lifecycle drives the full project-version life cycle against
@@ -89,13 +90,15 @@ func TestVersions_Lifecycle(t *testing.T) {
 		t.Fatalf("get by name = %+v, want id=%d", byName, created.ID)
 	}
 
-	// Update: rename, flip status, clear description (pointer-nil vs
-	// explicit-empty semantics live in VersionUpdate).
+	// Update: rename, flip status, clear description, and push due-date
+	// forward via the `today` keyword so the shared keyword-resolver is
+	// exercised through a real request.
 	var updated actionEnvelope
 	r.runJSON(t, &updated, "versions", "update", strconv.Itoa(created.ID),
 		"--name", newName,
 		"--status", "locked",
-		"--description", "")
+		"--description", "",
+		"--due-date", "today")
 	if !updated.Ok || updated.Action != "updated" || updated.Resource != "version" {
 		t.Fatalf("unexpected update envelope: %+v", updated)
 	}
@@ -108,6 +111,7 @@ func TestVersions_Lifecycle(t *testing.T) {
 		Name        string `json:"name"`
 		Status      string `json:"status"`
 		Description string `json:"description"`
+		DueDate     string `json:"due_date"`
 	}
 	r.runJSON(t, &afterUpdate, "versions", "get", strconv.Itoa(created.ID))
 	if afterUpdate.Name != newName {
@@ -118,6 +122,10 @@ func TestVersions_Lifecycle(t *testing.T) {
 	}
 	if afterUpdate.Description != "" {
 		t.Errorf("after update description = %q, want empty", afterUpdate.Description)
+	}
+	today := time.Now().Format("2006-01-02")
+	if afterUpdate.DueDate != today {
+		t.Errorf("after update due_date = %q, want %q (today keyword resolved server-side)", afterUpdate.DueDate, today)
 	}
 
 	// Delete by the new name — exercises resolveVersionID on the delete path.

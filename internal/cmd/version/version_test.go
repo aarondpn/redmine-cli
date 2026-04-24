@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
@@ -364,6 +365,77 @@ func TestVersionDelete_Cancelled(t *testing.T) {
 	}
 	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Delete cancelled") {
 		t.Errorf("stderr = %q, want 'Delete cancelled'", stderr)
+	}
+}
+
+// TestVersionCreate_DueDateTodayKeyword pins that the shared date-keyword
+// helper is wired into `versions create --due-date`.
+func TestVersionCreate_DueDateTodayKeyword(t *testing.T) {
+	var capturedBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/projects/demo.json" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"name":"Demo","identifier":"demo","description":"","status":1,"is_public":true,"created_on":"","updated_on":""}}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("bad JSON body: %v\n%s", err, body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"version":{"id":7,"project":{"id":1,"name":"Demo"},"name":"v1.2","status":"open","due_date":"","sharing":"none","description":"","created_on":"","updated_on":""}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionCreate(f)
+	cmd.SetArgs([]string{"--project", "demo", "--name", "v1.2", "--due-date", "today"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	version, ok := capturedBody["version"].(map[string]any)
+	if !ok {
+		t.Fatalf("body missing version key: %+v", capturedBody)
+	}
+	got, _ := version["due_date"].(string)
+	want := time.Now().Format("2006-01-02")
+	if got != want {
+		t.Errorf("due_date = %q, want %q (today)", got, want)
+	}
+}
+
+// TestVersionUpdate_DueDateTodayKeyword pins that the keyword is also
+// resolved on the update path and sent through as a concrete ISO date.
+func TestVersionUpdate_DueDateTodayKeyword(t *testing.T) {
+	var capturedBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("bad JSON body: %v\n%s", err, body)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionUpdate(f)
+	cmd.SetArgs([]string{"7", "--due-date", "today"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	version, ok := capturedBody["version"].(map[string]any)
+	if !ok {
+		t.Fatalf("body missing version key: %+v", capturedBody)
+	}
+	got, _ := version["due_date"].(string)
+	want := time.Now().Format("2006-01-02")
+	if got != want {
+		t.Errorf("due_date = %q, want %q (today)", got, want)
 	}
 }
 

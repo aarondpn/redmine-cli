@@ -39,6 +39,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			date = cmdutil.ResolveDateKeyword(date)
 			if date == "" {
 				date = time.Now().Format("2006-01-02")
 			}
@@ -78,7 +79,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().Float64Var(&hours, "hours", 0, "Hours spent (required)")
 	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
-	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD, default today)")
+	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD or 'today', default today)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 	cmdutil.AddOutputFlag(cmd, &format)
 

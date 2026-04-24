@@ -96,3 +96,4 @@ Get the server URL from `redmine config` (or from the JSON output's hints). Alwa
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - `redmine versions create` creates milestones; `update` and `delete` accept an ID or a version name. Name resolution requires `--project` or a configured default project.
 - Version status filters (`--open`, `--closed`, `--locked`) on `redmine versions list` are applied client-side.
+- Any date flag (`--due-date`, `--date`, `--from`, `--to`) accepts the literal keyword `today` as a shortcut for the current date.

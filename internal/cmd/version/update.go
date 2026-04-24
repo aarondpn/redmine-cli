@@ -51,7 +51,8 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.Sharing = &sharing
 			}
 			if cmd.Flags().Changed("due-date") {
-				update.DueDate = &dueDate
+				resolved := cmdutil.ResolveDateKeyword(dueDate)
+				update.DueDate = &resolved
 			}
 			if cmd.Flags().Changed("description") {
 				update.Description = &description
@@ -74,7 +75,7 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Version name")
 	cmd.Flags().StringVar(&status, "status", "", "Version status: open, locked, closed")
 	cmd.Flags().StringVar(&sharing, "sharing", "", "Version sharing: none, descendants, hierarchy, tree, system")
-	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&description, "description", "", "Version description")
 	cmd.Flags().StringVar(&wikiPageTitle, "wiki-page-title", "", "Wiki page title")
 

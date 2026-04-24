@@ -40,6 +40,9 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			from = cmdutil.ResolveDateKeyword(from)
+			to = cmdutil.ResolveDateKeyword(to)
+
 			if from == "" {
 				// Default to start of current week (Monday)
 				now := time.Now()
@@ -143,8 +146,8 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID, login, name, or 'me'")
-	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD, default: start of current week)")
-	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD, default: today)")
+	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD or 'today', default: start of current week)")
+	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD or 'today', default: today)")
 	cmd.Flags().StringVar(&groupBy, "group-by", "day", "Group by: day, project, activity")
 	cmdutil.AddOutputFlag(cmd, &format)
 

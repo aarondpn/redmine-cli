@@ -38,6 +38,9 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 
 			ctx := context.Background()
 
+			from = cmdutil.ResolveDateKeyword(from)
+			to = cmdutil.ResolveDateKeyword(to)
+
 			project, err = cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
 				return err
@@ -147,8 +150,8 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&user, "user", "", "Filter by user ID, login, name, or 'me'")
 	cmd.Flags().IntVar(&issue, "issue", 0, "Filter by issue ID")
-	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD)")
-	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD or 'today')")
+	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&activity, "activity", "", "Filter by activity name or ID")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
