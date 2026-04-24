@@ -15,7 +15,7 @@ func registerTools(s *mcp.Server, client *api.Client, opts Options) {
 	registerTimeEntryTools(s, client, opts)
 	registerUserTools(s, client, opts)
 	registerSearchTools(s, client)
-	registerMetaTools(s, client)
+	registerMetaTools(s, client, opts)
 	registerWikiTools(s, client, opts)
 	registerMembershipTools(s, client, opts)
 }

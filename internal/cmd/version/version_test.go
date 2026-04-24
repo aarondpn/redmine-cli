@@ -1,6 +1,8 @@
 package version
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -204,5 +206,163 @@ func TestVersionGet_Detail(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("detail output missing %q:\n%s", want, stdout)
 		}
+	}
+}
+
+// --- create ---
+
+func TestVersionCreate_SendsBody(t *testing.T) {
+	var capturedMethod, capturedPath string
+	var capturedBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/projects/demo.json" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"name":"Demo","identifier":"demo","description":"","status":1,"is_public":true,"created_on":"","updated_on":""}}`))
+			return
+		}
+		capturedMethod = r.Method
+		capturedPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("bad JSON body: %v\n%s", err, body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"version":{"id":7,"project":{"id":1,"name":"Demo"},"name":"v1.2","status":"open","due_date":"2026-06-30","sharing":"none","description":"Release","wiki_page_title":"ReleaseNotes","created_on":"","updated_on":""}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionCreate(f)
+	cmd.SetArgs([]string{
+		"--project", "demo",
+		"--name", "v1.2",
+		"--status", "open",
+		"--sharing", "none",
+		"--due-date", "2026-06-30",
+		"--description", "Release",
+		"--wiki-page-title", "ReleaseNotes",
+		"--output", "json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if capturedMethod != http.MethodPost {
+		t.Errorf("method = %s, want POST", capturedMethod)
+	}
+	if capturedPath != "/projects/demo/versions.json" {
+		t.Errorf("path = %s, want /projects/demo/versions.json", capturedPath)
+	}
+	version, ok := capturedBody["version"].(map[string]any)
+	if !ok {
+		t.Fatalf("body missing version key: %+v", capturedBody)
+	}
+	wantFields := map[string]string{
+		"name":            "v1.2",
+		"status":          "open",
+		"sharing":         "none",
+		"due_date":        "2026-06-30",
+		"description":     "Release",
+		"wiki_page_title": "ReleaseNotes",
+	}
+	for field, want := range wantFields {
+		if got, _ := version[field].(string); got != want {
+			t.Errorf("version[%s] = %q, want %q", field, got, want)
+		}
+	}
+	if !strings.Contains(testutil.Stdout(f), `"id": 7`) {
+		t.Errorf("stdout = %q, want created version JSON", testutil.Stdout(f))
+	}
+}
+
+// --- update ---
+
+func TestVersionUpdate_SendsChangedFieldsOnly(t *testing.T) {
+	var capturedMethod, capturedPath string
+	var capturedBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedMethod = r.Method
+		capturedPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("bad JSON body: %v\n%s", err, body)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionUpdate(f)
+	cmd.SetArgs([]string{"7", "--name", "v1.2.1", "--description", ""})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if capturedMethod != http.MethodPut {
+		t.Errorf("method = %s, want PUT", capturedMethod)
+	}
+	if capturedPath != "/versions/7.json" {
+		t.Errorf("path = %s, want /versions/7.json", capturedPath)
+	}
+	version, ok := capturedBody["version"].(map[string]any)
+	if !ok {
+		t.Fatalf("body missing version key: %+v", capturedBody)
+	}
+	if got, _ := version["name"].(string); got != "v1.2.1" {
+		t.Errorf("name = %q, want v1.2.1", got)
+	}
+	if got, ok := version["description"].(string); !ok || got != "" {
+		t.Errorf("description = %v, want empty string", version["description"])
+	}
+	if _, ok := version["status"]; ok {
+		t.Errorf("status should be omitted when unchanged: %+v", version)
+	}
+}
+
+// --- delete ---
+
+func TestVersionDelete_Force(t *testing.T) {
+	var capturedMethod, capturedPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedMethod = r.Method
+		capturedPath = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionDelete(f)
+	cmd.SetArgs([]string{"7", "--force"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if capturedMethod != http.MethodDelete {
+		t.Errorf("method = %s, want DELETE", capturedMethod)
+	}
+	if capturedPath != "/versions/7.json" {
+		t.Errorf("path = %s, want /versions/7.json", capturedPath)
+	}
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Deleted version 7") {
+		t.Errorf("stderr = %q, want success message", stderr)
+	}
+}
+
+func TestVersionDelete_Cancelled(t *testing.T) {
+	f := testutil.NewFactory(t, "http://unused")
+	f.IOStreams.In = strings.NewReader("n\n")
+
+	cmd := newCmdVersionDelete(f)
+	cmd.SetArgs([]string{"7"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Delete cancelled") {
+		t.Errorf("stderr = %q, want 'Delete cancelled'", stderr)
 	}
 }

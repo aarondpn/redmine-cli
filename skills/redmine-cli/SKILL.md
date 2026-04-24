@@ -16,7 +16,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues |
 | `projects` | List, get, create, update, delete projects; list project members |
 | `time` | Log, list, get, update, delete, summarize time entries |
-| `versions` | List, get project versions (milestones) |
+| `versions` | Create, list, get, update, delete project versions (milestones) |
 | `memberships` | List, get, create, update, delete project memberships |
 | `users` | List, get, create, update, delete users |
 | `groups` | List, get, create, update, delete groups; add/remove users |
@@ -94,4 +94,5 @@ Get the server URL from `redmine config` (or from the JSON output's hints). Alwa
 - `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
+- `redmine versions create` creates milestones; `update` and `delete` accept an ID or a version name. Name resolution requires `--project` or a configured default project.
 - Version status filters (`--open`, `--closed`, `--locked`) on `redmine versions list` are applied client-side.

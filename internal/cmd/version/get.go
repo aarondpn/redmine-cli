@@ -3,13 +3,11 @@ package version
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
-	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
 func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
@@ -31,25 +29,9 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			ctx := context.Background()
-
-			var id int
-			if numID, err := strconv.Atoi(args[0]); err == nil {
-				id = numID
-			} else {
-				// Non-numeric: resolve by name, requires project
-				project = cmdutil.DefaultProject(f, project)
-				if project == "" {
-					return fmt.Errorf("--project is required when looking up a version by name")
-				}
-				project, err = cmdutil.ResolveProjectIdentifier(ctx, f, project)
-				if err != nil {
-					return err
-				}
-				resolved, err := resolver.ResolveVersion(ctx, client, args[0], project)
-				if err != nil {
-					return err
-				}
-				id = resolved
+			id, err := resolveVersionID(ctx, f, client, args[0], project)
+			if err != nil {
+				return err
 			}
 
 			printer := f.Printer(format)

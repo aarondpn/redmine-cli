@@ -63,6 +63,17 @@ func CompleteVersionStatus(_ *cobra.Command, _ []string, toComplete string) ([]s
 	}, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
+// CompleteVersionSharing provides static completions for version --sharing flag.
+func CompleteVersionSharing(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return filterCompletions([]string{
+		"none",
+		"descendants",
+		"hierarchy",
+		"tree",
+		"system",
+	}, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
 // CompleteUserStatus provides static completions for user --status flag.
 func CompleteUserStatus(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return filterCompletions([]string{

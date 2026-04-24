@@ -36,6 +36,29 @@ func (s *VersionService) Get(ctx context.Context, id int) (*models.Version, erro
 	return &resp.Version, nil
 }
 
+// Create creates a version for a project.
+func (s *VersionService) Create(ctx context.Context, projectID string, version models.VersionCreate) (*models.Version, error) {
+	body := map[string]interface{}{"version": version}
+	var resp struct {
+		Version models.Version `json:"version"`
+	}
+	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/versions.json", projectID), body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Version, nil
+}
+
+// Update updates an existing version.
+func (s *VersionService) Update(ctx context.Context, id int, update models.VersionUpdate) error {
+	body := map[string]interface{}{"version": update}
+	return s.client.Put(ctx, fmt.Sprintf("/versions/%d.json", id), body)
+}
+
+// Delete deletes a version.
+func (s *VersionService) Delete(ctx context.Context, id int) error {
+	return s.client.Delete(ctx, fmt.Sprintf("/versions/%d.json", id))
+}
+
 // ListFiltered pages through versions for a project, keeping only those that
 // match the filter function, and returns once need results have been collected
 // (or there are no more pages). If need is 0, all matching versions are returned.
