@@ -366,3 +366,65 @@ func TestVersionDelete_Cancelled(t *testing.T) {
 		t.Errorf("stderr = %q, want 'Delete cancelled'", stderr)
 	}
 }
+
+// TestVersionDelete_ResolvesByName exercises the name-lookup branch of the
+// shared resolveVersionID helper: project identifier lookup + versions list +
+// name match + DELETE.
+func TestVersionDelete_ResolvesByName(t *testing.T) {
+	var deletePath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/projects/demo.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"name":"Demo","identifier":"demo","description":"","status":1,"is_public":true,"created_on":"","updated_on":""}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/projects/demo/versions.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"versions":[{"id":42,"project":{"id":1,"name":"Demo"},"name":"v1.2","status":"open","due_date":"","sharing":"none","description":"","created_on":"","updated_on":""}],"total_count":1}`))
+		case r.Method == http.MethodDelete:
+			deletePath = r.URL.Path
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionDelete(f)
+	cmd.SetArgs([]string{"v1.2", "--project", "demo", "--force"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if deletePath != "/versions/42.json" {
+		t.Errorf("delete path = %q, want /versions/42.json", deletePath)
+	}
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "Deleted version 42") {
+		t.Errorf("stderr = %q, want 'Deleted version 42'", stderr)
+	}
+}
+
+// TestVersionDelete_NameWithoutProjectErrors pins the shared resolveVersionID
+// error path: a non-numeric argument with no --project and no default project
+// must fail fast before any HTTP traffic.
+func TestVersionDelete_NameWithoutProjectErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected HTTP traffic: %s %s", r.Method, r.URL.Path)
+		http.Error(w, "unexpected", http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdVersionDelete(f)
+	cmd.SetArgs([]string{"v1.2", "--force"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when resolving name without --project")
+	}
+	if !strings.Contains(err.Error(), "--project is required") {
+		t.Errorf("error = %q, want contains '--project is required'", err.Error())
+	}
+}
