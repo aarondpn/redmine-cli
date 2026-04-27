@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/huh v0.8.0
-	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/charmbracelet/lipgloss/v2 v2.0.3
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/pterm/pterm v0.12.83
