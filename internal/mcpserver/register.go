@@ -23,8 +23,6 @@ func registerTools(s *mcp.Server, client *api.Client, opts Options) {
 
 // defaultListLimit caps list_* tools when the caller omits a limit so a
 // language model cannot accidentally pull thousands of rows into its context.
-const defaultListLimit = ops.DefaultListLimit
-
 func listLimit(requested int) int {
 	return ops.ListLimit(requested)
 }
