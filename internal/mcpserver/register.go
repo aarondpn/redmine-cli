@@ -4,6 +4,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 // registerTools wires every tool onto the server. Mutating tools are only
@@ -22,12 +23,8 @@ func registerTools(s *mcp.Server, client *api.Client, opts Options) {
 
 // defaultListLimit caps list_* tools when the caller omits a limit so a
 // language model cannot accidentally pull thousands of rows into its context.
-const defaultListLimit = 50
+const defaultListLimit = ops.DefaultListLimit
 
-// listLimit returns the effective limit for a list_* tool argument.
 func listLimit(requested int) int {
-	if requested <= 0 {
-		return defaultListLimit
-	}
-	return requested
+	return ops.ListLimit(requested)
 }

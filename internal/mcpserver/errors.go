@@ -27,6 +27,16 @@ func toolErrFromAPI[T any](err error) (*mcp.CallToolResult, T, error) {
 	return toolErr[T](describeAPIError(err))
 }
 
+// toolErrFromError returns a tool-level error for both API failures and local
+// validation/runtime failures from the ops layer.
+func toolErrFromError[T any](err error) (*mcp.CallToolResult, T, error) {
+	var ae *api.APIError
+	if errors.As(err, &ae) {
+		return toolErrFromAPI[T](err)
+	}
+	return toolErr[T](err.Error())
+}
+
 // toolOK returns a success CallToolResult that carries the marshalled value
 // both as TextContent (for clients that only consume content) and as the
 // structured return value (for clients that understand structuredContent).
@@ -46,6 +56,12 @@ func toolOKMsg(msg string) (*mcp.CallToolResult, any, error) {
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
 	}, nil, nil
+}
+
+func toolOKMsgWithValue[T any](v T, msg string) (*mcp.CallToolResult, T, error) {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
+	}, v, nil
 }
 
 // describeAPIError converts an error from the api package to a user-facing
