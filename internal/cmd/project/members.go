@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -31,10 +32,15 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			members, total, err := client.Projects.Members(context.Background(), args[0], limit, offset)
+			result, err := ops.ListProjectMembers(context.Background(), client, ops.ListProjectMembersInput{
+				Identifier: args[0],
+				Limit:      cmdutil.OpsLimit(limit),
+				Offset:     offset,
+			})
 			if err != nil {
 				return err
 			}
+			members, total := result.Members, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, members, "members") {
 				return nil
