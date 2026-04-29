@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -52,11 +53,12 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching categories...")
-			categories, _, err := client.Categories.List(context.Background(), project)
+			result, err := ops.ListCategories(context.Background(), client, ops.ListCategoriesInput{ProjectID: project})
 			stop()
 			if err != nil {
 				return err
 			}
+			categories := result.Categories
 
 			if cmdutil.HandleEmpty(printer, categories, "categories") {
 				return nil
