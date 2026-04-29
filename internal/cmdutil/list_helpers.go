@@ -3,8 +3,21 @@ package cmdutil
 import (
 	"fmt"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
+
+// OpsLimit translates a CLI --limit value to the convention used by the ops
+// layer. The CLI treats --limit 0 as "no limit" while ops applies an
+// MCP-safety default of 50 for zero. Any caller that wants to honor the
+// CLI semantics passes its raw flag value through OpsLimit before
+// constructing an ops input.
+func OpsLimit(cliLimit int) int {
+	if cliLimit == 0 {
+		return ops.NoLimit
+	}
+	return cliLimit
+}
 
 // DefaultProject returns the given project string if non-empty, otherwise
 // falls back to the configured default project. If the config cannot be
