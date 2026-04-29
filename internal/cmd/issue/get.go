@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -55,7 +56,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching issue...")
-			issue, err := client.Issues.Get(context.Background(), id, includes)
+			issue, err := ops.GetIssue(context.Background(), client, ops.GetIssueInput{ID: id, Includes: includes})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get issue %s: %w", fmt.Sprintf("#%d", id), err)

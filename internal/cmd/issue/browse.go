@@ -53,6 +53,8 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Loading issues...")
+			// TUI browser bypasses the ops layer: it has its own fixed
+			// limit and never surfaces pagination warnings.
 			issues, _, err := client.Issues.List(ctx, models.IssueFilter{
 				ProjectID:    project,
 				StatusID:     resolvedStatus,

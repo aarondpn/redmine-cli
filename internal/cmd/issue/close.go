@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -33,33 +33,11 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer("")
-			stop := printer.Spinner("Fetching statuses...")
-			statuses, err := client.Statuses.List(context.Background())
-			stop()
-			if err != nil {
-				return fmt.Errorf("failed to fetch statuses: %w", err)
-			}
-
-			var closedStatusID int
-			for _, s := range statuses {
-				if s.IsClosed {
-					closedStatusID = s.ID
-					break
-				}
-			}
-			if closedStatusID == 0 {
-				return fmt.Errorf("no closed status found")
-			}
-
-			update := models.IssueUpdate{
-				StatusID: &closedStatusID,
-			}
-			if note != "" {
-				update.Notes = &note
-			}
-
-			stop = printer.Spinner("Closing issue...")
-			err = client.Issues.Update(context.Background(), id, update)
+			stop := printer.Spinner("Closing issue...")
+			_, err = ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
+				ID:    id,
+				Notes: note,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to close issue %s: %w", fmt.Sprintf("#%d", id), err)
