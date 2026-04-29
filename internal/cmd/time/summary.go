@@ -69,7 +69,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			// Fetch all entries in the range (use a large limit)
+			// Carve-out: keep direct client.TimeEntries.List because ops.SummaryTimeEntries rejects unknown group_by while the CLI silently falls back to "day".
 			filter := models.TimeEntryFilter{
 				ProjectID: project,
 				UserID:    userID,
