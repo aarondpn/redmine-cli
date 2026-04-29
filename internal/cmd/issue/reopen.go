@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -33,33 +33,11 @@ func NewCmdReopen(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer("")
-			stop := printer.Spinner("Fetching statuses...")
-			statuses, err := client.Statuses.List(context.Background())
-			stop()
-			if err != nil {
-				return fmt.Errorf("failed to fetch statuses: %w", err)
-			}
-
-			var openStatusID int
-			for _, s := range statuses {
-				if !s.IsClosed {
-					openStatusID = s.ID
-					break
-				}
-			}
-			if openStatusID == 0 {
-				return fmt.Errorf("no open status found")
-			}
-
-			update := models.IssueUpdate{
-				StatusID: &openStatusID,
-			}
-			if note != "" {
-				update.Notes = &note
-			}
-
-			stop = printer.Spinner("Reopening issue...")
-			err = client.Issues.Update(context.Background(), id, update)
+			stop := printer.Spinner("Reopening issue...")
+			_, err = ops.ReopenIssue(context.Background(), client, ops.ReopenIssueInput{
+				ID:    id,
+				Notes: note,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to reopen issue %s: %w", fmt.Sprintf("#%d", id), err)
