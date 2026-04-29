@@ -27,19 +27,21 @@ type GetWikiPageInput struct {
 }
 
 type CreateWikiPageInput struct {
-	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	Page      string `json:"page" jsonschema:"Wiki page title (slug) to create or overwrite."`
-	Text      string `json:"text" jsonschema:"Page body (Textile or Markdown depending on the Redmine configuration)."`
-	Title     string `json:"title,omitempty" jsonschema:"Optional display title; may differ from the slug."`
-	Comments  string `json:"comments,omitempty" jsonschema:"Edit comment."`
+	ProjectID string          `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Page      string          `json:"page" jsonschema:"Wiki page title (slug) to create or overwrite."`
+	Text      string          `json:"text" jsonschema:"Page body (Textile or Markdown depending on the Redmine configuration)."`
+	Title     string          `json:"title,omitempty" jsonschema:"Optional display title; may differ from the slug."`
+	Comments  string          `json:"comments,omitempty" jsonschema:"Edit comment."`
+	Uploads   []models.Upload `json:"-"`
 }
 
 type UpdateWikiPageInput struct {
-	ProjectID string  `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	Page      string  `json:"page" jsonschema:"Wiki page title (slug) to update."`
-	Text      *string `json:"text,omitempty" jsonschema:"New page body."`
-	Title     *string `json:"title,omitempty" jsonschema:"New display title."`
-	Comments  *string `json:"comments,omitempty" jsonschema:"Edit comment."`
+	ProjectID string          `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Page      string          `json:"page" jsonschema:"Wiki page title (slug) to update."`
+	Text      *string         `json:"text,omitempty" jsonschema:"New page body."`
+	Title     *string         `json:"title,omitempty" jsonschema:"New display title."`
+	Comments  *string         `json:"comments,omitempty" jsonschema:"Edit comment."`
+	Uploads   []models.Upload `json:"-"`
 }
 
 type DeleteWikiPageInput struct {
@@ -74,6 +76,7 @@ func CreateWikiPage(ctx context.Context, client *api.Client, input CreateWikiPag
 		Text:     input.Text,
 		Title:    input.Title,
 		Comments: input.Comments,
+		Uploads:  input.Uploads,
 	})
 }
 
@@ -86,6 +89,7 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 		Text:     input.Text,
 		Title:    input.Title,
 		Comments: input.Comments,
+		Uploads:  input.Uploads,
 	}); err != nil {
 		return MessageResult{}, err
 	}

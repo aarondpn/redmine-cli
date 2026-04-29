@@ -2,6 +2,92 @@
 
 Generated from annotated ops functions. Do not edit by hand.
 
+## groups
+
+### `add_group_user`
+
+Add a user to a Redmine group. Requires --enable-writes.
+
+- Mode: `write`
+- Source: `ops.AddGroupUser`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `group_id` | `int` | yes | Group ID. |
+| `user_id` | `int` | yes | User ID. |
+
+### `create_group`
+
+Create a new Redmine group. Requires --enable-writes.
+
+- Mode: `write`
+- Source: `ops.CreateGroup`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | `string` | yes | Group name. |
+| `user_ids` | `[]int` | no | Optional list of user IDs to add as group members. |
+
+### `delete_group`
+
+Delete a Redmine group. Destructive. Requires --enable-writes.
+
+- Mode: `write`
+- Source: `ops.DeleteGroup`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `int` | yes | Group ID to delete. Destructive. |
+
+### `get_group`
+
+Fetch a single Redmine group by ID.
+
+- Mode: `read`
+- Source: `ops.GetGroup`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `int` | yes | Numeric group ID. |
+| `includes` | `[]string` | no | Extra sections to include: 'users', 'memberships'. |
+
+### `list_groups`
+
+List Redmine groups.
+
+- Mode: `read`
+- Source: `ops.ListGroups`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `limit` | `int` | no | Max results to return. Defaults to 50 when omitted. |
+| `offset` | `int` | no | Number of leading results to skip (pagination). |
+
+### `remove_group_user`
+
+Remove a user from a Redmine group. Requires --enable-writes.
+
+- Mode: `write`
+- Source: `ops.RemoveGroupUser`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `group_id` | `int` | yes | Group ID. |
+| `user_id` | `int` | yes | User ID. |
+
+### `update_group`
+
+Update an existing Redmine group. Requires --enable-writes.
+
+- Mode: `write`
+- Source: `ops.UpdateGroup`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | `int` | yes | Group ID to update. |
+| `name` | `*string` | no | New group name. |
+| `user_ids` | `*[]int` | no | Replacement set of user IDs. Pass an empty list to remove all members. |
+
 ## issues
 
 ### `add_issue_comment`

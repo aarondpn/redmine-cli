@@ -10,6 +10,46 @@ import (
 )
 
 func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
+	registerToolSpec(s, client, opts, toolSpec[ops.GroupUserInput, ops.MessageResult]{
+		Name:        "add_group_user",
+		Description: "Add a user to a Redmine group. Requires --enable-writes.",
+		Writes:      true,
+		Call:        ops.AddGroupUser,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.CreateGroupInput, *models.Group]{
+		Name:        "create_group",
+		Description: "Create a new Redmine group. Requires --enable-writes.",
+		Writes:      true,
+		Call:        ops.CreateGroup,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.DeleteGroupInput, ops.MessageResult]{
+		Name:        "delete_group",
+		Description: "Delete a Redmine group. Destructive. Requires --enable-writes.",
+		Writes:      true,
+		Call:        ops.DeleteGroup,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetGroupInput, *models.Group]{
+		Name:        "get_group",
+		Description: "Fetch a single Redmine group by ID.",
+		Call:        ops.GetGroup,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListGroupsInput, ops.GroupsListResult]{
+		Name:        "list_groups",
+		Description: "List Redmine groups.",
+		Call:        ops.ListGroups,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GroupUserInput, ops.MessageResult]{
+		Name:        "remove_group_user",
+		Description: "Remove a user from a Redmine group. Requires --enable-writes.",
+		Writes:      true,
+		Call:        ops.RemoveGroupUser,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UpdateGroupInput, ops.MessageResult]{
+		Name:        "update_group",
+		Description: "Update an existing Redmine group. Requires --enable-writes.",
+		Writes:      true,
+		Call:        ops.UpdateGroup,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.AddIssueCommentInput, ops.MessageResult]{
 		Name:        "add_issue_comment",
 		Description: "Add a journal comment to an existing issue. Requires --enable-writes.",

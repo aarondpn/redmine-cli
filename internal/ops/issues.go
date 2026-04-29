@@ -32,36 +32,38 @@ type GetIssueInput struct {
 }
 
 type CreateIssueInput struct {
-	ProjectID      int     `json:"project_id" jsonschema:"Numeric project ID to create the issue in."`
-	Subject        string  `json:"subject" jsonschema:"Issue subject (title)."`
-	Description    string  `json:"description,omitempty" jsonschema:"Issue body (Textile or Markdown depending on the Redmine configuration)."`
-	TrackerID      int     `json:"tracker_id,omitempty" jsonschema:"Tracker ID (Bug, Feature, ...). Use list_trackers to discover."`
-	StatusID       int     `json:"status_id,omitempty" jsonschema:"Initial status ID. Use list_statuses to discover."`
-	PriorityID     int     `json:"priority_id,omitempty" jsonschema:"Priority ID."`
-	AssignedToID   int     `json:"assigned_to_id,omitempty" jsonschema:"User ID of the assignee."`
-	CategoryID     int     `json:"category_id,omitempty" jsonschema:"Issue category ID. Use list_categories to discover."`
-	FixedVersionID int     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
-	ParentIssueID  int     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks."`
-	EstimatedHours float64 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
-	IsPrivate      *bool   `json:"is_private,omitempty" jsonschema:"Mark the issue as private."`
+	ProjectID      int             `json:"project_id" jsonschema:"Numeric project ID to create the issue in."`
+	Subject        string          `json:"subject" jsonschema:"Issue subject (title)."`
+	Description    string          `json:"description,omitempty" jsonschema:"Issue body (Textile or Markdown depending on the Redmine configuration)."`
+	TrackerID      int             `json:"tracker_id,omitempty" jsonschema:"Tracker ID (Bug, Feature, ...). Use list_trackers to discover."`
+	StatusID       int             `json:"status_id,omitempty" jsonschema:"Initial status ID. Use list_statuses to discover."`
+	PriorityID     int             `json:"priority_id,omitempty" jsonschema:"Priority ID."`
+	AssignedToID   int             `json:"assigned_to_id,omitempty" jsonschema:"User ID of the assignee."`
+	CategoryID     int             `json:"category_id,omitempty" jsonschema:"Issue category ID. Use list_categories to discover."`
+	FixedVersionID int             `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
+	ParentIssueID  int             `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks."`
+	EstimatedHours float64         `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	IsPrivate      *bool           `json:"is_private,omitempty" jsonschema:"Mark the issue as private."`
+	Uploads        []models.Upload `json:"-"`
 }
 
 type UpdateIssueInput struct {
-	ID             int      `json:"id" jsonschema:"Issue ID to update."`
-	Subject        *string  `json:"subject,omitempty" jsonschema:"New subject (title)."`
-	Description    *string  `json:"description,omitempty" jsonschema:"New description body."`
-	TrackerID      *int     `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
-	StatusID       *int     `json:"status_id,omitempty" jsonschema:"New status ID."`
-	PriorityID     *int     `json:"priority_id,omitempty" jsonschema:"New priority ID."`
-	AssignedToID   *int     `json:"assigned_to_id,omitempty" jsonschema:"Positive user ID to assign the issue to."`
-	CategoryID     *int     `json:"category_id,omitempty" jsonschema:"Issue category ID."`
-	FixedVersionID *int     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
-	ParentIssueID  *int     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
-	DoneRatio      *int     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
-	EstimatedHours *float64 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
-	DueDate        *string  `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
-	Notes          *string  `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
-	IsPrivate      *bool    `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
+	ID             int             `json:"id" jsonschema:"Issue ID to update."`
+	Subject        *string         `json:"subject,omitempty" jsonschema:"New subject (title)."`
+	Description    *string         `json:"description,omitempty" jsonschema:"New description body."`
+	TrackerID      *int            `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
+	StatusID       *int            `json:"status_id,omitempty" jsonschema:"New status ID."`
+	PriorityID     *int            `json:"priority_id,omitempty" jsonschema:"New priority ID."`
+	AssignedToID   *int            `json:"assigned_to_id,omitempty" jsonschema:"Positive user ID to assign the issue to."`
+	CategoryID     *int            `json:"category_id,omitempty" jsonschema:"Issue category ID."`
+	FixedVersionID *int            `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
+	ParentIssueID  *int            `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
+	DoneRatio      *int            `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
+	EstimatedHours *float64        `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	DueDate        *string         `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
+	Notes          *string         `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
+	IsPrivate      *bool           `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
+	Uploads        []models.Upload `json:"-"`
 }
 
 type DeleteIssueInput struct {
@@ -135,6 +137,7 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 		ParentIssueID:  input.ParentIssueID,
 		EstimatedHours: input.EstimatedHours,
 		IsPrivate:      input.IsPrivate,
+		Uploads:        input.Uploads,
 	})
 }
 
@@ -158,6 +161,7 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 		DueDate:        input.DueDate,
 		Notes:          input.Notes,
 		IsPrivate:      input.IsPrivate,
+		Uploads:        input.Uploads,
 	})
 	if err != nil {
 		return MessageResult{}, err
