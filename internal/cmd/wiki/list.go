@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -47,11 +48,16 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Fetching wiki pages...")
-			pages, total, err := client.Wikis.List(ctx, projectID, limit, offset)
+			result, err := ops.ListWikiPages(ctx, client, ops.ListWikiPagesInput{
+				ProjectID: projectID,
+				Limit:     cmdutil.OpsLimit(limit),
+				Offset:    offset,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list wiki pages: %w", err)
 			}
+			pages, total := result.Pages, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, pages, "wiki pages") {
 				return nil
