@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -36,7 +37,7 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching version...")
-			version, err := client.Versions.Get(ctx, id)
+			version, err := ops.GetVersion(ctx, client, ops.GetVersionInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get version %d: %w", id, err)
