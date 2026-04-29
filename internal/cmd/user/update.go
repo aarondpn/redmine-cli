@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -39,25 +39,25 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 
-			update := models.UserUpdate{}
+			input := ops.UpdateUserInput{ID: id}
 			if cmd.Flags().Changed("firstname") {
-				update.FirstName = &firstname
+				input.FirstName = &firstname
 			}
 			if cmd.Flags().Changed("lastname") {
-				update.LastName = &lastname
+				input.LastName = &lastname
 			}
 			if cmd.Flags().Changed("mail") {
-				update.Mail = &mail
+				input.Mail = &mail
 			}
 			if cmd.Flags().Changed("admin") {
-				update.Admin = &admin
+				input.Admin = &admin
 			}
 			if cmd.Flags().Changed("status") {
-				update.Status = &status
+				input.Status = &status
 			}
 
 			stop := printer.Spinner("Updating user...")
-			err = client.Users.Update(context.Background(), id, update)
+			_, err = ops.UpdateUser(context.Background(), client, input)
 			stop()
 			if err != nil {
 				return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -33,7 +34,7 @@ func newCmdUserGet(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching user...")
-			user, err := client.Users.Get(context.Background(), id)
+			user, err := ops.GetUser(context.Background(), client, ops.GetUserInput{ID: id})
 			stop()
 			if err != nil {
 				return err
