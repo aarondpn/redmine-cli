@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -40,28 +40,28 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			update := models.VersionUpdate{}
+			input := ops.UpdateVersionInput{ID: id}
 			if cmd.Flags().Changed("name") {
-				update.Name = &name
+				input.Name = &name
 			}
 			if cmd.Flags().Changed("status") {
-				update.Status = &status
+				input.Status = &status
 			}
 			if cmd.Flags().Changed("sharing") {
-				update.Sharing = &sharing
+				input.Sharing = &sharing
 			}
 			if cmd.Flags().Changed("due-date") {
 				resolved := cmdutil.ResolveDateKeyword(dueDate)
-				update.DueDate = &resolved
+				input.DueDate = &resolved
 			}
 			if cmd.Flags().Changed("description") {
-				update.Description = &description
+				input.Description = &description
 			}
 			if cmd.Flags().Changed("wiki-page-title") {
-				update.WikiPageTitle = &wikiPageTitle
+				input.WikiPageTitle = &wikiPageTitle
 			}
 
-			if err := client.Versions.Update(ctx, id, update); err != nil {
+			if _, err := ops.UpdateVersion(ctx, client, input); err != nil {
 				return err
 			}
 

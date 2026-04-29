@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -89,6 +90,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 			if statusFilter != "" {
 				// Page through the API, collecting only matching versions
 				// until we have enough for offset + limit.
+				// no ops equivalent: ListFiltered uses a different return shape (no total_count)
 				need := 0
 				if limit > 0 {
 					need = offset + limit
@@ -111,12 +113,16 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 					versions = nil
 				}
 			} else {
-				var err error
-				versions, total, err = client.Versions.List(context.Background(), project, limit, offset)
+				result, err := ops.ListVersions(context.Background(), client, ops.ListVersionsInput{
+					ProjectID: project,
+					Limit:     cmdutil.OpsLimit(limit),
+					Offset:    offset,
+				})
 				stop()
 				if err != nil {
 					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
 				}
+				versions, total = result.Versions, result.TotalCount
 			}
 
 			if cmdutil.HandleEmpty(printer, versions, "versions") {
