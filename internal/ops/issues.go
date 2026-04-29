@@ -89,6 +89,9 @@ type ReopenIssueInput struct {
 	Notes string `json:"notes,omitempty" jsonschema:"Optional journal note to attach."`
 }
 
+//mcpgen:tool list_issues
+//mcpgen:description List Redmine issues matching the given filters.
+//mcpgen:category issues
 func ListIssues(ctx context.Context, client *api.Client, input ListIssuesInput) (IssuesListResult, error) {
 	issues, total, err := client.Issues.List(ctx, models.IssueFilter{
 		ProjectID:      input.ProjectID,
@@ -107,10 +110,17 @@ func ListIssues(ctx context.Context, client *api.Client, input ListIssuesInput) 
 	return IssuesListResult{Issues: issues, Count: len(issues), TotalCount: total}, nil
 }
 
+//mcpgen:tool get_issue
+//mcpgen:description Fetch a single Redmine issue by ID.
+//mcpgen:category issues
 func GetIssue(ctx context.Context, client *api.Client, input GetIssueInput) (*models.Issue, error) {
 	return client.Issues.Get(ctx, input.ID, input.Includes)
 }
 
+//mcpgen:tool create_issue
+//mcpgen:description Create a new Redmine issue. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput) (*models.Issue, error) {
 	return client.Issues.Create(ctx, models.IssueCreate{
 		ProjectID:      input.ProjectID,
@@ -128,6 +138,10 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 	})
 }
 
+//mcpgen:tool update_issue
+//mcpgen:description Update fields on an existing Redmine issue. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput) (MessageResult, error) {
 	err := client.Issues.Update(ctx, input.ID, models.IssueUpdate{
 		Subject:        input.Subject,
@@ -151,6 +165,10 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 	return MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}, nil
 }
 
+//mcpgen:tool delete_issue
+//mcpgen:description Delete a Redmine issue. Destructive. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func DeleteIssue(ctx context.Context, client *api.Client, input DeleteIssueInput) (MessageResult, error) {
 	if err := client.Issues.Delete(ctx, input.ID); err != nil {
 		return MessageResult{}, err
@@ -158,6 +176,10 @@ func DeleteIssue(ctx context.Context, client *api.Client, input DeleteIssueInput
 	return MessageResult{Message: fmt.Sprintf("Deleted issue #%d", input.ID)}, nil
 }
 
+//mcpgen:tool add_issue_comment
+//mcpgen:description Add a journal comment to an existing issue. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func AddIssueComment(ctx context.Context, client *api.Client, input AddIssueCommentInput) (MessageResult, error) {
 	notes := input.Notes
 	upd := models.IssueUpdate{Notes: &notes}
@@ -171,6 +193,10 @@ func AddIssueComment(ctx context.Context, client *api.Client, input AddIssueComm
 	return MessageResult{Message: fmt.Sprintf("Added comment to issue #%d", input.ID)}, nil
 }
 
+//mcpgen:tool assign_issue
+//mcpgen:description Assign an issue to a user. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput) (MessageResult, error) {
 	if input.AssigneeID <= 0 {
 		return MessageResult{}, fmt.Errorf("assignee_id must be a positive user ID; use update_issue to unassign")
@@ -182,6 +208,10 @@ func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput
 	return MessageResult{Message: fmt.Sprintf("Assigned issue #%d to user %d", input.ID, input.AssigneeID)}, nil
 }
 
+//mcpgen:tool close_issue
+//mcpgen:description Close an issue by setting its status to the first closed status. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func CloseIssue(ctx context.Context, client *api.Client, input CloseIssueInput) (MessageResult, error) {
 	statusID, err := firstStatusID(ctx, client, true)
 	if err != nil {
@@ -198,6 +228,10 @@ func CloseIssue(ctx context.Context, client *api.Client, input CloseIssueInput) 
 	return MessageResult{Message: fmt.Sprintf("Closed issue #%d", input.ID)}, nil
 }
 
+//mcpgen:tool reopen_issue
+//mcpgen:description Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
 func ReopenIssue(ctx context.Context, client *api.Client, input ReopenIssueInput) (MessageResult, error) {
 	statusID, err := firstStatusID(ctx, client, false)
 	if err != nil {

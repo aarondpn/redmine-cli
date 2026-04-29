@@ -68,6 +68,9 @@ type StatusesListResult struct {
 	Count    int                  `json:"count"`
 }
 
+//mcpgen:tool list_versions
+//mcpgen:description List versions (milestones) for a project.
+//mcpgen:category meta
 func ListVersions(ctx context.Context, client *api.Client, input ListVersionsInput) (VersionsListResult, error) {
 	versions, total, err := client.Versions.List(ctx, input.ProjectID, ListLimit(input.Limit), input.Offset)
 	if err != nil {
@@ -76,10 +79,17 @@ func ListVersions(ctx context.Context, client *api.Client, input ListVersionsInp
 	return VersionsListResult{Versions: versions, Count: len(versions), TotalCount: total}, nil
 }
 
+//mcpgen:tool get_version
+//mcpgen:description Fetch a single version (milestone) by ID.
+//mcpgen:category meta
 func GetVersion(ctx context.Context, client *api.Client, input GetVersionInput) (*models.Version, error) {
 	return client.Versions.Get(ctx, input.ID)
 }
 
+//mcpgen:tool create_version
+//mcpgen:description Create a project version (milestone). Requires --enable-writes.
+//mcpgen:category meta
+//mcpgen:writes
 func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionInput) (*models.Version, error) {
 	return client.Versions.Create(ctx, input.ProjectID, models.VersionCreate{
 		Name:          input.Name,
@@ -91,6 +101,10 @@ func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionI
 	})
 }
 
+//mcpgen:tool update_version
+//mcpgen:description Update an existing version (milestone). Requires --enable-writes.
+//mcpgen:category meta
+//mcpgen:writes
 func UpdateVersion(ctx context.Context, client *api.Client, input UpdateVersionInput) (MessageResult, error) {
 	err := client.Versions.Update(ctx, input.ID, models.VersionUpdate{
 		Name:          input.Name,
@@ -106,6 +120,10 @@ func UpdateVersion(ctx context.Context, client *api.Client, input UpdateVersionI
 	return MessageResult{Message: fmt.Sprintf("Updated version %d", input.ID)}, nil
 }
 
+//mcpgen:tool delete_version
+//mcpgen:description Delete a version (milestone). Destructive. Requires --enable-writes.
+//mcpgen:category meta
+//mcpgen:writes
 func DeleteVersion(ctx context.Context, client *api.Client, input DeleteVersionInput) (MessageResult, error) {
 	if err := client.Versions.Delete(ctx, input.ID); err != nil {
 		return MessageResult{}, err
@@ -113,6 +131,9 @@ func DeleteVersion(ctx context.Context, client *api.Client, input DeleteVersionI
 	return MessageResult{Message: fmt.Sprintf("Deleted version %d", input.ID)}, nil
 }
 
+//mcpgen:tool list_trackers
+//mcpgen:description List all trackers (Bug, Feature, ...) configured in this Redmine instance.
+//mcpgen:category meta
 func ListTrackers(ctx context.Context, client *api.Client, _ struct{}) (TrackersListResult, error) {
 	trackers, err := client.Trackers.List(ctx)
 	if err != nil {
@@ -121,6 +142,9 @@ func ListTrackers(ctx context.Context, client *api.Client, _ struct{}) (Trackers
 	return TrackersListResult{Trackers: trackers, Count: len(trackers)}, nil
 }
 
+//mcpgen:tool list_statuses
+//mcpgen:description List all issue statuses configured in this Redmine instance.
+//mcpgen:category meta
 func ListStatuses(ctx context.Context, client *api.Client, _ struct{}) (StatusesListResult, error) {
 	statuses, err := client.Statuses.List(ctx)
 	if err != nil {
@@ -129,6 +153,9 @@ func ListStatuses(ctx context.Context, client *api.Client, _ struct{}) (Statuses
 	return StatusesListResult{Statuses: statuses, Count: len(statuses)}, nil
 }
 
+//mcpgen:tool list_categories
+//mcpgen:description List issue categories for a project.
+//mcpgen:category meta
 func ListCategories(ctx context.Context, client *api.Client, input ListCategoriesInput) (CategoriesListResult, error) {
 	categories, total, err := client.Categories.List(ctx, input.ProjectID)
 	if err != nil {

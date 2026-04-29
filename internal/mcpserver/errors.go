@@ -50,14 +50,6 @@ func toolOK[T any](v T) (*mcp.CallToolResult, T, error) {
 	}, v, nil
 }
 
-// toolOKMsg returns a success CallToolResult that only carries a human text
-// confirmation (used by write tools that have no meaningful return value).
-func toolOKMsg(msg string) (*mcp.CallToolResult, any, error) {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: msg}},
-	}, nil, nil
-}
-
 func toolOKMsgWithValue[T any](v T, msg string) (*mcp.CallToolResult, T, error) {
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: msg}},

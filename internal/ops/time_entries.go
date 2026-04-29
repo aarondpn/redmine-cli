@@ -72,6 +72,9 @@ type TimeSummaryResult struct {
 	TotalHours float64          `json:"total_hours"`
 }
 
+//mcpgen:tool list_time_entries
+//mcpgen:description List Redmine time entries matching the given filters.
+//mcpgen:category time
 func ListTimeEntries(ctx context.Context, client *api.Client, input ListTimeEntriesInput) (TimeEntriesListResult, error) {
 	entries, total, err := client.TimeEntries.List(ctx, models.TimeEntryFilter{
 		ProjectID:  input.ProjectID,
@@ -89,10 +92,17 @@ func ListTimeEntries(ctx context.Context, client *api.Client, input ListTimeEntr
 	return TimeEntriesListResult{TimeEntries: entries, Count: len(entries), TotalCount: total}, nil
 }
 
+//mcpgen:tool get_time_entry
+//mcpgen:description Fetch a single time entry by ID.
+//mcpgen:category time
 func GetTimeEntry(ctx context.Context, client *api.Client, input GetTimeEntryInput) (*models.TimeEntry, error) {
 	return client.TimeEntries.Get(ctx, input.ID)
 }
 
+//mcpgen:tool create_time_entry
+//mcpgen:description Log a new time entry. Requires --enable-writes.
+//mcpgen:category time
+//mcpgen:writes
 func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEntryInput) (*models.TimeEntry, error) {
 	if input.IssueID == 0 && input.ProjectID == "" {
 		return nil, fmt.Errorf("either issue_id or project_id must be provided")
@@ -107,6 +117,10 @@ func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEn
 	})
 }
 
+//mcpgen:tool update_time_entry
+//mcpgen:description Update an existing time entry. Requires --enable-writes.
+//mcpgen:category time
+//mcpgen:writes
 func UpdateTimeEntry(ctx context.Context, client *api.Client, input UpdateTimeEntryInput) (MessageResult, error) {
 	err := client.TimeEntries.Update(ctx, input.ID, models.TimeEntryUpdate{
 		Hours:      input.Hours,
@@ -120,6 +134,10 @@ func UpdateTimeEntry(ctx context.Context, client *api.Client, input UpdateTimeEn
 	return MessageResult{Message: fmt.Sprintf("Updated time entry %d", input.ID)}, nil
 }
 
+//mcpgen:tool delete_time_entry
+//mcpgen:description Delete a time entry. Destructive. Requires --enable-writes.
+//mcpgen:category time
+//mcpgen:writes
 func DeleteTimeEntry(ctx context.Context, client *api.Client, input DeleteTimeEntryInput) (MessageResult, error) {
 	if err := client.TimeEntries.Delete(ctx, input.ID); err != nil {
 		return MessageResult{}, err
@@ -127,6 +145,9 @@ func DeleteTimeEntry(ctx context.Context, client *api.Client, input DeleteTimeEn
 	return MessageResult{Message: fmt.Sprintf("Deleted time entry %d", input.ID)}, nil
 }
 
+//mcpgen:tool summary_time_entries
+//mcpgen:description Summarize time entries grouped by day, project, or activity.
+//mcpgen:category time
 func SummaryTimeEntries(ctx context.Context, client *api.Client, input SummaryTimeEntriesInput) (TimeSummaryResult, error) {
 	groupBy := input.GroupBy
 	if groupBy == "" {

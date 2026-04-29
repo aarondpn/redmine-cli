@@ -57,6 +57,9 @@ type ProjectMembersListResult struct {
 	TotalCount int                 `json:"total_count"`
 }
 
+//mcpgen:tool list_projects
+//mcpgen:description List Redmine projects.
+//mcpgen:category projects
 func ListProjects(ctx context.Context, client *api.Client, input ListProjectsInput) (ProjectsListResult, error) {
 	projects, total, err := client.Projects.List(ctx, input.Includes, ListLimit(input.Limit), input.Offset)
 	if err != nil {
@@ -65,10 +68,17 @@ func ListProjects(ctx context.Context, client *api.Client, input ListProjectsInp
 	return ProjectsListResult{Projects: projects, Count: len(projects), TotalCount: total}, nil
 }
 
+//mcpgen:tool get_project
+//mcpgen:description Fetch a single Redmine project by identifier or ID.
+//mcpgen:category projects
 func GetProject(ctx context.Context, client *api.Client, input GetProjectInput) (*models.Project, error) {
 	return client.Projects.Get(ctx, input.Identifier, input.Includes)
 }
 
+//mcpgen:tool create_project
+//mcpgen:description Create a new Redmine project. Requires --enable-writes.
+//mcpgen:category projects
+//mcpgen:writes
 func CreateProject(ctx context.Context, client *api.Client, input CreateProjectInput) (*models.Project, error) {
 	return client.Projects.Create(ctx, models.ProjectCreate{
 		Name:           input.Name,
@@ -80,6 +90,10 @@ func CreateProject(ctx context.Context, client *api.Client, input CreateProjectI
 	})
 }
 
+//mcpgen:tool update_project
+//mcpgen:description Update an existing Redmine project. Requires --enable-writes.
+//mcpgen:category projects
+//mcpgen:writes
 func UpdateProject(ctx context.Context, client *api.Client, input UpdateProjectInput) (MessageResult, error) {
 	err := client.Projects.Update(ctx, input.Identifier, models.ProjectUpdate{
 		Name:        input.Name,
@@ -92,6 +106,10 @@ func UpdateProject(ctx context.Context, client *api.Client, input UpdateProjectI
 	return MessageResult{Message: fmt.Sprintf("Updated project %s", input.Identifier)}, nil
 }
 
+//mcpgen:tool delete_project
+//mcpgen:description Delete a Redmine project. Destructive. Requires --enable-writes.
+//mcpgen:category projects
+//mcpgen:writes
 func DeleteProject(ctx context.Context, client *api.Client, input DeleteProjectInput) (MessageResult, error) {
 	if err := client.Projects.Delete(ctx, input.Identifier); err != nil {
 		return MessageResult{}, err
@@ -99,6 +117,9 @@ func DeleteProject(ctx context.Context, client *api.Client, input DeleteProjectI
 	return MessageResult{Message: fmt.Sprintf("Deleted project %s", input.Identifier)}, nil
 }
 
+//mcpgen:tool list_project_members
+//mcpgen:description List members for a Redmine project.
+//mcpgen:category projects
 func ListProjectMembers(ctx context.Context, client *api.Client, input ListProjectMembersInput) (ProjectMembersListResult, error) {
 	members, total, err := client.Projects.Members(ctx, input.Identifier, ListLimit(input.Limit), input.Offset)
 	if err != nil {
