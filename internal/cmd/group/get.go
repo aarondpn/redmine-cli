@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -46,7 +47,10 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Fetching group...")
-			group, err := client.Groups.Get(context.Background(), id, includes)
+			group, err := ops.GetGroup(context.Background(), client, ops.GetGroupInput{
+				ID:       id,
+				Includes: includes,
+			})
 			stop()
 			if err != nil {
 				return err
