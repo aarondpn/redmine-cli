@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -42,7 +43,7 @@ func newCmdMembershipDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting membership...")
-			err = client.Memberships.Delete(context.Background(), id)
+			_, err = ops.DeleteMembership(context.Background(), client, ops.DeleteMembershipInput{ID: id})
 			stop()
 			if err != nil {
 				return err

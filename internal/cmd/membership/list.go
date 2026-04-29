@@ -10,6 +10,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -45,11 +46,16 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching memberships...")
 
-			memberships, total, err := client.Memberships.List(context.Background(), project, limit, offset)
+			result, err := ops.ListMemberships(context.Background(), client, ops.ListMembershipsInput{
+				ProjectID: project,
+				Limit:     cmdutil.OpsLimit(limit),
+				Offset:    offset,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list memberships: %s", cmdutil.FormatError(err))
 			}
+			memberships, total := result.Memberships, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, memberships, "memberships") {
 				return nil
