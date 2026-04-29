@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -52,7 +53,10 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting wiki page...")
-			err = client.Wikis.Delete(ctx, projectID, pageTitle)
+			_, err = ops.DeleteWikiPage(ctx, client, ops.DeleteWikiPageInput{
+				ProjectID: projectID,
+				Page:      pageTitle,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to delete wiki page %q: %w", pageTitle, err)

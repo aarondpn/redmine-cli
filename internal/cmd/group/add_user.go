@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -34,7 +35,10 @@ func newCmdGroupAddUser(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 
 			stop := printer.Spinner("Adding user to group...")
-			err = client.Groups.AddUser(context.Background(), groupID, userID)
+			_, err = ops.AddGroupUser(context.Background(), client, ops.GroupUserInput{
+				GroupID: groupID,
+				UserID:  userID,
+			})
 			stop()
 			if err != nil {
 				return err

@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
@@ -50,26 +51,23 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			create := models.WikiPageCreate{
-				Text: text,
-			}
-			if title != "" {
-				create.Title = title
-			}
-			if comments != "" {
-				create.Comments = comments
-			}
-
+			var uploads []models.Upload
 			if len(attach) > 0 {
-				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err = cmdutil.UploadAttachments(ctx, client, attach)
 				if err != nil {
 					return err
 				}
-				create.Uploads = uploads
 			}
 
 			stop := printer.Spinner("Creating wiki page...")
-			page, err := client.Wikis.Create(ctx, projectID, args[0], create)
+			page, err := ops.CreateWikiPage(ctx, client, ops.CreateWikiPageInput{
+				ProjectID: projectID,
+				Page:      args[0],
+				Text:      text,
+				Title:     title,
+				Comments:  comments,
+				Uploads:   uploads,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to create wiki page %q: %w", args[0], err)

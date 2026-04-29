@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
@@ -53,9 +53,10 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Creating membership...")
-			m, err := client.Memberships.Create(context.Background(), project, models.MembershipCreate{
-				UserID:  memberID,
-				RoleIDs: roleIDs,
+			m, err := ops.CreateMembership(context.Background(), client, ops.CreateMembershipInput{
+				ProjectID: project,
+				UserID:    memberID,
+				RoleIDs:   roleIDs,
 			})
 			stop()
 			if err != nil {

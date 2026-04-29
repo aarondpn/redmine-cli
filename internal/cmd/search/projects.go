@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
@@ -33,23 +33,22 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			params := api.SearchParams{
+			printer := f.Printer(format)
+			stop := printer.Spinner("Searching projects...")
+			result, err := ops.Search(context.Background(), client, ops.SearchInput{
 				Query:      query,
 				Scope:      scope,
 				AllWords:   allWords,
 				TitlesOnly: titlesOnly,
 				Projects:   true,
-				Limit:      limit,
+				Limit:      cmdutil.OpsLimit(limit),
 				Offset:     offset,
-			}
-
-			printer := f.Printer(format)
-			stop := printer.Spinner("Searching projects...")
-			results, total, err := client.Search.Search(context.Background(), params)
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
+			results, total := result.Results, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, results, "projects") {
 				return nil

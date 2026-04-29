@@ -1,6 +1,8 @@
 package mcpserver
 
 import (
+	"net/http"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
@@ -21,6 +23,18 @@ func BuildServer(client *api.Client, opts Options) *mcp.Server {
 
 	registerTools(srv, client, opts)
 	registerResources(srv, client)
+	registerPrompts(srv)
 
 	return srv
+}
+
+// BuildHTTPHandler constructs a streamable HTTP handler backed by the same MCP
+// server definition used for stdio.
+func BuildHTTPHandler(client *api.Client, opts Options) http.Handler {
+	srv := BuildServer(client, opts)
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return srv
+	}, &mcp.StreamableHTTPOptions{
+		JSONResponse: true,
+	})
 }

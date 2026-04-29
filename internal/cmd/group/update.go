@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -36,16 +36,16 @@ func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 
-			update := models.GroupUpdate{}
+			input := ops.UpdateGroupInput{ID: id}
 			if cmd.Flags().Changed("name") {
-				update.Name = &name
+				input.Name = &name
 			}
 			if cmd.Flags().Changed("user-ids") {
-				update.UserIDs = &userIDs
+				input.UserIDs = &userIDs
 			}
 
 			stop := printer.Spinner("Updating group...")
-			err = client.Groups.Update(context.Background(), id, update)
+			_, err = ops.UpdateGroup(context.Background(), client, input)
 			stop()
 			if err != nil {
 				return err

@@ -299,7 +299,7 @@ func TestTimeLog_JSONReturnsCreatedEntry(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdTimeLog(f)
-	cmd.SetArgs([]string{"--hours", "2.5", "--date", "2025-06-15", "--comment", "Fixed bug", "--output", "json"})
+	cmd.SetArgs([]string{"--hours", "2.5", "--issue", "10", "--date", "2025-06-15", "--comment", "Fixed bug", "--output", "json"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)

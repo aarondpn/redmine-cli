@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -37,27 +37,27 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			update := models.TimeEntryUpdate{}
+			input := ops.UpdateTimeEntryInput{ID: id}
 
 			if cmd.Flags().Changed("hours") {
-				update.Hours = &hours
+				input.Hours = &hours
 			}
 			if cmd.Flags().Changed("activity") {
 				activityID, err := resolver.ResolveActivity(context.Background(), client, activity)
 				if err != nil {
 					return fmt.Errorf("resolving activity: %w", err)
 				}
-				update.ActivityID = &activityID
+				input.ActivityID = &activityID
 			}
 			if cmd.Flags().Changed("date") {
 				resolved := cmdutil.ResolveDateKeyword(date)
-				update.SpentOn = &resolved
+				input.SpentOn = &resolved
 			}
 			if cmd.Flags().Changed("comment") {
-				update.Comments = &comment
+				input.Comments = &comment
 			}
 
-			if err := client.TimeEntries.Update(context.Background(), id, update); err != nil {
+			if _, err := ops.UpdateTimeEntry(context.Background(), client, input); err != nil {
 				return err
 			}
 

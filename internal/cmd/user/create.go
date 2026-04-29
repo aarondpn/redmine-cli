@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Creating user...")
-			user, err := client.Users.Create(context.Background(), models.UserCreate{
+			user, err := ops.CreateUser(context.Background(), client, ops.CreateUserInput{
 				Login:     login,
 				Password:  password,
 				FirstName: firstname,
