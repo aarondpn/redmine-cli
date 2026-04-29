@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -27,7 +28,9 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			project, err := client.Projects.Get(context.Background(), args[0], nil)
+			project, err := ops.GetProject(context.Background(), client, ops.GetProjectInput{
+				Identifier: args[0],
+			})
 			if err != nil {
 				return err
 			}
