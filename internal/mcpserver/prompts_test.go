@@ -93,4 +93,29 @@ func TestPrompts_ListAndGet(t *testing.T) {
 	if !strings.Contains(text.Text, "issue #42") || !strings.Contains(text.Text, "project demo") {
 		t.Fatalf("unexpected prompt text: %q", text.Text)
 	}
+
+	withoutOptional, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "triage_issue",
+		Arguments: map[string]string{"issue_id": "99"},
+	})
+	if err != nil {
+		t.Fatalf("GetPrompt without optional arg: %v", err)
+	}
+	optionalText, ok := withoutOptional.Messages[0].Content.(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("unexpected content type %T", withoutOptional.Messages[0].Content)
+	}
+	if !strings.Contains(optionalText.Text, "issue #99") {
+		t.Fatalf("expected issue id in prompt text: %q", optionalText.Text)
+	}
+	if strings.Contains(optionalText.Text, "in project") {
+		t.Fatalf("optional clause should be omitted when project_hint is missing: %q", optionalText.Text)
+	}
+
+	if _, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "triage_issue",
+		Arguments: map[string]string{},
+	}); err == nil {
+		t.Fatal("expected error when required argument is missing")
+	}
 }

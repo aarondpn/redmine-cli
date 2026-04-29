@@ -129,6 +129,9 @@ func registerPrompts(s *mcp.Server) {
 		definition := def
 		s.AddPrompt(definition.Prompt, func(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 			args := map[string]string{}
+			for _, arg := range definition.Prompt.Arguments {
+				args[arg.Name] = ""
+			}
 			if req.Params != nil && req.Params.Arguments != nil {
 				for key, value := range req.Params.Arguments {
 					args[key] = value
