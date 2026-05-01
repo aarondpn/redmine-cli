@@ -11,14 +11,16 @@ const NoLimit = -1
 
 // ListLimit returns the effective limit for a list operation.
 //
-// Negative input (NoLimit) is translated to the API client's "0 = unlimited"
-// convention. Zero applies the MCP-safety default. Positive values pass
-// through unchanged.
+// The exact NoLimit sentinel is translated to the API client's "0 = unlimited"
+// convention. Zero applies the MCP-safety default. Other negatives also clamp
+// to the safety default so a stray negative value cannot quietly bypass the
+// cap (the MCP wrapper additionally clamps before reaching this function).
+// Positive values pass through unchanged.
 func ListLimit(requested int) int {
-	if requested < 0 {
+	if requested == NoLimit {
 		return 0
 	}
-	if requested == 0 {
+	if requested <= 0 {
 		return DefaultListLimit
 	}
 	return requested

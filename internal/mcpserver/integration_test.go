@@ -173,6 +173,41 @@ func TestListIssuesTool_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestListIssuesTool_NegativeLimitIsClamped pins the regression: an MCP client
+// passing `{"limit": -1}` (a common "no limit" convention) must not bypass the
+// 50-row safety cap. The clamp lives in registerToolSpec; without it,
+// ops.ListLimit treats the NoLimit sentinel as "fetch every page".
+func TestListIssuesTool_NegativeLimitIsClamped(t *testing.T) {
+	var capturedLimit string
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/issues.json" {
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+			return
+		}
+		capturedLimit = r.URL.Query().Get("limit")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0,"offset":0,"limit":50}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_issues",
+		Arguments: map[string]any{"project_id": "demo", "limit": -1},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %+v", res.Content)
+	}
+	if capturedLimit != "50" {
+		t.Errorf("upstream limit param = %q, want %q (negative limit must clamp to safety default)", capturedLimit, "50")
+	}
+}
+
 func TestIssueResource_RoundTrip(t *testing.T) {
 	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/issues/42.json" {

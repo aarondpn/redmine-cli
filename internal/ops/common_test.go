@@ -8,8 +8,8 @@ func TestListLimit(t *testing.T) {
 		input    int
 		expected int
 	}{
-		{"NoLimit translates to API unlimited (0)", NoLimit, 0},
-		{"any negative translates to API unlimited", -100, 0},
+		{"NoLimit sentinel translates to API unlimited (0)", NoLimit, 0},
+		{"non-sentinel negative clamps to safety default", -100, DefaultListLimit},
 		{"zero applies MCP-safety default", 0, DefaultListLimit},
 		{"positive passes through", 25, 25},
 		{"large positive passes through", 500, 500},
