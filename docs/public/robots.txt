@@ -1,0 +1,4 @@
+User-agent: *
+Disallow:
+
+Sitemap: https://aarondpn.github.io/redmine-cli/sitemap-index.xml
