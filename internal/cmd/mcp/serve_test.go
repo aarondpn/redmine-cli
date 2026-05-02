@@ -1,8 +1,10 @@
 package mcp
 
 import (
+	"bytes"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -142,5 +144,49 @@ func TestResolveEnableWrites(t *testing.T) {
 	}
 	if resolveEnableWrites(cmd, false, cfg) {
 		t.Error("explicit flag should override config")
+	}
+}
+
+func TestBuildFilterSpec_RejectsUnknownTool(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().StringSlice("enable-groups", nil, "")
+	cmd.Flags().StringSlice("disable-groups", nil, "")
+	cmd.Flags().StringSlice("enable-tools", nil, "")
+	cmd.Flags().StringSlice("disable-tools", nil, "")
+
+	if err := cmd.Flags().Set("enable-tools", "list_issues,not_a_real_tool"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	enableGroups, _ := cmd.Flags().GetStringSlice("enable-groups")
+	disableGroups, _ := cmd.Flags().GetStringSlice("disable-groups")
+	enableTools, _ := cmd.Flags().GetStringSlice("enable-tools")
+	disableTools, _ := cmd.Flags().GetStringSlice("disable-tools")
+
+	_, err := buildFilterSpec(nil, cmd, enableGroups, disableGroups, enableTools, disableTools)
+	if err == nil {
+		t.Fatal("buildFilterSpec should reject unknown tool names")
+	}
+	if !strings.Contains(err.Error(), `unknown tool "not_a_real_tool"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
+	cmd := newCmdServe(cmdutil.NewFactory())
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+
+	if err := cmd.Help(); err != nil {
+		t.Fatalf("Help: %v", err)
+	}
+
+	help := out.String()
+	if strings.Contains(help, "--enable-groups redmine mcp tools") {
+		t.Fatalf("help output used command text as value placeholder:\n%s", help)
+	}
+	if !strings.Contains(help, "--enable-groups strings") {
+		t.Fatalf("help output missing normal StringSlice placeholder:\n%s", help)
 	}
 }

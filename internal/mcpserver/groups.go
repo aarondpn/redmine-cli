@@ -128,3 +128,32 @@ func ToolsByGroup() map[Group][]ToolDescriptor {
 	}
 	return out
 }
+
+// IsKnownTool reports whether name matches a generated MCP tool name.
+func IsKnownTool(name string) bool {
+	want := strings.TrimSpace(name)
+	for _, d := range AllTools() {
+		if d.Name == want {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseTools validates a list of tool names and returns the trimmed values.
+// Empty entries are skipped so callers can pass values like
+// "list_issues,,get_issue" without failing.
+func ParseTools(names []string) ([]string, error) {
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if !IsKnownTool(trimmed) {
+			return nil, fmt.Errorf("unknown tool %q", name)
+		}
+		out = append(out, trimmed)
+	}
+	return out, nil
+}

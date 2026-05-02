@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -94,7 +93,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&enableWrites, "enable-writes", false, "Register tools that create, update, or delete Redmine data")
 	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (for example :8080)")
 	cmd.Flags().StringVar(&name, "name", "redmine-cli", "Server name advertised to MCP clients")
-	cmd.Flags().StringSliceVar(&enableGroups, "enable-groups", nil, "Comma-separated tool groups to expose (default: all). See `redmine mcp tools`.")
+	cmd.Flags().StringSliceVar(&enableGroups, "enable-groups", nil, "Comma-separated tool groups to expose (default: all). See redmine mcp tools.")
 	cmd.Flags().StringSliceVar(&disableGroups, "disable-groups", nil, "Comma-separated tool groups to hide. Applied after --enable-groups.")
 	cmd.Flags().StringSliceVar(&enableTools, "enable-tools", nil, "Allow-list of tool names. Tools outside the list are hidden.")
 	cmd.Flags().StringSliceVar(&disableTools, "disable-tools", nil, "Deny-list of tool names. Applied after --enable-tools.")
@@ -134,12 +133,20 @@ func buildFilterSpec(cfg *config.Config, cmd *cobra.Command, enableGroupsFlag, d
 	if err != nil {
 		return mcpserver.FilterSpec{}, err
 	}
+	parsedEnableTools, err := mcpserver.ParseTools(et)
+	if err != nil {
+		return mcpserver.FilterSpec{}, err
+	}
+	parsedDisableTools, err := mcpserver.ParseTools(dt)
+	if err != nil {
+		return mcpserver.FilterSpec{}, err
+	}
 
 	return mcpserver.FilterSpec{
 		EnableGroups:  parsedEnable,
 		DisableGroups: parsedDisable,
-		EnableTools:   trimSlice(et),
-		DisableTools:  trimSlice(dt),
+		EnableTools:   parsedEnableTools,
+		DisableTools:  parsedDisableTools,
 	}, nil
 }
 
@@ -154,15 +161,4 @@ func resolveEnableWrites(cmd *cobra.Command, flagVal bool, cfg *config.Config) b
 		return *cfg.MCP.EnableWrites
 	}
 	return flagVal
-}
-
-// trimSlice drops empty entries and trims whitespace.
-func trimSlice(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, v := range in {
-		if t := strings.TrimSpace(v); t != "" {
-			out = append(out, t)
-		}
-	}
-	return out
 }
