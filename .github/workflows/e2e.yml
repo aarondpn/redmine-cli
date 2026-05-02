@@ -55,7 +55,7 @@ jobs:
               echo "versions=[\"${INPUT_VERSION}\"]" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo 'versions=["6.1"]' >> "$GITHUB_OUTPUT"
+              echo 'versions=["4.2","5.1","6.1"]' >> "$GITHUB_OUTPUT"
               ;;
           esac
 
