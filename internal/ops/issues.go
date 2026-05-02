@@ -197,10 +197,6 @@ func AddIssueComment(ctx context.Context, client *api.Client, input AddIssueComm
 	return MessageResult{Message: fmt.Sprintf("Added comment to issue #%d", input.ID)}, nil
 }
 
-//mcpgen:tool assign_issue
-//mcpgen:description Assign an issue to a user. Requires --enable-writes.
-//mcpgen:category issues
-//mcpgen:writes
 func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput) (MessageResult, error) {
 	if input.AssigneeID <= 0 {
 		return MessageResult{}, fmt.Errorf("assignee_id must be a positive user ID; use update_issue to unassign")

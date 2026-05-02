@@ -10,7 +10,6 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 )
@@ -18,13 +17,7 @@ import (
 const (
 	opsDir            = "internal/ops"
 	generatedToolsOut = "internal/mcpserver/zz_generated_tools.go"
-	generatedDocsOut  = "docs/mcp/tools.md"
 )
-
-type Outputs struct {
-	ToolsGo []byte
-	DocsMD  []byte
-}
 
 type ToolSpec struct {
 	FuncName    string
@@ -35,60 +28,28 @@ type ToolSpec struct {
 	Handler     string
 	InputType   string
 	OutputType  string
-	InputDoc    *StructDoc
-}
-
-type StructDoc struct {
-	Name   string
-	Fields []FieldDoc
-}
-
-type FieldDoc struct {
-	Name        string
-	Type        string
-	Required    bool
-	Description string
 }
 
 func Write(repoRoot string) error {
-	out, err := Generate(repoRoot)
+	toolsGo, err := Generate(repoRoot)
 	if err != nil {
 		return err
 	}
 
 	toolsPath := filepath.Join(repoRoot, generatedToolsOut)
-	if err := os.WriteFile(toolsPath, out.ToolsGo, 0o644); err != nil {
+	if err := os.WriteFile(toolsPath, toolsGo, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", toolsPath, err)
-	}
-
-	docsPath := filepath.Join(repoRoot, generatedDocsOut)
-	if err := os.MkdirAll(filepath.Dir(docsPath), 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", filepath.Dir(docsPath), err)
-	}
-	if err := os.WriteFile(docsPath, out.DocsMD, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", docsPath, err)
 	}
 
 	return nil
 }
 
-func Generate(repoRoot string) (Outputs, error) {
+func Generate(repoRoot string) ([]byte, error) {
 	specs, err := parseSpecs(filepath.Join(repoRoot, opsDir))
 	if err != nil {
-		return Outputs{}, err
+		return nil, err
 	}
-
-	toolsGo, err := renderTools(specs)
-	if err != nil {
-		return Outputs{}, err
-	}
-
-	docsMD, err := renderDocs(specs)
-	if err != nil {
-		return Outputs{}, err
-	}
-
-	return Outputs{ToolsGo: toolsGo, DocsMD: docsMD}, nil
+	return renderTools(specs)
 }
 
 func parseSpecs(dir string) ([]ToolSpec, error) {
@@ -118,29 +79,11 @@ func parseSpecs(dir string) ([]ToolSpec, error) {
 		return nil, fmt.Errorf("ops package not found in %s", dir)
 	}
 
-	typeDocs := map[string]*StructDoc{}
 	fileNames := make([]string, 0, len(files))
 	for name := range files {
 		fileNames = append(fileNames, name)
 	}
 	sort.Strings(fileNames)
-	for _, name := range fileNames {
-		file := files[name]
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				ts := spec.(*ast.TypeSpec)
-				st, ok := ts.Type.(*ast.StructType)
-				if !ok {
-					continue
-				}
-				typeDocs[ts.Name.Name] = buildStructDoc(fset, ts.Name.Name, st)
-			}
-		}
-	}
 
 	var out []ToolSpec
 	for _, name := range fileNames {
@@ -154,7 +97,7 @@ func parseSpecs(dir string) ([]ToolSpec, error) {
 			if meta.Name == "" {
 				continue
 			}
-			spec, err := buildSpec(fset, fd, meta, typeDocs)
+			spec, err := buildSpec(fd, meta)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", fd.Name.Name, err)
 			}
@@ -200,7 +143,7 @@ func parseDirectives(lines []*ast.Comment) directiveMeta {
 	return meta
 }
 
-func buildSpec(fset *token.FileSet, fd *ast.FuncDecl, meta directiveMeta, typeDocs map[string]*StructDoc) (ToolSpec, error) {
+func buildSpec(fd *ast.FuncDecl, meta directiveMeta) (ToolSpec, error) {
 	if meta.Description == "" {
 		return ToolSpec{}, fmt.Errorf("missing mcpgen:description")
 	}
@@ -214,10 +157,6 @@ func buildSpec(fset *token.FileSet, fd *ast.FuncDecl, meta directiveMeta, typeDo
 		return ToolSpec{}, fmt.Errorf("expected two return values")
 	}
 
-	inExpr := fd.Type.Params.List[2].Type
-	outExpr := fd.Type.Results.List[0].Type
-	inputDoc := inputDocForType(fset, inExpr, typeDocs)
-
 	return ToolSpec{
 		FuncName:    fd.Name.Name,
 		Name:        meta.Name,
@@ -225,9 +164,8 @@ func buildSpec(fset *token.FileSet, fd *ast.FuncDecl, meta directiveMeta, typeDo
 		Category:    meta.Category,
 		Writes:      meta.Writes,
 		Handler:     meta.Handler,
-		InputType:   qualifyExpr(inExpr),
-		OutputType:  qualifyExpr(outExpr),
-		InputDoc:    inputDoc,
+		InputType:   qualifyExpr(fd.Type.Params.List[2].Type),
+		OutputType:  qualifyExpr(fd.Type.Results.List[0].Type),
 	}, nil
 }
 
@@ -246,67 +184,6 @@ func qualifyExpr(expr ast.Expr) string {
 	default:
 		return exprString(token.NewFileSet(), expr)
 	}
-}
-
-func inputDocForType(fset *token.FileSet, expr ast.Expr, typeDocs map[string]*StructDoc) *StructDoc {
-	ident, ok := expr.(*ast.Ident)
-	if !ok {
-		return nil
-	}
-	doc, ok := typeDocs[ident.Name]
-	if !ok {
-		return nil
-	}
-	copyDoc := *doc
-	copyDoc.Fields = append([]FieldDoc(nil), doc.Fields...)
-	for i := range copyDoc.Fields {
-		copyDoc.Fields[i] = doc.Fields[i]
-	}
-	_ = fset
-	return &copyDoc
-}
-
-func buildStructDoc(fset *token.FileSet, name string, st *ast.StructType) *StructDoc {
-	doc := &StructDoc{Name: name}
-	if st.Fields == nil {
-		return doc
-	}
-	for _, field := range st.Fields.List {
-		if len(field.Names) == 0 || field.Tag == nil {
-			continue
-		}
-		tagValue, err := strconvUnquote(field.Tag.Value)
-		if err != nil {
-			continue
-		}
-		tag := reflect.StructTag(tagValue)
-		jsonName, required := parseJSONTag(tag.Get("json"))
-		if jsonName == "" || jsonName == "-" {
-			continue
-		}
-		doc.Fields = append(doc.Fields, FieldDoc{
-			Name:        jsonName,
-			Type:        exprString(fset, field.Type),
-			Required:    required,
-			Description: tag.Get("jsonschema"),
-		})
-	}
-	return doc
-}
-
-func parseJSONTag(tag string) (string, bool) {
-	if tag == "" {
-		return "", false
-	}
-	parts := strings.Split(tag, ",")
-	name := parts[0]
-	required := true
-	for _, part := range parts[1:] {
-		if part == "omitempty" {
-			required = false
-		}
-	}
-	return name, required
 }
 
 func renderTools(specs []ToolSpec) ([]byte, error) {
@@ -349,68 +226,8 @@ func renderTools(specs []ToolSpec) ([]byte, error) {
 	return format.Source(buf.Bytes())
 }
 
-func renderDocs(specs []ToolSpec) ([]byte, error) {
-	grouped := map[string][]ToolSpec{}
-	var categories []string
-	for _, spec := range specs {
-		if _, ok := grouped[spec.Category]; !ok {
-			categories = append(categories, spec.Category)
-		}
-		grouped[spec.Category] = append(grouped[spec.Category], spec)
-	}
-	sort.Strings(categories)
-	for _, category := range categories {
-		sort.Slice(grouped[category], func(i, j int) bool {
-			return grouped[category][i].Name < grouped[category][j].Name
-		})
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString("# MCP Tools\n\n")
-	buf.WriteString("Generated from annotated ops functions. Do not edit by hand.\n\n")
-	for _, category := range categories {
-		buf.WriteString("## " + category + "\n\n")
-		for _, spec := range grouped[category] {
-			mode := "read"
-			if spec.Writes {
-				mode = "write"
-			}
-			buf.WriteString("### `" + spec.Name + "`\n\n")
-			buf.WriteString(spec.Description + "\n\n")
-			buf.WriteString("- Mode: `" + mode + "`\n")
-			buf.WriteString("- Source: `ops." + spec.FuncName + "`\n\n")
-			if spec.InputDoc == nil || len(spec.InputDoc.Fields) == 0 {
-				buf.WriteString("Parameters: none.\n\n")
-				continue
-			}
-			buf.WriteString("| Parameter | Type | Required | Description |\n")
-			buf.WriteString("| --- | --- | --- | --- |\n")
-			for _, field := range spec.InputDoc.Fields {
-				required := "no"
-				if field.Required {
-					required = "yes"
-				}
-				fmt.Fprintf(&buf, "| `%s` | `%s` | %s | %s |\n", field.Name, field.Type, required, escapePipes(field.Description))
-			}
-			buf.WriteString("\n")
-		}
-	}
-	return buf.Bytes(), nil
-}
-
 func exprString(fset *token.FileSet, expr ast.Expr) string {
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, fset, expr)
 	return buf.String()
-}
-
-func escapePipes(s string) string {
-	return strings.ReplaceAll(s, "|", "\\|")
-}
-
-func strconvUnquote(s string) (string, error) {
-	if len(s) < 2 {
-		return "", fmt.Errorf("short quoted string")
-	}
-	return s[1 : len(s)-1], nil
 }

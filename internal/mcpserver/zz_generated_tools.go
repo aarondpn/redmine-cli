@@ -56,12 +56,6 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.AddIssueComment,
 	})
-	registerToolSpec(s, client, opts, toolSpec[ops.AssignIssueInput, ops.MessageResult]{
-		Name:        "assign_issue",
-		Description: "Assign an issue to a user. Requires --enable-writes.",
-		Writes:      true,
-		Call:        ops.AssignIssue,
-	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CloseIssueInput, ops.MessageResult]{
 		Name:        "close_issue",
 		Description: "Close an issue by setting its status to the first closed status. Requires --enable-writes.",

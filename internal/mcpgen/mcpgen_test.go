@@ -14,26 +14,17 @@ func TestGeneratedOutputsAreUpToDate(t *testing.T) {
 	}
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 
-	out, err := Generate(repoRoot)
+	want, err := Generate(repoRoot)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
 	toolsPath := filepath.Join(repoRoot, generatedToolsOut)
-	gotTools, err := os.ReadFile(toolsPath)
+	got, err := os.ReadFile(toolsPath)
 	if err != nil {
 		t.Fatalf("ReadFile(%s): %v", toolsPath, err)
 	}
-	if string(gotTools) != string(out.ToolsGo) {
+	if string(got) != string(want) {
 		t.Fatalf("%s is stale; run `go generate ./...`", generatedToolsOut)
-	}
-
-	docsPath := filepath.Join(repoRoot, generatedDocsOut)
-	gotDocs, err := os.ReadFile(docsPath)
-	if err != nil {
-		t.Fatalf("ReadFile(%s): %v", docsPath, err)
-	}
-	if string(gotDocs) != string(out.DocsMD) {
-		t.Fatalf("%s is stale; run `go generate ./...`", generatedDocsOut)
 	}
 }

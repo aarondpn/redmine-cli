@@ -73,7 +73,7 @@ func TestWriteGate_HidesMutatingTools(t *testing.T) {
 
 	wantMissing := []string{
 		"create_issue", "update_issue", "delete_issue",
-		"add_issue_comment", "assign_issue", "close_issue", "reopen_issue",
+		"add_issue_comment", "close_issue", "reopen_issue",
 		"create_project", "update_project", "delete_project",
 		"create_time_entry", "update_time_entry", "delete_time_entry",
 		"create_user", "update_user", "delete_user",
@@ -116,7 +116,7 @@ func TestWriteGate_RegistersMutatingTools(t *testing.T) {
 
 	names := listToolNames(t, writable)
 	wantPresent := []string{
-		"create_issue", "update_issue", "delete_issue",
+		"create_issue", "update_issue", "delete_issue", "add_issue_comment",
 		"create_project", "delete_project",
 		"create_time_entry", "update_time_entry",
 		"delete_user",
