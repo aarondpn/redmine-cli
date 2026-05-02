@@ -119,12 +119,42 @@ redmine install-skill
 
 ### MCP Server
 
-对于支持 [Model Context Protocol](https://modelcontextprotocol.io) 的宿主，`redmine mcp serve` 通过 stdio 将 CLI 暴露为一个 MCP 服务器，并复用与其他所有 `redmine` 命令相同的基于 profile 的认证。
+对于支持 [Model Context Protocol](https://modelcontextprotocol.io) 的宿主，`redmine mcp serve` 默认通过 stdio 将 CLI 暴露为一个 MCP 服务器；传入 `--http` 时，也可以通过 streamable HTTP 暴露同一个服务，并复用与其他所有 `redmine` 命令相同的基于 profile 的认证。
 
 - **默认只读。** 仅在传入 `--enable-writes` 时才会注册修改类工具；未传入该参数时，这些工具不会出现在 `tools/list` 中。
 - **认证复用当前激活的 profile**（或 `--profile`、`--server/--api-key`、`REDMINE_*` 环境变量）。
+- **可配置工具暴露范围。** 使用 `--enable-groups` / `--disable-groups` 可按类别（`issues`、`wiki`、`time` 等）控制暴露的工具，使用 `--enable-tools` / `--disable-tools` 可进一步按单个工具覆盖。运行 `redmine mcp tools` 可查看完整目录。
 
 写入工具具有破坏性；除非宿主提供你信任的按调用审批 UI，否则建议保持禁用。
+
+#### 收窄暴露的工具范围
+
+如果要运行一个只了解 issue 的 MCP 服务器，可以设置 group allow-list：
+
+```bash
+redmine mcp serve --enable-groups issues
+```
+
+如果要启用写入，但排除破坏性的删除工具，可结合 deny-list：
+
+```bash
+redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
+```
+
+同样的默认值也可以写入每个 profile 的 `~/.redmine-cli.yaml`，这样 MCP 宿主总会以你期望的暴露范围启动：
+
+```yaml
+profiles:
+  internal:
+    server: https://redmine.internal
+    api_key: ...
+    mcp:
+      enable_writes: true
+      enable_groups: [issues, wiki]
+      disable_tools: [delete_issue]
+```
+
+CLI 标志会覆盖配置文件，`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` 环境变量也会覆盖该配置块。
 
 ## 本地端到端测试
 

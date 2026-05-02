@@ -54,10 +54,40 @@ redmine-cli 针对 AI 代理提供两种集成方式，具体取决于你的工�
 - **传输方式：** 默认使用 stdio。宿主可以生成 `redmine mcp serve` 进程，并通过其标准流使用 JSON-RPC 通信；也可以传入 `--http :8080` 通过 streamable HTTP 暴露同一个服务。
 - **身份验证：** 默认使用当前活跃的配置文件。可通过 `--profile <name>`、`--server` / `--api-key` 或 `REDMINE_*` 环境变量覆盖，与其他子命令完全一致。
 - **默认只读。** 修改类工具（创建 / 更新 / 删除、评论、关闭、重新打开及其他写操作）仅在传入 `--enable-writes` 时才会注册。未传入该标志时，这些工具不会出现在 `tools/list` 中。
+- **可配置暴露范围。** `--enable-groups` / `--disable-groups` 可将注册的工具限制到特定类别（`issues`、`wiki`、`time` 等）。若需更细粒度的控制，可使用 `--enable-tools` / `--disable-tools` 对单个工具做 allow-list 或 deny-list。运行 `redmine mcp tools` 可打印完整工具目录。
 
 <Aside type="caution">
   写入工具具有破坏性。除非宿主提供了你信任的逐次审批界面（per-call approval UI），否则建议保持禁用。
 </Aside>
+
+### 收窄暴露的工具范围
+
+对于只处理 issue 的助手，可仅保留 issues 组：
+
+```bash
+redmine mcp serve --enable-groups issues
+```
+
+若要全局启用写入，但排除破坏性的删除工具，可组合这些标志：
+
+```bash
+redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
+```
+
+同样的默认值也可以按 profile 写入 `~/.redmine-cli.yaml`，CLI 标志会覆盖这些值：
+
+```yaml
+profiles:
+  internal:
+    server: https://redmine.internal
+    api_key: ...
+    mcp:
+      enable_writes: true
+      enable_groups: [issues, wiki]
+      disable_tools: [delete_issue]
+```
+
+环境变量（`REDMINE_MCP_ENABLE_GROUPS`、`REDMINE_MCP_DISABLE_GROUPS`、`REDMINE_MCP_ENABLE_TOOLS`、`REDMINE_MCP_DISABLE_TOOLS`、`REDMINE_MCP_ENABLE_WRITES`）会覆盖该配置块。
 
 ### 前置条件
 
@@ -154,7 +184,7 @@ redmine-cli 针对 AI 代理提供两种集成方式，具体取决于你的工�
 
 1. **宿主报告 “command not found”。** 生成的进程继承宿主的 `PATH`，这通常与你的 shell 不同。请在 `command` 字段中使用绝对路径（`which redmine`）。
 
-2. **工具列表为空或缺少修改类工具。** 未传入 `--enable-writes`，或宿主缓存了旧的 `tools/list`。修改参数后请重启宿主。
+2. **工具列表为空或缺少修改类工具。** 未传入 `--enable-writes`，暴露范围被 `--enable-groups` / `--enable-tools` 收窄了，或者宿主缓存了旧的 `tools/list`。运行 `redmine mcp tools` 查看完整目录，并在修改参数后重启宿主。
 
 3. **401 / “no profile” 错误。** 当前没有登录的配置文件，或 `--profile <name>` 指向的配置文件不存在。运行 `redmine auth list` 进行确认。
 
