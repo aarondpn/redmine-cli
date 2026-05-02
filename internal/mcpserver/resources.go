@@ -23,14 +23,23 @@ const (
 
 type resourceTemplateDefinition struct {
 	Template *mcp.ResourceTemplate
-	Read     func(context.Context, *api.Client, string) (*mcp.ReadResourceResult, error)
+	// Group ties the resource to a tool group. When the group is filtered out
+	// of Options, the resource template is skipped so a wiki-disabled server
+	// does not advertise redmine://wiki URIs.
+	Group Group
+	Read  func(context.Context, *api.Client, string) (*mcp.ReadResourceResult, error)
 }
 
 // registerResources wires the read-only URI templates. Resources are exposed
-// regardless of EnableWrites because they do not mutate state.
-func registerResources(s *mcp.Server, client *api.Client) {
+// regardless of EnableWrites because they do not mutate state, but they are
+// still gated by the same group filter as tools so a server configured to
+// only expose `issues` does not advertise wiki resources.
+func registerResources(s *mcp.Server, client *api.Client, opts Options) {
 	for _, def := range resourceTemplateDefinitions() {
 		definition := def
+		if definition.Group != "" && !opts.groupEnabled(definition.Group) {
+			continue
+		}
 		s.AddResourceTemplate(definition.Template, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			return definition.Read(ctx, client, req.Params.URI)
 		})
@@ -46,7 +55,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A Redmine issue including journals, attachments, relations, children, and watchers.",
 				MIMEType:    mimeJSON,
 			},
-			Read: readIssueResource,
+			Group: GroupIssues,
+			Read:  readIssueResource,
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -55,7 +65,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A Redmine project including trackers, categories, and enabled modules.",
 				MIMEType:    mimeJSON,
 			},
-			Read: readProjectResource,
+			Group: GroupProjects,
+			Read:  readProjectResource,
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -64,7 +75,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A Redmine user. Use 'me' as the id to fetch the authenticated user.",
 				MIMEType:    mimeJSON,
 			},
-			Read: readUserResource,
+			Group: GroupUsers,
+			Read:  readUserResource,
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -73,7 +85,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A single Redmine time entry.",
 				MIMEType:    mimeJSON,
 			},
-			Read: readTimeEntryResource,
+			Group: GroupTime,
+			Read:  readTimeEntryResource,
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -82,7 +95,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A Redmine wiki page body. Markup is whatever the Redmine instance is configured to use (Textile by default, CommonMark optional).",
 				MIMEType:    mimeWikiText,
 			},
-			Read: readWikiResource,
+			Group: GroupWiki,
+			Read:  readWikiResource,
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -91,7 +105,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				Description: "A Redmine version (milestone).",
 				MIMEType:    mimeJSON,
 			},
-			Read: readVersionResource,
+			Group: GroupMeta,
+			Read:  readVersionResource,
 		},
 	}
 }

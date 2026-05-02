@@ -500,3 +500,30 @@ profiles:
 		t.Fatalf("ActiveProfile = %q, want %q", pc.ActiveProfile, "a")
 	}
 }
+
+func TestApplyEnvOverrides_MCPListsAndBool(t *testing.T) {
+	t.Setenv("REDMINE_MCP_ENABLE_GROUPS", "issues, wiki ,projects")
+	t.Setenv("REDMINE_MCP_DISABLE_TOOLS", "delete_issue,delete_project")
+	t.Setenv("REDMINE_MCP_ENABLE_WRITES", "true")
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("server: https://example.com\napi_key: k\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	want := []string{"issues", "wiki", "projects"}
+	if got := cfg.MCP.EnableGroups; len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Errorf("EnableGroups = %v, want %v", got, want)
+	}
+	if got := cfg.MCP.DisableTools; len(got) != 2 || got[0] != "delete_issue" || got[1] != "delete_project" {
+		t.Errorf("DisableTools = %v", got)
+	}
+	if cfg.MCP.EnableWrites == nil || !*cfg.MCP.EnableWrites {
+		t.Errorf("EnableWrites should be true (got %v)", cfg.MCP.EnableWrites)
+	}
+}

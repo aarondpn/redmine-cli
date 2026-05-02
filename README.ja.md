@@ -119,12 +119,42 @@ skill の完全な内容については [`skills/redmine-cli/SKILL.md`](skills/r
 
 ### MCP Server
 
-[Model Context Protocol](https://modelcontextprotocol.io) に対応したホスト向けに、`redmine mcp serve` は CLI を stdio 経由で MCP サーバーとして公開します。認証は他のすべての `redmine` コマンドと同じ profile ベースの仕組みを再利用します。
+[Model Context Protocol](https://modelcontextprotocol.io) に対応したホスト向けに、`redmine mcp serve` はデフォルトで stdio 経由、`--http` を渡した場合は streamable HTTP 経由で CLI を MCP サーバーとして公開します。認証は他のすべての `redmine` コマンドと同じ profile ベースの仕組みを再利用します。
 
 - **デフォルトは読み取り専用。** 変更系ツールは `--enable-writes` を指定したときのみ登録されます。このフラグがなければ `tools/list` に表示されることはありません。
 - **認証はアクティブな profile を再利用します**（または `--profile`、`--server/--api-key`、`REDMINE_*` 環境変数）。
+- **公開するツールの範囲を設定できます。** `--enable-groups` / `--disable-groups` でカテゴリ単位（`issues`、`wiki`、`time` など）に公開対象を制御し、`--enable-tools` / `--disable-tools` で個別のツールを上書きできます。`redmine mcp tools` を実行するとカタログを表示できます。
 
 書き込みツールは破壊的です。ホスト側に信頼できる呼び出しごとの承認 UI がない限り、無効のままにしておくことをおすすめします。
+
+#### 公開するツールを絞り込む
+
+issue 関連だけを扱う MCP サーバーを起動するには、グループの allow-list を設定します。
+
+```bash
+redmine mcp serve --enable-groups issues
+```
+
+破壊的な delete 系を除いたうえで書き込みを有効にするには、deny-list と組み合わせます。
+
+```bash
+redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
+```
+
+同じデフォルト値は profile ごとの `~/.redmine-cli.yaml` にも記述できます。これにより、MCP ホストは常に意図した公開範囲で起動されます。
+
+```yaml
+profiles:
+  internal:
+    server: https://redmine.internal
+    api_key: ...
+    mcp:
+      enable_writes: true
+      enable_groups: [issues, wiki]
+      disable_tools: [delete_issue]
+```
+
+CLI フラグは設定ファイルより優先され、`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` 環境変数は設定ファイルを上書きします。
 
 ## ローカル E2E テスト
 

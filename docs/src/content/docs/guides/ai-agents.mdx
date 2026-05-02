@@ -54,10 +54,40 @@ The same file is the source of truth for what the agent learns -- read it direct
 - **Transport:** stdio by default. The host can spawn `redmine mcp serve` and talk JSON-RPC over its standard streams, or you can pass `--http :8080` to expose the same server over streamable HTTP.
 - **Authentication:** the active profile is used by default. Override with `--profile <name>`, `--server` / `--api-key`, or the `REDMINE_*` environment variables -- exactly like every other subcommand.
 - **Read-only by default.** Mutating tools (create / update / delete, comment, close, reopen, and similar write operations) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`.
+- **Configurable surface.** `--enable-groups` / `--disable-groups` constrain the registered tools to specific categories (`issues`, `wiki`, `time`, ...). For sharper control, `--enable-tools` / `--disable-tools` allow- or deny-list individual tool names. Run `redmine mcp tools` to print the full catalog.
 
 <Aside type="caution">
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
 </Aside>
+
+### Narrowing the exposed tools
+
+For an issue-only assistant, drop everything but the issues group:
+
+```bash
+redmine mcp serve --enable-groups issues
+```
+
+To enable writes everywhere except destructive deletes, combine the flags:
+
+```bash
+redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
+```
+
+The same defaults can live in `~/.redmine-cli.yaml` per profile, and CLI flags override them:
+
+```yaml
+profiles:
+  internal:
+    server: https://redmine.internal
+    api_key: ...
+    mcp:
+      enable_writes: true
+      enable_groups: [issues, wiki]
+      disable_tools: [delete_issue]
+```
+
+Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`) override the config block.
 
 ### Prerequisite
 
@@ -154,7 +184,7 @@ The same file is the source of truth for what the agent learns -- read it direct
 
 1. **Host reports "command not found".** The spawned process inherits the host's `PATH`, which often differs from your shell. Use an absolute path (`which redmine`) in the `command` field.
 
-2. **Tools list is empty or missing mutations.** `--enable-writes` was not passed, or the host cached an older `tools/list`. Restart the host after changing args.
+2. **Tools list is empty or missing mutations.** `--enable-writes` was not passed, the surface was narrowed via `--enable-groups` / `--enable-tools`, or the host cached an older `tools/list`. Run `redmine mcp tools` to see the full catalog and restart the host after changing args.
 
 3. **401 / "no profile" errors.** No profile is logged in, or `--profile <name>` points at one that does not exist. Run `redmine auth list` to confirm.
 

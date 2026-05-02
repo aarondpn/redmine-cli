@@ -123,8 +123,38 @@ For hosts that speak the [Model Context Protocol](https://modelcontextprotocol.i
 
 - **Read-only by default.** Mutating tools are only registered when `--enable-writes` is passed; without the flag they never appear in `tools/list`.
 - **Authentication reuses the active profile** (or `--profile`, `--server/--api-key`, `REDMINE_*` env vars).
+- **Configurable tool surface.** Use `--enable-groups` / `--disable-groups` to expose only some categories (`issues`, `wiki`, `time`, ...), or `--enable-tools` / `--disable-tools` for per-tool overrides. Run `redmine mcp tools` to print the catalog.
 
 Write tools are destructive; prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
+
+#### Narrowing the exposed tools
+
+To run an MCP server that only knows about issues, set the group allow-list:
+
+```bash
+redmine mcp serve --enable-groups issues
+```
+
+To expose everything except destructive deletes, combine writes with a deny-list:
+
+```bash
+redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
+```
+
+The same defaults can live in `~/.redmine-cli.yaml` per profile so an MCP host always launches with the surface you want:
+
+```yaml
+profiles:
+  internal:
+    server: https://redmine.internal
+    api_key: ...
+    mcp:
+      enable_writes: true
+      enable_groups: [issues, wiki]
+      disable_tools: [delete_issue]
+```
+
+CLI flags override config, and `REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` env vars override the config file.
 
 ## Local E2E Testing
 

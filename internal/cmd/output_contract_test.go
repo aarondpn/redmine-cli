@@ -57,6 +57,7 @@ var commandOutputContracts = map[string]commandContract{
 	"redmine issues reopen":      {Mode: outputContractStructured},
 	"redmine issues update":      {Mode: outputContractStructured},
 	"redmine mcp serve":          {Mode: outputContractRawPassthrough, Reason: "runs the MCP JSON-RPC protocol over stdio"},
+	"redmine mcp tools":          {Mode: outputContractRawPassthrough, Reason: "prints a human-formatted catalog of MCP tools and groups"},
 	"redmine memberships create": {Mode: outputContractStructured},
 	"redmine memberships delete": {Mode: outputContractStructured},
 	"redmine memberships get":    {Mode: outputContractStructured},

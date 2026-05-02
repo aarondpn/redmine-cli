@@ -16,12 +16,19 @@ type messageResult interface {
 type toolSpec[In, Out any] struct {
 	Name        string
 	Description string
+	Category    Group
 	Writes      bool
 	Call        func(context.Context, *api.Client, In) (Out, error)
 }
 
 func registerToolSpec[In, Out any](srv *mcp.Server, client *api.Client, opts Options, spec toolSpec[In, Out]) {
 	if spec.Writes && !opts.EnableWrites {
+		return
+	}
+	if spec.Category != "" && !opts.groupEnabled(spec.Category) {
+		return
+	}
+	if !opts.toolEnabled(spec.Name) {
 		return
 	}
 
