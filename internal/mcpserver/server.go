@@ -22,7 +22,7 @@ func BuildServer(client *api.Client, opts Options) *mcp.Server {
 	}, nil)
 
 	registerTools(srv, client, opts)
-	registerResources(srv, client)
+	registerResources(srv, client, opts)
 	registerPrompts(srv)
 
 	return srv

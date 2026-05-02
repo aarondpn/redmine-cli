@@ -18,5 +18,6 @@ func NewCmdMCP(f *cmdutil.Factory) *cobra.Command {
 			"can drive Redmine through the same profile-backed authentication.",
 	}
 	cmd.AddCommand(newCmdServe(f))
+	cmd.AddCommand(newCmdTools(f))
 	return cmd
 }

@@ -339,4 +339,45 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 	if os.Getenv("REDMINE_NO_COLOR") != "" {
 		cfg.NoColor = true
 	}
+
+	mcpListEnv := map[string]*[]string{
+		"REDMINE_MCP_ENABLE_GROUPS":  &cfg.MCP.EnableGroups,
+		"REDMINE_MCP_DISABLE_GROUPS": &cfg.MCP.DisableGroups,
+		"REDMINE_MCP_ENABLE_TOOLS":   &cfg.MCP.EnableTools,
+		"REDMINE_MCP_DISABLE_TOOLS":  &cfg.MCP.DisableTools,
+	}
+	for envVar, field := range mcpListEnv {
+		if val := os.Getenv(envVar); val != "" {
+			*field = splitCSV(val)
+			log.Printf("Config: env override %s is set", envVar)
+		}
+	}
+
+	if val := os.Getenv("REDMINE_MCP_ENABLE_WRITES"); val != "" {
+		enable := parseBoolEnv(val)
+		cfg.MCP.EnableWrites = &enable
+		log.Printf("Config: env override REDMINE_MCP_ENABLE_WRITES is set")
+	}
+}
+
+// splitCSV trims, splits on commas, and drops empty entries.
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// parseBoolEnv treats common falsy values as false; everything else is true.
+func parseBoolEnv(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "0", "false", "no", "off", "":
+		return false
+	default:
+		return true
+	}
 }

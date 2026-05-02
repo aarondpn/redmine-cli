@@ -215,12 +215,30 @@ func renderTools(specs []ToolSpec) ([]byte, error) {
 		fmt.Fprintf(&buf, "\tregisterToolSpec(s, client, opts, toolSpec[%s, %s]{\n", spec.InputType, spec.OutputType)
 		fmt.Fprintf(&buf, "\t\tName:        %q,\n", spec.Name)
 		fmt.Fprintf(&buf, "\t\tDescription: %q,\n", spec.Description)
+		fmt.Fprintf(&buf, "\t\tCategory:    %q,\n", spec.Category)
 		if spec.Writes {
 			buf.WriteString("\t\tWrites:      true,\n")
 		}
 		fmt.Fprintf(&buf, "\t\tCall:        ops.%s,\n", spec.FuncName)
 		buf.WriteString("\t})\n")
 	}
+	buf.WriteString("}\n\n")
+
+	// Tool descriptor table for discovery commands (mcp list-groups). Built
+	// from the same specs to stay in lock-step with registerGeneratedTools.
+	buf.WriteString("// generatedToolDescriptors lists every tool registered by registerGeneratedTools\n")
+	buf.WriteString("// so the `mcp list-groups` command can render the catalog without spinning up\n")
+	buf.WriteString("// an MCP server.\n")
+	buf.WriteString("func generatedToolDescriptors() []ToolDescriptor {\n")
+	buf.WriteString("\treturn []ToolDescriptor{\n")
+	for _, spec := range specs {
+		if spec.Handler != "" {
+			continue
+		}
+		fmt.Fprintf(&buf, "\t\t{Name: %q, Description: %q, Group: %q, Writes: %v},\n",
+			spec.Name, spec.Description, spec.Category, spec.Writes)
+	}
+	buf.WriteString("\t}\n")
 	buf.WriteString("}\n")
 
 	return format.Source(buf.Bytes())
