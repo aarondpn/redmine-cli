@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -36,13 +36,12 @@ func NewCmdAssign(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("resolving user: %w", err)
 			}
 
-			update := models.IssueUpdate{
-				AssignedToID: &userID,
-			}
-
 			printer := f.Printer("")
 			stop := printer.Spinner("Assigning issue...")
-			err = client.Issues.Update(context.Background(), id, update)
+			_, err = ops.AssignIssue(context.Background(), client, ops.AssignIssueInput{
+				ID:         id,
+				AssigneeID: userID,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to assign issue %s: %w", fmt.Sprintf("#%d", id), err)

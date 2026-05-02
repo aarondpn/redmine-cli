@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -40,7 +41,7 @@ func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if err := client.TimeEntries.Delete(context.Background(), id); err != nil {
+			if _, err := ops.DeleteTimeEntry(context.Background(), client, ops.DeleteTimeEntryInput{ID: id}); err != nil {
 				return err
 			}
 

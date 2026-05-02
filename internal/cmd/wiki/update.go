@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -51,24 +51,30 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			update := models.WikiPageUpdate{}
+			input := ops.UpdateWikiPageInput{
+				ProjectID: projectID,
+				Page:      args[0],
+			}
 
 			if cmd.Flags().Changed("text") {
-				update.Text = &text
+				input.Text = &text
 			} else {
 				// Redmine requires the text field on every PUT.
 				// Fetch the current page and resend its text unchanged.
-				current, err := client.Wikis.Get(ctx, projectID, args[0], nil)
+				current, err := ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
+					ProjectID: projectID,
+					Page:      args[0],
+				})
 				if err != nil {
 					return fmt.Errorf("failed to fetch current wiki page %q: %w", args[0], err)
 				}
-				update.Text = &current.Text
+				input.Text = &current.Text
 			}
 			if cmd.Flags().Changed("title") {
-				update.Title = &title
+				input.Title = &title
 			}
 			if cmd.Flags().Changed("comments") {
-				update.Comments = &comments
+				input.Comments = &comments
 			}
 
 			if len(attach) > 0 {
@@ -76,11 +82,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				update.Uploads = uploads
+				input.Uploads = uploads
 			}
 
 			stop := printer.Spinner("Updating wiki page...")
-			err = client.Wikis.Update(ctx, projectID, args[0], update)
+			_, err = ops.UpdateWikiPage(ctx, client, input)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to update wiki page %q: %w", args[0], err)

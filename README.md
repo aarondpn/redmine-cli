@@ -119,7 +119,7 @@ See [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) for the full sk
 
 ### MCP Server
 
-For hosts that speak the [Model Context Protocol](https://modelcontextprotocol.io), `redmine mcp serve` exposes the CLI as an MCP server over stdio, reusing the same profile-backed authentication as every other `redmine` command.
+For hosts that speak the [Model Context Protocol](https://modelcontextprotocol.io), `redmine mcp serve` exposes the CLI as an MCP server over stdio by default, or over streamable HTTP when `--http` is passed, reusing the same profile-backed authentication as every other `redmine` command.
 
 - **Read-only by default.** Mutating tools are only registered when `--enable-writes` is passed; without the flag they never appear in `tools/list`.
 - **Authentication reuses the active profile** (or `--profile`, `--server/--api-key`, `REDMINE_*` env vars).

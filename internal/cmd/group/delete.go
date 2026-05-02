@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -41,7 +42,7 @@ func newCmdGroupDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting group...")
-			err = client.Groups.Delete(context.Background(), id)
+			_, err = ops.DeleteGroup(context.Background(), client, ops.DeleteGroupInput{ID: id})
 			stop()
 			if err != nil {
 				return err

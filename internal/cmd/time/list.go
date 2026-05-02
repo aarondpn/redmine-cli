@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -66,21 +66,20 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			filter := models.TimeEntryFilter{
+			result, err := ops.ListTimeEntries(ctx, client, ops.ListTimeEntriesInput{
 				ProjectID:  project,
 				UserID:     userID,
 				IssueID:    issue,
 				From:       from,
 				To:         to,
 				ActivityID: activityID,
-				Limit:      limit,
+				Limit:      cmdutil.OpsLimit(limit),
 				Offset:     offset,
-			}
-
-			entries, total, err := client.TimeEntries.List(ctx, filter)
+			})
 			if err != nil {
 				return err
 			}
+			entries, total := result.TimeEntries, result.TotalCount
 
 			printer := f.Printer(format)
 			headers := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}

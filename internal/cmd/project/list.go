@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -30,10 +31,14 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			projects, total, err := client.Projects.List(context.Background(), nil, limit, offset)
+			result, err := ops.ListProjects(context.Background(), client, ops.ListProjectsInput{
+				Limit:  cmdutil.OpsLimit(limit),
+				Offset: offset,
+			})
 			if err != nil {
 				return err
 			}
+			projects, total := result.Projects, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, projects, "projects") {
 				return nil

@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -31,20 +31,19 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer("")
 
-			update := models.ProjectUpdate{}
+			input := ops.UpdateProjectInput{Identifier: args[0]}
 
 			if cmd.Flags().Changed("name") {
-				update.Name = &name
+				input.Name = &name
 			}
 			if cmd.Flags().Changed("description") {
-				update.Description = &description
+				input.Description = &description
 			}
 			if cmd.Flags().Changed("public") {
-				update.IsPublic = &public
+				input.IsPublic = &public
 			}
 
-			err = client.Projects.Update(context.Background(), args[0], update)
-			if err != nil {
+			if _, err := ops.UpdateProject(context.Background(), client, input); err != nil {
 				return err
 			}
 

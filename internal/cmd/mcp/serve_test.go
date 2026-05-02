@@ -40,4 +40,12 @@ func TestServeFlags_DefaultsToReadOnly(t *testing.T) {
 	if name != "redmine-cli" {
 		t.Errorf("--name default = %q, want redmine-cli", name)
 	}
+
+	httpAddr, err := cmd.Flags().GetString("http")
+	if err != nil {
+		t.Fatalf("GetString(http): %v", err)
+	}
+	if httpAddr != "" {
+		t.Errorf("--http default = %q, want empty string", httpAddr)
+	}
 }

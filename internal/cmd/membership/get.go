@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -33,7 +34,7 @@ func newCmdMembershipGet(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching membership...")
-			m, err := client.Memberships.Get(context.Background(), id)
+			m, err := ops.GetMembership(context.Background(), client, ops.GetMembershipInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get membership %d: %w", id, err)

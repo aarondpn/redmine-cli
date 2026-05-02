@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -36,11 +37,12 @@ func newCmdStatusList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching statuses...")
-			statuses, err := client.Statuses.List(context.Background())
+			result, err := ops.ListStatuses(context.Background(), client, struct{}{})
 			stop()
 			if err != nil {
 				return err
 			}
+			statuses := result.Statuses
 
 			cmdutil.RenderCollection(printer, statuses, []string{"ID", "Name", "Closed"}, func(s models.IssueStatus, styled bool) []string {
 				id := fmt.Sprintf("%d", s.ID)

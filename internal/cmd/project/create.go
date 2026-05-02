@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
@@ -32,22 +32,22 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			create := models.ProjectCreate{
+			input := ops.CreateProjectInput{
 				Name:       name,
 				Identifier: identifier,
 			}
 
 			if description != "" {
-				create.Description = description
+				input.Description = description
 			}
 			if cmd.Flags().Changed("public") {
-				create.IsPublic = &public
+				input.IsPublic = &public
 			}
 			if parentID > 0 {
-				create.ParentID = parentID
+				input.ParentID = parentID
 			}
 
-			project, err := client.Projects.Create(context.Background(), create)
+			project, err := ops.CreateProject(context.Background(), client, input)
 			if err != nil {
 				return err
 			}

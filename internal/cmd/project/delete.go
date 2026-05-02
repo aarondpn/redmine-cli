@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -35,8 +36,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			err = client.Projects.Delete(context.Background(), identifier)
-			if err != nil {
+			if _, err := ops.DeleteProject(context.Background(), client, ops.DeleteProjectInput{Identifier: identifier}); err != nil {
 				return err
 			}
 

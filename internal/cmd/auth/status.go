@@ -9,6 +9,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -96,7 +97,7 @@ func runStatus(f *cmdutil.Factory) error {
 		authOK = false
 		kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("unavailable: %s", err)})
 	} else {
-		user, err := client.Users.Current(context.Background())
+		user, err := ops.GetCurrentUser(context.Background(), client, struct{}{})
 		if err == nil {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {

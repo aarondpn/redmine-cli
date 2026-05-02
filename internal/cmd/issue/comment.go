@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -36,13 +36,12 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			update := models.IssueUpdate{
-				Notes: &message,
-			}
-
 			printer := f.Printer("")
 			stop := printer.Spinner("Adding comment...")
-			err = client.Issues.Update(context.Background(), id, update)
+			_, err = ops.AddIssueComment(context.Background(), client, ops.AddIssueCommentInput{
+				ID:    id,
+				Notes: message,
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to add comment to issue %s: %w", fmt.Sprintf("#%d", id), err)

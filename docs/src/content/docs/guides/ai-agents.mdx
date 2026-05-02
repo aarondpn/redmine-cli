@@ -47,13 +47,13 @@ The same file is the source of truth for what the agent learns -- read it direct
 
 ## MCP Server
 
-`redmine mcp serve` exposes the CLI as a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio. MCP-aware hosts can then drive Redmine through tool calls, reusing the same profile-backed authentication as every other `redmine` command.
+`redmine mcp serve` exposes the CLI as a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio by default, or over streamable HTTP when `--http` is passed. MCP-aware hosts can then drive Redmine through tool calls, reusing the same profile-backed authentication as every other `redmine` command.
 
 ### How it works
 
-- **Transport:** stdio. The host spawns `redmine mcp serve` and talks JSON-RPC over its standard streams.
+- **Transport:** stdio by default. The host can spawn `redmine mcp serve` and talk JSON-RPC over its standard streams, or you can pass `--http :8080` to expose the same server over streamable HTTP.
 - **Authentication:** the active profile is used by default. Override with `--profile <name>`, `--server` / `--api-key`, or the `REDMINE_*` environment variables -- exactly like every other subcommand.
-- **Read-only by default.** Mutating tools (create / update / delete, comment, assign, close, reopen) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`.
+- **Read-only by default.** Mutating tools (create / update / delete, comment, close, reopen, and similar write operations) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`.
 
 <Aside type="caution">
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.

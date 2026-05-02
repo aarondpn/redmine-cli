@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -64,7 +64,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			update := models.IssueUpdate{}
+			update := ops.UpdateIssueInput{ID: id}
 
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject
@@ -121,7 +121,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			var projectIdentifier string
 			if needsProject {
-				issue, err := client.Issues.Get(ctx, id, nil)
+				issue, err := ops.GetIssue(ctx, client, ops.GetIssueInput{ID: id})
 				if err != nil {
 					return fmt.Errorf("failed to fetch issue for name resolution: %w", err)
 				}
@@ -156,7 +156,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
-			err = client.Issues.Update(ctx, id, update)
+			_, err = ops.UpdateIssue(ctx, client, update)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -43,7 +44,7 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting issue...")
-			err = client.Issues.Delete(context.Background(), id)
+			_, err = ops.DeleteIssue(context.Background(), client, ops.DeleteIssueInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to delete issue #%d: %w", id, err)

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -28,7 +29,7 @@ func newCmdTimeGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			entry, err := client.TimeEntries.Get(context.Background(), id)
+			entry, err := ops.GetTimeEntry(context.Background(), client, ops.GetTimeEntryInput{ID: id})
 			if err != nil {
 				return err
 			}

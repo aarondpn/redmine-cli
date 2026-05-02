@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
@@ -43,25 +43,25 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			create := models.VersionCreate{Name: name}
+			input := ops.CreateVersionInput{ProjectID: project, Name: name}
 			if status != "" {
-				create.Status = status
+				input.Status = status
 			}
 			if sharing != "" {
-				create.Sharing = sharing
+				input.Sharing = sharing
 			}
 			if dueDate != "" {
-				create.DueDate = cmdutil.ResolveDateKeyword(dueDate)
+				input.DueDate = cmdutil.ResolveDateKeyword(dueDate)
 			}
 			if description != "" {
-				create.Description = description
+				input.Description = description
 			}
 			if wikiPageTitle != "" {
-				create.WikiPageTitle = wikiPageTitle
+				input.WikiPageTitle = wikiPageTitle
 			}
 
 			printer := f.Printer(format)
-			version, err := client.Versions.Create(context.Background(), project, create)
+			version, err := ops.CreateVersion(context.Background(), client, input)
 			if err != nil {
 				return err
 			}

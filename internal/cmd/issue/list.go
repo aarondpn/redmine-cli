@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -106,7 +106,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				includes = append(includes, "relations")
 			}
 
-			filter := models.IssueFilter{
+			stop := printer.Spinner("Fetching issues...")
+			result, err := ops.ListIssues(ctx, client, ops.ListIssuesInput{
 				ProjectID:      project,
 				TrackerID:      trackerID,
 				StatusID:       resolvedStatus,
@@ -114,16 +115,14 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				FixedVersionID: versionID,
 				Sort:           sort,
 				Includes:       includes,
-				Limit:          limit,
+				Limit:          cmdutil.OpsLimit(limit),
 				Offset:         offset,
-			}
-
-			stop := printer.Spinner("Fetching issues...")
-			issues, total, err := client.Issues.List(ctx, filter)
+			})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list issues: %w", err)
 			}
+			issues, total := result.Issues, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, issues, "issues") {
 				return nil

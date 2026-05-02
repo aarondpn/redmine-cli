@@ -47,13 +47,13 @@ redmine-cli 针对 AI 代理提供两种集成方式，具体取决于你的工�
 
 ## MCP 服务器
 
-`redmine mcp serve` 通过 stdio 将 CLI 暴露为一个 [Model Context Protocol](https://modelcontextprotocol.io) 服务器。支持 MCP 的宿主可通过工具调用驱动 Redmine，复用与其他所有 `redmine` 命令相同的基于配置文件的身份验证。
+`redmine mcp serve` 默认通过 stdio 将 CLI 暴露为一个 [Model Context Protocol](https://modelcontextprotocol.io) 服务器；传入 `--http` 时，也可以通过 streamable HTTP 暴露同一个服务。支持 MCP 的宿主可通过工具调用驱动 Redmine，复用与其他所有 `redmine` 命令相同的基于配置文件的身份验证。
 
 ### 工作原理
 
-- **传输方式：** stdio。宿主生成 `redmine mcp serve` 进程，并通过其标准流使用 JSON-RPC 通信。
+- **传输方式：** 默认使用 stdio。宿主可以生成 `redmine mcp serve` 进程，并通过其标准流使用 JSON-RPC 通信；也可以传入 `--http :8080` 通过 streamable HTTP 暴露同一个服务。
 - **身份验证：** 默认使用当前活跃的配置文件。可通过 `--profile <name>`、`--server` / `--api-key` 或 `REDMINE_*` 环境变量覆盖，与其他子命令完全一致。
-- **默认只读。** 修改类工具（创建 / 更新 / 删除、评论、分配、关闭、重新打开）仅在传入 `--enable-writes` 时才会注册。未传入该标志时，这些工具不会出现在 `tools/list` 中。
+- **默认只读。** 修改类工具（创建 / 更新 / 删除、评论、关闭、重新打开及其他写操作）仅在传入 `--enable-writes` 时才会注册。未传入该标志时，这些工具不会出现在 `tools/list` 中。
 
 <Aside type="caution">
   写入工具具有破坏性。除非宿主提供了你信任的逐次审批界面（per-call approval UI），否则建议保持禁用。

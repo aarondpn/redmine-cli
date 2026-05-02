@@ -60,7 +60,6 @@ func TestAddIssueComment_DoesNotTouchIssuePrivacy(t *testing.T) {
 	cs, cleanup := newConnectedSession(t, apiClient, Options{EnableWrites: true, Version: "v0"})
 	defer cleanup()
 
-	// Default call: private_notes omitted.
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "add_issue_comment",
 		Arguments: map[string]any{"id": 42, "notes": "hello"},
@@ -133,5 +132,30 @@ func TestUpdateIssue_RoutesParentIssueID(t *testing.T) {
 	}
 	if int(got) != 99 {
 		t.Errorf("parent_issue_id = %v, want 99", got)
+	}
+}
+
+func TestUpdateIssue_RoutesAssignedToID(t *testing.T) {
+	cap := &captureIssueUpdateHandler{}
+	apiClient, closeTS := newTestAPIClient(t, cap)
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{EnableWrites: true, Version: "v0"})
+	defer cleanup()
+
+	_, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "update_issue",
+		Arguments: map[string]any{"id": 7, "assigned_to_id": 123},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	issue := cap.lastIssue(t)
+	got, ok := issue["assigned_to_id"].(float64)
+	if !ok {
+		t.Fatalf("assigned_to_id missing or wrong type: %+v", issue)
+	}
+	if int(got) != 123 {
+		t.Errorf("assigned_to_id = %v, want 123", got)
 	}
 }

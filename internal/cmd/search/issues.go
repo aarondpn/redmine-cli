@@ -31,6 +31,9 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 		Short: "Search issues",
 		Long:  "Search for issues in Redmine.",
 		Args:  cobra.MinimumNArgs(1),
+		// Stays on direct client.Search.Search: --attachments has no field on
+		// ops.SearchInput, and migrating would silently drop user-visible
+		// functionality. Revisit when the ops layer exposes an Attachments knob.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 			client, err := f.ApiClient()

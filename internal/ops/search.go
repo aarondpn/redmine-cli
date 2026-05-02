@@ -1,15 +1,13 @@
-package mcpserver
+package ops
 
 import (
 	"context"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
-type searchArgs struct {
+type SearchInput struct {
 	Query      string `json:"query" jsonschema:"Full-text search query."`
 	ProjectID  string `json:"project_id,omitempty" jsonschema:"Scope search to a single project (identifier or numeric ID)."`
 	Scope      string `json:"scope,omitempty" jsonschema:"One of 'all', 'my_projects', 'subprojects'."`
@@ -27,44 +25,42 @@ type searchArgs struct {
 	Offset     int    `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 }
 
-type searchListResult struct {
+type SearchResultsListResult struct {
 	Results    []models.SearchResult `json:"results"`
 	Count      int                   `json:"count"`
 	TotalCount int                   `json:"total_count"`
 }
 
-func registerSearchTools(s *mcp.Server, client *api.Client) {
-	mcp.AddTool(s, &mcp.Tool{
-		Name:        "search",
-		Description: "Search across Redmine issues, wiki pages, news, and more. If no type flag is set, issues and wiki pages are included by default.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, args searchArgs) (*mcp.CallToolResult, any, error) {
-		anySelected := args.Issues || args.News || args.Documents ||
-			args.Changesets || args.WikiPages || args.Messages || args.Projects
-		params := api.SearchParams{
-			Query:      args.Query,
-			ProjectID:  args.ProjectID,
-			Scope:      args.Scope,
-			AllWords:   args.AllWords,
-			TitlesOnly: args.TitlesOnly,
-			OpenIssues: args.OpenIssues,
-			Issues:     args.Issues,
-			News:       args.News,
-			Documents:  args.Documents,
-			Changesets: args.Changesets,
-			WikiPages:  args.WikiPages,
-			Messages:   args.Messages,
-			Projects:   args.Projects,
-			Limit:      listLimit(args.Limit),
-			Offset:     args.Offset,
-		}
-		if !anySelected {
-			params.Issues = true
-			params.WikiPages = true
-		}
-		results, total, err := client.Search.Search(ctx, params)
-		if err != nil {
-			return toolErrFromAPI[any](err)
-		}
-		return toolOK[any](searchListResult{Results: results, Count: len(results), TotalCount: total})
-	})
+//mcpgen:tool search
+//mcpgen:description Search across Redmine issues, wiki pages, news, and more. If no type flag is set, issues and wiki pages are included by default.
+//mcpgen:category search
+func Search(ctx context.Context, client *api.Client, input SearchInput) (SearchResultsListResult, error) {
+	anySelected := input.Issues || input.News || input.Documents ||
+		input.Changesets || input.WikiPages || input.Messages || input.Projects
+	params := api.SearchParams{
+		Query:      input.Query,
+		ProjectID:  input.ProjectID,
+		Scope:      input.Scope,
+		AllWords:   input.AllWords,
+		TitlesOnly: input.TitlesOnly,
+		OpenIssues: input.OpenIssues,
+		Issues:     input.Issues,
+		News:       input.News,
+		Documents:  input.Documents,
+		Changesets: input.Changesets,
+		WikiPages:  input.WikiPages,
+		Messages:   input.Messages,
+		Projects:   input.Projects,
+		Limit:      ListLimit(input.Limit),
+		Offset:     input.Offset,
+	}
+	if !anySelected {
+		params.Issues = true
+		params.WikiPages = true
+	}
+	results, total, err := client.Search.Search(ctx, params)
+	if err != nil {
+		return SearchResultsListResult{}, err
+	}
+	return SearchResultsListResult{Results: results, Count: len(results), TotalCount: total}, nil
 }

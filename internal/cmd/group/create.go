@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,7 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Creating group...")
-			group, err := client.Groups.Create(context.Background(), models.GroupCreate{
+			group, err := ops.CreateGroup(context.Background(), client, ops.CreateGroupInput{
 				Name:    name,
 				UserIDs: userIDs,
 			})

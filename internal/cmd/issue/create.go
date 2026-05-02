@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -67,7 +67,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("resolving project: %w", err)
 			}
 
-			create := models.IssueCreate{
+			create := ops.CreateIssueInput{
 				ProjectID:      projectID,
 				Subject:        subject,
 				Description:    description,
@@ -137,7 +137,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Creating issue...")
-			issue, err := client.Issues.Create(ctx, create)
+			issue, err := ops.CreateIssue(ctx, client, create)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to create issue: %w", err)

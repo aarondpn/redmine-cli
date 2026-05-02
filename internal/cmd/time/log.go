@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
@@ -52,16 +52,14 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			entry := models.TimeEntryCreate{
+			created, err := ops.CreateTimeEntry(context.Background(), client, ops.CreateTimeEntryInput{
 				IssueID:    issue,
 				ProjectID:  project,
 				Hours:      hours,
 				ActivityID: activityID,
 				SpentOn:    date,
 				Comments:   comment,
-			}
-
-			created, err := client.TimeEntries.Create(context.Background(), entry)
+			})
 			if err != nil {
 				return err
 			}

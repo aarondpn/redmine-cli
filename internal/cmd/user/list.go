@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 	"github.com/spf13/cobra"
@@ -41,17 +42,18 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Fetching users...")
-			users, total, err := client.Users.List(context.Background(), models.UserFilter{
+			result, err := ops.ListUsers(context.Background(), client, ops.ListUsersInput{
 				Status:  status,
 				Name:    name,
 				GroupID: groupID,
-				Limit:   limit,
+				Limit:   cmdutil.OpsLimit(limit),
 				Offset:  offset,
 			})
 			stop()
 			if err != nil {
 				return err
 			}
+			users, total := result.Users, result.TotalCount
 
 			cmdutil.RenderCollection(printer, users, []string{"ID", "Login", "Name", "Email", "Admin", "Status"},
 				func(u models.User, styled bool) []string {

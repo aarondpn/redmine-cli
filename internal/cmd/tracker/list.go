@@ -6,6 +6,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -36,11 +37,12 @@ func newCmdTrackerList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching trackers...")
-			trackers, err := client.Trackers.List(context.Background())
+			result, err := ops.ListTrackers(context.Background(), client, struct{}{})
 			stop()
 			if err != nil {
 				return err
 			}
+			trackers := result.Trackers
 
 			cmdutil.RenderCollection(printer, trackers, []string{"ID", "Name", "Description"}, func(t models.Tracker, styled bool) []string {
 				id := fmt.Sprintf("%d", t.ID)

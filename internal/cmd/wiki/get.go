@@ -9,6 +9,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -53,9 +54,14 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			stop := printer.Spinner("Fetching wiki page...")
 			var page *models.WikiPage
 			if version > 0 {
+				// no ops equivalent for versioned fetch
 				page, err = client.Wikis.GetVersion(ctx, projectID, pageTitle, version)
 			} else {
-				page, err = client.Wikis.Get(ctx, projectID, pageTitle, include)
+				page, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
+					ProjectID: projectID,
+					Page:      pageTitle,
+					Includes:  include,
+				})
 			}
 			stop()
 			if err != nil {

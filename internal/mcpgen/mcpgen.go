@@ -1,0 +1,233 @@
+package mcpgen
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/printer"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+const (
+	opsDir            = "internal/ops"
+	generatedToolsOut = "internal/mcpserver/zz_generated_tools.go"
+)
+
+type ToolSpec struct {
+	FuncName    string
+	Name        string
+	Description string
+	Category    string
+	Writes      bool
+	Handler     string
+	InputType   string
+	OutputType  string
+}
+
+func Write(repoRoot string) error {
+	toolsGo, err := Generate(repoRoot)
+	if err != nil {
+		return err
+	}
+
+	toolsPath := filepath.Join(repoRoot, generatedToolsOut)
+	if err := os.WriteFile(toolsPath, toolsGo, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", toolsPath, err)
+	}
+
+	return nil
+}
+
+func Generate(repoRoot string) ([]byte, error) {
+	specs, err := parseSpecs(filepath.Join(repoRoot, opsDir))
+	if err != nil {
+		return nil, err
+	}
+	return renderTools(specs)
+}
+
+func parseSpecs(dir string) ([]ToolSpec, error) {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read ops package dir: %w", err)
+	}
+
+	files := map[string]*ast.File{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		if file.Name.Name != "ops" {
+			continue
+		}
+		files[path] = file
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("ops package not found in %s", dir)
+	}
+
+	fileNames := make([]string, 0, len(files))
+	for name := range files {
+		fileNames = append(fileNames, name)
+	}
+	sort.Strings(fileNames)
+
+	var out []ToolSpec
+	for _, name := range fileNames {
+		file := files[name]
+		for _, decl := range file.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || fd.Doc == nil {
+				continue
+			}
+			meta := parseDirectives(fd.Doc.List)
+			if meta.Name == "" {
+				continue
+			}
+			spec, err := buildSpec(fd, meta)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", fd.Name.Name, err)
+			}
+			out = append(out, spec)
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Category != out[j].Category {
+			return out[i].Category < out[j].Category
+		}
+		return out[i].Name < out[j].Name
+	})
+
+	return out, nil
+}
+
+type directiveMeta struct {
+	Name        string
+	Description string
+	Category    string
+	Writes      bool
+	Handler     string
+}
+
+func parseDirectives(lines []*ast.Comment) directiveMeta {
+	var meta directiveMeta
+	for _, line := range lines {
+		text := strings.TrimSpace(strings.TrimPrefix(line.Text, "//"))
+		switch {
+		case strings.HasPrefix(text, "mcpgen:tool "):
+			meta.Name = strings.TrimSpace(strings.TrimPrefix(text, "mcpgen:tool "))
+		case strings.HasPrefix(text, "mcpgen:description "):
+			meta.Description = strings.TrimSpace(strings.TrimPrefix(text, "mcpgen:description "))
+		case strings.HasPrefix(text, "mcpgen:category "):
+			meta.Category = strings.TrimSpace(strings.TrimPrefix(text, "mcpgen:category "))
+		case text == "mcpgen:writes":
+			meta.Writes = true
+		case strings.HasPrefix(text, "mcpgen:handler "):
+			meta.Handler = strings.TrimSpace(strings.TrimPrefix(text, "mcpgen:handler "))
+		}
+	}
+	return meta
+}
+
+func buildSpec(fd *ast.FuncDecl, meta directiveMeta) (ToolSpec, error) {
+	if meta.Description == "" {
+		return ToolSpec{}, fmt.Errorf("missing mcpgen:description")
+	}
+	if meta.Category == "" {
+		return ToolSpec{}, fmt.Errorf("missing mcpgen:category")
+	}
+	if fd.Type.Params == nil || len(fd.Type.Params.List) != 3 {
+		return ToolSpec{}, fmt.Errorf("expected func(ctx, client, input) signature")
+	}
+	if fd.Type.Results == nil || len(fd.Type.Results.List) != 2 {
+		return ToolSpec{}, fmt.Errorf("expected two return values")
+	}
+
+	return ToolSpec{
+		FuncName:    fd.Name.Name,
+		Name:        meta.Name,
+		Description: meta.Description,
+		Category:    meta.Category,
+		Writes:      meta.Writes,
+		Handler:     meta.Handler,
+		InputType:   qualifyExpr(fd.Type.Params.List[2].Type),
+		OutputType:  qualifyExpr(fd.Type.Results.List[0].Type),
+	}, nil
+}
+
+func qualifyExpr(expr ast.Expr) string {
+	switch v := expr.(type) {
+	case *ast.Ident:
+		return "ops." + v.Name
+	case *ast.SelectorExpr:
+		return exprString(token.NewFileSet(), v)
+	case *ast.StarExpr:
+		return "*" + qualifyExpr(v.X)
+	case *ast.StructType:
+		return "struct{}"
+	case *ast.ArrayType:
+		return "[]" + qualifyExpr(v.Elt)
+	default:
+		return exprString(token.NewFileSet(), expr)
+	}
+}
+
+func renderTools(specs []ToolSpec) ([]byte, error) {
+	needsModels := false
+	for _, spec := range specs {
+		if strings.Contains(spec.InputType, "models.") || strings.Contains(spec.OutputType, "models.") {
+			needsModels = true
+			break
+		}
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("// Code generated by go generate ./...; DO NOT EDIT.\n")
+	buf.WriteString("package mcpserver\n\n")
+	buf.WriteString("import (\n")
+	buf.WriteString("\t\"github.com/modelcontextprotocol/go-sdk/mcp\"\n\n")
+	buf.WriteString("\t\"github.com/aarondpn/redmine-cli/v2/internal/api\"\n")
+	if needsModels {
+		buf.WriteString("\t\"github.com/aarondpn/redmine-cli/v2/internal/models\"\n")
+	}
+	buf.WriteString("\t\"github.com/aarondpn/redmine-cli/v2/internal/ops\"\n")
+	buf.WriteString(")\n\n")
+	buf.WriteString("func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {\n")
+	for _, spec := range specs {
+		if spec.Handler != "" {
+			fmt.Fprintf(&buf, "\t%s(s, client, opts)\n", spec.Handler)
+			continue
+		}
+		fmt.Fprintf(&buf, "\tregisterToolSpec(s, client, opts, toolSpec[%s, %s]{\n", spec.InputType, spec.OutputType)
+		fmt.Fprintf(&buf, "\t\tName:        %q,\n", spec.Name)
+		fmt.Fprintf(&buf, "\t\tDescription: %q,\n", spec.Description)
+		if spec.Writes {
+			buf.WriteString("\t\tWrites:      true,\n")
+		}
+		fmt.Fprintf(&buf, "\t\tCall:        ops.%s,\n", spec.FuncName)
+		buf.WriteString("\t})\n")
+	}
+	buf.WriteString("}\n")
+
+	return format.Source(buf.Bytes())
+}
+
+func exprString(fset *token.FileSet, expr ast.Expr) string {
+	var buf bytes.Buffer
+	_ = printer.Fprint(&buf, fset, expr)
+	return buf.String()
+}

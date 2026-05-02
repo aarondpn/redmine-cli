@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -39,7 +39,8 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 
 			stop := printer.Spinner("Updating membership...")
-			err = client.Memberships.Update(context.Background(), id, models.MembershipUpdate{
+			_, err = ops.UpdateMembership(context.Background(), client, ops.UpdateMembershipInput{
+				ID:      id,
 				RoleIDs: roleIDs,
 			})
 			stop()

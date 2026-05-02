@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -44,7 +45,7 @@ func newCmdVersionDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting version...")
-			err = client.Versions.Delete(ctx, id)
+			_, err = ops.DeleteVersion(ctx, client, ops.DeleteVersionInput{ID: id})
 			stop()
 			if err != nil {
 				return err
