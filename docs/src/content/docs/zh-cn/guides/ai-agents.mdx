@@ -60,6 +60,37 @@ redmine-cli 针对 AI 代理提供两种集成方式，具体取决于你的工�
   写入工具具有破坏性。除非宿主提供了你信任的逐次审批界面（per-call approval UI），否则建议保持禁用。
 </Aside>
 
+### HTTP 传输
+
+传入 `--http <addr>` 可以让服务器通过 streamable HTTP 而不是 stdio 暴露。地址简写 `:8080`（不带主机）会被改写为 `127.0.0.1:8080`，因此服务器永远不会被意外地暴露到其他机器。要在其他地址监听，请显式指定主机：
+
+```bash
+# 仅回环 -- 安全的默认值
+redmine mcp serve --http :8080
+
+# 显式回环（等价）
+redmine mcp serve --http 127.0.0.1:8080
+
+# 在所有网卡上监听 -- 务必同时设置 --auth-token
+redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
+```
+
+当检测到非回环绑定但未设置 `--auth-token` 时，CLI 会向 stderr 输出警告，但仍然启动。服务器会应用 `ReadHeaderTimeout=10s`、`ReadTimeout=30s`、`IdleTimeout=120s`；为避免缓慢的 Redmine 实例中断进行中的工具调用，`WriteTimeout` 保持不限。
+
+客户端必须在每个请求上发送 Bearer 令牌：
+
+```http
+POST / HTTP/1.1
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+令牌也可以放在配置块（`mcp.auth_token`）或 `REDMINE_MCP_AUTH_TOKEN` 中。命令行标志会覆盖二者。
+
+<Aside type="danger">
+  Bearer 令牌是任何可达 HTTP 客户端与你的 Redmine 实例之间唯一的屏障。请使用 CSPRNG 生成令牌，不要在不同部署间复用，并尽量在服务器之前用反向代理终止 TLS（特别是当绑定到回环以外时）。
+</Aside>
+
 ### 收窄暴露的工具范围
 
 对于只处理 issue 的助手，可仅保留 issues 组：
@@ -87,7 +118,7 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-环境变量（`REDMINE_MCP_ENABLE_GROUPS`、`REDMINE_MCP_DISABLE_GROUPS`、`REDMINE_MCP_ENABLE_TOOLS`、`REDMINE_MCP_DISABLE_TOOLS`、`REDMINE_MCP_ENABLE_WRITES`）会覆盖该配置块。
+环境变量（`REDMINE_MCP_ENABLE_GROUPS`、`REDMINE_MCP_DISABLE_GROUPS`、`REDMINE_MCP_ENABLE_TOOLS`、`REDMINE_MCP_DISABLE_TOOLS`、`REDMINE_MCP_ENABLE_WRITES`、`REDMINE_MCP_AUTH_TOKEN`）会覆盖该配置块。
 
 ### 前置条件
 

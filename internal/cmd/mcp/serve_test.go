@@ -147,6 +147,33 @@ func TestResolveEnableWrites(t *testing.T) {
 	}
 }
 
+func TestResolveAuthToken(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("auth-token", "", "")
+
+	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
+
+	if got := resolveAuthToken(cmd, "", cfg); got != "from-config" {
+		t.Errorf("config token should win when flag is unset, got %q", got)
+	}
+
+	if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if got := resolveAuthToken(cmd, "from-flag", cfg); got != "from-flag" {
+		t.Errorf("explicit flag should override config, got %q", got)
+	}
+
+	cmd2 := &cobra.Command{}
+	cmd2.Flags().String("auth-token", "", "")
+	if err := cmd2.Flags().Set("auth-token", ""); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if got := resolveAuthToken(cmd2, "", cfg); got != "" {
+		t.Errorf("explicitly empty flag should suppress config, got %q", got)
+	}
+}
+
 func TestBuildFilterSpec_RejectsUnknownTool(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringSlice("enable-groups", nil, "")

@@ -154,7 +154,11 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-CLI 标志会覆盖配置文件，`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` 环境变量也会覆盖该配置块。
+CLI 标志会覆盖配置文件，`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` 环境变量也会覆盖该配置块。
+
+#### HTTP 传输
+
+`--http :8080` 会被改写为绑定在 `127.0.0.1:8080` 上 -- 服务器永远不会默认在所有网卡上暴露。如要对外监听，请显式指定主机（`0.0.0.0:8080`），并通过 `--auth-token`（或 `REDMINE_MCP_AUTH_TOKEN` / 配置中的 `mcp.auth_token`）设置一个 Bearer 令牌。如果在非回环地址上绑定时未设置令牌，CLI 会向 stderr 输出警告但仍会启动。客户端必须在每个请求上发送 `Authorization: Bearer <token>`。
 
 ## 本地端到端测试
 

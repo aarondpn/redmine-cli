@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 		enableWrites  bool
 		name          string
 		httpAddr      string
+		authToken     string
 		enableGroups  []string
 		disableGroups []string
 		enableTools   []string
@@ -35,7 +37,10 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			"flags) selects the Redmine instance.\n\n" +
 			"By default only read tools are registered. Pass --enable-writes to " +
 			"also register create/update/delete tools. Use --http to listen on " +
-			"an HTTP address such as :8080 instead of stdio.\n\n" +
+			"an HTTP address such as :8080 instead of stdio. The HTTP transport " +
+			"defaults to a loopback bind (127.0.0.1); pass an explicit host to " +
+			"listen elsewhere, and use --auth-token (or REDMINE_MCP_AUTH_TOKEN) " +
+			"to require a bearer token on every request.\n\n" +
 			"To narrow the set of tools exposed to MCP clients, use " +
 			"--enable-groups / --disable-groups (allow- and deny-list of tool " +
 			"groups) and --enable-tools / --disable-tools (per-tool overrides). " +
@@ -69,11 +74,18 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			defer stop()
 
 			if httpAddr != "" {
-				handler := mcpserver.BuildHTTPHandler(client, opts)
-				server := &http.Server{
-					Addr:    httpAddr,
-					Handler: handler,
+				normalized, isLoopback := mcpserver.NormalizeBindAddr(httpAddr)
+				token := resolveAuthToken(cmd, authToken, cfg)
+				if !isLoopback && token == "" {
+					fmt.Fprintf(cmd.ErrOrStderr(),
+						"warning: serving MCP on %s without --auth-token; anyone reachable on that interface can drive Redmine through this server\n",
+						normalized)
 				}
+
+				server := mcpserver.BuildHTTPServer(client, opts, mcpserver.HTTPOptions{
+					Addr:      normalized,
+					AuthToken: token,
+				})
 				go func() {
 					<-ctx.Done()
 					_ = server.Close()
@@ -91,7 +103,8 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&enableWrites, "enable-writes", false, "Register tools that create, update, or delete Redmine data")
-	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (for example :8080)")
+	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (e.g. :8080 binds 127.0.0.1; pass 0.0.0.0:8080 to expose externally)")
+	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. Strongly recommended whenever --http binds outside of loopback.")
 	cmd.Flags().StringVar(&name, "name", "redmine-cli", "Server name advertised to MCP clients")
 	cmd.Flags().StringSliceVar(&enableGroups, "enable-groups", nil, "Comma-separated tool groups to expose (default: all). See redmine mcp tools.")
 	cmd.Flags().StringSliceVar(&disableGroups, "disable-groups", nil, "Comma-separated tool groups to hide. Applied after --enable-groups.")
@@ -159,6 +172,19 @@ func resolveEnableWrites(cmd *cobra.Command, flagVal bool, cfg *config.Config) b
 	}
 	if cfg != nil && cfg.MCP.EnableWrites != nil {
 		return *cfg.MCP.EnableWrites
+	}
+	return flagVal
+}
+
+// resolveAuthToken returns the effective HTTP bearer token. Precedence: CLI
+// flag > config block. The env-var override (REDMINE_MCP_AUTH_TOKEN) is
+// applied to the config block in applyEnvOverrides.
+func resolveAuthToken(cmd *cobra.Command, flagVal string, cfg *config.Config) string {
+	if cmd.Flags().Changed("auth-token") {
+		return flagVal
+	}
+	if cfg != nil && cfg.MCP.AuthToken != "" {
+		return cfg.MCP.AuthToken
 	}
 	return flagVal
 }
