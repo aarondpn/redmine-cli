@@ -154,7 +154,11 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-CLI flags override config, and `REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` env vars override the config file.
+CLI flags override config, and `REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` env vars override the config file.
+
+#### HTTP transport
+
+`--http :8080` is rewritten to bind on `127.0.0.1:8080` -- the server is never exposed on every interface by default. To listen externally, pass an explicit host (`0.0.0.0:8080`) and set a bearer token with `--auth-token` (or `REDMINE_MCP_AUTH_TOKEN` / `mcp.auth_token` in the config). Without a token on a non-loopback bind the CLI prints a warning and starts anyway. Clients must send `Authorization: Bearer <token>` on every request.
 
 ## Local E2E Testing
 

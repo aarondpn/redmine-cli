@@ -358,6 +358,11 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		cfg.MCP.EnableWrites = &enable
 		log.Printf("Config: env override REDMINE_MCP_ENABLE_WRITES is set")
 	}
+
+	if val := os.Getenv("REDMINE_MCP_AUTH_TOKEN"); val != "" {
+		cfg.MCP.AuthToken = val
+		log.Printf("Config: env override REDMINE_MCP_AUTH_TOKEN is set")
+	}
 }
 
 // splitCSV trims, splits on commas, and drops empty entries.

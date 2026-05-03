@@ -28,6 +28,10 @@ type MCPConfig struct {
 	EnableTools []string `mapstructure:"enable_tools" yaml:"enable_tools,omitempty"`
 	// DisableTools is a deny-list of tool names applied last.
 	DisableTools []string `mapstructure:"disable_tools" yaml:"disable_tools,omitempty"`
+	// AuthToken, when non-empty, becomes the default for `--auth-token` on
+	// the MCP HTTP transport. Bearer tokens supplied here are used as the
+	// shared secret clients must present in the Authorization header.
+	AuthToken string `mapstructure:"auth_token" yaml:"auth_token,omitempty"`
 }
 
 // ProfileConfig holds the top-level configuration with multiple profiles.

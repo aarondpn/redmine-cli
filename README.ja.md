@@ -154,7 +154,11 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-CLI フラグは設定ファイルより優先され、`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` 環境変数は設定ファイルを上書きします。
+CLI フラグは設定ファイルより優先され、`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` 環境変数は設定ファイルを上書きします。
+
+#### HTTP トランスポート
+
+`--http :8080` は `127.0.0.1:8080` にバインドするように書き換えられます -- サーバがすべてのインターフェースに既定で公開されることはありません。外部に公開するには明示的にホストを指定し（`0.0.0.0:8080`）、`--auth-token`（または `REDMINE_MCP_AUTH_TOKEN` / 設定の `mcp.auth_token`）でベアラートークンを設定してください。ループバック以外にバインドしているのにトークンが無い場合、CLI は stderr に警告を出しつつ起動します。クライアントは毎リクエストに `Authorization: Bearer <token>` を付与する必要があります。
 
 ## ローカル E2E テスト
 

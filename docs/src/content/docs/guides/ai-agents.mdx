@@ -60,6 +60,37 @@ The same file is the source of truth for what the agent learns -- read it direct
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
 </Aside>
 
+### HTTP transport
+
+Pass `--http <addr>` to expose the server over streamable HTTP instead of stdio. The address shorthand `:8080` (no host) is rewritten to `127.0.0.1:8080` so the server is never accidentally reachable from other machines. Pass an explicit host to listen elsewhere:
+
+```bash
+# Loopback only -- safe default
+redmine mcp serve --http :8080
+
+# Explicit loopback (equivalent)
+redmine mcp serve --http 127.0.0.1:8080
+
+# Listen on every interface -- always pair with --auth-token
+redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
+```
+
+When a non-loopback bind is detected without `--auth-token`, the CLI prints a warning to stderr but still starts. The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
+
+Clients must send the bearer token on every request:
+
+```http
+POST / HTTP/1.1
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`. Flags override both.
+
+<Aside type="danger">
+  The bearer token is the only thing standing between any HTTP-reachable client and your Redmine instance through this server. Generate it with a CSPRNG, never reuse it across deployments, and prefer terminating TLS in front of the server (reverse proxy) when binding outside loopback.
+</Aside>
+
 ### Narrowing the exposed tools
 
 For an issue-only assistant, drop everything but the issues group:
@@ -87,7 +118,7 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`) override the config block.
+Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`, `REDMINE_MCP_AUTH_TOKEN`) override the config block.
 
 ### Prerequisite
 

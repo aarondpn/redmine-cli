@@ -527,3 +527,20 @@ func TestApplyEnvOverrides_MCPListsAndBool(t *testing.T) {
 		t.Errorf("EnableWrites should be true (got %v)", cfg.MCP.EnableWrites)
 	}
 }
+
+func TestApplyEnvOverrides_MCPAuthToken(t *testing.T) {
+	t.Setenv("REDMINE_MCP_AUTH_TOKEN", "from-env")
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("server: https://example.com\napi_key: k\nmcp:\n  auth_token: from-file\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MCP.AuthToken != "from-env" {
+		t.Errorf("AuthToken = %q, want from-env (env should override file)", cfg.MCP.AuthToken)
+	}
+}
