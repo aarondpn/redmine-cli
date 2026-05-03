@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,21 @@ func e2eUsername() string { return getenvDefault("REDMINE_E2E_USERNAME", "admin"
 func e2eAPIKey() string   { return os.Getenv("REDMINE_E2E_API_KEY") }
 func e2ePassword() string { return os.Getenv("REDMINE_E2E_PASSWORD") }
 
+// requireErrorEnvelopeMessage decodes stdout as an error envelope and requires
+// a non-empty message. Returns the decoded envelope so callers can perform
+// additional code-level assertions.
+func requireErrorEnvelopeMessage(t *testing.T, stdout []byte) errorEnvelope {
+	t.Helper()
+	var env errorEnvelope
+	if err := json.Unmarshal(stdout, &env); err != nil {
+		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
+	}
+	if strings.TrimSpace(env.Error.Message) == "" {
+		t.Fatalf("error envelope missing message\nstdout:\n%s", stdout)
+	}
+	return env
+}
+
 // updateGoldens reports whether tests should overwrite golden files instead
 // of asserting against them. Set UPDATE_GOLDENS=1 to refresh.
 func updateGoldens() bool { return os.Getenv("UPDATE_GOLDENS") == "1" }
@@ -65,6 +81,9 @@ func updateGoldens() bool { return os.Getenv("UPDATE_GOLDENS") == "1" }
 // UPDATE_GOLDENS=1, the file is rewritten instead. Used for snapshotting
 // stable response shapes (MCP tool catalogs, output-format samples) so an
 // accidental rename or schema drift fails CI.
+//
+// The golden file is required: a missing file fails the test with a clear
+// instruction to run with UPDATE_GOLDENS=1. Goldens must be committed.
 func assertGoldenJSON(t *testing.T, path string, got any) {
 	t.Helper()
 

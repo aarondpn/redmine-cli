@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -102,4 +103,55 @@ func writeBodyFile(t *testing.T, body []byte) string {
 		t.Fatalf("write body file: %v", err)
 	}
 	return path
+}
+
+// TestAPI_NotFoundResponse exercises the raw api passthrough against a
+// non-existent issue. Distinct from TestErrors_NotFound (typed `issues get`)
+// because it specifically covers the api passthrough's error-mapping layer.
+func TestAPI_NotFoundResponse(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+
+	stdout, _ := r.runExpectError(t, "api", "/issues/2147483600.json")
+	assertErrorCode(t, stdout, "not_found")
+}
+
+// TestAPI_Delete creates an issue via the typed CLI and removes it via the
+// raw api passthrough (DELETE returns 204 No Content). The follow-up
+// `issues get` must surface a not_found envelope.
+func TestAPI_Delete(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	issue := createTestIssue(t, r, proj.Identifier)
+
+	r.run(t, "api", fmt.Sprintf("/issues/%d.json", issue.ID), "-X", "DELETE")
+
+	stdout, _ := r.runExpectError(t, "issues", "get", strconv.Itoa(issue.ID))
+	assertErrorCode(t, stdout, "not_found")
+}
+
+// TestAPI_FormFlag exercises -f as query parameters on a GET endpoint by
+// asking for at most 1 issue across all statuses; the response must contain
+// no more than 1 entry in the `issues` array and echo limit=1.
+func TestAPI_FormFlag(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	_ = createTestIssue(t, r, proj.Identifier)
+
+	var resp struct {
+		Issues []struct {
+			ID int `json:"id"`
+		} `json:"issues"`
+		Limit int `json:"limit"`
+	}
+	r.runJSON(t, &resp, "api", "/issues.json", "-f", "limit=1", "-f", "status_id=*")
+
+	if len(resp.Issues) > 1 {
+		t.Fatalf("api -f limit=1 returned %d issues, want <= 1", len(resp.Issues))
+	}
+	if resp.Limit != 1 {
+		t.Fatalf("api -f limit=1 echoed limit = %d, want 1", resp.Limit)
+	}
 }

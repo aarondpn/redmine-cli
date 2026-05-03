@@ -23,18 +23,23 @@ type cliRunner struct {
 	repoRoot   string
 }
 
+// defaultRunnerProfile is the active-profile name baked into runners produced
+// by newCLIRunner. Tests that need to assert on the profile name (auth
+// status/list/switch) reference this constant rather than hard-coding it.
+const defaultRunnerProfile = "local-e2e"
+
 // newCLIRunner returns a runner with a single API-key profile. This is the
 // default factory used by most tests.
 func newCLIRunner(t *testing.T, baseURL, apiKey string) *cliRunner {
 	t.Helper()
-	return newRunnerWithConfig(t, fmt.Sprintf(`active_profile: local-e2e
+	return newRunnerWithConfig(t, fmt.Sprintf(`active_profile: %s
 profiles:
-  local-e2e:
+  %s:
     server: %s
     api_key: %s
     auth_method: apikey
     output_format: json
-`, baseURL, apiKey))
+`, defaultRunnerProfile, defaultRunnerProfile, baseURL, apiKey))
 }
 
 // newCLIRunnerBasicAuth returns a runner configured for HTTP basic auth.

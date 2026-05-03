@@ -1,0 +1,94 @@
+[
+  {
+    "name": "get_group",
+    "description": "Fetch a single Redmine group by ID."
+  },
+  {
+    "name": "get_issue",
+    "description": "Fetch a single Redmine issue by ID."
+  },
+  {
+    "name": "get_membership",
+    "description": "Fetch a single project membership by ID."
+  },
+  {
+    "name": "get_project",
+    "description": "Fetch a single Redmine project by identifier or ID."
+  },
+  {
+    "name": "get_time_entry",
+    "description": "Fetch a single time entry by ID."
+  },
+  {
+    "name": "get_user",
+    "description": "Fetch a single Redmine user by numeric ID."
+  },
+  {
+    "name": "get_version",
+    "description": "Fetch a single version (milestone) by ID."
+  },
+  {
+    "name": "get_wiki_page",
+    "description": "Fetch a single wiki page."
+  },
+  {
+    "name": "list_categories",
+    "description": "List issue categories for a project."
+  },
+  {
+    "name": "list_groups",
+    "description": "List Redmine groups."
+  },
+  {
+    "name": "list_issues",
+    "description": "List Redmine issues matching the given filters."
+  },
+  {
+    "name": "list_memberships",
+    "description": "List memberships for a project."
+  },
+  {
+    "name": "list_project_members",
+    "description": "List members for a Redmine project."
+  },
+  {
+    "name": "list_projects",
+    "description": "List Redmine projects."
+  },
+  {
+    "name": "list_statuses",
+    "description": "List all issue statuses configured in this Redmine instance."
+  },
+  {
+    "name": "list_time_entries",
+    "description": "List Redmine time entries matching the given filters."
+  },
+  {
+    "name": "list_trackers",
+    "description": "List all trackers (Bug, Feature, ...) configured in this Redmine instance."
+  },
+  {
+    "name": "list_users",
+    "description": "List Redmine users matching the given filter."
+  },
+  {
+    "name": "list_versions",
+    "description": "List versions (milestones) for a project."
+  },
+  {
+    "name": "list_wiki_pages",
+    "description": "List wiki pages for a project."
+  },
+  {
+    "name": "me",
+    "description": "Return the currently authenticated Redmine user."
+  },
+  {
+    "name": "search",
+    "description": "Search across Redmine issues, wiki pages, news, and more. If no type flag is set, issues and wiki pages are included by default."
+  },
+  {
+    "name": "summary_time_entries",
+    "description": "Summarize time entries grouped by day, project, or activity."
+  }
+]

@@ -40,17 +40,18 @@ func TestUsers_List(t *testing.T) {
 	}
 
 	t.Run("pagination disjoint", func(t *testing.T) {
-		// Need at least two users on the server for the second page to differ
-		// from the first. Create a second so the test does not depend on
-		// pre-existing data.
-		_ = createTestUser(t, r)
+		// Use the e2eu prefix as a server-side filter so this subtest is
+		// isolated from any concurrent activity (other tests, parallel runs,
+		// pre-existing data). createTestUser logins are e2eu<suffix>.
+		extra := createTestUser(t, r)
+		_ = extra
 
-		first := listUserIDs(t, r, "--limit", "1")
+		first := listUserIDs(t, r, "--name", "e2eu", "--limit", "1")
 		if len(first) != 1 {
 			t.Fatalf("first page: got %d users, want 1", len(first))
 		}
 
-		second := listUserIDs(t, r, "--limit", "1", "--offset", "1")
+		second := listUserIDs(t, r, "--name", "e2eu", "--limit", "1", "--offset", "1")
 		if len(second) != 1 {
 			t.Fatalf("second page: got %d users, want 1", len(second))
 		}
@@ -63,7 +64,8 @@ func TestUsers_List(t *testing.T) {
 
 // TestUsers_ListLocked locks a user via the raw api passthrough and verifies
 // the locked-status filter returns it while the default (active) listing does
-// not.
+// not. Both listings are scoped via --name to the user's login so this test is
+// safe under concurrent activity.
 func TestUsers_ListLocked(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
@@ -71,14 +73,14 @@ func TestUsers_ListLocked(t *testing.T) {
 	u := createTestUser(t, r)
 	lockUser(t, r, u.ID)
 
-	locked := listUserIDs(t, r, "--status", "locked", "--limit", "100")
+	locked := listUserIDs(t, r, "--name", u.Login, "--status", "locked")
 	if !containsInt(locked, u.ID) {
-		t.Fatalf("locked user %d not in `users list --status locked`: %v", u.ID, locked)
+		t.Fatalf("locked user %d not in `users list --status locked --name %s`: %v", u.ID, u.Login, locked)
 	}
 
-	active := listUserIDs(t, r, "--limit", "100")
+	active := listUserIDs(t, r, "--name", u.Login)
 	if containsInt(active, u.ID) {
-		t.Fatalf("locked user %d should not appear in default `users list`", u.ID)
+		t.Fatalf("locked user %d should not appear in default `users list --name %s`", u.ID, u.Login)
 	}
 }
 

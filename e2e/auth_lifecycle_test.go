@@ -45,7 +45,7 @@ func TestAuth_StatusActive(t *testing.T) {
 	if got, want := status["server"], e2eBaseURL(); got != want {
 		t.Fatalf("auth status server = %v, want %v", got, want)
 	}
-	if got, want := status["profile"], "local-e2e"; got != want {
+	if got, want := status["profile"], defaultRunnerProfile; got != want {
 		t.Fatalf("auth status profile = %v, want %v", got, want)
 	}
 }

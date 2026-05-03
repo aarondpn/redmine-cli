@@ -142,40 +142,29 @@ func TestOutput_Table_TruncatesWide(t *testing.T) {
 	}
 }
 
-// TestOutput_NoColor exercises the colour toggles. With NO_COLOR=1 the
-// stdout must be free of ANSI escape sequences. With FORCE_COLOR=1 we look
-// for at least one escape sequence; if the renderer chooses not to emit
-// colour even with FORCE_COLOR (no TTY, etc.) we skip the second assertion
-// rather than fail, since that's an environmental decision not a regression.
-func TestOutput_NoColor(t *testing.T) {
+// TestOutput_NoColorEmitsPlain verifies that NO_COLOR=1 strips ANSI escape
+// sequences from the table output. The FORCE_COLOR direction is intentionally
+// not tested here because the renderer respects TTY detection and the CLI is
+// always invoked without a TTY in this suite, so FORCE_COLOR has no effect.
+func TestOutput_NoColorEmitsPlain(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-	ansi := regexp.MustCompile(`\x1b\[`)
 
 	plain := r.runWithEnv(t, []string{"NO_COLOR=1"},
 		"users", "me", "--output", "table")
-	if ansi.Match(plain) {
+	if regexp.MustCompile(`\x1b\[`).Match(plain) {
 		t.Fatalf("NO_COLOR output contained ANSI escape:\n%s", plain)
 	}
 	if len(bytes.TrimSpace(plain)) == 0 {
 		t.Fatalf("NO_COLOR output was empty")
 	}
-
-	forced := r.runWithEnv(t, []string{"FORCE_COLOR=1"},
-		"users", "me", "--output", "table")
-	if !ansi.Match(forced) {
-		t.Skipf("FORCE_COLOR output did not contain ANSI escape; renderer likely respects TTY detection only:\n%s", forced)
-	}
 }
 
 // TestOutput_JSON_GoldenIssue snapshots the JSON shape of `issues get` to
-// catch field renames and accidental schema drift. Skipped until the
-// coordinator seeds the golden file against a live Redmine via
-// UPDATE_GOLDENS=1; the body documents the intended scrub-and-compare flow.
+// catch field renames and accidental schema drift. The golden file lives at
+// e2e/testdata/issue_get.golden.json and is refreshed via UPDATE_GOLDENS=1.
 func TestOutput_JSON_GoldenIssue(t *testing.T) {
 	requireE2E(t)
-	t.Skip("golden seeding requires UPDATE_GOLDENS=1 against live Redmine; coordinator runs once at end")
-
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 	subject := "golden subject"
@@ -189,23 +178,27 @@ func TestOutput_JSON_GoldenIssue(t *testing.T) {
 	assertGoldenJSON(t, "testdata/issue_get.golden.json", scrubbed)
 }
 
-// scrubVolatileIssueFields removes ID, timestamp, author, and project-name
+// scrubVolatileIssueFields removes ID, timestamp, author, project, and date
 // fields that change between test runs so the golden snapshot only captures
-// stable shape (subject, tracker name, status name, ...).
+// stable shape (subject, tracker name, status name, ...). Tracker/status/
+// priority IDs vary across Redmine versions because the bootstrap loads
+// default data in undefined order, so their numeric IDs are also dropped.
 func scrubVolatileIssueFields(raw map[string]any) map[string]any {
 	delete(raw, "id")
 	delete(raw, "created_on")
 	delete(raw, "updated_on")
-	if project, ok := raw["project"].(map[string]any); ok {
-		delete(project, "id")
-		delete(project, "name")
-	}
+	delete(raw, "start_date")
+	delete(raw, "due_date")
+	delete(raw, "project")
+	delete(raw, "author")
 	if tracker, ok := raw["tracker"].(map[string]any); ok {
 		delete(tracker, "id")
 	}
-	if author, ok := raw["author"].(map[string]any); ok {
-		delete(author, "id")
-		delete(author, "name")
+	if status, ok := raw["status"].(map[string]any); ok {
+		delete(status, "id")
+	}
+	if priority, ok := raw["priority"].(map[string]any); ok {
+		delete(priority, "id")
 	}
 	return raw
 }

@@ -13,12 +13,12 @@ type summaryRow struct {
 	Hours float64 `json:"hours"`
 }
 
-// summaryDateWindow returns an 11-day window ending today. It exists so each
-// test uses a fixed window rather than relying on the cmd's start-of-week
-// default, which would make the suite non-deterministic.
-func summaryDateWindow() (from, to string) {
-	today := time.Now().UTC()
-	return today.AddDate(0, 0, -10).Format("2006-01-02"), today.Format("2006-01-02")
+// summaryDateWindow returns an 11-day window ending on the supplied anchor.
+// Tests pass the same anchor to summaryDateWindow and the entry-date helpers
+// so a midnight-UTC crossing during a test cannot shift the window relative
+// to the entries it should contain.
+func summaryDateWindow(anchor time.Time) (from, to string) {
+	return anchor.AddDate(0, 0, -10).Format("2006-01-02"), anchor.Format("2006-01-02")
 }
 
 func allActivityNames(t *testing.T, r *cliRunner) []string {
@@ -82,16 +82,16 @@ func TestTimeSummary_GroupByDay(t *testing.T) {
 	issue := createTestIssue(t, r, proj.Identifier)
 	activity := firstActivityName(t, r)
 
-	today := time.Now().UTC()
-	day1 := today.AddDate(0, 0, -4).Format("2006-01-02")
-	day2 := today.AddDate(0, 0, -2).Format("2006-01-02")
-	day3 := today.Format("2006-01-02")
+	anchor := time.Now().UTC()
+	day1 := anchor.AddDate(0, 0, -4).Format("2006-01-02")
+	day2 := anchor.AddDate(0, 0, -2).Format("2006-01-02")
+	day3 := anchor.Format("2006-01-02")
 
 	logTimeEntry(t, r, issue.ID, 1.0, day1, activity, "summary day1")
 	logTimeEntry(t, r, issue.ID, 2.5, day2, activity, "summary day2")
 	logTimeEntry(t, r, issue.ID, 0.75, day3, activity, "summary day3")
 
-	from, to := summaryDateWindow()
+	from, to := summaryDateWindow(anchor)
 	var rows []summaryRow
 	r.runJSON(t, &rows, "time", "summary",
 		"--from", from,
@@ -127,12 +127,13 @@ func TestTimeSummary_GroupByActivity(t *testing.T) {
 	proj := createTestProject(t, r)
 	issue := createTestIssue(t, r, proj.Identifier)
 
-	date := time.Now().UTC().Format("2006-01-02")
+	anchor := time.Now().UTC()
+	date := anchor.Format("2006-01-02")
 	logTimeEntry(t, r, issue.ID, 1.5, date, first, "summary act1 a")
 	logTimeEntry(t, r, issue.ID, 0.5, date, first, "summary act1 b")
 	logTimeEntry(t, r, issue.ID, 2.25, date, second, "summary act2")
 
-	from, to := summaryDateWindow()
+	from, to := summaryDateWindow(anchor)
 	var rows []summaryRow
 	r.runJSON(t, &rows, "time", "summary",
 		"--from", from,
@@ -161,12 +162,13 @@ func TestTimeSummary_GroupByProject(t *testing.T) {
 	projB := createTestProject(t, r)
 	issueB := createTestIssue(t, r, projB.Identifier)
 
-	date := time.Now().UTC().Format("2006-01-02")
+	anchor := time.Now().UTC()
+	date := anchor.Format("2006-01-02")
 	logTimeEntry(t, r, issueA.ID, 1.0, date, activity, "summary projA a")
 	logTimeEntry(t, r, issueA.ID, 0.5, date, activity, "summary projA b")
 	logTimeEntry(t, r, issueB.ID, 3.25, date, activity, "summary projB")
 
-	from, to := summaryDateWindow()
+	from, to := summaryDateWindow(anchor)
 
 	var rowsA []summaryRow
 	r.runJSON(t, &rowsA, "time", "summary",
@@ -205,19 +207,19 @@ func TestTimeSummary_DateWindow(t *testing.T) {
 	issue := createTestIssue(t, r, proj.Identifier)
 	activity := firstActivityName(t, r)
 
-	today := time.Now().UTC()
-	early := today.AddDate(0, 0, -8).Format("2006-01-02")
-	middle := today.AddDate(0, 0, -5).Format("2006-01-02")
-	late := today.AddDate(0, 0, -2).Format("2006-01-02")
+	anchor := time.Now().UTC()
+	early := anchor.AddDate(0, 0, -8).Format("2006-01-02")
+	middle := anchor.AddDate(0, 0, -5).Format("2006-01-02")
+	late := anchor.AddDate(0, 0, -2).Format("2006-01-02")
 
 	logTimeEntry(t, r, issue.ID, 1.0, early, activity, "summary early")
 	logTimeEntry(t, r, issue.ID, 2.0, middle, activity, "summary middle")
 	logTimeEntry(t, r, issue.ID, 3.0, late, activity, "summary late")
 
-	leftFrom := today.AddDate(0, 0, -9).Format("2006-01-02")
-	leftTo := today.AddDate(0, 0, -6).Format("2006-01-02")
-	rightFrom := today.AddDate(0, 0, -3).Format("2006-01-02")
-	rightTo := today.AddDate(0, 0, -1).Format("2006-01-02")
+	leftFrom := anchor.AddDate(0, 0, -9).Format("2006-01-02")
+	leftTo := anchor.AddDate(0, 0, -6).Format("2006-01-02")
+	rightFrom := anchor.AddDate(0, 0, -3).Format("2006-01-02")
+	rightTo := anchor.AddDate(0, 0, -1).Format("2006-01-02")
 
 	var leftRows []summaryRow
 	r.runJSON(t, &leftRows, "time", "summary",
@@ -253,10 +255,11 @@ func TestTimeSummary_UserFilter(t *testing.T) {
 	issue := createTestIssue(t, r, proj.Identifier)
 	activity := firstActivityName(t, r)
 
-	date := time.Now().UTC().Format("2006-01-02")
+	anchor := time.Now().UTC()
+	date := anchor.Format("2006-01-02")
 	logTimeEntry(t, r, issue.ID, 1.25, date, activity, "summary user me")
 
-	from, to := summaryDateWindow()
+	from, to := summaryDateWindow(anchor)
 
 	var meRows []summaryRow
 	r.runJSON(t, &meRows, "time", "summary",

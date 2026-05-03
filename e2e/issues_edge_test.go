@@ -238,33 +238,11 @@ func TestIssuesCreate_EmptySubjectValidationError(t *testing.T) {
 		"--tracker", tracker,
 		"--subject", "")
 
-	var env errorEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
-		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
-	}
-	if strings.TrimSpace(env.Error.Message) == "" {
-		t.Fatalf("error envelope missing message; stdout:\n%s", stdout)
-	}
-	// Different Redmine versions classify "blank subject" differently
-	// (validation_failed, server_error, or no code at all). Accept any of
-	// those rather than coupling to a single backend version.
-	switch env.Error.Code {
-	case "", "validation_failed", "server_error", "unknown":
-	default:
-		t.Fatalf("unexpected error code %q for empty subject; want validation_failed/server_error/unknown\nstdout:\n%s",
+	env := requireErrorEnvelopeMessage(t, stdout)
+	// Verified across Redmine 4.2/5.1/6.1: the 422 from a blank subject is
+	// classified as validation_failed by internal/cmdutil error mapping.
+	if env.Error.Code != "validation_failed" {
+		t.Fatalf("error code = %q, want validation_failed\nstdout:\n%s",
 			env.Error.Code, stdout)
 	}
-}
-
-// TestIssuesUpdate_ClearAssignee documents the limitation that the CLI does
-// not currently support clearing an assignee via `--assignee ""`. The empty
-// string is fed to resolver.ResolveAssignee (see
-// internal/cmd/issue/update.go and internal/resolver/resolver.go), which
-// treats it as a name lookup and fails. If the CLI ever grows a sentinel for
-// "unassign", replace this Skip with a real round-trip assertion.
-func TestIssuesUpdate_ClearAssignee(t *testing.T) {
-	requireE2E(t)
-	t.Skip("CLI does not currently support clearing assignee via --assignee \"\"; " +
-		"see internal/cmd/issue/update.go and internal/resolver/resolver.go. " +
-		"Update this test if a clear/unset sentinel is added.")
 }

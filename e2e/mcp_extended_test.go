@@ -5,11 +5,9 @@ package e2e
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -332,8 +330,9 @@ func TestMCPStdio_CallToolUnknownName(t *testing.T) {
 }
 
 // TestMCPStdio_ToolCatalogStable snapshots the read-only tool catalog so
-// accidental tool removal / rename surfaces in review. The golden file is
-// seeded by the coordinator on first run with UPDATE_GOLDENS=1.
+// accidental tool removal / rename surfaces in review. The golden file lives
+// at e2e/testdata/mcp_tools_readonly.golden.json and is refreshed via
+// UPDATE_GOLDENS=1.
 func TestMCPStdio_ToolCatalogStable(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
@@ -358,8 +357,7 @@ func TestMCPStdio_ToolCatalogStable(t *testing.T) {
 	}
 	sort.Slice(catalog, func(i, j int) bool { return catalog[i].Name < catalog[j].Name })
 
-	goldenPath := filepath.Join("testdata", "mcp_tools_readonly.golden.json")
-	mcpExtAssertGoldenJSON(t, goldenPath, catalog)
+	assertGoldenJSON(t, "testdata/mcp_tools_readonly.golden.json", catalog)
 }
 
 // mcpExtTryConnectStdio mirrors startMCPStdio but returns an error instead of
@@ -449,43 +447,4 @@ func mcpExtFieldFromResult(t *testing.T, out *mcp.CallToolResult, field string) 
 		}
 	}
 	return nil, false
-}
-
-// mcpExtAssertGoldenJSON compares actual against the JSON file at path,
-// re-writing the file when UPDATE_GOLDENS=1 is set in the environment. When
-// the file is missing and UPDATE_GOLDENS is unset, the test skips so the
-// coordinator can seed the snapshot in a controlled run.
-func mcpExtAssertGoldenJSON(t *testing.T, path string, actual any) {
-	t.Helper()
-
-	updateGoldensFlag := os.Getenv("UPDATE_GOLDENS") == "1"
-
-	pretty, err := json.MarshalIndent(actual, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal golden payload: %v", err)
-	}
-	pretty = append(pretty, '\n')
-
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) && !updateGoldensFlag {
-		t.Skip("golden missing; coordinator must seed with UPDATE_GOLDENS=1")
-	}
-
-	if updateGoldensFlag {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("mkdir golden dir: %v", err)
-		}
-		if err := os.WriteFile(path, pretty, 0o600); err != nil {
-			t.Fatalf("write golden: %v", err)
-		}
-		return
-	}
-
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read golden %s: %v", path, err)
-	}
-	if string(want) != string(pretty) {
-		t.Fatalf("golden mismatch for %s\n--- want ---\n%s\n--- got ---\n%s",
-			path, want, pretty)
-	}
 }
