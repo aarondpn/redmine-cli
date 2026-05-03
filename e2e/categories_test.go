@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -34,13 +35,29 @@ func TestCategories_List(t *testing.T) {
 }
 
 // TestCategories_List_UnknownProject verifies the CLI surfaces a non-zero exit
-// and a structured error envelope when the target project does not exist.
+// and a structured error envelope when the target project does not exist. The
+// project resolver intercepts the lookup before it reaches the API and emits
+// a non-API "no match found" error (code "unknown"), so we assert on the
+// envelope shape and the project identifier in the message rather than the
+// code itself.
 func TestCategories_List_UnknownProject(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
-	stdout, _ := r.runExpectError(t, "categories", "list", "--project", "nonexistent-project-12345")
-	assertErrorCode(t, stdout, "not_found")
+	const missing = "nonexistent-project-12345"
+	stdout, _ := r.runExpectError(t, "categories", "list", "--project", missing)
+
+	var env errorEnvelope
+	if err := json.Unmarshal(stdout, &env); err != nil {
+		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
+	}
+	if env.Error.Message == "" {
+		t.Fatalf("error envelope missing message\nstdout:\n%s", stdout)
+	}
+	if !strings.Contains(env.Error.Message, missing) {
+		t.Fatalf("error message %q does not mention %q\nstdout:\n%s",
+			env.Error.Message, missing, stdout)
+	}
 }
 
 func createCategory(t *testing.T, r *cliRunner, projectIdentifier, name string) {

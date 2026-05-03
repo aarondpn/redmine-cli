@@ -161,19 +161,20 @@ func TestMemberships_GroupCreate(t *testing.T) {
 // TestMemberships_CreateRequiresUserOrGroup verifies the mutual-exclusivity
 // validation at internal/cmd/membership/create.go:33: omitting both
 // --user-id and --group-id must exit non-zero with the membership cmd's own
-// message on stderr.
+// message. With --output json, the message lands in the stdout error envelope.
 func TestMemberships_CreateRequiresUserOrGroup(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 	roleID := firstRoleID(t, r)
 
-	_, stderr := r.runExpectError(t, "memberships", "create",
+	stdout, stderr := r.runExpectError(t, "memberships", "create",
 		"--project", proj.Identifier,
 		"--role-ids", strconv.Itoa(roleID))
-	got := string(stderr)
-	if !strings.Contains(got, "either --user-id or --group-id is required") {
-		t.Fatalf("expected stderr to mention missing --user-id/--group-id; got:\n%s", got)
+	const want = "either --user-id or --group-id is required"
+	if !strings.Contains(string(stdout), want) && !strings.Contains(string(stderr), want) {
+		t.Fatalf("expected error to mention missing --user-id/--group-id\nstdout:\n%s\nstderr:\n%s",
+			stdout, stderr)
 	}
 }
 

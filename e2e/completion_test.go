@@ -14,24 +14,29 @@ import (
 // all tests).
 
 // TestCompletion_BashGenerates verifies that `redmine completion bash`
-// produces a non-empty bash completion script that references the binary,
-// the bash shape, and at least one known subcommand.
+// produces a non-empty bash completion script with the cobra bash shape
+// and a per-subcommand handler. Cobra registers the completion via
+// `complete -o default -F __start_redmine redmine`, so __start_redmine is
+// the stable marker.
 func TestCompletion_BashGenerates(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
 	stdout := r.run(t, "completion", "bash")
-	assertCompletionScript(t, "bash", stdout, "complete -F", "redmine", "issues", "projects")
+	assertCompletionScript(t, "bash", stdout,
+		"__start_redmine", "_redmine_issues", "_redmine_projects")
 }
 
 // TestCompletion_ZshGenerates verifies that `redmine completion zsh` produces
-// a non-empty zsh completion script with the expected zsh shape.
+// a non-empty zsh completion script with the expected zsh shape. Note: cobra's
+// zsh completion is dynamic — it does NOT bake subcommand names into the
+// script, so we only assert on the static markers.
 func TestCompletion_ZshGenerates(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
 	stdout := r.run(t, "completion", "zsh")
-	assertCompletionScript(t, "zsh", stdout, "#compdef redmine", "_redmine", "issues")
+	assertCompletionScript(t, "zsh", stdout, "#compdef redmine", "_redmine")
 }
 
 // TestCompletion_FishGenerates verifies that `redmine completion fish`

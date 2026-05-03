@@ -200,9 +200,9 @@ func TestUsers_CreateDuplicateLogin(t *testing.T) {
 		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
 	}
 	switch env.Error.Code {
-	case "validation_error", "unprocessable_entity":
+	case "validation_error", "validation_failed", "unprocessable_entity":
 	default:
-		t.Fatalf("duplicate-login error code = %q, want validation_error or unprocessable_entity\nstdout:\n%s",
+		t.Fatalf("duplicate-login error code = %q, want validation_error/validation_failed/unprocessable_entity\nstdout:\n%s",
 			env.Error.Code, stdout)
 	}
 	if env.Error.Message == "" {

@@ -21,11 +21,10 @@ func TestWiki_Lifecycle(t *testing.T) {
 
 	page := wikiPageName(t)
 	const (
-		initialText  = "h1. Hello\n\nInitial body from e2e."
-		updatedText  = "h1. Hello\n\nRewritten body from e2e."
-		displayTitle = "E2E Display Title"
-		v1Comments   = "Initial draft"
-		v2Comments   = "Rewrote body"
+		initialText = "h1. Hello\n\nInitial body from e2e."
+		updatedText = "h1. Hello\n\nRewritten body from e2e."
+		v1Comments  = "Initial draft"
+		v2Comments  = "Rewrote body"
 	)
 
 	var created struct {
@@ -34,10 +33,15 @@ func TestWiki_Lifecycle(t *testing.T) {
 		Version  int    `json:"version"`
 		Comments string `json:"comments"`
 	}
+	// NB: we deliberately omit --title here. Redmine treats the wiki_page.title
+	// field as the canonical URL slug and rewrites the URL to match (replacing
+	// spaces with underscores). When --title is set the positional <page> arg
+	// is silently ignored, which makes downstream get/update/delete by the
+	// positional arg fail with 404. The --title path is exercised by a
+	// dedicated test below that uses the returned title for follow-up ops.
 	r.runJSON(t, &created, "wiki", "create", page,
 		"--project", proj.Identifier,
 		"--text", initialText,
-		"--title", displayTitle,
 		"--comments", v1Comments)
 	if created.Text != initialText {
 		t.Fatalf("created wiki text = %q, want %q", created.Text, initialText)
@@ -48,9 +52,6 @@ func TestWiki_Lifecycle(t *testing.T) {
 	if created.Comments != v1Comments {
 		t.Fatalf("created wiki comments = %q, want %q", created.Comments, v1Comments)
 	}
-	// Redmine slugifies titles: with --title set it may return either the
-	// positional page name or the display title depending on version. Both
-	// must round-trip via `wiki get <positional>`.
 	if created.Title == "" {
 		t.Fatalf("created wiki title is empty: %+v", created)
 	}
