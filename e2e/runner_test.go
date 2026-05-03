@@ -127,18 +127,6 @@ func (r *cliRunner) runRawWithEnv(extraEnv []string, args ...string) (stdout, st
 	return outBuf.Bytes(), errBuf.Bytes(), runErr
 }
 
-// runRawWith is the bytes-returning sibling of run, exposed for tests that
-// need both stdout and stderr but expect a successful exit. Auto-injects
-// --output json when no --output flag is present (see runRawWithEnv).
-func (r *cliRunner) runRawWith(t *testing.T, args ...string) (stdout, stderr []byte) {
-	t.Helper()
-	stdout, stderr, err := r.runRawWithEnv(nil, args...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return stdout, stderr
-}
-
 // runWithEnv runs the CLI with extra environment variables and fails the
 // test on non-zero exit. Returns stdout for assertions.
 func (r *cliRunner) runWithEnv(t *testing.T, extraEnv []string, args ...string) []byte {

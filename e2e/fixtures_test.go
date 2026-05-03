@@ -237,23 +237,6 @@ func firstRoleID(t *testing.T, r *cliRunner) int {
 	return resp.Roles[0].ID
 }
 
-// firstRoleName returns the name of the first assignable role.
-func firstRoleName(t *testing.T, r *cliRunner) string {
-	t.Helper()
-	type role struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	}
-	var resp struct {
-		Roles []role `json:"roles"`
-	}
-	r.runJSON(t, &resp, "api", "/roles.json")
-	if len(resp.Roles) == 0 {
-		t.Fatal("no roles available on server")
-	}
-	return resp.Roles[0].Name
-}
-
 // uniqueShortSuffix returns a short alphanumeric token unique per test +
 // invocation. Suitable for embedding in user logins (max 60 chars in Redmine)
 // and group names.
