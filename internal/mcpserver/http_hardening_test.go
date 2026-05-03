@@ -29,6 +29,28 @@ func TestWrapAuthToken_AllowsValidBearer(t *testing.T) {
 	}
 }
 
+func TestWrapAuthToken_AllowsCaseInsensitiveSchemeAndExtraSpaces(t *testing.T) {
+	called := false
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	handler := WrapAuthToken(inner, "s3cret")
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("Authorization", "bearer    s3cret")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if !called {
+		t.Fatal("inner handler never invoked for valid token")
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
 func TestWrapAuthToken_RejectsMissingHeader(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Fatal("inner handler should not run when token is missing")

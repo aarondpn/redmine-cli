@@ -96,13 +96,12 @@ func WrapAuthToken(h http.Handler, token string) http.Handler {
 	}
 	expected := []byte(token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get("Authorization")
-		const prefix = "Bearer "
-		if !strings.HasPrefix(header, prefix) {
+		fields := strings.Fields(r.Header.Get("Authorization"))
+		if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") {
 			unauthorized(w, "missing bearer token")
 			return
 		}
-		got := []byte(strings.TrimPrefix(header, prefix))
+		got := []byte(fields[1])
 		if subtle.ConstantTimeCompare(got, expected) != 1 {
 			unauthorized(w, "invalid bearer token")
 			return
