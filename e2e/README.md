@@ -66,6 +66,7 @@ Redmine instance. The suite is split into topical files:
 | `auth_test.go`           | basic-auth profile against `/users/current.json` (needs `REDMINE_E2E_PASSWORD`) |
 | `api_test.go`            | raw `api` passthrough GET + POST + PUT with `--input` |
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
+| `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
 
 Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
 `runner_test.go` (CLI runner + profile constructors), `helpers_test.go`
