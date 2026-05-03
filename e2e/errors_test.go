@@ -49,3 +49,18 @@ func assertErrorCode(t *testing.T, stdout []byte, want string) {
 		t.Fatalf("error envelope missing message\nstdout:\n%s", stdout)
 	}
 }
+
+// TestErrors_ConnectionFailure points a runner at a port with no listener and
+// verifies the CLI surfaces a populated error envelope. Connection failures
+// are not *api.APIError, so the code falls back to "unknown" (see
+// internal/cmdutil/errors.go BuildErrorEnvelope).
+func TestErrors_ConnectionFailure(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, "http://127.0.0.1:1", "fake-key")
+
+	stdout, _ := r.runExpectError(t, "users", "me")
+	env := requireErrorEnvelopeMessage(t, stdout)
+	if env.Error.Code != "unknown" {
+		t.Fatalf("connection failure code = %q, want unknown\nstdout:\n%s", env.Error.Code, stdout)
+	}
+}

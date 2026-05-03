@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -146,4 +147,55 @@ func TestVersions_Lifecycle(t *testing.T) {
 			t.Fatalf("version %d still listed after delete: %+v", created.ID, listed)
 		}
 	}
+}
+
+// TestVersions_LockedRejectsAssignment creates a version, locks it, then
+// attempts to assign a new issue to that version. Redmine 4.2/5.1/6.1 all
+// enforce the lock with a 422; if a future Redmine relaxes this, the test
+// fails and needs investigation.
+func TestVersions_LockedRejectsAssignment(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	versionName := fmt.Sprintf("locked-v-%d", time.Now().UnixNano())
+
+	var created struct {
+		ID int `json:"id"`
+	}
+	r.runJSON(t, &created, "versions", "create",
+		"--project", proj.Identifier,
+		"--name", versionName,
+		"--status", "open")
+	if created.ID == 0 {
+		t.Fatalf("create returned zero ID: %+v", created)
+	}
+
+	var updated actionEnvelope
+	r.runJSON(t, &updated, "versions", "update", strconv.Itoa(created.ID),
+		"--status", "locked")
+	if !updated.Ok {
+		t.Fatalf("update envelope not ok: %+v", updated)
+	}
+
+	stdout, _ := r.runExpectError(t, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", firstTrackerName(t, r),
+		"--subject", fmt.Sprintf("issue against locked version %d", time.Now().UnixNano()),
+		"--version", versionName)
+	requireErrorEnvelopeMessage(t, stdout)
+}
+
+// TestVersions_GetNonexistent verifies that fetching a version by an unknown
+// name exits non-zero with a populated error envelope. The CLI resolves the
+// name client-side and produces a suggestion-style error rather than a server
+// 404, so the code is not pinned.
+func TestVersions_GetNonexistent(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	missing := fmt.Sprintf("nonexistent-version-%d", time.Now().UnixNano())
+	stdout, _ := r.runExpectError(t, "versions", "get", missing, "--project", proj.Identifier)
+	requireErrorEnvelopeMessage(t, stdout)
 }

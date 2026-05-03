@@ -132,6 +132,125 @@ func firstActivityName(t *testing.T, r *cliRunner) string {
 // issueIDArg renders an issue ID as the string argument expected by the CLI.
 func issueIDArg(id int) string { return strconv.Itoa(id) }
 
+// userFixture is an ephemeral test user. Cleanup deletes the user via the
+// CLI, so tests never share user state.
+type userFixture struct {
+	ID    int
+	Login string
+	Mail  string
+}
+
+// createTestUser creates a uniquely-named user and registers cleanup. The
+// password matches the login so basic-auth tests can re-use the fixture.
+func createTestUser(t *testing.T, r *cliRunner) *userFixture {
+	t.Helper()
+	suffix := uniqueShortSuffix(t)
+	login := "e2eu" + suffix
+	mail := login + "@example.test"
+	password := "Pass-" + suffix + "-1A"
+
+	var created struct {
+		ID    int    `json:"id"`
+		Login string `json:"login"`
+		Mail  string `json:"mail"`
+	}
+	r.runJSON(t, &created, "users", "create",
+		"--login", login,
+		"--firstname", "E2E",
+		"--lastname", "User-"+suffix,
+		"--mail", mail,
+		"--password", password)
+	if created.Login != login {
+		t.Fatalf("created user login = %q, want %q", created.Login, login)
+	}
+
+	t.Cleanup(func() {
+		var deleted actionEnvelope
+		r.runJSON(t, &deleted, "users", "delete", strconv.Itoa(created.ID), "--force")
+		if !deleted.Ok {
+			t.Errorf("user delete envelope not ok: %+v", deleted)
+		}
+	})
+
+	return &userFixture{ID: created.ID, Login: created.Login, Mail: created.Mail}
+}
+
+// groupFixture is an ephemeral test group. Cleanup deletes the group via the
+// CLI.
+type groupFixture struct {
+	ID   int
+	Name string
+}
+
+// createTestGroup creates a uniquely-named group and registers cleanup.
+func createTestGroup(t *testing.T, r *cliRunner) *groupFixture {
+	t.Helper()
+	name := "e2e-grp-" + uniqueShortSuffix(t)
+
+	var created struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	r.runJSON(t, &created, "groups", "create", "--name", name)
+	if created.Name != name {
+		t.Fatalf("created group name = %q, want %q", created.Name, name)
+	}
+
+	t.Cleanup(func() {
+		var deleted actionEnvelope
+		r.runJSON(t, &deleted, "groups", "delete", strconv.Itoa(created.ID), "--force")
+		if !deleted.Ok {
+			t.Errorf("group delete envelope not ok: %+v", deleted)
+		}
+	})
+
+	return &groupFixture{ID: created.ID, Name: created.Name}
+}
+
+// firstRoleID returns the ID of the first non-builtin role on the server.
+// Built-in roles ("Anonymous", "Non member") cannot be assigned to project
+// memberships, so tests skip them.
+func firstRoleID(t *testing.T, r *cliRunner) int {
+	t.Helper()
+	type role struct {
+		ID         int    `json:"id"`
+		Name       string `json:"name"`
+		Builtin    bool   `json:"builtin"`
+		IsBuiltin  bool   `json:"is_builtin"`
+		Assignable bool   `json:"assignable"`
+	}
+	var resp struct {
+		Roles []role `json:"roles"`
+	}
+	r.runJSON(t, &resp, "api", "/roles.json")
+	for _, role := range resp.Roles {
+		if role.Builtin || role.IsBuiltin {
+			continue
+		}
+		return role.ID
+	}
+	if len(resp.Roles) == 0 {
+		t.Fatal("no roles available on server")
+	}
+	// Fall back to the first role; older Redmine builds don't expose builtin
+	// flag here.
+	return resp.Roles[0].ID
+}
+
+// uniqueShortSuffix returns a short alphanumeric token unique per test +
+// invocation. Suitable for embedding in user logins (max 60 chars in Redmine)
+// and group names.
+func uniqueShortSuffix(t *testing.T) string {
+	t.Helper()
+	// Last 12 digits of nanoseconds + first 8 chars of sanitized test name.
+	nano := time.Now().UnixNano()
+	short := sanitizeForIdentifier(t.Name())
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	return fmt.Sprintf("%s%d", short, nano%1_000_000_000_000)
+}
+
 // uniqueIdentifier returns a Redmine-valid project identifier seeded from the
 // test name plus a nanosecond suffix. Redmine requires identifiers to be
 // lowercase letters/digits/dashes and start with a lowercase letter, so we

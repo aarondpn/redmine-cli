@@ -1,0 +1,14 @@
+{
+  "description": "Created by redmine-cli e2e tests",
+  "done_ratio": 0,
+  "priority": {
+    "name": "Normal"
+  },
+  "status": {
+    "name": "New"
+  },
+  "subject": "golden subject",
+  "tracker": {
+    "name": "Bug"
+  }
+}

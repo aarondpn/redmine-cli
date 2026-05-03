@@ -1,0 +1,248 @@
+//go:build e2e
+
+package e2e
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// TestIssuesList_PaginationOffset creates three issues in a fresh project and
+// verifies that --limit / --offset paging is honoured by the server.
+func TestIssuesList_PaginationOffset(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	want := []int{
+		createTestIssueWithSubject(t, r, proj.Identifier, "Pagination issue 1").ID,
+		createTestIssueWithSubject(t, r, proj.Identifier, "Pagination issue 2").ID,
+		createTestIssueWithSubject(t, r, proj.Identifier, "Pagination issue 3").ID,
+	}
+
+	page1 := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
+		"--limit", "2", "--offset", "0")
+	if len(page1) != 2 {
+		t.Fatalf("first page len = %d, want 2; ids=%v", len(page1), page1)
+	}
+	for _, id := range page1 {
+		if !containsInt(want, id) {
+			t.Fatalf("first page id %d is not one of the created issues %v", id, want)
+		}
+	}
+
+	page2 := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
+		"--limit", "2", "--offset", "2")
+	if len(page2) != 1 {
+		t.Fatalf("second page len = %d, want 1; ids=%v", len(page2), page2)
+	}
+	if !containsInt(want, page2[0]) {
+		t.Fatalf("second page id %d is not one of the created issues %v", page2[0], want)
+	}
+	if containsInt(page1, page2[0]) {
+		t.Fatalf("second page id %d overlaps first page %v", page2[0], page1)
+	}
+
+	farPage := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
+		"--limit", "10", "--offset", "100")
+	if len(farPage) != 0 {
+		t.Fatalf("offset=100 should yield empty page; got %v", farPage)
+	}
+}
+
+// TestIssuesList_SortDescending verifies that --sort id:desc is forwarded to
+// the server and the returned issues come back in descending ID order.
+func TestIssuesList_SortDescending(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	created := []int{
+		createTestIssueWithSubject(t, r, proj.Identifier, "Sort issue 1").ID,
+		createTestIssueWithSubject(t, r, proj.Identifier, "Sort issue 2").ID,
+		createTestIssueWithSubject(t, r, proj.Identifier, "Sort issue 3").ID,
+	}
+
+	got := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
+		"--sort", "id:desc", "--limit", "10")
+	if len(got) < len(created) {
+		t.Fatalf("expected at least %d ids, got %d (%v)", len(created), len(got), got)
+	}
+
+	for i := 1; i < len(got); i++ {
+		if got[i-1] < got[i] {
+			t.Fatalf("results not sorted desc by id at index %d: %v", i, got)
+		}
+	}
+
+	for _, id := range created {
+		if !containsInt(got, id) {
+			t.Fatalf("sort result missing created issue %d; got %v", id, got)
+		}
+	}
+}
+
+// TestIssuesList_IncludeRelations creates a relation between two issues and
+// verifies that `--include relations` is accepted by the CLI and reaches the
+// API. The typed Issue model intentionally omits the `relations` field (see
+// internal/models/issue.go), so the CLI strips it from the JSON output even
+// when the underlying request asks for it. We assert what is actually
+// observable today: the flag does not error out, and the relation itself is
+// retrievable via the raw `api` passthrough where the response is not run
+// through the typed decoder.
+func TestIssuesList_IncludeRelations(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	a := createTestIssueWithSubject(t, r, proj.Identifier, "Relation source").ID
+	b := createTestIssueWithSubject(t, r, proj.Identifier, "Relation target").ID
+
+	body, _ := json.Marshal(map[string]any{
+		"relation": map[string]any{
+			"issue_to_id":   b,
+			"relation_type": "relates",
+		},
+	})
+	bodyPath := writeBodyFile(t, body)
+	r.run(t, "api", fmt.Sprintf("/issues/%d/relations.json", a),
+		"-X", "POST", "--input", bodyPath)
+
+	// Smoke-test the flag: --include relations on `issues list` must not
+	// error and must still return both issues. The relations payload itself
+	// is dropped by the typed model and is not asserted here.
+	var listed []map[string]any
+	r.runJSON(t, &listed, "issues", "list",
+		"--project", proj.Identifier, "--status", "*",
+		"--include", "relations", "--limit", "100")
+	gotIDs := make([]int, 0, len(listed))
+	for _, item := range listed {
+		if id, ok := item["id"].(float64); ok {
+			gotIDs = append(gotIDs, int(id))
+		}
+	}
+	if !containsInt(gotIDs, a) || !containsInt(gotIDs, b) {
+		t.Fatalf("issues list --include relations missing one of created issues %d/%d; got %v", a, b, gotIDs)
+	}
+
+	// Confirm via the raw api passthrough that the relation actually exists
+	// on the source issue. This is the canonical way to read relations via
+	// this CLI today.
+	var rels struct {
+		Relations []struct {
+			IssueID      int    `json:"issue_id"`
+			IssueToID    int    `json:"issue_to_id"`
+			RelationType string `json:"relation_type"`
+		} `json:"relations"`
+	}
+	r.runJSON(t, &rels, "api", fmt.Sprintf("/issues/%d/relations.json", a))
+	if !hasRelation(rels.Relations, a, b) {
+		t.Fatalf("expected relation %d -> %d via api; got %+v", a, b, rels.Relations)
+	}
+}
+
+func hasRelation(rels []struct {
+	IssueID      int    `json:"issue_id"`
+	IssueToID    int    `json:"issue_to_id"`
+	RelationType string `json:"relation_type"`
+}, from, to int) bool {
+	for _, r := range rels {
+		if (r.IssueID == from && r.IssueToID == to) || (r.IssueID == to && r.IssueToID == from) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestIssuesList_VersionFilter creates a version, tags one issue with it, and
+// verifies that --version filters the list down to exactly that issue.
+func TestIssuesList_VersionFilter(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	const versionName = "edge-version-1"
+	var version struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	r.runJSON(t, &version, "versions", "create",
+		"--project", proj.Identifier,
+		"--name", versionName,
+		"--status", "open")
+	if version.ID == 0 {
+		t.Fatalf("created version has zero ID: %+v", version)
+	}
+
+	tracker := firstTrackerName(t, r)
+	var tagged struct {
+		ID int `json:"id"`
+	}
+	r.runJSON(t, &tagged, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", tracker,
+		"--subject", "Issue tagged with version",
+		"--version", versionName)
+	if tagged.ID == 0 {
+		t.Fatal("issues create returned no ID for version-tagged issue")
+	}
+
+	untagged := createTestIssueWithSubject(t, r, proj.Identifier, "Issue without version").ID
+
+	ids := listIssueIDs(t, r, "--project", proj.Identifier, "--status", "*",
+		"--version", versionName, "--limit", "100")
+	if !containsInt(ids, tagged.ID) {
+		t.Fatalf("version filter should include tagged issue %d; got %v", tagged.ID, ids)
+	}
+	if containsInt(ids, untagged) {
+		t.Fatalf("version filter should exclude untagged issue %d; got %v", untagged, ids)
+	}
+}
+
+// TestIssuesCreate_ResolverFailure verifies that an unknown assignee surfaces
+// as a clear "resolving assignee" / "not found" error rather than being
+// swallowed by the server.
+func TestIssuesCreate_ResolverFailure(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	tracker := firstTrackerName(t, r)
+
+	stdout, stderr := r.runExpectError(t, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", tracker,
+		"--subject", "Resolver failure",
+		"--assignee", "this-user-does-not-exist-e2e")
+
+	combined := strings.ToLower(string(stdout) + "\n" + string(stderr))
+	if !strings.Contains(combined, "resolving assignee") &&
+		!strings.Contains(combined, "not found") &&
+		!strings.Contains(combined, "no match") {
+		t.Fatalf("expected resolver error mentioning assignee; stdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
+// TestIssuesCreate_EmptySubjectValidationError verifies that the server-side
+// validation failure for an empty subject is surfaced as a non-zero exit and
+// a populated error envelope on stdout.
+func TestIssuesCreate_EmptySubjectValidationError(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	tracker := firstTrackerName(t, r)
+
+	stdout, _ := r.runExpectError(t, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", tracker,
+		"--subject", "")
+
+	env := requireErrorEnvelopeMessage(t, stdout)
+	// Verified across Redmine 4.2/5.1/6.1: the 422 from a blank subject is
+	// classified as validation_failed by internal/cmdutil error mapping.
+	if env.Error.Code != "validation_failed" {
+		t.Fatalf("error code = %q, want validation_failed\nstdout:\n%s",
+			env.Error.Code, stdout)
+	}
+}

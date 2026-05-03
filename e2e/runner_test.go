@@ -23,18 +23,23 @@ type cliRunner struct {
 	repoRoot   string
 }
 
+// defaultRunnerProfile is the active-profile name baked into runners produced
+// by newCLIRunner. Tests that need to assert on the profile name (auth
+// status/list/switch) reference this constant rather than hard-coding it.
+const defaultRunnerProfile = "local-e2e"
+
 // newCLIRunner returns a runner with a single API-key profile. This is the
 // default factory used by most tests.
 func newCLIRunner(t *testing.T, baseURL, apiKey string) *cliRunner {
 	t.Helper()
-	return newRunnerWithConfig(t, fmt.Sprintf(`active_profile: local-e2e
+	return newRunnerWithConfig(t, fmt.Sprintf(`active_profile: %s
 profiles:
-  local-e2e:
+  %s:
     server: %s
     api_key: %s
     auth_method: apikey
     output_format: json
-`, baseURL, apiKey))
+`, defaultRunnerProfile, defaultRunnerProfile, baseURL, apiKey))
 }
 
 // newCLIRunnerBasicAuth returns a runner configured for HTTP basic auth.
@@ -92,10 +97,29 @@ func (r *cliRunner) runExpectError(t *testing.T, args ...string) (stdout, stderr
 }
 
 func (r *cliRunner) runRaw(args ...string) (stdout, stderr []byte, err error) {
-	cmdArgs := append([]string{"--config", r.configPath, "--output", "json"}, args...)
+	return r.runRawWithEnv(nil, args...)
+}
+
+// runRawWithEnv is like runRaw but appends extra env vars to the child
+// process. Tests that need to set NO_COLOR, FORCE_COLOR, COLUMNS, XDG_*, etc.
+// use this to drive output and config paths.
+//
+// If the user-supplied args do not already specify --output (or -o), this
+// helper auto-injects --output json so JSON-shaped assertions keep working.
+// Tests that exercise other output formats (csv, table) must pass --output
+// explicitly to opt out of the auto-injection.
+func (r *cliRunner) runRawWithEnv(extraEnv []string, args ...string) (stdout, stderr []byte, err error) {
+	cmdArgs := []string{"--config", r.configPath}
+	if !hasOutputFlag(args) {
+		cmdArgs = append(cmdArgs, "--output", "json")
+	}
+	cmdArgs = append(cmdArgs, args...)
+
 	cmd := exec.Command(builtCLIPath, cmdArgs...)
 	cmd.Dir = r.repoRoot
-	cmd.Env = append(os.Environ(), "REDMINE_NO_UPDATE_CHECK=1")
+	env := append(os.Environ(), "REDMINE_NO_UPDATE_CHECK=1")
+	env = append(env, extraEnv...)
+	cmd.Env = env
 
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -106,4 +130,28 @@ func (r *cliRunner) runRaw(args ...string) (stdout, stderr []byte, err error) {
 			strings.Join(cmdArgs, " "), runErr, outBuf.String(), errBuf.String())
 	}
 	return outBuf.Bytes(), errBuf.Bytes(), runErr
+}
+
+// runWithEnv runs the CLI with extra environment variables and fails the
+// test on non-zero exit. Returns stdout for assertions.
+func (r *cliRunner) runWithEnv(t *testing.T, extraEnv []string, args ...string) []byte {
+	t.Helper()
+	stdout, _, err := r.runRawWithEnv(extraEnv, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stdout
+}
+
+func hasOutputFlag(args []string) bool {
+	for i, a := range args {
+		switch {
+		case a == "--output", a == "-o":
+			return true
+		case strings.HasPrefix(a, "--output="), strings.HasPrefix(a, "-o="):
+			return true
+		}
+		_ = i
+	}
+	return false
 }
