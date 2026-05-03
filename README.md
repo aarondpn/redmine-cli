@@ -30,8 +30,7 @@
 <p align="center">
   <a href="#installation">Installation</a> ·
   <a href="#getting-started">Getting Started</a> ·
-  <a href="#agent-skill">Agent Skill</a> ·
-  <a href="#mcp-server">MCP Server</a>
+  <a href="#ai-agents">AI Agents</a>
 </p>
 
 ## Installation
@@ -97,86 +96,24 @@ redmine time log
 
 Run `redmine --help` to see all available commands.
 
+<a name="ai-agents"></a>
+
 ## Using with AI Agents
 
-Two integration paths, depending on how your agent talks to tools:
+redmine-cli ships an [Agent Skill](https://agentskills.io) (the open `SKILL.md` standard, supported by 35+ agents) and a built-in MCP server. Both are vendor-neutral - pick the one-liner that matches your tool:
 
-### Agent Skill
+| Tool | One-line install |
+|---|---|
+| **Any agent (skill)** | `npx skills add aarondpn/redmine-cli` |
+| **Any MCP host** | `redmine mcp serve` (then add to host config) |
+| **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli` then `/plugin install redmine` |
+| **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli` then `/plugins` (install **Redmine** from the added marketplace) |
+| **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |
 
-For agents that load skills as instructions, redmine-cli ships with a skill that teaches the agent how to drive the CLI effectively -- output formats, pagination, filtering, name resolution, and common workflows -- so it uses `-o json`, resolves ambiguous values by querying first, and picks the right flags without guessing.
+The skill teaches the agent the non-obvious parts of the CLI (output formats, name resolution, pagination, common workflows). The MCP server exposes the same operations as typed tool calls, read-only by default, with per-group / per-tool allow- and deny-lists.
 
-```bash
-# Install globally (available in all projects)
-redmine install-skill --global
+Full configuration, host-specific snippets (Claude Desktop, Cursor, Zed, VS Code), and write-tool gating: see the [AI Agent Integration guide](https://aarondpn.github.io/redmine-cli/guides/ai-agents/).
 
-# Or install for the current project only
-redmine install-skill
-```
+## Development
 
-This uses the [skills.sh](https://skills.sh) installer (`npx skills add`) under the hood, which requires Node.js on your `PATH`.
-
-See [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) for the full skill contents -- what the agent learns, and what you can copy into your agent's instructions file if you prefer not to use the installer.
-
-### MCP Server
-
-For hosts that speak the [Model Context Protocol](https://modelcontextprotocol.io), `redmine mcp serve` exposes the CLI as an MCP server over stdio by default, or over streamable HTTP when `--http` is passed, reusing the same profile-backed authentication as every other `redmine` command.
-
-- **Read-only by default.** Mutating tools are only registered when `--enable-writes` is passed; without the flag they never appear in `tools/list`.
-- **Authentication reuses the active profile** (or `--profile`, `--server/--api-key`, `REDMINE_*` env vars).
-- **Configurable tool surface.** Use `--enable-groups` / `--disable-groups` to expose only some categories (`issues`, `wiki`, `time`, ...), or `--enable-tools` / `--disable-tools` for per-tool overrides. Run `redmine mcp tools` to print the catalog.
-
-Write tools are destructive; prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
-
-#### Narrowing the exposed tools
-
-To run an MCP server that only knows about issues, set the group allow-list:
-
-```bash
-redmine mcp serve --enable-groups issues
-```
-
-To expose everything except destructive deletes, combine writes with a deny-list:
-
-```bash
-redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
-```
-
-The same defaults can live in `~/.redmine-cli.yaml` per profile so an MCP host always launches with the surface you want:
-
-```yaml
-profiles:
-  internal:
-    server: https://redmine.internal
-    api_key: ...
-    mcp:
-      enable_writes: true
-      enable_groups: [issues, wiki]
-      disable_tools: [delete_issue]
-```
-
-CLI flags override config, and `REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` env vars override the config file.
-
-#### HTTP transport
-
-`--http :8080` is rewritten to bind on `127.0.0.1:8080` -- the server is never exposed on every interface by default. To listen externally, pass an explicit host (`0.0.0.0:8080`) and set a bearer token with `--auth-token` (or `REDMINE_MCP_AUTH_TOKEN` / `mcp.auth_token` in the config). Without a token on a non-loopback bind the CLI prints a warning and starts anyway. Clients must send `Authorization: Bearer <token>` on every request.
-
-## Local E2E Testing
-
-If you want to exercise the CLI against a real Redmine instance locally, the repo now includes a Docker-based e2e harness under [e2e/README.md](/e2e/README.md).
-
-The setup uses Docker Official Images with Postgres and can target the supported Redmine lines `4.2`, `5.1`, and `6.1`. By default it uses `6.1` on `http://127.0.0.1:3000`. If you want a specific supported line, set `E2E_VERSION=...` before the Make target. If you want to point the harness at a custom image later, set `REDMINE_IMAGE=...`.
-
-```bash
-make e2e-up
-make e2e-config
-make e2e-test
-make e2e-down
-```
-
-Or run the full supported-version matrix:
-
-```bash
-make e2e-matrix
-```
-
-The Go e2e suite creates a real project and issue, checks list/get flows, and verifies close/reopen behavior against the local instance.
+Local E2E testing against a real Redmine instance (Docker, supported on Redmine `4.2`, `5.1`, `6.1`): see [e2e/README.md](e2e/README.md).

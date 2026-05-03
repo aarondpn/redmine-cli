@@ -1,0 +1,26 @@
+{
+  "name": "redmine-cli",
+  "description": "redmine-cli plugin marketplace - Redmine project management for AI agents.",
+  "owner": {
+    "name": "Aaron Doeppner"
+  },
+  "plugins": [
+    {
+      "name": "redmine",
+      "source": "./",
+      "description": "Drive Redmine from Claude Code: bundled agent skill plus MCP server for issues, time tracking, projects, wiki, and more.",
+      "homepage": "https://aarondpn.github.io/redmine-cli",
+      "repository": "https://github.com/aarondpn/redmine-cli",
+      "license": "MIT",
+      "category": "External integrations",
+      "keywords": [
+        "redmine",
+        "project-management",
+        "issue-tracker",
+        "time-tracking",
+        "mcp",
+        "agent-skill"
+      ]
+    }
+  ]
+}

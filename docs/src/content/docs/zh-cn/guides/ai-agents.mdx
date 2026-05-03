@@ -3,61 +3,47 @@ title: AI 代理集成
 description: 通过内置 skill 或内建的 MCP 服务器，从 AI 代理中驱动 redmine-cli。
 ---
 
-import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
+import { Steps, Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import InstallTabs from '../../../../components/InstallTabs.astro';
 
-redmine-cli 针对 AI 代理提供两种集成方式，具体取决于你的工具如何与外部软件交互。
+redmine-cli 提供两种互补的集成方式，二者均与厂商无关：
 
-- **代理 Skill**：代理加载的一组指令，用于高效驱动 `redmine` CLI。适用于通过 shell 调用 CLI 的编程代理。
-- **MCP 服务器**：`redmine mcp serve` 通过 [Model Context Protocol](https://modelcontextprotocol.io) 将 CLI 暴露为 MCP 服务器。适用于通过 MCP 发现工具的宿主。
+- **代理 Skill** —— 一份遵循开放 [Agent Skills 标准](https://agentskills.io) 的 `SKILL.md` 指令集，已被 35 多个代理支持（Claude、Codex、Gemini、Cursor、Copilot、Cline、Goose、Windsurf、Roo、Junie 等）。教代理如何高效驱动 CLI。
+- **MCP 服务器** —— `redmine mcp serve` 通过 [Model Context Protocol](https://modelcontextprotocol.io) 暴露 CLI。适合通过 MCP 发现工具的宿主。
 
-按你的宿主环境选用即可，也可以两种都安装。
+大多数宿主两者都需要。Claude Code、Codex CLI、Gemini CLI 等主流宿主支持一步式插件安装，将两者打包在一起。
+
+## 快速安装
+
+<InstallTabs labels={{ any: '任意代理', claude: 'Claude Code', codex: 'Codex CLI', gemini: 'Gemini CLI', mcp: 'MCP 宿主' }} ariaLabel="安装方式" />
+
+- **任意代理** 使用 [skills.sh](https://skills.sh) 安装器（`npx skills add`），它会检测你的代理并将 `SKILL.md` 写入正确位置（`.claude/skills/`、`.codex/skills/`、`.gemini/skills/`，或跨厂商通用的 `.agents/skills/` 兜底路径）。CLI 自带的封装是 `redmine install-skill [--global]`。
+- **Claude Code / Codex CLI / Gemini CLI** 通过单次插件安装同时打包 skill 与 MCP 服务器。安装后运行 `/reload-plugins`（Claude）或重启 CLI 以激活。
+- **MCP 宿主** 是 Cursor、VS Code、Zed、Claude Desktop 以及其他 MCP 兼容宿主的手动接入路径。在你的宿主 MCP 配置中添加 `redmine mcp serve`（可选 `--profile`、`--enable-writes`、`--enable-groups` 等），具体配置文件路径与 JSON 结构请参阅各宿主的 MCP 设置文档。
+
+<Aside type="note">
+  所有路径的前置条件：`redmine` 必须位于宿主的 `PATH`，且已通过 `redmine auth login` 完成一次登录。仅安装 skill 的路径还需要 Node.js 以运行 `npx skills add`。
+</Aside>
 
 ## 代理 Skill
 
-该 skill 教给代理的是 `--help` 无法传达的内容：输出格式、分页、过滤、名称解析以及常用工作流。安装之后，代理便知道要使用 `-o json`、在值存在歧义时先查询以解析、并无需猜测即可选择正确的标志。
+该 skill 教给代理的是 `--help` 无法传达的内容：输出格式、分页、过滤、名称解析以及常用工作流。安装后，代理便知道使用 `-o json`、对存在歧义的值先查询再处理，并无需猜测即可选择正确的标志。
 
-### 安装
-
-<Tabs syncKey="skill-scope">
-  <TabItem label="全局">
-    对本机所有项目生效。
-
-    ```bash
-    redmine install-skill --global
-    ```
-  </TabItem>
-  <TabItem label="项目本地">
-    仅对当前工作目录生效。
-
-    ```bash
-    redmine install-skill
-    ```
-  </TabItem>
-</Tabs>
-
-<Aside type="note">
-  底层使用 [skills.sh](https://skills.sh) 安装器（`npx skills add`），需要将 Node.js 添加至 `PATH`。
-</Aside>
-
-### 手动配置
-
-如果不想运行安装器，可将 [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md) 的内容复制到代理的指令文件中，然后重启代理。
-
-该文件同时也是 skill 所包含内容的权威来源。若想确切了解该 skill 编码了哪些行为，请直接阅读此文件。
+完整的 skill 源文件：[`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md)。如果不想运行安装器，可直接复制到代理的指令文件中。
 
 ## MCP 服务器
 
-`redmine mcp serve` 默认通过 stdio 将 CLI 暴露为一个 [Model Context Protocol](https://modelcontextprotocol.io) 服务器；传入 `--http` 时，也可以通过 streamable HTTP 暴露同一个服务。支持 MCP 的宿主可通过工具调用驱动 Redmine，复用与其他所有 `redmine` 命令相同的基于配置文件的身份验证。
+`redmine mcp serve` 默认通过 stdio 将 CLI 暴露为一个 [Model Context Protocol](https://modelcontextprotocol.io) 服务器；传入 `--http` 时，则通过 streamable HTTP 暴露同一个服务。支持 MCP 的宿主可通过工具调用驱动 Redmine，复用与其他所有 `redmine` 命令相同的基于配置文件的身份验证。
 
 ### 工作原理
 
-- **传输方式：** 默认使用 stdio。宿主可以生成 `redmine mcp serve` 进程，并通过其标准流使用 JSON-RPC 通信；也可以传入 `--http :8080` 通过 streamable HTTP 暴露同一个服务。
+- **传输方式：** 默认使用 stdio。宿主可生成 `redmine mcp serve` 进程并通过其标准流使用 JSON-RPC 通信；也可传入 `--http :8080` 通过 streamable HTTP 暴露同一个服务。
 - **身份验证：** 默认使用当前活跃的配置文件。可通过 `--profile <name>`、`--server` / `--api-key` 或 `REDMINE_*` 环境变量覆盖，与其他子命令完全一致。
-- **默认只读。** 修改类工具（创建 / 更新 / 删除、评论、关闭、重新打开及其他写操作）仅在传入 `--enable-writes` 时才会注册。未传入该标志时，这些工具不会出现在 `tools/list` 中。
+- **默认只读。** 修改类工具（创建 / 更新 / 删除、评论、关闭、重新打开及类似写操作）仅在传入 `--enable-writes` 时才注册。未传入该标志时，这些工具不会出现在 `tools/list` 中。
 - **可配置暴露范围。** `--enable-groups` / `--disable-groups` 可将注册的工具限制到特定类别（`issues`、`wiki`、`time` 等）。若需更细粒度的控制，可使用 `--enable-tools` / `--disable-tools` 对单个工具做 allow-list 或 deny-list。运行 `redmine mcp tools` 可打印完整工具目录。
 
 <Aside type="caution">
-  写入工具具有破坏性。除非宿主提供了你信任的逐次审批界面（per-call approval UI），否则建议保持禁用。
+  写入工具具有破坏性。除非宿主提供你信任的逐次审批界面，否则建议保持禁用。
 </Aside>
 
 ### HTTP 传输
@@ -93,19 +79,19 @@ Content-Type: application/json
 
 ### 收窄暴露的工具范围
 
-对于只处理 issue 的助手，可仅保留 issues 组：
+对于只处理 issue 的助手，仅保留 issues 组：
 
 ```bash
 redmine mcp serve --enable-groups issues
 ```
 
-若要全局启用写入，但排除破坏性的删除工具，可组合这些标志：
+若要全局启用写入但排除破坏性的删除工具，可组合这些标志：
 
 ```bash
 redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
 ```
 
-同样的默认值也可以按 profile 写入 `~/.redmine-cli.yaml`，CLI 标志会覆盖这些值：
+同样的默认值也可按 profile 写入 `~/.redmine-cli.yaml`，CLI 标志会覆盖这些值：
 
 ```yaml
 profiles:
@@ -122,92 +108,7 @@ profiles:
 
 ### 前置条件
 
-`redmine` 必须位于宿主的 `PATH` 中，且已有配置文件完成登录（`redmine auth login`）。无需 Node.js。
-
-### 宿主配置
-
-<Tabs syncKey="mcp-host">
-  <TabItem label="Claude Desktop">
-    编辑 `claude_desktop_config.json`：
-
-    - **macOS：** `~/Library/Application Support/Claude/claude_desktop_config.json`
-    - **Windows：** `%APPDATA%\Claude\claude_desktop_config.json`
-
-    ```json
-    {
-      "mcpServers": {
-        "redmine": {
-          "command": "redmine",
-          "args": ["mcp", "serve", "--profile", "work"]
-        }
-      }
-    }
-    ```
-
-    若要启用写入，可新增一个条目或替换 `args`：
-
-    ```json
-    {
-      "mcpServers": {
-        "redmine-write": {
-          "command": "redmine",
-          "args": ["mcp", "serve", "--profile", "work", "--enable-writes"]
-        }
-      }
-    }
-    ```
-  </TabItem>
-
-  <TabItem label="Cursor">
-    创建 `~/.cursor/mcp.json`（全局）或在项目根目录创建 `.cursor/mcp.json`：
-
-    ```json
-    {
-      "mcpServers": {
-        "redmine": {
-          "command": "redmine",
-          "args": ["mcp", "serve", "--profile", "work"]
-        }
-      }
-    }
-    ```
-  </TabItem>
-
-  <TabItem label="Zed">
-    在 `settings.json` 中添加 context server（按 `cmd+,` 后选择 “Open Settings”）：
-
-    ```json
-    {
-      "context_servers": {
-        "redmine": {
-          "command": {
-            "path": "redmine",
-            "args": ["mcp", "serve", "--profile", "work"]
-          }
-        }
-      }
-    }
-    ```
-  </TabItem>
-
-  <TabItem label="GitHub Copilot">
-    在 VS Code 中，于工作区创建 `.vscode/mcp.json`（或添加到用户设置）：
-
-    ```json
-    {
-      "servers": {
-        "redmine": {
-          "type": "stdio",
-          "command": "redmine",
-          "args": ["mcp", "serve", "--profile", "work"]
-        }
-      }
-    }
-    ```
-
-    在 Copilot Chat 中启用 MCP，并从工具选择器中选择 `redmine` 服务器。
-  </TabItem>
-</Tabs>
+`redmine` 必须位于宿主的 `PATH`，并且已有配置文件完成登录（`redmine auth login`）。无需 Node.js。
 
 ### 故障排查
 
@@ -215,7 +116,7 @@ profiles:
 
 1. **宿主报告 “command not found”。** 生成的进程继承宿主的 `PATH`，这通常与你的 shell 不同。请在 `command` 字段中使用绝对路径（`which redmine`）。
 
-2. **工具列表为空或缺少修改类工具。** 未传入 `--enable-writes`，暴露范围被 `--enable-groups` / `--enable-tools` 收窄了，或者宿主缓存了旧的 `tools/list`。运行 `redmine mcp tools` 查看完整目录，并在修改参数后重启宿主。
+2. **工具列表为空或缺少修改类工具。** 未传入 `--enable-writes`，暴露范围被 `--enable-groups` / `--enable-tools` 收窄，或宿主缓存了旧的 `tools/list`。运行 `redmine mcp tools` 查看完整目录，并在修改参数后重启宿主。
 
 3. **401 / “no profile” 错误。** 当前没有登录的配置文件，或 `--profile <name>` 指向的配置文件不存在。运行 `redmine auth list` 进行确认。
 

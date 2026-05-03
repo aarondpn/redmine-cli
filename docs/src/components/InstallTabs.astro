@@ -1,0 +1,182 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import anyIcon from '../assets/logos/any.svg';
+import claudeIcon from '../assets/logos/claude.svg';
+import codexIcon from '../assets/logos/codex.svg';
+import geminiIcon from '../assets/logos/gemini.svg';
+import mcpIcon from '../assets/logos/mcp.svg';
+
+interface Props {
+  labels?: {
+    any?: string;
+    claude?: string;
+    codex?: string;
+    gemini?: string;
+    mcp?: string;
+  };
+  ariaLabel?: string;
+}
+
+const { labels = {}, ariaLabel = 'Install path' } = Astro.props;
+
+const tabs = [
+  {
+    id: 'any',
+    label: labels.any ?? 'Any agent',
+    icon: anyIcon,
+    monochrome: true,
+    code: 'npx skills add aarondpn/redmine-cli',
+  },
+  {
+    id: 'claude',
+    label: labels.claude ?? 'Claude Code',
+    icon: claudeIcon,
+    monochrome: false,
+    code: '/plugin marketplace add aarondpn/redmine-cli\n/plugin install redmine@redmine-cli',
+  },
+  {
+    id: 'codex',
+    label: labels.codex ?? 'Codex CLI',
+    icon: codexIcon,
+    monochrome: true,
+    code: 'codex plugin marketplace add aarondpn/redmine-cli\n/plugins  # install Redmine from the added marketplace',
+  },
+  {
+    id: 'gemini',
+    label: labels.gemini ?? 'Gemini CLI',
+    icon: geminiIcon,
+    monochrome: false,
+    code: 'gemini extensions install https://github.com/aarondpn/redmine-cli',
+  },
+  {
+    id: 'mcp',
+    label: labels.mcp ?? 'MCP host',
+    icon: mcpIcon,
+    monochrome: true,
+    code: 'redmine mcp serve',
+  },
+];
+---
+
+<div class="install-tabs">
+  <div class="install-tabs__triggers" role="tablist" aria-label={ariaLabel}>
+    {tabs.map((t, i) => (
+      <button
+        class:list={['install-tabs__trigger', i === 0 && 'is-active']}
+        data-tab={t.id}
+        type="button"
+        role="tab"
+        aria-selected={i === 0 ? 'true' : 'false'}
+        aria-controls={`install-panel-${t.id}`}
+      >
+        <span class="install-tabs__icon" aria-hidden="true">
+          <Image
+            src={t.icon}
+            alt=""
+            width={16}
+            height={16}
+            class:list={['install-tabs__icon-img', t.monochrome && 'is-monochrome']}
+          />
+        </span>
+        <span>{t.label}</span>
+      </button>
+    ))}
+  </div>
+  {tabs.map((t, i) => (
+    <div
+      class:list={['install-tabs__panel', i === 0 && 'is-active']}
+      data-panel={t.id}
+      id={`install-panel-${t.id}`}
+      role="tabpanel"
+    >
+      <Code code={t.code} lang="bash" />
+    </div>
+  ))}
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.install-tabs').forEach((root) => {
+    const triggers = root.querySelectorAll<HTMLButtonElement>('.install-tabs__trigger');
+    const panels = root.querySelectorAll<HTMLElement>('.install-tabs__panel');
+    triggers.forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        const id = trigger.dataset.tab;
+        triggers.forEach((t) => {
+          const active = t === trigger;
+          t.classList.toggle('is-active', active);
+          t.setAttribute('aria-selected', String(active));
+        });
+        panels.forEach((p) => {
+          p.classList.toggle('is-active', p.dataset.panel === id);
+        });
+      });
+    });
+  });
+</script>
+
+<style>
+  .install-tabs {
+    margin: 1.25rem 0;
+  }
+  .install-tabs__triggers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .install-tabs__triggers > .install-tabs__trigger + .install-tabs__trigger {
+    margin-top: 0;
+  }
+  .install-tabs__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.4rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.4rem;
+    color: var(--sl-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .install-tabs__trigger:hover {
+    border-color: var(--sl-color-text-accent);
+    color: var(--sl-color-text-accent);
+  }
+  .install-tabs__trigger.is-active {
+    background: var(--sl-color-bg-inline-code, var(--sl-color-bg-nav));
+    border-color: var(--sl-color-text-accent);
+    color: var(--sl-color-text-accent);
+  }
+  .install-tabs__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+  .install-tabs__icon-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    display: block;
+  }
+  .install-tabs__panel {
+    display: none;
+  }
+  .install-tabs__panel.is-active {
+    display: block;
+  }
+</style>
+
+<style is:global>
+  :root[data-theme='dark'] .install-tabs__icon-img.is-monochrome {
+    filter: invert(1);
+  }
+</style>

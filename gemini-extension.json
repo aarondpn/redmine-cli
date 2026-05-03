@@ -1,0 +1,11 @@
+{
+  "name": "redmine",
+  "version": "1.0.0",
+  "description": "Drive Redmine from Gemini CLI: bundled agent skill plus MCP server.",
+  "mcpServers": {
+    "redmine": {
+      "command": "redmine",
+      "args": ["mcp", "serve"]
+    }
+  }
+}

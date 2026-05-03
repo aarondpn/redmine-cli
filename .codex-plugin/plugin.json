@@ -1,0 +1,12 @@
+{
+  "name": "redmine",
+  "version": "1.0.0",
+  "description": "Drive Redmine from Codex CLI: bundled agent skill plus MCP server.",
+  "skills": "./skills/",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "interface": {
+    "displayName": "Redmine",
+    "shortDescription": "Redmine project management - issues, time tracking, projects, wiki",
+    "category": "Productivity"
+  }
+}

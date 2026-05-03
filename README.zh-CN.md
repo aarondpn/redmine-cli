@@ -30,8 +30,7 @@
 <p align="center">
   <a href="#安装">安装</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#agent-skill">Agent Skill</a> ·
-  <a href="#mcp-server">MCP Server</a>
+  <a href="#ai-agents">AI 代理</a>
 </p>
 
 ## 安装
@@ -97,86 +96,24 @@ redmine time log
 
 运行 `redmine --help` 查看所有可用命令。
 
+<a name="ai-agents"></a>
+
 ## 与 AI 代理配合使用
 
-根据代理与工具的通信方式，提供两种集成方式：
+redmine-cli 同时附带 [Agent Skill](https://agentskills.io)（35 多个代理支持的开放标准 `SKILL.md`）和内置 MCP 服务器，二者都与厂商无关。请按你的工具选择对应的一行命令：
 
-### Agent Skill
+| 工具 | 一行安装命令 |
+|---|---|
+| **任意代理（skill）** | `npx skills add aarondpn/redmine-cli` |
+| **任意 MCP 宿主** | `redmine mcp serve`（在宿主配置中添加） |
+| **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli`，然后 `/plugin install redmine` |
+| **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli`，然后运行 `/plugins`（从新增的 marketplace 安装 **Redmine**） |
+| **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |
 
-对于将 skill 作为指令加载的代理，redmine-cli 附带了一个 skill，用于教代理如何高效驱动本 CLI，涵盖输出格式、分页、过滤、名称解析以及常见工作流，使其使用 `-o json`、先查询再处理有歧义的值、选择正确的参数而无需猜测。
+skill 教代理掌握 CLI 中不显然的部分（输出格式、名称解析、分页、常见工作流）。MCP 服务器以类型化工具调用的形式暴露相同的操作，默认只读，并支持按 group / tool 的允许列表与拒绝列表。
 
-```bash
-# 全局安装（在所有项目中可用）
-redmine install-skill --global
+完整配置、各宿主专属代码片段（Claude Desktop、Cursor、Zed、VS Code）以及写入工具的开关，请参阅 [AI 代理集成指南](https://aarondpn.github.io/redmine-cli/guides/ai-agents/)。
 
-# 或仅为当前项目安装
-redmine install-skill
-```
+## 开发
 
-底层使用 [skills.sh](https://skills.sh) 安装器（`npx skills add`），需要 `PATH` 中有 Node.js。
-
-完整的 skill 内容请参见 [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md)：其中说明了代理会学到什么，若不想使用安装器，也可以将相应内容复制到你的代理指令文件中。
-
-### MCP Server
-
-对于支持 [Model Context Protocol](https://modelcontextprotocol.io) 的宿主，`redmine mcp serve` 默认通过 stdio 将 CLI 暴露为一个 MCP 服务器；传入 `--http` 时，也可以通过 streamable HTTP 暴露同一个服务，并复用与其他所有 `redmine` 命令相同的基于 profile 的认证。
-
-- **默认只读。** 仅在传入 `--enable-writes` 时才会注册修改类工具；未传入该参数时，这些工具不会出现在 `tools/list` 中。
-- **认证复用当前激活的 profile**（或 `--profile`、`--server/--api-key`、`REDMINE_*` 环境变量）。
-- **可配置工具暴露范围。** 使用 `--enable-groups` / `--disable-groups` 可按类别（`issues`、`wiki`、`time` 等）控制暴露的工具，使用 `--enable-tools` / `--disable-tools` 可进一步按单个工具覆盖。运行 `redmine mcp tools` 可查看完整目录。
-
-写入工具具有破坏性；除非宿主提供你信任的按调用审批 UI，否则建议保持禁用。
-
-#### 收窄暴露的工具范围
-
-如果要运行一个只了解 issue 的 MCP 服务器，可以设置 group allow-list：
-
-```bash
-redmine mcp serve --enable-groups issues
-```
-
-如果要启用写入，但排除破坏性的删除工具，可结合 deny-list：
-
-```bash
-redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
-```
-
-同样的默认值也可以写入每个 profile 的 `~/.redmine-cli.yaml`，这样 MCP 宿主总会以你期望的暴露范围启动：
-
-```yaml
-profiles:
-  internal:
-    server: https://redmine.internal
-    api_key: ...
-    mcp:
-      enable_writes: true
-      enable_groups: [issues, wiki]
-      disable_tools: [delete_issue]
-```
-
-CLI 标志会覆盖配置文件，`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` 环境变量也会覆盖该配置块。
-
-#### HTTP 传输
-
-`--http :8080` 会被改写为绑定在 `127.0.0.1:8080` 上 -- 服务器永远不会默认在所有网卡上暴露。如要对外监听，请显式指定主机（`0.0.0.0:8080`），并通过 `--auth-token`（或 `REDMINE_MCP_AUTH_TOKEN` / 配置中的 `mcp.auth_token`）设置一个 Bearer 令牌。如果在非回环地址上绑定时未设置令牌，CLI 会向 stderr 输出警告但仍会启动。客户端必须在每个请求上发送 `Authorization: Bearer <token>`。
-
-## 本地端到端测试
-
-如果你希望在本地对真实的 Redmine 实例运行 CLI，本仓库已提供了基于 Docker 的 e2e 测试套件，位于 [e2e/README.md](/e2e/README.md)。
-
-该套件基于 Docker 官方镜像，使用 Postgres，支持 Redmine 版本 `4.2`、`5.1` 和 `6.1`。默认使用 `6.1`，运行在 `http://127.0.0.1:3000`。若要指定具体版本，请在 Make 目标前设置 `E2E_VERSION=...`。若希望使用自定义镜像，请设置 `REDMINE_IMAGE=...`。
-
-```bash
-make e2e-up
-make e2e-config
-make e2e-test
-make e2e-down
-```
-
-或者运行完整的版本矩阵：
-
-```bash
-make e2e-matrix
-```
-
-Go e2e 测试套件会创建一个真实的项目和 issue，检查 list/get 流程，并验证对本地实例的关闭/重新打开行为。
+针对真实 Redmine 实例的本地端到端测试（Docker，支持 `4.2`、`5.1`、`6.1`）：参见 [e2e/README.md](e2e/README.md)。

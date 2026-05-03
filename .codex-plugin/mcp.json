@@ -1,0 +1,6 @@
+{
+  "redmine": {
+    "command": "redmine",
+    "args": ["mcp", "serve"]
+  }
+}

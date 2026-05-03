@@ -30,8 +30,7 @@
 <p align="center">
   <a href="#インストール">インストール</a> ·
   <a href="#はじめに">はじめに</a> ·
-  <a href="#agent-skill">Agent Skill</a> ·
-  <a href="#mcp-server">MCP Server</a>
+  <a href="#ai-agents">AI エージェント</a>
 </p>
 
 ## インストール
@@ -97,86 +96,24 @@ redmine time log
 
 `redmine --help` を実行すると、利用可能なすべてのコマンドが表示されます。
 
+<a name="ai-agents"></a>
+
 ## AI エージェントとの併用
 
-エージェントがツールとやり取りする方法に応じて、2 つの統合パスを用意しています。
+redmine-cli は [Agent Skill](https://agentskills.io)（35 以上のエージェントが対応するオープン規格 `SKILL.md`）と組み込み MCP サーバーを同梱しています。どちらもベンダー中立です。お使いのツールに合わせてワンライナーを選んでください：
 
-### Agent Skill
+| ツール | ワンライナー |
+|---|---|
+| **任意のエージェント（skill）** | `npx skills add aarondpn/redmine-cli` |
+| **任意の MCP ホスト** | `redmine mcp serve`（ホスト設定に追加） |
+| **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli` のあと `/plugin install redmine` |
+| **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli` のあと `/plugins`（追加した marketplace から **Redmine** をインストール） |
+| **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |
 
-skill を指示として読み込むエージェント向けに、redmine-cli には CLI を効果的に操作する方法を教える skill が同梱されています。出力形式、ページネーション、フィルタリング、名前解決、一般的なワークフローを扱い、エージェントが `-o json` を使用し、あいまいな値は先にクエリで確認し、推測せずに適切なフラグを選択できるようにします。
+skill は CLI の非自明な部分（出力形式、名前解決、ページネーション、一般的なワークフロー）をエージェントに教えます。MCP サーバーは同じ操作を型付きツールコールとして公開し、デフォルトは読み取り専用、グループ単位／ツール単位の allow / deny リストを備えます。
 
-```bash
-# グローバルにインストール（すべてのプロジェクトで利用可能）
-redmine install-skill --global
+詳細な設定、ホスト別スニペット（Claude Desktop、Cursor、Zed、VS Code）、書き込みツールのゲートについては [AI エージェント連携ガイド](https://aarondpn.github.io/redmine-cli/guides/ai-agents/) を参照してください。
 
-# または現在のプロジェクトのみにインストール
-redmine install-skill
-```
+## 開発
 
-内部では [skills.sh](https://skills.sh) インストーラー（`npx skills add`）を利用しているため、`PATH` 上に Node.js が必要です。
-
-skill の完全な内容については [`skills/redmine-cli/SKILL.md`](skills/redmine-cli/SKILL.md) を参照してください。エージェントが何を学ぶかが記載されており、インストーラーを使いたくない場合はこの内容をエージェントの指示ファイルにコピーして利用できます。
-
-### MCP Server
-
-[Model Context Protocol](https://modelcontextprotocol.io) に対応したホスト向けに、`redmine mcp serve` はデフォルトで stdio 経由、`--http` を渡した場合は streamable HTTP 経由で CLI を MCP サーバーとして公開します。認証は他のすべての `redmine` コマンドと同じ profile ベースの仕組みを再利用します。
-
-- **デフォルトは読み取り専用。** 変更系ツールは `--enable-writes` を指定したときのみ登録されます。このフラグがなければ `tools/list` に表示されることはありません。
-- **認証はアクティブな profile を再利用します**（または `--profile`、`--server/--api-key`、`REDMINE_*` 環境変数）。
-- **公開するツールの範囲を設定できます。** `--enable-groups` / `--disable-groups` でカテゴリ単位（`issues`、`wiki`、`time` など）に公開対象を制御し、`--enable-tools` / `--disable-tools` で個別のツールを上書きできます。`redmine mcp tools` を実行するとカタログを表示できます。
-
-書き込みツールは破壊的です。ホスト側に信頼できる呼び出しごとの承認 UI がない限り、無効のままにしておくことをおすすめします。
-
-#### 公開するツールを絞り込む
-
-issue 関連だけを扱う MCP サーバーを起動するには、グループの allow-list を設定します。
-
-```bash
-redmine mcp serve --enable-groups issues
-```
-
-破壊的な delete 系を除いたうえで書き込みを有効にするには、deny-list と組み合わせます。
-
-```bash
-redmine mcp serve --enable-writes --disable-tools delete_issue,delete_project,delete_wiki_page
-```
-
-同じデフォルト値は profile ごとの `~/.redmine-cli.yaml` にも記述できます。これにより、MCP ホストは常に意図した公開範囲で起動されます。
-
-```yaml
-profiles:
-  internal:
-    server: https://redmine.internal
-    api_key: ...
-    mcp:
-      enable_writes: true
-      enable_groups: [issues, wiki]
-      disable_tools: [delete_issue]
-```
-
-CLI フラグは設定ファイルより優先され、`REDMINE_MCP_ENABLE_GROUPS` / `REDMINE_MCP_DISABLE_GROUPS` / `REDMINE_MCP_ENABLE_TOOLS` / `REDMINE_MCP_DISABLE_TOOLS` / `REDMINE_MCP_ENABLE_WRITES` / `REDMINE_MCP_AUTH_TOKEN` 環境変数は設定ファイルを上書きします。
-
-#### HTTP トランスポート
-
-`--http :8080` は `127.0.0.1:8080` にバインドするように書き換えられます -- サーバがすべてのインターフェースに既定で公開されることはありません。外部に公開するには明示的にホストを指定し（`0.0.0.0:8080`）、`--auth-token`（または `REDMINE_MCP_AUTH_TOKEN` / 設定の `mcp.auth_token`）でベアラートークンを設定してください。ループバック以外にバインドしているのにトークンが無い場合、CLI は stderr に警告を出しつつ起動します。クライアントは毎リクエストに `Authorization: Bearer <token>` を付与する必要があります。
-
-## ローカル E2E テスト
-
-実際の Redmine インスタンスに対してローカルで CLI を動かしたい場合、本リポジトリには [e2e/README.md](/e2e/README.md) に Docker ベースの e2e ハーネスが用意されています。
-
-このセットアップは Docker 公式イメージと Postgres を使用し、サポート対象の Redmine ライン `4.2`、`5.1`、`6.1` を指定できます。デフォルトでは `6.1` を `http://127.0.0.1:3000` で使用します。サポート対象の特定のラインを使用する場合は、Make ターゲットの前に `E2E_VERSION=...` を設定してください。後からカスタムイメージを指定する場合は、`REDMINE_IMAGE=...` を設定します。
-
-```bash
-make e2e-up
-make e2e-config
-make e2e-test
-make e2e-down
-```
-
-またはサポート対象バージョンのマトリクスをすべて実行します：
-
-```bash
-make e2e-matrix
-```
-
-Go の e2e スイートは実際のプロジェクトと issue を作成し、list/get のフローを確認し、ローカルインスタンスに対するクローズ/再オープンの動作を検証します。
+実際の Redmine インスタンスに対するローカル E2E テスト（Docker、Redmine `4.2`、`5.1`、`6.1` をサポート）：[e2e/README.md](e2e/README.md) を参照してください。
