@@ -1,0 +1,25 @@
+{
+  "name": "redmine",
+  "description": "Drive Redmine from Claude Code: bundled agent skill plus MCP server.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Aaron Doeppner"
+  },
+  "homepage": "https://aarondpn.github.io/redmine-cli",
+  "repository": "https://github.com/aarondpn/redmine-cli",
+  "license": "MIT",
+  "keywords": [
+    "redmine",
+    "project-management",
+    "issue-tracker",
+    "mcp",
+    "agent-skill"
+  ],
+  "skills": "./skills",
+  "mcpServers": {
+    "redmine": {
+      "command": "redmine",
+      "args": ["mcp", "serve"]
+    }
+  }
+}

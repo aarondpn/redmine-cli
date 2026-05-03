@@ -17,12 +17,21 @@ import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 import SectionRule from '../../components/SectionRule.astro';
 import CapabilityMatrix from '../../components/CapabilityMatrix.astro';
 import Contributors from '../../components/Contributors.astro';
+import InstallTabs from '../../components/InstallTabs.astro';
 
 <SectionRule index="01" label="CAPABILITIES" />
 
 <CapabilityMatrix />
 
-<SectionRule index="02" label="QUICKSTART" />
+<SectionRule index="02" label="DROP INTO YOUR AGENT" />
+
+Skill plus MCP server, vendor-neutral. Pick your host:
+
+<InstallTabs />
+
+Open standards: [Agent Skills](https://agentskills.io) (35+ agents) + [Model Context Protocol](https://modelcontextprotocol.io). Full host snippets in the [AI agent guide](/redmine-cli/guides/ai-agents/).
+
+<SectionRule index="03" label="QUICKSTART" />
 
 <CardGrid>
   <LinkCard
@@ -47,6 +56,6 @@ import Contributors from '../../components/Contributors.astro';
   />
 </CardGrid>
 
-<SectionRule index="03" label="CREW" />
+<SectionRule index="04" label="CREW" />
 
 <Contributors />
