@@ -165,6 +165,9 @@ func CompleteRoles(f *Factory) func(cmd *cobra.Command, args []string, toComplet
 
 		items := make([]string, 0, len(roles))
 		for _, r := range roles {
+			if r.IsBuiltIn() || (r.Assignable != nil && !r.IsAssignable()) {
+				continue
+			}
 			items = append(items, fmt.Sprintf("%s\tID %d", r.Name, r.ID))
 		}
 		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
