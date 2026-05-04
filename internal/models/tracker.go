@@ -4,7 +4,7 @@ package models
 type Tracker struct {
 	ID                    int      `json:"id"`
 	Name                  string   `json:"name"`
-	Description           string   `json:"description,omitempty"`
+	Description           string   `json:"description"`
 	DefaultStatus         *IDName  `json:"default_status,omitempty"`
 	EnabledStandardFields []string `json:"enabled_standard_fields,omitempty"`
 }
