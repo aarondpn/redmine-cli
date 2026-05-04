@@ -98,6 +98,19 @@ func newCmdTrackerGet(f *cmdutil.Factory) *cobra.Command {
 				printer.JSON(tracker)
 				return nil
 			}
+			if printer.Format() == output.FormatCSV {
+				printer.CSV(
+					[]string{"ID", "Name", "Default Status", "Description", "Enabled Standard Fields"},
+					[][]string{{
+						fmt.Sprintf("%d", tracker.ID),
+						tracker.Name,
+						trackerDefaultStatusDetail(tracker),
+						tracker.Description,
+						trackerStandardFields(tracker),
+					}},
+				)
+				return nil
+			}
 
 			details := []output.KeyValue{
 				{Key: "ID", Value: fmt.Sprintf("%d", tracker.ID)},
