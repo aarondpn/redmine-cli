@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"context"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -64,13 +63,4 @@ func TestGetTrackerTool_RoundTrip(t *testing.T) {
 	if !containsText(text, `"id":1`, `"name":"Bug"`, `"enabled_standard_fields":["description","due_date"]`) {
 		t.Fatalf("unexpected tool payload: %s", text)
 	}
-}
-
-func containsText(text string, parts ...string) bool {
-	for _, part := range parts {
-		if !strings.Contains(text, part) {
-			return false
-		}
-	}
-	return true
 }
