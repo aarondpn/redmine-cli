@@ -1,0 +1,33 @@
+---
+title: 角色
+description: 列出 Redmine 角色并查看角色权限。
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+`roles` 命令用于发现可分配的项目角色，并查看某个角色附带的权限。
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="列出当前 Redmine 实例中配置的所有角色。" />
+  <LinkCard title="get" href="#get" description="按 ID 或名称查看单个角色。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine roles list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-o, --output` | 输出格式 |
+
+## get
+
+```bash
+redmine roles get <id-or-name> [flags]
+```
+
+别名：`show`、`view`。接受数字 ID 或角色名称。
+
+详情视图会在 Redmine 提供这些字段时显示权限和可见性设置。

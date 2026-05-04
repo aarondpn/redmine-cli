@@ -1,0 +1,33 @@
+---
+title: Roles
+description: List Redmine roles and inspect role permissions.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+The `roles` command lets you discover assignable project roles and inspect the permissions attached to a role.
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="List all roles configured in this Redmine instance." />
+  <LinkCard title="get" href="#get" description="View a single role by ID or name." />
+</CardGrid>
+
+## list
+
+```bash
+redmine roles list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format |
+
+## get
+
+```bash
+redmine roles get <id-or-name> [flags]
+```
+
+Aliases: `show`, `view`. Accepts a numeric ID or role name.
+
+The detail view includes permissions and visibility settings when Redmine exposes them.

@@ -158,6 +158,35 @@ func TestMemberships_GroupCreate(t *testing.T) {
 	}
 }
 
+func TestMemberships_RoleNameResolution(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	user := createTestUser(t, r)
+	role := firstRole(t, r)
+
+	var created struct {
+		ID    int `json:"id"`
+		Roles []struct {
+			ID int `json:"id"`
+		} `json:"roles"`
+	}
+	r.runJSON(t, &created, "memberships", "create",
+		"--project", proj.Identifier,
+		"--user-id", strconv.Itoa(user.ID),
+		"--roles", role.Name)
+	if !containsRoleID(created.Roles, role.ID) {
+		t.Fatalf("created membership roles = %+v, want role %d", created.Roles, role.ID)
+	}
+
+	var updated actionEnvelope
+	r.runJSON(t, &updated, "memberships", "update", strconv.Itoa(created.ID),
+		"--roles", strconv.Itoa(role.ID))
+	if !updated.Ok {
+		t.Fatalf("unexpected update envelope: %+v", updated)
+	}
+}
+
 // TestMemberships_CreateRequiresUserOrGroup verifies the mutual-exclusivity
 // validation at internal/cmd/membership/create.go:33: omitting both
 // --user-id and --group-id must exit non-zero with the membership cmd's own

@@ -15,6 +15,7 @@ import (
 	mcpcmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/mcp"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/membership"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/project"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/role"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/search"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/status"
 	timecmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/time"
@@ -92,6 +93,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(group.NewCmdGroup(f))
 	cmd.AddCommand(membership.NewCmdMemberships(f))
 	cmd.AddCommand(project.NewCmdProject(f))
+	cmd.AddCommand(role.NewCmdRoles(f))
 	cmd.AddCommand(timecmd.NewCmdTime(f))
 	cmd.AddCommand(user.NewCmdUser(f))
 	cmd.AddCommand(tracker.NewCmdTrackers(f))

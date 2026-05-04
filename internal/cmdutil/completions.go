@@ -149,6 +149,31 @@ func CompleteStatuses(f *Factory) func(cmd *cobra.Command, args []string, toComp
 	}
 }
 
+// CompleteRoles returns a completion function for role-related flags.
+func CompleteRoles(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		client, ctx, cancel := completionClient(f)
+		if client == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		defer cancel()
+
+		roles, err := client.Roles.List(ctx)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		items := make([]string, 0, len(roles))
+		for _, r := range roles {
+			if r.IsBuiltIn() || (r.Assignable != nil && !r.IsAssignable()) {
+				continue
+			}
+			items = append(items, fmt.Sprintf("%s\tID %d", r.Name, r.ID))
+		}
+		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 // CompleteIssueListStatus returns a completion function for the --status flag
 // on the issues list command, which also accepts special values.
 func CompleteIssueListStatus(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

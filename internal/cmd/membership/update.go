@@ -13,7 +13,10 @@ import (
 )
 
 func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
-	var roleIDs []int
+	var (
+		roleIDs []int
+		roles   []string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "update <id>",
@@ -27,11 +30,18 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("membership ID must be a number: %s", args[0])
 			}
 
-			if !cmd.Flags().Changed("role-ids") {
-				return fmt.Errorf("--role-ids is required")
-			}
-
 			client, err := f.ApiClient()
+			if err != nil {
+				return err
+			}
+			resolvedRoleIDs, err := resolveRoleIDs(
+				context.Background(),
+				client,
+				roleIDs,
+				roles,
+				cmd.Flags().Changed("role-ids"),
+				cmd.Flags().Changed("roles"),
+			)
 			if err != nil {
 				return err
 			}
@@ -41,7 +51,7 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 			stop := printer.Spinner("Updating membership...")
 			_, err = ops.UpdateMembership(context.Background(), client, ops.UpdateMembershipInput{
 				ID:      id,
-				RoleIDs: roleIDs,
+				RoleIDs: resolvedRoleIDs,
 			})
 			stop()
 			if err != nil {
@@ -53,6 +63,9 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntSliceVar(&roleIDs, "role-ids", nil, "Role IDs to assign (required)")
+	cmd.Flags().IntSliceVar(&roleIDs, "role-ids", nil, "Role IDs to assign")
+	cmd.Flags().StringSliceVar(&roles, "roles", nil, "Role names or IDs to assign (repeatable or comma-separated)")
+	cmd.MarkFlagsMutuallyExclusive("role-ids", "roles")
+	_ = cmd.RegisterFlagCompletionFunc("roles", cmdutil.CompleteRoles(f))
 	return cmd
 }

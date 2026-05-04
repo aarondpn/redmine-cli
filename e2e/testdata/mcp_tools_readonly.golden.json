@@ -16,6 +16,10 @@
     "description": "Fetch a single Redmine project by identifier or ID."
   },
   {
+    "name": "get_role",
+    "description": "Fetch a single Redmine role by ID, including permissions when available."
+  },
+  {
     "name": "get_time_entry",
     "description": "Fetch a single time entry by ID."
   },
@@ -54,6 +58,10 @@
   {
     "name": "list_projects",
     "description": "List Redmine projects."
+  },
+  {
+    "name": "list_roles",
+    "description": "List all Redmine roles configured in this instance."
   },
   {
     "name": "list_statuses",

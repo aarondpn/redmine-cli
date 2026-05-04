@@ -27,12 +27,12 @@ type GetMembershipInput struct {
 type CreateMembershipInput struct {
 	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 	UserID    int    `json:"user_id" jsonschema:"Numeric user ID to add as a member."`
-	RoleIDs   []int  `json:"role_ids" jsonschema:"One or more role IDs to grant."`
+	RoleIDs   []int  `json:"role_ids" jsonschema:"One or more role IDs to grant. Use list_roles to discover valid values."`
 }
 
 type UpdateMembershipInput struct {
 	ID      int   `json:"id" jsonschema:"Numeric membership ID."`
-	RoleIDs []int `json:"role_ids" jsonschema:"Replacement set of role IDs."`
+	RoleIDs []int `json:"role_ids" jsonschema:"Replacement set of role IDs. Use list_roles to discover valid values."`
 }
 
 type DeleteMembershipInput struct {

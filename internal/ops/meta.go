@@ -63,9 +63,18 @@ type TrackersListResult struct {
 	Count    int              `json:"count"`
 }
 
+type RolesListResult struct {
+	Roles []models.Role `json:"roles"`
+	Count int           `json:"count"`
+}
+
 type StatusesListResult struct {
 	Statuses []models.IssueStatus `json:"issue_statuses"`
 	Count    int                  `json:"count"`
+}
+
+type GetRoleInput struct {
+	ID int `json:"id" jsonschema:"Numeric role ID."`
 }
 
 //mcpgen:tool list_versions
@@ -140,6 +149,24 @@ func ListTrackers(ctx context.Context, client *api.Client, _ struct{}) (Trackers
 		return TrackersListResult{}, err
 	}
 	return TrackersListResult{Trackers: trackers, Count: len(trackers)}, nil
+}
+
+//mcpgen:tool list_roles
+//mcpgen:description List all Redmine roles configured in this instance.
+//mcpgen:category meta
+func ListRoles(ctx context.Context, client *api.Client, _ struct{}) (RolesListResult, error) {
+	roles, err := client.Roles.List(ctx)
+	if err != nil {
+		return RolesListResult{}, err
+	}
+	return RolesListResult{Roles: roles, Count: len(roles)}, nil
+}
+
+//mcpgen:tool get_role
+//mcpgen:description Fetch a single Redmine role by ID, including permissions when available.
+//mcpgen:category meta
+func GetRole(ctx context.Context, client *api.Client, input GetRoleInput) (*models.Role, error) {
+	return client.Roles.Get(ctx, input.ID)
 }
 
 //mcpgen:tool list_statuses
