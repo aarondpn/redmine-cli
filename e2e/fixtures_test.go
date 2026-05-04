@@ -207,10 +207,15 @@ func createTestGroup(t *testing.T, r *cliRunner) *groupFixture {
 	return &groupFixture{ID: created.ID, Name: created.Name}
 }
 
-// firstRoleID returns the ID of the first non-builtin role on the server.
-// Built-in roles ("Anonymous", "Non member") cannot be assigned to project
-// memberships, so tests skip them.
-func firstRoleID(t *testing.T, r *cliRunner) int {
+type roleFixture struct {
+	ID   int
+	Name string
+}
+
+// firstRole returns the first non-builtin role on the server. Built-in roles
+// ("Anonymous", "Non member") cannot be assigned to project memberships, so
+// tests skip them when Redmine exposes the builtin markers.
+func firstRole(t *testing.T, r *cliRunner) roleFixture {
 	t.Helper()
 	type role struct {
 		ID         int    `json:"id"`
@@ -227,14 +232,19 @@ func firstRoleID(t *testing.T, r *cliRunner) int {
 		if role.Builtin || role.IsBuiltin {
 			continue
 		}
-		return role.ID
+		return roleFixture{ID: role.ID, Name: role.Name}
 	}
 	if len(resp.Roles) == 0 {
 		t.Fatal("no roles available on server")
 	}
 	// Fall back to the first role; older Redmine builds don't expose builtin
 	// flag here.
-	return resp.Roles[0].ID
+	return roleFixture{ID: resp.Roles[0].ID, Name: resp.Roles[0].Name}
+}
+
+func firstRoleID(t *testing.T, r *cliRunner) int {
+	t.Helper()
+	return firstRole(t, r).ID
 }
 
 // uniqueShortSuffix returns a short alphanumeric token unique per test +

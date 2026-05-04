@@ -255,6 +255,21 @@ func ResolveStatus(ctx context.Context, client *api.Client, input string) (int, 
 	})
 }
 
+// ResolveRole resolves a role by name or numeric ID.
+func ResolveRole(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "role", client, func() ([]Option, error) {
+		roles, err := client.Roles.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch roles: %w", err)
+		}
+		opts := make([]Option, len(roles))
+		for i, r := range roles {
+			opts[i] = Option{ID: r.ID, Name: r.Name}
+		}
+		return opts, nil
+	})
+}
+
 // ResolvePriority resolves a priority by name or numeric ID.
 func ResolvePriority(ctx context.Context, client *api.Client, input string) (int, error) {
 	return Resolve(input, "priority", client, func() ([]Option, error) {

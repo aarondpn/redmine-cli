@@ -53,11 +53,12 @@ Adds a user or group to a project with the specified roles.
 | `--project`    | Project name, identifier, or ID — falls back to the default project of the active profile |
 | `--user-id`    | User ID to add |
 | `--group-id`   | Group ID to add |
-| `--role-ids`   | Comma-separated role IDs — <Badge text="required" variant="danger" /> |
+| `--role-ids`   | Comma-separated role IDs |
+| `--roles`      | Comma-separated role names or IDs — <Badge text="required" variant="danger" /> when `--role-ids` is omitted |
 | `-o, --output` | Output format |
 
 <Aside type="note">
-  Exactly one of `--user-id` or `--group-id` must be supplied — they are mutually exclusive.
+  Exactly one of `--user-id` or `--group-id` must be supplied, and exactly one of `--role-ids` or `--roles` must be supplied. Use `redmine roles list` to discover valid role names and IDs.
 </Aside>
 
 ## update
@@ -70,7 +71,8 @@ Only the assigned roles can be changed on an existing membership.
 
 | Flag | Description |
 |------|-------------|
-| `--role-ids` | Comma-separated role IDs — <Badge text="required" variant="danger" /> |
+| `--role-ids` | Comma-separated role IDs |
+| `--roles`    | Comma-separated role names or IDs — <Badge text="required" variant="danger" /> when `--role-ids` is omitted |
 
 ## delete
 

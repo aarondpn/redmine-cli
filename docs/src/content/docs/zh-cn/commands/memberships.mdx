@@ -53,11 +53,12 @@ redmine memberships create [flags]
 | `--project`    | 项目名称、标识符或 ID——默认回退至活跃配置文件的默认项目 |
 | `--user-id`    | 要添加的用户 ID |
 | `--group-id`   | 要添加的用户组 ID |
-| `--role-ids`   | 逗号分隔的角色 ID — <Badge text="必填" variant="danger" /> |
+| `--role-ids`   | 逗号分隔的角色 ID |
+| `--roles`      | 逗号分隔的角色名称或 ID——当未提供 `--role-ids` 时 <Badge text="必填" variant="danger" /> |
 | `-o, --output` | 输出格式 |
 
 <Aside type="note">
-  `--user-id` 和 `--group-id` 二者必须且只能提供其中一个，二者互斥。
+  `--user-id` 与 `--group-id` 二者必须且只能提供其一；`--role-ids` 与 `--roles` 也必须且只能提供其一。可使用 `redmine roles list` 查看可用的角色名称与 ID。
 </Aside>
 
 ## update
@@ -70,7 +71,8 @@ redmine memberships update <id> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--role-ids` | 逗号分隔的角色 ID — <Badge text="必填" variant="danger" /> |
+| `--role-ids` | 逗号分隔的角色 ID |
+| `--roles`    | 逗号分隔的角色名称或 ID——当未提供 `--role-ids` 时 <Badge text="必填" variant="danger" /> |
 
 ## delete
 

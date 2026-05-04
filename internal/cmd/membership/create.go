@@ -16,6 +16,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 		userID  int
 		groupID int
 		roleIDs []int
+		roles   []string
 		format  string
 	)
 
@@ -26,6 +27,9 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 		Long:    "Create a new membership, adding a user or group to a project with specified roles.",
 		Example: `  # Add a user with roles
   redmine memberships create --project myproject --user-id 5 --role-ids 1,2
+
+  # Add a user with roles resolved by name
+  redmine memberships create --project myproject --user-id 5 --roles Manager,Developer
 
   # Add a group with a role
   redmine memberships create --project myproject --group-id 10 --role-ids 3`,
@@ -45,6 +49,17 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			resolvedRoleIDs, err := resolveRoleIDs(
+				context.Background(),
+				client,
+				roleIDs,
+				roles,
+				cmd.Flags().Changed("role-ids"),
+				cmd.Flags().Changed("roles"),
+			)
+			if err != nil {
+				return err
+			}
 
 			memberID := userID
 			if hasGroup {
@@ -56,7 +71,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 			m, err := ops.CreateMembership(context.Background(), client, ops.CreateMembershipInput{
 				ProjectID: project,
 				UserID:    memberID,
-				RoleIDs:   roleIDs,
+				RoleIDs:   resolvedRoleIDs,
 			})
 			stop()
 			if err != nil {
@@ -71,12 +86,14 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID (required)")
 	cmd.Flags().IntVar(&userID, "user-id", 0, "User ID to add")
 	cmd.Flags().IntVar(&groupID, "group-id", 0, "Group ID to add")
-	cmd.Flags().IntSliceVar(&roleIDs, "role-ids", nil, "Role IDs to assign (required)")
-	cmd.MarkFlagRequired("role-ids")
+	cmd.Flags().IntSliceVar(&roleIDs, "role-ids", nil, "Role IDs to assign")
+	cmd.Flags().StringSliceVar(&roles, "roles", nil, "Role names or IDs to assign (repeatable or comma-separated)")
 	cmd.MarkFlagsMutuallyExclusive("user-id", "group-id")
+	cmd.MarkFlagsMutuallyExclusive("role-ids", "roles")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
+	_ = cmd.RegisterFlagCompletionFunc("roles", cmdutil.CompleteRoles(f))
 
 	return cmd
 }

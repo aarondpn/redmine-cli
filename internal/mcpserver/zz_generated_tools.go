@@ -158,6 +158,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.DeleteVersion,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetRoleInput, *models.Role]{
+		Name:        "get_role",
+		Description: "Fetch a single Redmine role by ID, including permissions when available.",
+		Category:    "meta",
+		Call:        ops.GetRole,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetVersionInput, *models.Version]{
 		Name:        "get_version",
 		Description: "Fetch a single version (milestone) by ID.",
@@ -169,6 +175,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "List issue categories for a project.",
 		Category:    "meta",
 		Call:        ops.ListCategories,
+	})
+	registerToolSpec(s, client, opts, toolSpec[struct{}, ops.RolesListResult]{
+		Name:        "list_roles",
+		Description: "List all Redmine roles configured in this instance.",
+		Category:    "meta",
+		Call:        ops.ListRoles,
 	})
 	registerToolSpec(s, client, opts, toolSpec[struct{}, ops.StatusesListResult]{
 		Name:        "list_statuses",
@@ -380,8 +392,10 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_membership", Description: "Replace the roles on a project membership. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "create_version", Description: "Create a project version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "delete_version", Description: "Delete a version (milestone). Destructive. Requires --enable-writes.", Group: "meta", Writes: true},
+		{Name: "get_role", Description: "Fetch a single Redmine role by ID, including permissions when available.", Group: "meta", Writes: false},
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
+		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_versions", Description: "List versions (milestones) for a project.", Group: "meta", Writes: false},

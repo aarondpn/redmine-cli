@@ -35,6 +35,7 @@ type Client struct {
 	Users        *UserService
 	Trackers     *TrackerService
 	Statuses     *StatusService
+	Roles        *RoleService
 	Enumerations *EnumerationService
 	Versions     *VersionService
 	Categories   *CategoryService
@@ -107,6 +108,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Users = &UserService{client: c}
 	c.Trackers = &TrackerService{client: c}
 	c.Statuses = &StatusService{client: c}
+	c.Roles = &RoleService{client: c}
 	c.Enumerations = &EnumerationService{client: c}
 	c.Versions = &VersionService{client: c}
 	c.Categories = &CategoryService{client: c}
