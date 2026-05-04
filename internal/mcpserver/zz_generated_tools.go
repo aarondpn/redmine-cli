@@ -164,6 +164,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Category:    "meta",
 		Call:        ops.GetRole,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetTrackerInput, *models.Tracker]{
+		Name:        "get_tracker",
+		Description: "Fetch a single tracker by ID, including default status and enabled standard fields when available.",
+		Category:    "meta",
+		Call:        ops.GetTracker,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetVersionInput, *models.Version]{
 		Name:        "get_version",
 		Description: "Fetch a single version (milestone) by ID.",
@@ -393,6 +399,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "create_version", Description: "Create a project version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "delete_version", Description: "Delete a version (milestone). Destructive. Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "get_role", Description: "Fetch a single Redmine role by ID, including permissions when available.", Group: "meta", Writes: false},
+		{Name: "get_tracker", Description: "Fetch a single tracker by ID, including default status and enabled standard fields when available.", Group: "meta", Writes: false},
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
 		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},

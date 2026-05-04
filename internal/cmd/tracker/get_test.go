@@ -9,16 +9,16 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
-func TestTrackerList_JSON(t *testing.T) {
+func TestTrackerGet_JSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"},"enabled_standard_fields":["description"]}]}`))
+		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"},"enabled_standard_fields":["description","due_date"]}]}`))
 	}))
 	defer srv.Close()
 
 	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdTrackerList(f)
-	cmd.SetArgs([]string{"--output", "json"})
+	cmd := newCmdTrackerGet(f)
+	cmd.SetArgs([]string{"Bug", "--output", "json"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -31,24 +31,24 @@ func TestTrackerList_JSON(t *testing.T) {
 	}
 }
 
-func TestTrackerList_Table(t *testing.T) {
+func TestTrackerGet_Table(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"}},{"id":2,"name":"Feature","description":"","default_status":{"id":3,"name":"In Progress"}}]}`))
+		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"},"enabled_standard_fields":["description","due_date"]}]}`))
 	}))
 	defer srv.Close()
 
 	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdTrackerList(f)
-	cmd.SetArgs([]string{"--output", "table"})
+	cmd := newCmdTrackerGet(f)
+	cmd.SetArgs([]string{"1", "--output", "table"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
 	stdout := testutil.Stdout(f)
-	for _, want := range []string{"Bug", "Feature", "Default Status", "New", "In Progress"} {
+	for _, want := range []string{"Default Status", "New (ID: 2)", "Enabled Standard Fields", "description, due_date"} {
 		if !strings.Contains(stdout, want) {
-			t.Errorf("table output missing %q:\n%s", want, stdout)
+			t.Errorf("detail output missing %q:\n%s", want, stdout)
 		}
 	}
 }

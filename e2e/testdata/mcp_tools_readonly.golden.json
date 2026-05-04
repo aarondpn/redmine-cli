@@ -20,6 +20,10 @@
     "description": "Fetch a single Redmine role by ID, including permissions when available."
   },
   {
+    "name": "get_tracker",
+    "description": "Fetch a single tracker by ID, including default status and enabled standard fields when available."
+  },
+  {
     "name": "get_time_entry",
     "description": "Fetch a single time entry by ID."
   },
