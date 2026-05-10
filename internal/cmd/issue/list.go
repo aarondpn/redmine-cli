@@ -101,6 +101,11 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
+			// MarkFlagsMutuallyExclusive (below) catches `--query foo --query-id N`,
+			// but it relies on cobra's `Changed` bookkeeping. We thread the same
+			// signal into the resolver so a lone `--query-id 0` (which leaves
+			// IntVar at its zero value) is rejected explicitly instead of being
+			// silently treated as "no filter".
 			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project)
 			if err != nil {
 				return err

@@ -45,7 +45,7 @@ redmine queries get <id-or-name> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--project`    | 项目标识符或数字 ID — 用于区分与全局查询同名的项目级查询 |
+| `--project`    | 项目标识符或数字 ID - 用于区分与全局查询同名的项目级查询 |
 | `-o, --output` | 输出格式 |
 
 ## 运行自定义查询
@@ -53,10 +53,10 @@ redmine queries get <id-or-name> [flags]
 获得查询 ID（或名称）后，通过工单接口直接运行：
 
 ```bash
-# 按 ID — 无需额外查询
+# 按 ID - 无需额外查询
 redmine issues list --query-id 12
 
-# 按名称 — CLI 会先解析为 ID
+# 按名称 - CLI 会先解析为 ID
 redmine issues list --query "我的未关闭工单"
 
 # 与 --project 配合，避免项目级查询与全局查询同名时的歧义

@@ -45,7 +45,7 @@ Aliases: `show`, `view`. Accepts a numeric ID or query name.
 
 | Flag | Description |
 |------|-------------|
-| `--project`    | Project identifier or numeric ID — disambiguates per-project queries that share a name with a global query |
+| `--project`    | Project identifier or numeric ID - disambiguates per-project queries that share a name with a global query |
 | `-o, --output` | Output format |
 
 ## Running a saved query
@@ -53,10 +53,10 @@ Aliases: `show`, `view`. Accepts a numeric ID or query name.
 Once you know the query ID (or name), run it through the issues endpoint:
 
 ```bash
-# By ID — no extra round trip
+# By ID - no extra round trip
 redmine issues list --query-id 12
 
-# By name — the CLI resolves the ID first
+# By name - the CLI resolves the ID first
 redmine issues list --query "My open issues"
 
 # Combine with --project to disambiguate per-project queries

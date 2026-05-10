@@ -319,13 +319,12 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 		}
 	}
 
-	// Prefer a project-scoped match when --project narrows the search; only
-	// fall back to global queries when no project-scoped query has the name.
+	// Prefer project-scoped matches when --project narrows the search; fall
+	// back to globals only when no project-scoped query exists with this
+	// name. With no --project, every match (project + global) is reported so
+	// the user gets the full ambiguity list.
 	matches := projectMatches
-	if projectFilterID > 0 && len(matches) == 0 {
-		matches = globalMatches
-	}
-	if projectFilterID == 0 {
+	if projectFilterID == 0 || len(matches) == 0 {
 		matches = append(matches, globalMatches...)
 	}
 

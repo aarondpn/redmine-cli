@@ -54,7 +54,11 @@ func newCmdQueryGet(f *cmdutil.Factory) *cobra.Command {
 					}
 				}
 				if match.Name == "" {
-					return fmt.Errorf("saved query %d not found", match.ID)
+					// `/queries.json` only returns queries the API key can
+					// see (public, or private and owned by the current user),
+					// so a missing record could mean genuinely deleted or
+					// owned by someone else.
+					return fmt.Errorf("saved query %d not found or not visible to you", match.ID)
 				}
 			}
 

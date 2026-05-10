@@ -122,10 +122,29 @@ func TestResolveQuery_ExcludesOtherProjectScopedQueries(t *testing.T) {
 	}
 }
 
-func TestResolveQuery_MultipleGlobalMatches(t *testing.T) {
+func TestResolveQuery_AmbiguousAcrossScopes(t *testing.T) {
 	client, close := newQueryResolverClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queries":[{"id":1,"name":"Sprint"},{"id":2,"name":"Sprint","project_id":3}],"total_count":2}`))
+	}))
+	defer close()
+
+	_, err := ResolveQuery(context.Background(), client, "Sprint", "")
+	if err == nil {
+		t.Fatal("expected ambiguity error")
+	}
+	if !strings.Contains(err.Error(), "multiple queries match") {
+		t.Fatalf("error = %v, want ambiguity message", err)
+	}
+}
+
+func TestResolveQuery_AmbiguousMultipleGlobals(t *testing.T) {
+	// Two purely-global queries with the same name should also surface as
+	// ambiguous. Redmine permits this through the web UI, so the resolver
+	// must not silently pick one.
+	client, close := newQueryResolverClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queries":[{"id":1,"name":"Sprint","is_public":true},{"id":2,"name":"Sprint","is_public":true}],"total_count":2}`))
 	}))
 	defer close()
 
