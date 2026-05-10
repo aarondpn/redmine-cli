@@ -43,6 +43,21 @@ docker compose -f "$compose_file" exec -T \
       seeded_query.save!
     end
 
+    # Seed an issue custom field so the custom-fields e2e suite has a stable
+    # fixture. Redmine has no REST endpoint for creating custom field
+    # definitions, so the bootstrap is the only place this can live.
+    custom_field_name = "E2E Severity"
+    seeded_custom_field = IssueCustomField.find_or_initialize_by(name: custom_field_name)
+    if seeded_custom_field.new_record?
+      seeded_custom_field.field_format = "list"
+      seeded_custom_field.possible_values = ["Low", "Medium", "High"]
+      seeded_custom_field.is_required = false
+      seeded_custom_field.is_filter = true
+      seeded_custom_field.searchable = false
+      seeded_custom_field.tracker_ids = Tracker.pluck(:id)
+      seeded_custom_field.save!
+    end
+
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
       admin_api_key_present: admin.api_key.to_s != "",
@@ -50,6 +65,8 @@ docker compose -f "$compose_file" exec -T \
       trackers: Tracker.count,
       statuses: IssueStatus.count,
       seeded_query_id: seeded_query.id,
-      seeded_query_name: seeded_query.name
+      seeded_query_name: seeded_query.name,
+      seeded_custom_field_id: seeded_custom_field.id,
+      seeded_custom_field_name: seeded_custom_field.name
     }.inspect)
   ' 2>/dev/null | tail -n 1
