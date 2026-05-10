@@ -95,6 +95,21 @@ func TestTimeEntries_LogOnBehalfOf(t *testing.T) {
 	activity := firstActivityName(t, r)
 	target := createTestUser(t, r)
 
+	// Redmine validates that the target user is a project member with the
+	// "log_time" permission. Add the fresh fixture user via memberships create
+	// using the first available role (Manager/Developer in stock builds both
+	// include log_time).
+	var membership struct {
+		ID int `json:"id"`
+	}
+	r.runJSON(t, &membership, "memberships", "create",
+		"--project", proj.Identifier,
+		"--user-id", strconv.Itoa(target.ID),
+		"--role-ids", strconv.Itoa(firstRoleID(t, r)))
+	if membership.ID == 0 {
+		t.Fatalf("membership create returned no ID for user %d on project %s", target.ID, proj.Identifier)
+	}
+
 	var created struct {
 		ID    int     `json:"id"`
 		Hours float64 `json:"hours"`

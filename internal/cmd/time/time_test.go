@@ -404,6 +404,32 @@ func TestTimeLog_OnBehalfOfUser_Me(t *testing.T) {
 	}
 }
 
+func TestTimeLog_OnBehalfOfUser_ResolverFailureWrapped(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Listing users for name resolution returns an empty result, which the
+		// resolver surfaces as "no user found matching ...".
+		if r.URL.Path == "/users.json" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"users":[],"total_count":0}`))
+			return
+		}
+		t.Fatalf("unexpected path: %s", r.URL.Path)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "10", "--user", "no-such-user"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when resolver cannot find target user")
+	}
+	if !strings.Contains(err.Error(), "resolving user") {
+		t.Errorf("error = %q, want wrapping with 'resolving user'", err.Error())
+	}
+}
+
 func TestTimeLog_OnBehalfOfUser_OmittedByDefault(t *testing.T) {
 	var capturedBody map[string]interface{}
 

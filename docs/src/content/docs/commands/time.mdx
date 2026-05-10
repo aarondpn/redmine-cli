@@ -53,7 +53,7 @@ Without flags, opens an interactive form.
 </Tabs>
 
 <Aside type="caution">
-  `--user` requires admin privileges or the "Log time for other users" permission on the Redmine server. Without it, the server rejects the request.
+  `--user` requires admin privileges or the "Log time for other users" permission on the Redmine server. The target user must also be a member of the project with the "Log spent time" permission, otherwise Redmine returns a validation error (`User is invalid`).
 </Aside>
 
 ## list

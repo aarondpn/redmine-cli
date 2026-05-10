@@ -53,7 +53,7 @@ redmine time log [flags]
 </Tabs>
 
 <Aside type="caution">
-  `--user` 需要 Redmine 服务端的管理员权限或“代他人记录工时”权限，否则服务器会拒绝该请求。
+  `--user` 需要 Redmine 服务端的管理员权限或“代他人记录工时”权限。同时，目标用户必须是该项目的成员并拥有“记录工时”权限，否则 Redmine 会返回校验错误（`User is invalid`）。
 </Aside>
 
 ## list
