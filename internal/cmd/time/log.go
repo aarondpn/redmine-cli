@@ -21,6 +21,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 		activity string
 		date     string
 		comment  string
+		user     string
 		format   string
 	)
 
@@ -34,7 +35,9 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectID(context.Background(), f, project)
+			ctx := context.Background()
+
+			project, err = cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
 				return err
 			}
@@ -46,19 +49,28 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 			var activityID int
 			if activity != "" {
-				activityID, err = resolver.ResolveActivity(context.Background(), client, activity)
+				activityID, err = resolver.ResolveActivity(ctx, client, activity)
 				if err != nil {
 					return fmt.Errorf("resolving activity: %w", err)
 				}
 			}
 
-			created, err := ops.CreateTimeEntry(context.Background(), client, ops.CreateTimeEntryInput{
+			var userID int
+			if user != "" {
+				userID, err = resolver.ResolveUser(ctx, client, user)
+				if err != nil {
+					return fmt.Errorf("resolving user: %w", err)
+				}
+			}
+
+			created, err := ops.CreateTimeEntry(ctx, client, ops.CreateTimeEntryInput{
 				IssueID:    issue,
 				ProjectID:  project,
 				Hours:      hours,
 				ActivityID: activityID,
 				SpentOn:    date,
 				Comments:   comment,
+				UserID:     userID,
 			})
 			if err != nil {
 				return err
@@ -79,12 +91,14 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&activity, "activity", "", "Activity name or ID")
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD or 'today', default today)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
+	cmd.Flags().StringVar(&user, "user", "", "Log time on behalf of a user (ID, login, name, or 'me'); requires admin or 'log time for other users' permission")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("hours")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("activity", cmdutil.CompleteActivities(f))
+	_ = cmd.RegisterFlagCompletionFunc("user", cmdutil.CompleteUsers(f))
 
 	return cmd
 }

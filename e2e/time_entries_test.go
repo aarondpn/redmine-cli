@@ -83,3 +83,58 @@ func TestTimeEntries_CRUD(t *testing.T) {
 		t.Fatalf("expected no entries after delete; got %+v", entries)
 	}
 }
+
+// TestTimeEntries_LogOnBehalfOf verifies admin can log time for another user
+// via `time log --user`. Resolves the target user by login and confirms the
+// returned entry's user.id matches the fixture, not the API caller.
+func TestTimeEntries_LogOnBehalfOf(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	issue := createTestIssue(t, r, proj.Identifier)
+	activity := firstActivityName(t, r)
+	target := createTestUser(t, r)
+
+	// Redmine validates that the target user is a project member with the
+	// "log_time" permission. Add the fresh fixture user via memberships create
+	// using the first available role (Manager/Developer in stock builds both
+	// include log_time).
+	var membership struct {
+		ID int `json:"id"`
+	}
+	r.runJSON(t, &membership, "memberships", "create",
+		"--project", proj.Identifier,
+		"--user-id", strconv.Itoa(target.ID),
+		"--role-ids", strconv.Itoa(firstRoleID(t, r)))
+	if membership.ID == 0 {
+		t.Fatalf("membership create returned no ID for user %d on project %s", target.ID, proj.Identifier)
+	}
+
+	var created struct {
+		ID    int     `json:"id"`
+		Hours float64 `json:"hours"`
+		User  struct {
+			ID int `json:"id"`
+		} `json:"user"`
+	}
+	r.runJSON(t, &created, "time", "log",
+		"--issue", strconv.Itoa(issue.ID),
+		"--hours", "0.5",
+		"--activity", activity,
+		"--user", strconv.Itoa(target.ID),
+		"--comment", "logged on behalf by e2e")
+	if created.ID == 0 {
+		t.Fatalf("time log on behalf returned no ID: %+v", created)
+	}
+	if created.User.ID != target.ID {
+		t.Fatalf("time log on behalf user.id = %d, want %d", created.User.ID, target.ID)
+	}
+
+	t.Cleanup(func() {
+		var deleted actionEnvelope
+		r.runJSON(t, &deleted, "time", "delete", strconv.Itoa(created.ID), "--force")
+		if !deleted.Ok {
+			t.Errorf("time delete envelope not ok: %+v", deleted)
+		}
+	})
+}

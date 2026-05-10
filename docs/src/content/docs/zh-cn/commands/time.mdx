@@ -32,6 +32,7 @@ redmine time log [flags]
 | `--activity` | 活动类型（名称或 ID） |
 | `--comment`  | 工作描述 |
 | `--date`     | 日期（YYYY-MM-DD 或 `today`，默认：今天） |
+| `--user`     | 代他人记录工时（`me`、登录名、姓名或 ID） |
 
 <Tabs syncKey="time-log">
   <TabItem label="交互式">
@@ -44,7 +45,16 @@ redmine time log [flags]
     redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
     ```
   </TabItem>
+  <TabItem label="代他人">
+    ```bash
+    redmine time log --issue 123 --hours 1 --user jsmith --comment "Pair work"
+    ```
+  </TabItem>
 </Tabs>
+
+<Aside type="caution">
+  `--user` 需要 Redmine 服务端的管理员权限或“代他人记录工时”权限。同时，目标用户必须是该项目的成员并拥有“记录工时”权限，否则 Redmine 会返回校验错误（`User is invalid`）。
+</Aside>
 
 ## list
 
