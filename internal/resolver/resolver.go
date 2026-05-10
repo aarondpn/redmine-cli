@@ -270,6 +270,74 @@ func ResolveRole(ctx context.Context, client *api.Client, input string) (int, er
 	})
 }
 
+// ResolveQuery resolves a saved query by name or numeric ID. When
+// projectIdentifier is set, queries scoped to other projects are excluded
+// from name matching so a per-project query name does not collide with a
+// global query of the same name.
+func ResolveQuery(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {
+	if id, err := strconv.Atoi(input); err == nil {
+		client.DebugLog().Printf("Resolver: query %q is numeric, using ID %d directly", input, id)
+		return id, nil
+	}
+
+	client.DebugLog().Printf("Resolver: looking up query %q", input)
+
+	queries, _, err := client.Queries.List(ctx, 0, 0)
+	if err != nil {
+		if isForbiddenErr(err) {
+			return 0, &NameResolutionPermissionError{
+				message: "cannot resolve query by name (insufficient permissions). Use a numeric ID instead",
+			}
+		}
+		return 0, fmt.Errorf("failed to fetch saved queries: %w", err)
+	}
+
+	projectFilterID := 0
+	if projectIdentifier != "" {
+		if id, err := strconv.Atoi(projectIdentifier); err == nil {
+			projectFilterID = id
+		} else if proj, err := client.Projects.Get(ctx, projectIdentifier, nil); err == nil {
+			projectFilterID = proj.ID
+		}
+	}
+
+	needle := strings.ToLower(input)
+	var matches []models.SavedQuery
+	for _, q := range queries {
+		if strings.ToLower(q.Name) != needle {
+			continue
+		}
+		if projectFilterID > 0 && q.ProjectID != nil && *q.ProjectID != projectFilterID {
+			continue
+		}
+		matches = append(matches, q)
+	}
+
+	switch len(matches) {
+	case 0:
+		names := make([]string, len(queries))
+		ids := make([]int, len(queries))
+		for i, q := range queries {
+			names[i] = q.Name
+			ids[i] = q.ID
+		}
+		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "query"))
+	case 1:
+		client.DebugLog().Printf("Resolver: matched query %q -> ID %d", input, matches[0].ID)
+		return matches[0].ID, nil
+	default:
+		lines := make([]string, len(matches))
+		for i, q := range matches {
+			scope := "global"
+			if q.ProjectID != nil {
+				scope = fmt.Sprintf("project %d", *q.ProjectID)
+			}
+			lines[i] = fmt.Sprintf("  - %s (ID: %d, %s)", q.Name, q.ID, scope)
+		}
+		return 0, fmt.Errorf("multiple queries match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
+	}
+}
+
 // ResolvePriority resolves a priority by name or numeric ID.
 func ResolvePriority(ctx context.Context, client *api.Client, input string) (int, error) {
 	return Resolve(input, "priority", client, func() ([]Option, error) {

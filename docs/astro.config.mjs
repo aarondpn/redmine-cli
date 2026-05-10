@@ -37,6 +37,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Auth', translations: { 'zh-CN': '身份验证' }, slug: 'commands/auth' },
 						{ label: 'Issues', translations: { 'zh-CN': '工单' }, slug: 'commands/issues' },
+						{ label: 'Queries', translations: { 'zh-CN': '自定义查询' }, slug: 'commands/queries' },
 						{ label: 'Projects', translations: { 'zh-CN': '项目' }, slug: 'commands/projects' },
 						{ label: 'Memberships', translations: { 'zh-CN': '成员关系' }, slug: 'commands/memberships' },
 						{ label: 'Versions', translations: { 'zh-CN': '版本' }, slug: 'commands/versions' },

@@ -182,6 +182,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Category:    "meta",
 		Call:        ops.ListCategories,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListQueriesInput, ops.QueriesListResult]{
+		Name:        "list_queries",
+		Description: "List saved queries (custom filters) visible to the authenticated user. Use the returned id with list_issues' query_id parameter.",
+		Category:    "meta",
+		Call:        ops.ListQueries,
+	})
 	registerToolSpec(s, client, opts, toolSpec[struct{}, ops.RolesListResult]{
 		Name:        "list_roles",
 		Description: "List all Redmine roles configured in this instance.",
@@ -402,6 +408,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "get_tracker", Description: "Fetch a single tracker by ID, including default status and enabled standard fields when available.", Group: "meta", Writes: false},
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
+		{Name: "list_queries", Description: "List saved queries (custom filters) visible to the authenticated user. Use the returned id with list_issues' query_id parameter.", Group: "meta", Writes: false},
 		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},

@@ -22,6 +22,23 @@ func resolveIssueStatusFilter(ctx context.Context, client *api.Client, status st
 	return strconv.Itoa(id), nil
 }
 
+func resolveIssueQueryFilter(ctx context.Context, client *api.Client, query string, queryID int, projectIdentifier string) (int, error) {
+	if queryID > 0 && query != "" {
+		return 0, fmt.Errorf("--query and --query-id are mutually exclusive; pick one")
+	}
+	if queryID > 0 {
+		return queryID, nil
+	}
+	if query == "" {
+		return 0, nil
+	}
+	id, err := resolver.ResolveQuery(ctx, client, query, projectIdentifier)
+	if err != nil {
+		return 0, fmt.Errorf("resolving query: %w", err)
+	}
+	return id, nil
+}
+
 func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
 	if assignee == "" || assignee == "me" {
 		return assignee, nil

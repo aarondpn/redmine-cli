@@ -206,6 +206,81 @@ func TestCmdIssueList_ResolvesAssigneeNameToID(t *testing.T) {
 	}
 }
 
+func TestCmdIssueList_PassesQueryID(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/issues.json" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		issuesQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--query-id", "42", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(issuesQuery, "query_id=42") {
+		t.Fatalf("issues query = %q, want query_id=42", issuesQuery)
+	}
+}
+
+func TestCmdIssueList_ResolvesQueryNameToID(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/queries.json":
+			_, _ = w.Write([]byte(`{"queries":[{"id":11,"name":"Sprint backlog","is_public":true}],"total_count":1}`))
+		case "/issues.json":
+			issuesQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--query", "Sprint backlog", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(issuesQuery, "query_id=11") {
+		t.Fatalf("issues query = %q, want query_id=11", issuesQuery)
+	}
+}
+
+func TestCmdIssueList_QueryAndQueryIDMutuallyExclusive(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--query", "Mine", "--query-id", "1", "--output", "json"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for mutually exclusive flags")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("error = %v, want mutually-exclusive message", err)
+	}
+}
+
 func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
 	var issuesQuery string
 

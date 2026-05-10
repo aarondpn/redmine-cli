@@ -21,6 +21,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 		status      string
 		assignee    string
 		version     string
+		query       string
+		queryID     int
 		sort        string
 		include     string
 		attachments bool
@@ -53,7 +55,11 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
   redmine issues list --status closed --assignee me --sort updated_on:desc
 
   # All issues regardless of status
-  redmine issues list --project myproject --status "*" --limit 0 -o json`,
+  redmine issues list --project myproject --status "*" --limit 0 -o json
+
+  # Run a saved query by name or ID
+  redmine issues list --query "My open issues"
+  redmine issues list --query-id 12`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -95,6 +101,11 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
+			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, project)
+			if err != nil {
+				return err
+			}
+
 			var includes []string
 			if include != "" {
 				includes = strings.Split(include, ",")
@@ -113,6 +124,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				StatusID:       resolvedStatus,
 				AssignedToID:   resolvedAssignee,
 				FixedVersionID: versionID,
+				QueryID:        resolvedQueryID,
 				Sort:           sort,
 				Includes:       includes,
 				Limit:          cmdutil.OpsLimit(limit),
@@ -176,6 +188,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, status name, or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")
+	cmd.Flags().StringVar(&query, "query", "", "Run a saved query by name (mutually exclusive with --query-id)")
+	cmd.Flags().IntVar(&queryID, "query-id", 0, "Run a saved query by numeric ID")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
 	cmd.Flags().StringVar(&include, "include", "", "Include related data: attachments,relations")
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")
