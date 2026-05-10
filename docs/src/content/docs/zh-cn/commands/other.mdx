@@ -1,6 +1,6 @@
 ---
 title: 其他命令
-description: API 透传、类别、跟踪类型、状态、shell 补全与自动更新。
+description: API 透传、类别、跟踪类型、状态、自定义字段、shell 补全与自动更新。
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
@@ -8,12 +8,13 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 一组不归属于主要资源类别的实用命令。
 
 <CardGrid>
-  <LinkCard title="api"        href="#api"        description="向任意 Redmine 端点发送已认证的请求。" />
-  <LinkCard title="categories" href="#categories" description="列出项目的工单类别。" />
-  <LinkCard title="trackers"   href="#trackers"   description="列出所有可用的跟踪类型。" />
-  <LinkCard title="statuses"   href="#statuses"   description="列出所有工单状态。" />
-  <LinkCard title="completion" href="#shell-补全" description="生成 shell 补全脚本。" />
-  <LinkCard title="update"     href="#自动更新" description="自动更新二进制文件。" />
+  <LinkCard title="api"           href="#api"           description="向任意 Redmine 端点发送已认证的请求。" />
+  <LinkCard title="categories"    href="#categories"    description="列出项目的工单类别。" />
+  <LinkCard title="trackers"      href="#trackers"      description="列出所有可用的跟踪类型。" />
+  <LinkCard title="statuses"      href="#statuses"      description="列出所有工单状态。" />
+  <LinkCard title="custom-fields" href="#custom-fields" description="查询管理员自定义字段定义。" />
+  <LinkCard title="completion"    href="#shell-补全"    description="生成 shell 补全脚本。" />
+  <LinkCard title="update"        href="#自动更新"      description="自动更新二进制文件。" />
 </CardGrid>
 
 ## api
@@ -87,6 +88,20 @@ redmine statuses list
 ```
 
 列出所有工单状态。
+
+## custom-fields
+
+```bash
+redmine custom-fields list
+redmine custom-fields get "Severity"
+redmine custom-fields get 7 --output json
+```
+
+列出或查看自定义字段定义。列表视图会展示目标资源类型、字段格式以及是否必填、可筛选、可搜索、可多选等标志。`custom-fields get` 还会显示默认值、长度与正则约束、列表字段的可选值，以及该字段限定的跟踪类型与角色。
+
+<Aside type="caution">
+  底层的 `GET /custom_fields.json` 端点仅限管理员访问，使用非管理员 API key 时命令会返回 `403 Forbidden`。
+</Aside>
 
 ## Shell 补全
 

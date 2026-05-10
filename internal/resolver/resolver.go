@@ -270,6 +270,21 @@ func ResolveRole(ctx context.Context, client *api.Client, input string) (int, er
 	})
 }
 
+// ResolveCustomField resolves a custom field by name or numeric ID.
+func ResolveCustomField(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "custom field", client, func() ([]Option, error) {
+		fields, err := client.CustomFields.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch custom fields: %w", err)
+		}
+		opts := make([]Option, len(fields))
+		for i, f := range fields {
+			opts[i] = Option{ID: f.ID, Name: f.Name}
+		}
+		return opts, nil
+	})
+}
+
 // ResolveQuery resolves a saved query by numeric ID or name. When the input
 // is numeric the underlying list is not fetched; the returned SavedQuery only
 // has its ID populated in that case. For name input every visible query is

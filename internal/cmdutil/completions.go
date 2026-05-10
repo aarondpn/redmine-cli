@@ -149,6 +149,30 @@ func CompleteStatuses(f *Factory) func(cmd *cobra.Command, args []string, toComp
 	}
 }
 
+// CompleteCustomFields returns a completion function for the custom-fields
+// command argument. Hits the admin-only /custom_fields.json endpoint, so it
+// silently returns no candidates when the authenticated user lacks access.
+func CompleteCustomFields(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		client, ctx, cancel := completionClient(f)
+		if client == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		defer cancel()
+
+		fields, err := client.CustomFields.List(ctx)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		items := make([]string, 0, len(fields))
+		for _, fld := range fields {
+			items = append(items, fmt.Sprintf("%s\t%s/%s", fld.Name, fld.CustomizedType, fld.FieldFormat))
+		}
+		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 // CompleteRoles returns a completion function for role-related flags.
 func CompleteRoles(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {

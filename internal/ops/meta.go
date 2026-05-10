@@ -81,6 +81,15 @@ type GetRoleInput struct {
 	ID int `json:"id" jsonschema:"Numeric role ID."`
 }
 
+type CustomFieldsListResult struct {
+	CustomFields []models.CustomField `json:"custom_fields"`
+	Count        int                  `json:"count"`
+}
+
+type GetCustomFieldInput struct {
+	ID int `json:"id" jsonschema:"Numeric custom field definition ID."`
+}
+
 //mcpgen:tool list_versions
 //mcpgen:description List versions (milestones) for a project.
 //mcpgen:category meta
@@ -204,4 +213,22 @@ func ListCategories(ctx context.Context, client *api.Client, input ListCategorie
 
 func GetVersionForResource(ctx context.Context, client *api.Client, id int) (*models.Version, error) {
 	return client.Versions.Get(ctx, id)
+}
+
+//mcpgen:tool list_custom_fields
+//mcpgen:description List custom field definitions configured in this Redmine instance. Admin-only endpoint.
+//mcpgen:category meta
+func ListCustomFields(ctx context.Context, client *api.Client, _ struct{}) (CustomFieldsListResult, error) {
+	fields, err := client.CustomFields.List(ctx)
+	if err != nil {
+		return CustomFieldsListResult{}, err
+	}
+	return CustomFieldsListResult{CustomFields: fields, Count: len(fields)}, nil
+}
+
+//mcpgen:tool get_custom_field
+//mcpgen:description Fetch a single custom field definition by ID. Admin-only endpoint.
+//mcpgen:category meta
+func GetCustomField(ctx context.Context, client *api.Client, input GetCustomFieldInput) (*models.CustomField, error) {
+	return client.CustomFields.Get(ctx, input.ID)
 }

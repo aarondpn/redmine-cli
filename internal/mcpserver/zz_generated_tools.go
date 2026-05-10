@@ -158,6 +158,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.DeleteVersion,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetCustomFieldInput, *models.CustomField]{
+		Name:        "get_custom_field",
+		Description: "Fetch a single custom field definition by ID. Admin-only endpoint.",
+		Category:    "meta",
+		Call:        ops.GetCustomField,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetRoleInput, *models.Role]{
 		Name:        "get_role",
 		Description: "Fetch a single Redmine role by ID, including permissions when available.",
@@ -181,6 +187,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "List issue categories for a project.",
 		Category:    "meta",
 		Call:        ops.ListCategories,
+	})
+	registerToolSpec(s, client, opts, toolSpec[struct{}, ops.CustomFieldsListResult]{
+		Name:        "list_custom_fields",
+		Description: "List custom field definitions configured in this Redmine instance. Admin-only endpoint.",
+		Category:    "meta",
+		Call:        ops.ListCustomFields,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListQueriesInput, ops.QueriesListResult]{
 		Name:        "list_queries",
@@ -404,10 +416,12 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_membership", Description: "Replace the roles on a project membership. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "create_version", Description: "Create a project version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "delete_version", Description: "Delete a version (milestone). Destructive. Requires --enable-writes.", Group: "meta", Writes: true},
+		{Name: "get_custom_field", Description: "Fetch a single custom field definition by ID. Admin-only endpoint.", Group: "meta", Writes: false},
 		{Name: "get_role", Description: "Fetch a single Redmine role by ID, including permissions when available.", Group: "meta", Writes: false},
 		{Name: "get_tracker", Description: "Fetch a single tracker by ID, including default status and enabled standard fields when available.", Group: "meta", Writes: false},
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
+		{Name: "list_custom_fields", Description: "List custom field definitions configured in this Redmine instance. Admin-only endpoint.", Group: "meta", Writes: false},
 		{Name: "list_queries", Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.", Group: "meta", Writes: false},
 		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
