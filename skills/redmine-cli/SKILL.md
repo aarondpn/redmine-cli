@@ -14,6 +14,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | Command | Purpose |
 |---------|---------|
 | `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues |
+| `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, delete projects; list project members |
 | `time` | Log, list, get, update, delete, summarize time entries |
 | `versions` | Create, list, get, update, delete project versions (milestones) |

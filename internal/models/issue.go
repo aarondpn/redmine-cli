@@ -40,6 +40,7 @@ type IssueFilter struct {
 	StatusID       string // "open", "closed", "*", or numeric ID
 	AssignedToID   string // numeric ID or "me"
 	FixedVersionID int
+	QueryID        int    // saved query ID (Redmine query_id parameter)
 	Sort           string // e.g., "updated_on:desc"
 	Includes       []string
 	Limit          int

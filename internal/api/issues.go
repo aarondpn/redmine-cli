@@ -32,6 +32,9 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 	if filter.FixedVersionID > 0 {
 		params.Set("fixed_version_id", strconv.Itoa(filter.FixedVersionID))
 	}
+	if filter.QueryID > 0 {
+		params.Set("query_id", strconv.Itoa(filter.QueryID))
+	}
 	if len(filter.Includes) > 0 {
 		params.Set("include", joinStrings(filter.Includes, ","))
 	}

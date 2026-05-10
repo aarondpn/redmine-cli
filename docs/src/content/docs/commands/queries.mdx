@@ -1,0 +1,66 @@
+---
+title: Queries
+description: List Redmine saved queries (custom filters) and run them from the CLI.
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+The `queries` command (alias `q`) lists saved queries (custom filters) defined in the Redmine web UI and lets you reuse them from the CLI.
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="List saved queries visible to the authenticated user." />
+  <LinkCard title="get"  href="#get"  description="Inspect a single saved query by ID or name." />
+</CardGrid>
+
+<Aside type="note">
+  Saved queries can only be created or edited in the Redmine web UI. The CLI is read-only here and reuses the existing query through the `query_id` parameter on the issues endpoint.
+</Aside>
+
+## list
+
+```bash
+redmine queries list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--limit`      | Maximum number of results (0 for all) |
+| `--offset`     | Result offset for pagination |
+| `-o, --output` | Output format: `table`, `json`, `csv` |
+
+Each row reports the query ID, name, visibility (`public` or `private`), and scope (`global` or `project <id>`).
+
+```bash
+redmine queries list
+redmine queries list -o json
+```
+
+## get
+
+```bash
+redmine queries get <id-or-name> [flags]
+```
+
+Aliases: `show`, `view`. Accepts a numeric ID or query name.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project identifier or numeric ID - disambiguates per-project queries that share a name with a global query |
+| `-o, --output` | Output format |
+
+## Running a saved query
+
+Once you know the query ID (or name), run it through the issues endpoint:
+
+```bash
+# By ID - no extra round trip
+redmine issues list --query-id 12
+
+# By name - the CLI resolves the ID first
+redmine issues list --query "My open issues"
+
+# Combine with --project to disambiguate per-project queries
+redmine issues list --project myproject --query "Sprint backlog"
+```
+
+The saved query's filters apply server-side. You can still pair `--query-id` with `--sort`, `--limit`, `--offset`, and `--include` to shape the result set.

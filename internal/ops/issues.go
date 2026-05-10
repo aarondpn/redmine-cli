@@ -14,6 +14,7 @@ type ListIssuesInput struct {
 	StatusID       string   `json:"status_id,omitempty" jsonschema:"Status filter: 'open', 'closed', '*', or a numeric status ID."`
 	AssignedToID   string   `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user ID or 'me'."`
 	FixedVersionID int      `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
+	QueryID        int      `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
 	Sort           string   `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
 	Includes       []string `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations, children, watchers."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
@@ -101,6 +102,7 @@ func ListIssues(ctx context.Context, client *api.Client, input ListIssuesInput) 
 		StatusID:       input.StatusID,
 		AssignedToID:   input.AssignedToID,
 		FixedVersionID: input.FixedVersionID,
+		QueryID:        input.QueryID,
 		Sort:           input.Sort,
 		Includes:       input.Includes,
 		Limit:          ListLimit(input.Limit),
