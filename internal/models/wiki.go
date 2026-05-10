@@ -45,9 +45,15 @@ type WikiPageCreate struct {
 }
 
 // WikiPageUpdate defines fields for updating a wiki page.
+//
+// Version, when non-nil, asserts the page version the client believes is
+// current. Redmine compares it against the stored version and answers with
+// 409 Conflict if the page has moved on, giving callers optimistic-locking
+// semantics for the update.
 type WikiPageUpdate struct {
 	Text     *string  `json:"text,omitempty"`
 	Comments *string  `json:"comments,omitempty"`
 	Title    *string  `json:"title,omitempty"`
+	Version  *int     `json:"version,omitempty"`
 	Uploads  []Upload `json:"uploads,omitempty"`
 }

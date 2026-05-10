@@ -73,6 +73,11 @@ func describeAPIError(err error) string {
 				return "Validation error: " + strings.Join(ae.Errors, "; ")
 			}
 			return "Validation error (HTTP 422)"
+		case ae.IsConflict():
+			if len(ae.Errors) > 0 {
+				return "Conflict: " + strings.Join(ae.Errors, "; ")
+			}
+			return "Conflict (HTTP 409): the resource was modified since it was last fetched."
 		default:
 			if len(ae.Errors) > 0 {
 				return fmt.Sprintf("Redmine API error %d: %s", ae.StatusCode, strings.Join(ae.Errors, "; "))
