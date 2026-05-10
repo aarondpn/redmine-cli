@@ -64,6 +64,10 @@
     "description": "List Redmine projects."
   },
   {
+    "name": "list_queries",
+    "description": "List saved queries (custom filters) visible to the authenticated user. Use the returned id with list_issues' query_id parameter."
+  },
+  {
     "name": "list_roles",
     "description": "List all Redmine roles configured in this instance."
   },
