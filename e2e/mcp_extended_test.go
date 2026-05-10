@@ -172,6 +172,66 @@ func TestMCPStdio_MultipleEnableGroups(t *testing.T) {
 	}
 }
 
+func TestMCPStdio_GetTrackerTool(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	session := r.startMCPStdio(t, ctx)
+
+	listOut, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "list_trackers"})
+	if err != nil {
+		t.Fatalf("CallTool list_trackers: %v", err)
+	}
+	if listOut.IsError {
+		t.Fatalf("list_trackers returned IsError: %s", structuredJSON(listOut))
+	}
+
+	var listed struct {
+		Trackers []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"trackers"`
+	}
+	if err := json.Unmarshal([]byte(mcpExtTextContent(t, listOut)), &listed); err != nil {
+		t.Fatalf("decode list_trackers: %v\npayload:\n%s", err, structuredJSON(listOut))
+	}
+	if len(listed.Trackers) == 0 {
+		t.Fatal("list_trackers returned no trackers")
+	}
+
+	getOut, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_tracker",
+		Arguments: map[string]any{"id": listed.Trackers[0].ID},
+	})
+	if err != nil {
+		t.Fatalf("CallTool get_tracker: %v", err)
+	}
+	if getOut.IsError {
+		t.Fatalf("get_tracker returned IsError: %s", structuredJSON(getOut))
+	}
+
+	var got struct {
+		ID            int    `json:"id"`
+		Name          string `json:"name"`
+		DefaultStatus struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"default_status"`
+	}
+	if err := json.Unmarshal([]byte(mcpExtTextContent(t, getOut)), &got); err != nil {
+		t.Fatalf("decode get_tracker: %v\npayload:\n%s", err, structuredJSON(getOut))
+	}
+	if got.ID != listed.Trackers[0].ID || got.Name != listed.Trackers[0].Name {
+		t.Fatalf("get_tracker returned %+v, want id=%d name=%q", got, listed.Trackers[0].ID, listed.Trackers[0].Name)
+	}
+	if got.DefaultStatus.ID == 0 || got.DefaultStatus.Name == "" {
+		t.Fatalf("get_tracker missing default status: %+v", got.DefaultStatus)
+	}
+}
+
 // TestMCPStdio_DisableGroupOverridesEnable pins the precedence rule from
 // internal/cmd/mcp/serve.go: --disable-groups wins over --enable-groups when
 // both name the same group.
@@ -411,6 +471,18 @@ func mcpExtIssueSubjectFromResult(t *testing.T, out *mcp.CallToolResult) string 
 		return s
 	}
 	return ""
+}
+
+func mcpExtTextContent(t *testing.T, out *mcp.CallToolResult) string {
+	t.Helper()
+	if len(out.Content) == 0 {
+		t.Fatal("call tool result contained no content blocks")
+	}
+	tc, ok := out.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", out.Content[0])
+	}
+	return tc.Text
 }
 
 // mcpExtFieldFromResult returns the named top-level field from a CallToolResult.
