@@ -28,11 +28,28 @@ docker compose -f "$compose_file" exec -T \
       admin.must_change_passwd = false
       admin.save!
     end
+
+    # Seed a public, global saved query so the queries e2e suite has a stable
+    # fixture. Redmine has no REST endpoint for creating queries, so the
+    # bootstrap is the only place this can live without re-implementing
+    # session auth + CSRF in the test harness.
+    query_name = "E2E All Open Issues"
+    seeded_query = IssueQuery.find_or_initialize_by(name: query_name)
+    if seeded_query.new_record?
+      seeded_query.user = admin
+      seeded_query.visibility = IssueQuery::VISIBILITY_PUBLIC
+      seeded_query.filters = { "status_id" => { operator: "o", values: [""] } }
+      seeded_query.column_names = [:tracker, :status, :priority, :subject, :assigned_to, :updated_on]
+      seeded_query.save!
+    end
+
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
       admin_api_key_present: admin.api_key.to_s != "",
       admin_password_set: ENV["REDMINE_E2E_PASSWORD"].to_s != "",
       trackers: Tracker.count,
-      statuses: IssueStatus.count
+      statuses: IssueStatus.count,
+      seeded_query_id: seeded_query.id,
+      seeded_query_name: seeded_query.name
     }.inspect)
   ' 2>/dev/null | tail -n 1

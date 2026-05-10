@@ -1,0 +1,66 @@
+---
+title: 自定义查询
+description: 列出 Redmine 已保存的自定义查询，并在 CLI 中复用它们。
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+`queries` 命令（别名 `q`）用于列出在 Redmine Web UI 中保存的自定义查询，并允许在 CLI 中直接复用这些过滤条件。
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="列出当前用户可见的所有自定义查询。" />
+  <LinkCard title="get"  href="#get"  description="按 ID 或名称查看单个自定义查询。" />
+</CardGrid>
+
+<Aside type="note">
+  自定义查询只能通过 Redmine Web UI 创建或修改。CLI 仅提供只读访问，并通过工单接口的 `query_id` 参数复用已有查询。
+</Aside>
+
+## list
+
+```bash
+redmine queries list [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--limit`      | 最大结果数（0 表示全部） |
+| `--offset`     | 分页偏移量 |
+| `-o, --output` | 输出格式：`table`、`json`、`csv` |
+
+每一行包含查询 ID、名称、可见性（`public` 或 `private`）以及作用域（`global` 或 `project <id>`）。
+
+```bash
+redmine queries list
+redmine queries list -o json
+```
+
+## get
+
+```bash
+redmine queries get <id-or-name> [flags]
+```
+
+别名：`show`、`view`。接受数字 ID 或查询名称。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目标识符或数字 ID - 用于区分与全局查询同名的项目级查询 |
+| `-o, --output` | 输出格式 |
+
+## 运行自定义查询
+
+获得查询 ID（或名称）后，通过工单接口直接运行：
+
+```bash
+# 按 ID - 无需额外查询
+redmine issues list --query-id 12
+
+# 按名称 - CLI 会先解析为 ID
+redmine issues list --query "我的未关闭工单"
+
+# 与 --project 配合，避免项目级查询与全局查询同名时的歧义
+redmine issues list --project myproject --query "迭代待办"
+```
+
+自定义查询中的过滤条件由服务端应用。`--query-id` 仍可与 `--sort`、`--limit`、`--offset` 和 `--include` 等参数组合使用，以进一步控制返回结果。
