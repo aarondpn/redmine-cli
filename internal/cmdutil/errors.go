@@ -37,6 +37,14 @@ func FormatError(err error) string {
 			}
 		}
 		return msg
+	case apiErr.IsConflict():
+		msg := "Conflict: the resource was modified since it was last fetched. Refetch and retry."
+		if len(apiErr.Errors) > 0 {
+			for _, e := range apiErr.Errors {
+				msg += fmt.Sprintf("\n  - %s", e)
+			}
+		}
+		return msg
 	case apiErr.StatusCode >= 500:
 		return fmt.Sprintf("Redmine server error (%d). Please try again later.", apiErr.StatusCode)
 	default:
@@ -66,6 +74,11 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 			env.Error.Code = output.ErrCodeNotFound
 		case apiErr.IsValidationError():
 			env.Error.Code = output.ErrCodeValidationFailed
+			if len(apiErr.Errors) > 0 {
+				env.Error.Details = append([]string(nil), apiErr.Errors...)
+			}
+		case apiErr.IsConflict():
+			env.Error.Code = output.ErrCodeConflict
 			if len(apiErr.Errors) > 0 {
 				env.Error.Details = append([]string(nil), apiErr.Errors...)
 			}

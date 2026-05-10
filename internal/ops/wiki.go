@@ -41,6 +41,7 @@ type UpdateWikiPageInput struct {
 	Text      *string         `json:"text,omitempty" jsonschema:"New page body."`
 	Title     *string         `json:"title,omitempty" jsonschema:"New display title."`
 	Comments  *string         `json:"comments,omitempty" jsonschema:"Edit comment."`
+	Version   *int            `json:"version,omitempty" jsonschema:"Expected current page version. When set, Redmine returns 409 Conflict if the stored version does not match, giving optimistic-locking semantics."`
 	Uploads   []models.Upload `json:"-"`
 }
 
@@ -85,10 +86,14 @@ func CreateWikiPage(ctx context.Context, client *api.Client, input CreateWikiPag
 //mcpgen:category wiki
 //mcpgen:writes
 func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPageInput) (MessageResult, error) {
+	if input.Version != nil && *input.Version < 1 {
+		return MessageResult{}, fmt.Errorf("version must be >= 1 when asserting optimistic concurrency")
+	}
 	if err := client.Wikis.Update(ctx, input.ProjectID, input.Page, models.WikiPageUpdate{
 		Text:     input.Text,
 		Title:    input.Title,
 		Comments: input.Comments,
+		Version:  input.Version,
 		Uploads:  input.Uploads,
 	}); err != nil {
 		return MessageResult{}, err

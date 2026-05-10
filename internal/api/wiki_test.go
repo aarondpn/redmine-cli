@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -172,6 +173,103 @@ func TestWikiService_Update_TextFallback(t *testing.T) {
 	}
 	if wp["text"] != existingText {
 		t.Errorf("text = %v, want %q", wp["text"], existingText)
+	}
+}
+
+func TestWikiService_Update_WithVersion_SendsVersionInBody(t *testing.T) {
+	var gotBody map[string]interface{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "rewritten body"
+	version := 7
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text:    &text,
+		Version: &version,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatal("body missing wiki_page key")
+	}
+	// JSON numbers decode as float64.
+	got, ok := wp["version"].(float64)
+	if !ok {
+		t.Fatalf("version not present or wrong type in body: %#v", wp["version"])
+	}
+	if int(got) != version {
+		t.Errorf("body version = %v, want %d", got, version)
+	}
+}
+
+func TestWikiService_Update_WithoutVersion_OmitsField(t *testing.T) {
+	var gotBody map[string]interface{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "rewritten body"
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text: &text,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatal("body missing wiki_page key")
+	}
+	if _, present := wp["version"]; present {
+		t.Errorf("version should be omitted when nil, got %#v", wp["version"])
+	}
+}
+
+func TestWikiService_Update_Conflict_ReturnsAPIErrorIsConflict(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"errors":["Page has been updated by someone else"]}`))
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "rewritten body"
+	version := 1
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text:    &text,
+		Version: &version,
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsConflict() {
+		t.Errorf("IsConflict = false, want true (status %d)", apiErr.StatusCode)
+	}
+	if len(apiErr.Errors) != 1 || apiErr.Errors[0] != "Page has been updated by someone else" {
+		t.Errorf("apiErr.Errors = %v, want server-provided message", apiErr.Errors)
 	}
 }
 

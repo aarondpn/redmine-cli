@@ -116,11 +116,13 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 
 | Flag | Description |
 |------|-------------|
-| `--project`  | Project identifier or numeric ID |
-| `-t, --text` | New page content. If omitted, the current text is preserved. |
-| `--title`    | New display title |
-| `--comments` | Change comment recorded in the page history |
-| `--attach`   | Path to a file to attach (repeatable) |
+| `--project`        | Project identifier or numeric ID |
+| `-t, --text`       | New page content. If omitted, the current text is preserved. |
+| `--title`          | New display title |
+| `--comments`       | Change comment recorded in the page history |
+| `--attach`         | Path to a file to attach (repeatable) |
+| `--expect-version` | Expected current page version. The server returns `409 Conflict` (and the CLI surfaces error code `conflict`) if the page has moved on since you last fetched it. |
+| `--ensure-current` | Refetch the page first and assert its current version on update. Mutually exclusive with `--expect-version`. |
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"
@@ -130,7 +132,19 @@ redmine wiki update MyPage --project myproject --comments "Fixed typo"
 redmine wiki update MyPage --project myproject --title "New Title"
 
 redmine wiki update MyPage --project myproject --attach ./screenshot.png
+
+# Optimistic concurrency: fail if the page has been edited since version 7
+redmine wiki update MyPage --project myproject \
+  --text "Updated content" --expect-version 7
+
+# Convenience: refetch the page first and reuse its current version
+redmine wiki update MyPage --project myproject \
+  --text "Updated content" --ensure-current
 ```
+
+<Aside>
+  Without `--expect-version` or `--ensure-current`, `wiki update` happily overwrites concurrent edits. Use one of these flags whenever multiple authors might be editing the same page so a stale change fails fast with `code: "conflict"` instead of silently winning the race.
+</Aside>
 
 ## delete
 

@@ -42,6 +42,13 @@ func (e *APIError) IsValidationError() bool {
 	return e.StatusCode == http.StatusUnprocessableEntity
 }
 
+// IsConflict returns true if the error is a 409. Redmine surfaces 409 on
+// optimistic-locking failures (e.g. updating a wiki page whose version has
+// been bumped on the server since the client last fetched it).
+func (e *APIError) IsConflict() bool {
+	return e.StatusCode == http.StatusConflict
+}
+
 // parseErrorResponse extracts error messages from a Redmine error response.
 func parseErrorResponse(resp *http.Response) *APIError {
 	apiErr := &APIError{
