@@ -131,12 +131,15 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			stop()
 			if err != nil {
 				var apiErr *api.APIError
-				if errors.As(err, &apiErr) && apiErr.IsConflict() {
-					expected := "(unspecified)"
-					if input.Version != nil {
-						expected = fmt.Sprintf("%d", *input.Version)
-					}
-					return fmt.Errorf("wiki page %q has been modified since version %s; refetch and retry: %w", args[0], expected, err)
+				if errors.As(err, &apiErr) && apiErr.IsConflict() && input.Version != nil {
+					// Surface wiki-specific context to the user. FormatError
+					// and BuildErrorEnvelope render apiErr.Errors verbatim, so
+					// prepending our note here ensures it reaches both the
+					// human and JSON output paths instead of being shadowed
+					// by a generic "Conflict" message.
+					context := fmt.Sprintf("wiki page %q has been modified since version %d", args[0], *input.Version)
+					apiErr.Errors = append([]string{context}, apiErr.Errors...)
+					return err
 				}
 				return fmt.Errorf("failed to update wiki page %q: %w", args[0], err)
 			}

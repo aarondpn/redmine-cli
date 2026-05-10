@@ -86,6 +86,9 @@ func CreateWikiPage(ctx context.Context, client *api.Client, input CreateWikiPag
 //mcpgen:category wiki
 //mcpgen:writes
 func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPageInput) (MessageResult, error) {
+	if input.Version != nil && *input.Version < 1 {
+		return MessageResult{}, fmt.Errorf("version must be >= 1 when asserting optimistic concurrency")
+	}
 	if err := client.Wikis.Update(ctx, input.ProjectID, input.Page, models.WikiPageUpdate{
 		Text:     input.Text,
 		Title:    input.Title,

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
@@ -240,9 +242,82 @@ func TestUpdate_Conflict_ReportsStaleVersion(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected conflict error, got nil")
 	}
-	msg := err.Error()
-	if !strings.Contains(msg, "modified since version 1") {
-		t.Errorf("error = %q, want it to mention the stale version", msg)
+
+	// The CLI hands the error to cmdutil.FormatError before printing it.
+	// That path is what the user actually sees, so assert against it: the
+	// generic "Conflict" prefix is present, the wiki-specific context line
+	// the command injects survives, and the server-provided detail is
+	// preserved alongside it.
+	formatted := cmdutil.FormatError(err)
+	for _, want := range []string{
+		"Conflict",
+		`wiki page "MyPage" has been modified since version 1`,
+		"Page has been updated by someone else",
+	} {
+		if !strings.Contains(formatted, want) {
+			t.Errorf("FormatError output missing %q\nfull:\n%s", want, formatted)
+		}
+	}
+
+	// And the JSON envelope path must classify the error as code=conflict
+	// so scripts can branch on it.
+	env := cmdutil.BuildErrorEnvelope(err)
+	if env.Error.Code != output.ErrCodeConflict {
+		t.Errorf("envelope code = %q, want %q", env.Error.Code, output.ErrCodeConflict)
+	}
+}
+
+// TestUpdate_ExpectVersionWithTitle_StillSendsVersion guards the ordering
+// inside RunE: the version assignment happens before --title is applied, so
+// renaming a page with optimistic concurrency must still send the asserted
+// version. A regression that re-ordered or short-circuited the switch would
+// silently drop the version.
+func TestUpdate_ExpectVersionWithTitle_StillSendsVersion(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		putBody map[string]interface{}
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"proj"}}`))
+		case http.MethodPut:
+			b, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			_ = json.Unmarshal(b, &putBody)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "rewritten",
+		"--title", "Renamed Page",
+		"--expect-version", "5",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := putBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body missing wiki_page key: %#v", putBody)
+	}
+	v, ok := wp["version"].(float64)
+	if !ok {
+		t.Fatalf("version not in PUT body: %#v", wp["version"])
+	}
+	if int(v) != 5 {
+		t.Errorf("version = %v, want 5", v)
+	}
+	if got, _ := wp["title"].(string); got != "Renamed Page" {
+		t.Errorf("title = %q, want Renamed Page", got)
 	}
 }
 

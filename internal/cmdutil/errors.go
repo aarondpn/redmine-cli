@@ -40,7 +40,6 @@ func FormatError(err error) string {
 	case apiErr.IsConflict():
 		msg := "Conflict: the resource was modified since it was last fetched. Refetch and retry."
 		if len(apiErr.Errors) > 0 {
-			msg += "\nServer reported:"
 			for _, e := range apiErr.Errors {
 				msg += fmt.Sprintf("\n  - %s", e)
 			}
