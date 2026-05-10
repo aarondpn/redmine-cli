@@ -100,7 +100,7 @@ redmine custom-fields get 7 --output json
 列出或查看自定义字段定义。列表视图会展示目标资源类型、字段格式以及是否必填、可筛选、可搜索、可多选等标志。`custom-fields get` 还会显示默认值、长度与正则约束、列表字段的可选值，以及该字段限定的跟踪类型与角色。
 
 <Aside type="caution">
-  底层的 `GET /custom_fields.json` 端点仅限管理员访问 — 使用非管理员 API key 时命令会返回 `403 Forbidden`。
+  底层的 `GET /custom_fields.json` 端点仅限管理员访问，使用非管理员 API key 时命令会返回 `403 Forbidden`。
 </Aside>
 
 ## Shell 补全

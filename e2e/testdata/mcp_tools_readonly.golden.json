@@ -1,5 +1,9 @@
 [
   {
+    "name": "get_custom_field",
+    "description": "Fetch a single custom field definition by ID. Admin-only endpoint."
+  },
+  {
     "name": "get_group",
     "description": "Fetch a single Redmine group by ID."
   },
@@ -42,6 +46,10 @@
   {
     "name": "list_categories",
     "description": "List issue categories for a project."
+  },
+  {
+    "name": "list_custom_fields",
+    "description": "List custom field definitions configured in this Redmine instance. Admin-only endpoint."
   },
   {
     "name": "list_groups",

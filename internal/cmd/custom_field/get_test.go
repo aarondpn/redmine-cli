@@ -95,6 +95,60 @@ func TestCustomFieldGet_CSV(t *testing.T) {
 	}
 }
 
+// TestCustomFieldGet_TableOptionalRows verifies that the detail renderer
+// surfaces Default/Regexp/MinLength/MaxLength when the API provides them and
+// omits the rows entirely when the values are absent. The two cases share a
+// fixture pair so a regression where one branch swallows the other shows up.
+func TestCustomFieldGet_TableOptionalRows(t *testing.T) {
+	t.Run("rows present when fields set", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"custom_fields":[
+				{"id":1,"name":"Ticket","customized_type":"issue","field_format":"string","default_value":"none","regexp":"^[A-Z]+$","min_length":3,"max_length":20}
+			]}`))
+		}))
+		defer srv.Close()
+
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdCustomFieldGet(f)
+		cmd.SetArgs([]string{"1", "--output", "table"})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		stdout := testutil.Stdout(f)
+		for _, want := range []string{"Default", "none", "Regexp", "^[A-Z]+$", "Min Length", "3", "Max Length", "20"} {
+			if !strings.Contains(stdout, want) {
+				t.Errorf("detail output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("rows omitted when fields absent", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"custom_fields":[
+				{"id":1,"name":"Plain","customized_type":"issue","field_format":"string"}
+			]}`))
+		}))
+		defer srv.Close()
+
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdCustomFieldGet(f)
+		cmd.SetArgs([]string{"1", "--output", "table"})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		stdout := testutil.Stdout(f)
+		for _, unwanted := range []string{"Default", "Regexp", "Min Length", "Max Length", "Possible Values", "Trackers", "Roles"} {
+			if strings.Contains(stdout, unwanted) {
+				t.Errorf("detail output unexpectedly contains %q for empty field:\n%s", unwanted, stdout)
+			}
+		}
+	})
+}
+
 func TestCustomFieldGet_NotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
