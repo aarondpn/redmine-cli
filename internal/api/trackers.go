@@ -39,6 +39,5 @@ func (s *TrackerService) Get(ctx context.Context, id int) (*models.Tracker, erro
 	return nil, &APIError{
 		StatusCode: http.StatusNotFound,
 		Errors:     []string{fmt.Sprintf("tracker %d not found", id)},
-		URL:        fmt.Sprintf("%s/trackers.json", s.client.baseURL),
 	}
 }

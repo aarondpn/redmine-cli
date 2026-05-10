@@ -104,9 +104,9 @@ func newCmdTrackerGet(f *cmdutil.Factory) *cobra.Command {
 					[][]string{{
 						fmt.Sprintf("%d", tracker.ID),
 						tracker.Name,
-						trackerDefaultStatusDetail(tracker),
+						trackerDefaultStatusDetail(*tracker),
 						tracker.Description,
-						trackerStandardFields(tracker),
+						trackerStandardFields(*tracker),
 					}},
 				)
 				return nil
@@ -116,13 +116,13 @@ func newCmdTrackerGet(f *cmdutil.Factory) *cobra.Command {
 				{Key: "ID", Value: fmt.Sprintf("%d", tracker.ID)},
 				{Key: "Name", Value: tracker.Name},
 			}
-			if value := trackerDefaultStatusDetail(tracker); value != "" {
+			if value := trackerDefaultStatusDetail(*tracker); value != "" {
 				details = append(details, output.KeyValue{Key: "Default Status", Value: value})
 			}
 			if tracker.Description != "" {
 				details = append(details, output.KeyValue{Key: "Description", Value: tracker.Description})
 			}
-			if value := trackerStandardFields(tracker); value != "" {
+			if value := trackerStandardFields(*tracker); value != "" {
 				details = append(details, output.KeyValue{Key: "Enabled Standard Fields", Value: value})
 			}
 
@@ -142,14 +142,14 @@ func trackerDefaultStatus(t models.Tracker) string {
 	return t.DefaultStatus.Name
 }
 
-func trackerDefaultStatusDetail(t *models.Tracker) string {
+func trackerDefaultStatusDetail(t models.Tracker) string {
 	if t.DefaultStatus == nil {
 		return ""
 	}
 	return fmt.Sprintf("%s (ID: %d)", t.DefaultStatus.Name, t.DefaultStatus.ID)
 }
 
-func trackerStandardFields(t *models.Tracker) string {
+func trackerStandardFields(t models.Tracker) string {
 	if len(t.EnabledStandardFields) == 0 {
 		return ""
 	}
