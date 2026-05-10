@@ -24,9 +24,45 @@ func TestMetadata_TrackersListCSV(t *testing.T) {
 	if len(rows) < 2 {
 		t.Fatalf("expected header + at least 1 tracker row, got %d rows\nstdout:\n%s", len(rows), stdout)
 	}
-	wantHeaders := []string{"ID", "Name", "Description"}
+	wantHeaders := []string{"ID", "Name", "Default Status", "Description"}
 	if !slices.Equal(rows[0], wantHeaders) {
 		t.Fatalf("trackers CSV header mismatch:\n got: %v\nwant: %v", rows[0], wantHeaders)
+	}
+}
+
+func TestMetadata_TrackerGetJSON(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+
+	type tracker struct {
+		ID            int    `json:"id"`
+		Name          string `json:"name"`
+		DefaultStatus struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"default_status"`
+		EnabledStandardFields []string `json:"enabled_standard_fields"`
+	}
+
+	var trackers []tracker
+	r.runJSON(t, &trackers, "trackers", "list")
+	if len(trackers) == 0 {
+		t.Fatal("trackers list returned no trackers")
+	}
+
+	var got tracker
+	r.runJSON(t, &got, "trackers", "get", trackers[0].Name)
+
+	if got.ID != trackers[0].ID || got.Name != trackers[0].Name {
+		t.Fatalf("trackers get returned %+v, want id=%d name=%q", got, trackers[0].ID, trackers[0].Name)
+	}
+	if got.DefaultStatus.ID == 0 || got.DefaultStatus.Name == "" {
+		t.Fatalf("tracker default status missing: %+v", got.DefaultStatus)
+	}
+	for _, field := range got.EnabledStandardFields {
+		if field == "" {
+			t.Fatalf("tracker enabled standard fields contains blank entry: %+v", got.EnabledStandardFields)
+		}
 	}
 }
 

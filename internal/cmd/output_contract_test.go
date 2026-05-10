@@ -85,6 +85,7 @@ var commandOutputContracts = map[string]commandContract{
 	"redmine time log":           {Mode: outputContractStructured},
 	"redmine time summary":       {Mode: outputContractStructured},
 	"redmine time update":        {Mode: outputContractStructured},
+	"redmine trackers get":       {Mode: outputContractStructured},
 	"redmine trackers list":      {Mode: outputContractStructured},
 	"redmine update":             {Mode: outputContractStructured},
 	"redmine users create":       {Mode: outputContractStructured},

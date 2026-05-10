@@ -68,6 +68,10 @@ type RolesListResult struct {
 	Count int           `json:"count"`
 }
 
+type GetTrackerInput struct {
+	ID int `json:"id" jsonschema:"Numeric tracker ID."`
+}
+
 type StatusesListResult struct {
 	Statuses []models.IssueStatus `json:"issue_statuses"`
 	Count    int                  `json:"count"`
@@ -167,6 +171,13 @@ func ListRoles(ctx context.Context, client *api.Client, _ struct{}) (RolesListRe
 //mcpgen:category meta
 func GetRole(ctx context.Context, client *api.Client, input GetRoleInput) (*models.Role, error) {
 	return client.Roles.Get(ctx, input.ID)
+}
+
+//mcpgen:tool get_tracker
+//mcpgen:description Fetch a single tracker by ID, including default status and enabled standard fields when available.
+//mcpgen:category meta
+func GetTracker(ctx context.Context, client *api.Client, input GetTrackerInput) (*models.Tracker, error) {
+	return client.Trackers.Get(ctx, input.ID)
 }
 
 //mcpgen:tool list_statuses

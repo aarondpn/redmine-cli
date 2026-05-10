@@ -75,9 +75,10 @@ redmine categories list --project <identifier>
 
 ```bash
 redmine trackers list
+redmine trackers get Bug
 ```
 
-列出所有可用的跟踪类型。
+列出所有可用的跟踪类型。列表视图会显示每个跟踪类型的默认状态，而 `trackers get` 会在 Redmine 服务器提供这些数据时展示更完整的元数据，例如启用的标准字段。
 
 ## statuses
 

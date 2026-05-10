@@ -12,7 +12,7 @@ import (
 func TestTrackerList_JSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports"}]}`))
+		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"},"enabled_standard_fields":["description"]}]}`))
 	}))
 	defer srv.Close()
 
@@ -24,15 +24,17 @@ func TestTrackerList_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout := testutil.Stdout(f)
-	if !strings.Contains(stdout, `"name": "Bug"`) {
-		t.Errorf("JSON output missing tracker name:\n%s", stdout)
+	for _, want := range []string{`"name": "Bug"`, `"default_status": {`, `"enabled_standard_fields": [`} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("JSON output missing %q:\n%s", want, stdout)
+		}
 	}
 }
 
 func TestTrackerList_Table(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports"},{"id":2,"name":"Feature","description":""}]}`))
+		_, _ = w.Write([]byte(`{"trackers":[{"id":1,"name":"Bug","description":"Bug reports","default_status":{"id":2,"name":"New"}},{"id":2,"name":"Feature","description":"","default_status":{"id":3,"name":"In Progress"}}]}`))
 	}))
 	defer srv.Close()
 
@@ -44,7 +46,7 @@ func TestTrackerList_Table(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout := testutil.Stdout(f)
-	for _, want := range []string{"Bug", "Feature"} {
+	for _, want := range []string{"Bug", "Feature", "Default Status", "New", "In Progress"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("table output missing %q:\n%s", want, stdout)
 		}

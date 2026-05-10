@@ -24,6 +24,10 @@
     "description": "Fetch a single time entry by ID."
   },
   {
+    "name": "get_tracker",
+    "description": "Fetch a single tracker by ID, including default status and enabled standard fields when available."
+  },
+  {
     "name": "get_user",
     "description": "Fetch a single Redmine user by numeric ID."
   },
