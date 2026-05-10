@@ -114,6 +114,37 @@ func TestWiki_Lifecycle(t *testing.T) {
 		t.Fatalf("get --version 1: text = %q, want %q", v1.Text, initialText)
 	}
 
+	// Optimistic concurrency: --expect-version 2 should succeed because the
+	// stored version is 2 (after the previous update bumped it from 1).
+	var versionedUpdate actionEnvelope
+	r.runJSON(t, &versionedUpdate, "wiki", "update", page,
+		"--project", proj.Identifier,
+		"--text", "h1. Hello\n\nVersion-checked rewrite.",
+		"--comments", "expect-version=2",
+		"--expect-version", "2")
+	if !versionedUpdate.Ok || versionedUpdate.Action != "updated" {
+		t.Fatalf("unexpected versioned update envelope: %+v", versionedUpdate)
+	}
+
+	// Stored version is now 3. Asserting --expect-version 2 must fail with a
+	// conflict envelope, proving optimistic locking is wired end-to-end.
+	staleStdout, _ := r.runExpectError(t, "wiki", "update", page,
+		"--project", proj.Identifier,
+		"--text", "should not land",
+		"--expect-version", "2")
+	assertErrorCode(t, staleStdout, "conflict")
+
+	// --ensure-current refetches before sending, so even though we don't know
+	// the current version it should resolve to 3 and succeed.
+	var ensuredUpdate actionEnvelope
+	r.runJSON(t, &ensuredUpdate, "wiki", "update", page,
+		"--project", proj.Identifier,
+		"--comments", "ensure-current",
+		"--ensure-current")
+	if !ensuredUpdate.Ok || ensuredUpdate.Action != "updated" {
+		t.Fatalf("unexpected ensure-current update envelope: %+v", ensuredUpdate)
+	}
+
 	var deleted actionEnvelope
 	r.runJSON(t, &deleted, "wiki", "delete", page,
 		"--project", proj.Identifier,

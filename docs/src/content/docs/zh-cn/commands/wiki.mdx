@@ -116,11 +116,13 @@ redmine wiki update <page> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--project`  | 项目标识符或数字 ID |
-| `-t, --text` | 新的页面内容，省略时保留当前文本 |
-| `--title`    | 新的显示标题 |
-| `--comments` | 记录在页面历史中的修改备注 |
-| `--attach`   | 要附加的文件路径（可重复） |
+| `--project`        | 项目标识符或数字 ID |
+| `-t, --text`       | 新的页面内容，省略时保留当前文本 |
+| `--title`          | 新的显示标题 |
+| `--comments`       | 记录在页面历史中的修改备注 |
+| `--attach`         | 要附加的文件路径（可重复） |
+| `--expect-version` | 期望的当前页面版本号。若页面在你上次获取后已被修改，服务器返回 `409 Conflict`，CLI 以错误码 `conflict` 反馈。 |
+| `--ensure-current` | 在更新前先重新获取页面，并以其当前版本号断言。与 `--expect-version` 互斥。 |
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"
@@ -130,7 +132,19 @@ redmine wiki update MyPage --project myproject --comments "Fixed typo"
 redmine wiki update MyPage --project myproject --title "New Title"
 
 redmine wiki update MyPage --project myproject --attach ./screenshot.png
+
+# 乐观并发：若版本 7 之后页面已被修改则失败
+redmine wiki update MyPage --project myproject \
+  --text "Updated content" --expect-version 7
+
+# 便捷模式：先重新获取页面并复用其当前版本
+redmine wiki update MyPage --project myproject \
+  --text "Updated content" --ensure-current
 ```
+
+<Aside>
+  若不带 `--expect-version` 或 `--ensure-current`，`wiki update` 会直接覆盖并发编辑。当多人可能同时编辑同一页面时，请使用其中之一，以便过期修改以 `code: "conflict"` 快速失败，而不是在竞争中无声地胜出。
+</Aside>
 
 ## delete
 

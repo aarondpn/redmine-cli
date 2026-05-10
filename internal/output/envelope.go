@@ -33,6 +33,7 @@ const (
 	ErrCodeAuthFailed       = "auth_failed"
 	ErrCodeForbidden        = "forbidden"
 	ErrCodeValidationFailed = "validation_failed"
+	ErrCodeConflict         = "conflict"
 	ErrCodeServerError      = "server_error"
 	ErrCodeUnknown          = "unknown"
 )

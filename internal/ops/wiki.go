@@ -41,6 +41,7 @@ type UpdateWikiPageInput struct {
 	Text      *string         `json:"text,omitempty" jsonschema:"New page body."`
 	Title     *string         `json:"title,omitempty" jsonschema:"New display title."`
 	Comments  *string         `json:"comments,omitempty" jsonschema:"Edit comment."`
+	Version   *int            `json:"version,omitempty" jsonschema:"Expected current page version. When set, Redmine returns 409 Conflict if the stored version does not match, giving optimistic-locking semantics."`
 	Uploads   []models.Upload `json:"-"`
 }
 
@@ -89,6 +90,7 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 		Text:     input.Text,
 		Title:    input.Title,
 		Comments: input.Comments,
+		Version:  input.Version,
 		Uploads:  input.Uploads,
 	}); err != nil {
 		return MessageResult{}, err

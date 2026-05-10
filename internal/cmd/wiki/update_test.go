@@ -1,0 +1,273 @@
+package wiki
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
+)
+
+// TestUpdate_ExpectVersion_SendsVersion verifies that --expect-version is
+// propagated as the wiki_page.version field on the PUT body.
+func TestUpdate_ExpectVersion_SendsVersion(t *testing.T) {
+	var (
+		mu       sync.Mutex
+		putBody  map[string]interface{}
+		putCount int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			// The project resolver fetches /projects/<id>.json before any
+			// wiki call. Reply with a minimal project payload so the
+			// resolver returns cleanly.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"proj"}}`))
+		case http.MethodPut:
+			b, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			putCount++
+			_ = json.Unmarshal(b, &putBody)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request method %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "rewritten body",
+		"--expect-version", "7",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if putCount != 1 {
+		t.Fatalf("expected exactly one PUT, got %d", putCount)
+	}
+	wp, ok := putBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body missing wiki_page key: %#v", putBody)
+	}
+	got, ok := wp["version"].(float64)
+	if !ok {
+		t.Fatalf("version not present in PUT body: %#v", wp["version"])
+	}
+	if int(got) != 7 {
+		t.Errorf("body version = %v, want 7", got)
+	}
+}
+
+// TestUpdate_EnsureCurrent_FetchesAndSendsCurrentVersion verifies the
+// convenience mode: the command first GETs the current page, then PUTs back
+// using the freshly fetched version.
+func TestUpdate_EnsureCurrent_FetchesAndSendsCurrentVersion(t *testing.T) {
+	var (
+		mu       sync.Mutex
+		wikiGets int
+		putBody  map[string]interface{}
+		putCount int
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "/wiki/") {
+				mu.Lock()
+				wikiGets++
+				mu.Unlock()
+				_, _ = w.Write([]byte(`{"wiki_page":{"title":"MyPage","text":"existing","version":4}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"proj"}}`))
+		case http.MethodPut:
+			b, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			putCount++
+			_ = json.Unmarshal(b, &putBody)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected method %s", r.Method)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "rewritten body",
+		"--ensure-current",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if wikiGets < 1 {
+		t.Errorf("expected at least one wiki GET to fetch current version, got %d", wikiGets)
+	}
+	if putCount != 1 {
+		t.Fatalf("expected exactly one PUT, got %d", putCount)
+	}
+	wp, ok := putBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body missing wiki_page key: %#v", putBody)
+	}
+	got, ok := wp["version"].(float64)
+	if !ok {
+		t.Fatalf("version not present in PUT body: %#v", wp["version"])
+	}
+	if int(got) != 4 {
+		t.Errorf("body version = %v, want 4 (the value returned by GET)", got)
+	}
+}
+
+// TestUpdate_NoVersionFlag_OmitsVersion guards the existing default behavior:
+// when neither --expect-version nor --ensure-current is set, the PUT body
+// must not carry a version field, so server-side optimistic locking is
+// opt-in and existing scripts keep working.
+func TestUpdate_NoVersionFlag_OmitsVersion(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		putBody map[string]interface{}
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "/wiki/") {
+				_, _ = w.Write([]byte(`{"wiki_page":{"title":"MyPage","text":"existing","version":2}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"proj"}}`))
+		case http.MethodPut:
+			b, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			_ = json.Unmarshal(b, &putBody)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "rewritten body",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := putBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("body missing wiki_page key: %#v", putBody)
+	}
+	if _, present := wp["version"]; present {
+		t.Errorf("version should be absent without --expect-version/--ensure-current, got %v", wp["version"])
+	}
+}
+
+// TestUpdate_MutuallyExclusiveFlags rejects passing both flags at once.
+func TestUpdate_MutuallyExclusiveFlags(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "x",
+		"--expect-version", "3",
+		"--ensure-current",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error = %q, want it to mention mutual exclusivity", err.Error())
+	}
+}
+
+// TestUpdate_Conflict_ReportsStaleVersion verifies that a 409 from the server
+// surfaces as an actionable error mentioning that the page has been
+// modified.
+func TestUpdate_Conflict_ReportsStaleVersion(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"proj"}}`))
+		case http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"errors":["Page has been updated by someone else"]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "rewritten body",
+		"--expect-version", "1",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected conflict error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "modified since version 1") {
+		t.Errorf("error = %q, want it to mention the stale version", msg)
+	}
+}
+
+// TestUpdate_ExpectVersionMustBePositive guards against passing zero or
+// negative values to --expect-version, which would silently match Redmine's
+// notion of "no version asserted" because of JSON omitempty rules.
+func TestUpdate_ExpectVersionMustBePositive(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "x",
+		"--expect-version", "0",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), ">= 1") {
+		t.Errorf("error = %q, want a >= 1 message", err.Error())
+	}
+}
