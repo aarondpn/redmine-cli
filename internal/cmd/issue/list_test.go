@@ -276,8 +276,28 @@ func TestCmdIssueList_QueryAndQueryIDMutuallyExclusive(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for mutually exclusive flags")
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("error = %v, want mutually-exclusive message", err)
+	msg := err.Error()
+	if !strings.Contains(msg, "query") || !strings.Contains(msg, "query-id") {
+		t.Fatalf("error = %v, want both flag names mentioned", err)
+	}
+}
+
+func TestCmdIssueList_RejectsNonPositiveQueryID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Fatal("API should not be called when --query-id is rejected")
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--query-id", "0", "--output", "json"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for --query-id 0")
+	}
+	if !strings.Contains(err.Error(), "positive integer") {
+		t.Fatalf("error = %v, want positive-integer message", err)
 	}
 }
 

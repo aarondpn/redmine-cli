@@ -27,9 +27,8 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 		Example: `  # All saved queries you can see
   redmine queries list
 
-  # Run a saved query through the issues list command
-  redmine queries list -o json
-  redmine issues list --query-id 12`,
+  # JSON output for piping into jq or another tool
+  redmine queries list -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {

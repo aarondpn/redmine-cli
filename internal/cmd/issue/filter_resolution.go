@@ -22,21 +22,27 @@ func resolveIssueStatusFilter(ctx context.Context, client *api.Client, status st
 	return strconv.Itoa(id), nil
 }
 
-func resolveIssueQueryFilter(ctx context.Context, client *api.Client, query string, queryID int, projectIdentifier string) (int, error) {
-	if queryID > 0 && query != "" {
-		return 0, fmt.Errorf("--query and --query-id are mutually exclusive; pick one")
-	}
-	if queryID > 0 {
+// resolveIssueQueryFilter validates the --query / --query-id flags and
+// returns the saved query ID to thread into the issues list request. Mutual
+// exclusion is enforced by cobra at flag-parse time, so callers reaching
+// here have at most one of the two set. A non-positive --query-id is
+// rejected because Redmine's query_id is a positive integer; treating zero
+// as "no filter" would silently swallow user typos.
+func resolveIssueQueryFilter(ctx context.Context, client *api.Client, query string, queryID int, queryIDChanged bool, projectIdentifier string) (int, error) {
+	if queryIDChanged {
+		if queryID <= 0 {
+			return 0, fmt.Errorf("--query-id must be a positive integer, got %d", queryID)
+		}
 		return queryID, nil
 	}
 	if query == "" {
 		return 0, nil
 	}
-	id, err := resolver.ResolveQuery(ctx, client, query, projectIdentifier)
+	q, err := resolver.ResolveQuery(ctx, client, query, projectIdentifier)
 	if err != nil {
 		return 0, fmt.Errorf("resolving query: %w", err)
 	}
-	return id, nil
+	return q.ID, nil
 }
 
 func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {

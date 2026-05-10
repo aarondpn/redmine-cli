@@ -270,14 +270,18 @@ func ResolveRole(ctx context.Context, client *api.Client, input string) (int, er
 	})
 }
 
-// ResolveQuery resolves a saved query by name or numeric ID. When
-// projectIdentifier is set, queries scoped to other projects are excluded
-// from name matching so a per-project query name does not collide with a
-// global query of the same name.
-func ResolveQuery(ctx context.Context, client *api.Client, input string, projectIdentifier string) (int, error) {
+// ResolveQuery resolves a saved query by numeric ID or name. When the input
+// is numeric the underlying list is not fetched; the returned SavedQuery only
+// has its ID populated in that case. For name input every visible query is
+// listed and matched case-insensitively.
+//
+// When projectIdentifier is set, a project-scoped query whose ProjectID
+// matches wins over a global query with the same name. Queries scoped to a
+// different project are excluded entirely.
+func ResolveQuery(ctx context.Context, client *api.Client, input string, projectIdentifier string) (*models.SavedQuery, error) {
 	if id, err := strconv.Atoi(input); err == nil {
 		client.DebugLog().Printf("Resolver: query %q is numeric, using ID %d directly", input, id)
-		return id, nil
+		return &models.SavedQuery{ID: id}, nil
 	}
 
 	client.DebugLog().Printf("Resolver: looking up query %q", input)
@@ -285,11 +289,11 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 	queries, _, err := client.Queries.List(ctx, 0, 0)
 	if err != nil {
 		if isForbiddenErr(err) {
-			return 0, &NameResolutionPermissionError{
+			return nil, &NameResolutionPermissionError{
 				message: "cannot resolve query by name (insufficient permissions). Use a numeric ID instead",
 			}
 		}
-		return 0, fmt.Errorf("failed to fetch saved queries: %w", err)
+		return nil, fmt.Errorf("failed to fetch saved queries: %w", err)
 	}
 
 	projectFilterID := 0
@@ -302,15 +306,27 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 	}
 
 	needle := strings.ToLower(input)
-	var matches []models.SavedQuery
+	var projectMatches, globalMatches []models.SavedQuery
 	for _, q := range queries {
 		if strings.ToLower(q.Name) != needle {
 			continue
 		}
-		if projectFilterID > 0 && q.ProjectID != nil && *q.ProjectID != projectFilterID {
-			continue
+		switch {
+		case q.ProjectID == nil:
+			globalMatches = append(globalMatches, q)
+		case projectFilterID == 0 || *q.ProjectID == projectFilterID:
+			projectMatches = append(projectMatches, q)
 		}
-		matches = append(matches, q)
+	}
+
+	// Prefer a project-scoped match when --project narrows the search; only
+	// fall back to global queries when no project-scoped query has the name.
+	matches := projectMatches
+	if projectFilterID > 0 && len(matches) == 0 {
+		matches = globalMatches
+	}
+	if projectFilterID == 0 {
+		matches = append(matches, globalMatches...)
 	}
 
 	switch len(matches) {
@@ -321,10 +337,11 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 			names[i] = q.Name
 			ids[i] = q.ID
 		}
-		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "query"))
+		return nil, fmt.Errorf("%s", buildSuggestions(input, names, ids, "query"))
 	case 1:
 		client.DebugLog().Printf("Resolver: matched query %q -> ID %d", input, matches[0].ID)
-		return matches[0].ID, nil
+		match := matches[0]
+		return &match, nil
 	default:
 		lines := make([]string, len(matches))
 		for i, q := range matches {
@@ -334,7 +351,7 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 			}
 			lines[i] = fmt.Sprintf("  - %s (ID: %d, %s)", q.Name, q.ID, scope)
 		}
-		return 0, fmt.Errorf("multiple queries match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
+		return nil, fmt.Errorf("multiple queries match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
 	}
 }
 

@@ -29,40 +29,46 @@ func newCmdQueryGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-
-			id, err := resolver.ResolveQuery(ctx, client, args[0], project)
-			if err != nil {
-				return err
-			}
-
 			printer := f.Printer(format)
+
 			stop := printer.Spinner("Fetching saved query...")
-			queries, _, err := client.Queries.List(ctx, 0, 0)
+			match, err := resolver.ResolveQuery(ctx, client, args[0], project)
 			stop()
 			if err != nil {
 				return err
 			}
 
-			for _, q := range queries {
-				if q.ID != id {
-					continue
+			// Numeric input short-circuits the resolver and returns a stub
+			// with only the ID populated. Redmine has no /queries/:id.json
+			// endpoint, so list once and pick the matching record to fill
+			// in name / visibility / scope.
+			if match.Name == "" {
+				queries, _, err := client.Queries.List(ctx, 0, 0)
+				if err != nil {
+					return err
 				}
-				if printer.Format() == output.FormatJSON {
-					printer.JSON(q)
-					return nil
+				for i := range queries {
+					if queries[i].ID == match.ID {
+						match = &queries[i]
+						break
+					}
 				}
-
-				details := []output.KeyValue{
-					{Key: "ID", Value: fmt.Sprintf("%d", q.ID)},
-					{Key: "Name", Value: q.Name},
-					{Key: "Visibility", Value: queryVisibility(q)},
-					{Key: "Scope", Value: queryScope(q)},
+				if match.Name == "" {
+					return fmt.Errorf("saved query %d not found", match.ID)
 				}
-				printer.Detail(details)
-				return nil
 			}
 
-			return fmt.Errorf("saved query %d not found", id)
+			if printer.Format() == output.FormatJSON {
+				printer.JSON(match)
+				return nil
+			}
+			printer.Detail([]output.KeyValue{
+				{Key: "ID", Value: fmt.Sprintf("%d", match.ID)},
+				{Key: "Name", Value: match.Name},
+				{Key: "Visibility", Value: queryVisibility(*match)},
+				{Key: "Scope", Value: queryScope(*match)},
+			})
+			return nil
 		},
 	}
 

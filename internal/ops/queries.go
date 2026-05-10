@@ -19,7 +19,7 @@ type QueriesListResult struct {
 }
 
 //mcpgen:tool list_queries
-//mcpgen:description List saved queries (custom filters) visible to the authenticated user. Use the returned id with list_issues' query_id parameter.
+//mcpgen:description List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.
 //mcpgen:category meta
 func ListQueries(ctx context.Context, client *api.Client, input ListQueriesInput) (QueriesListResult, error) {
 	queries, total, err := client.Queries.List(ctx, ListLimit(input.Limit), input.Offset)

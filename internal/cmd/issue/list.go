@@ -101,7 +101,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
-			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, project)
+			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project)
 			if err != nil {
 				return err
 			}
@@ -190,6 +190,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")
 	cmd.Flags().StringVar(&query, "query", "", "Run a saved query by name (mutually exclusive with --query-id)")
 	cmd.Flags().IntVar(&queryID, "query-id", 0, "Run a saved query by numeric ID")
+	cmd.MarkFlagsMutuallyExclusive("query", "query-id")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
 	cmd.Flags().StringVar(&include, "include", "", "Include related data: attachments,relations")
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")

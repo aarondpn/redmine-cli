@@ -70,6 +70,78 @@ func TestQueryList_Empty(t *testing.T) {
 	}
 }
 
+func TestQueryGet_ByNumericID(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/queries.json" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queries":[{"id":3,"name":"Other"},{"id":7,"name":"Sprint","is_public":true,"project_id":3}],"total_count":2}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdQueryGet(f)
+	cmd.SetArgs([]string{"7"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected exactly one /queries.json call, got %d", calls)
+	}
+	stdout := testutil.Stdout(f)
+	for _, want := range []string{"Sprint", "public", "project 3"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("detail output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestQueryGet_ByNumericID_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queries":[{"id":1,"name":"Other"}],"total_count":1}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdQueryGet(f)
+	cmd.SetArgs([]string{"99"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected not-found error")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("error = %v, want not-found message", err)
+	}
+}
+
+func TestQueryGet_JSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queries":[{"id":7,"name":"Sprint","is_public":true,"project_id":3}],"total_count":1}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdQueryGet(f)
+	cmd.SetArgs([]string{"Sprint", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	stdout := testutil.Stdout(f)
+	for _, want := range []string{`"id": 7`, `"name": "Sprint"`, `"is_public": true`} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("JSON output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
 func TestQueryGet_DetailByName(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/queries.json" {
