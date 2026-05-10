@@ -337,6 +337,101 @@ func TestTimeLog_MissingHours(t *testing.T) {
 	}
 }
 
+func TestTimeLog_OnBehalfOfUser_NumericID(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/time_entries.json" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &capturedBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":1,"spent_on":"2025-06-15","project":{"id":1,"name":"Demo"},"user":{"id":7,"name":"Bob"},"activity":{"id":9,"name":"Development"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "10", "--user", "7"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if te["user_id"] != float64(7) {
+		t.Errorf("payload user_id = %v, want 7", te["user_id"])
+	}
+}
+
+func TestTimeLog_OnBehalfOfUser_Me(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/users/current.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"user":{"id":42,"login":"me","firstname":"Self","lastname":"User"}}`))
+		case "/time_entries.json":
+			body, _ := io.ReadAll(r.Body)
+			json.Unmarshal(body, &capturedBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":1,"spent_on":"2025-06-15","project":{"id":1,"name":"Demo"},"user":{"id":42,"name":"Self User"},"activity":{"id":9,"name":"Development"}}}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "10", "--user", "me"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if te["user_id"] != float64(42) {
+		t.Errorf("payload user_id = %v, want 42 (resolved from 'me')", te["user_id"])
+	}
+}
+
+func TestTimeLog_OnBehalfOfUser_OmittedByDefault(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &capturedBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":1,"spent_on":"2025-06-15","project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"activity":{"id":9,"name":"Development"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "10"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if _, ok := te["user_id"]; ok {
+		t.Errorf("payload should omit user_id when --user not set, got %v", te["user_id"])
+	}
+}
+
 // --- update ---
 
 func TestTimeUpdate_Success(t *testing.T) {

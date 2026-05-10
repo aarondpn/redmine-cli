@@ -32,6 +32,7 @@ Without flags, opens an interactive form.
 | `--activity` | Activity type (name or ID) |
 | `--comment`  | Description of work |
 | `--date`     | Date (YYYY-MM-DD or `today`, default: today) |
+| `--user`     | Log on behalf of another user (`me`, login, name, or ID) |
 
 <Tabs syncKey="time-log">
   <TabItem label="Interactive">
@@ -44,7 +45,16 @@ Without flags, opens an interactive form.
     redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
     ```
   </TabItem>
+  <TabItem label="On behalf of">
+    ```bash
+    redmine time log --issue 123 --hours 1 --user jsmith --comment "Pair work"
+    ```
+  </TabItem>
 </Tabs>
+
+<Aside type="caution">
+  `--user` requires admin privileges or the "Log time for other users" permission on the Redmine server. Without it, the server rejects the request.
+</Aside>
 
 ## list
 

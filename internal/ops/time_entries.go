@@ -37,6 +37,7 @@ type CreateTimeEntryInput struct {
 	ActivityID int     `json:"activity_id,omitempty" jsonschema:"Activity enumeration ID."`
 	SpentOn    string  `json:"spent_on,omitempty" jsonschema:"Date the work was done (YYYY-MM-DD). Defaults to today."`
 	Comments   string  `json:"comments,omitempty" jsonschema:"Free-text comment."`
+	UserID     int     `json:"user_id,omitempty" jsonschema:"Numeric ID of the user the entry is logged for. Requires admin or 'log time for other users' permission on the server."`
 }
 
 type UpdateTimeEntryInput struct {
@@ -114,6 +115,7 @@ func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEn
 		ActivityID: input.ActivityID,
 		SpentOn:    input.SpentOn,
 		Comments:   input.Comments,
+		UserID:     input.UserID,
 	})
 }
 

@@ -22,6 +22,7 @@ type TimeEntryCreate struct {
 	ActivityID int     `json:"activity_id,omitempty"`
 	SpentOn    string  `json:"spent_on,omitempty"`
 	Comments   string  `json:"comments,omitempty"`
+	UserID     int     `json:"user_id,omitempty"`
 }
 
 // TimeEntryUpdate defines fields for updating a time entry.
