@@ -18,6 +18,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `projects` | List, get, create, update, delete projects; list project members |
 | `time` | Log, list, get, update, delete, summarize time entries |
 | `versions` | Create, list, get, update, delete project versions (milestones) |
+| `files` | List and upload project-level files (release artifacts) |
 | `memberships` | List, get, create, update, delete project memberships |
 | `users` | List, get, create, update, delete users |
 | `groups` | List, get, create, update, delete groups; add/remove users |

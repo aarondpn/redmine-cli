@@ -251,6 +251,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Category:    "projects",
 		Call:        ops.GetProject,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListProjectFilesInput, ops.ProjectFilesListResult]{
+		Name:        "list_project_files",
+		Description: "List files attached to a project.",
+		Category:    "projects",
+		Call:        ops.ListProjectFiles,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListProjectMembersInput, ops.ProjectMembersListResult]{
 		Name:        "list_project_members",
 		Description: "List members for a Redmine project.",
@@ -431,6 +437,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "create_project", Description: "Create a new Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "delete_project", Description: "Delete a Redmine project. Destructive. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "get_project", Description: "Fetch a single Redmine project by identifier or ID.", Group: "projects", Writes: false},
+		{Name: "list_project_files", Description: "List files attached to a project.", Group: "projects", Writes: false},
 		{Name: "list_project_members", Description: "List members for a Redmine project.", Group: "projects", Writes: false},
 		{Name: "list_projects", Description: "List Redmine projects.", Group: "projects", Writes: false},
 		{Name: "update_project", Description: "Update an existing Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},

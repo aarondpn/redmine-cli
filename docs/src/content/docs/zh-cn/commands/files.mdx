@@ -1,0 +1,82 @@
+---
+title: 项目文件
+description: 列出并上传项目级文件（如发布产物及其他项目附件）。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`files` 命令对接 Redmine 的[项目文件 API](https://www.redmine.org/projects/redmine/wiki/Rest_Files)，可将发布产物等文件挂在项目而非具体的工单或 Wiki 页面下。
+
+每个子命令都需要指定项目，可通过 `--project <identifier>` 传入，或依赖当前认证配置的默认项目（参见 [`auth`](/redmine-cli/zh-cn/commands/auth/)）。
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="列出项目下挂载的所有文件。" />
+  <LinkCard title="upload" href="#upload" description="从本地上传文件并附加到项目。" />
+</CardGrid>
+
+## list
+
+```bash
+redmine files list [flags]
+```
+
+别名：`ls`。输出每个文件的 ID、名称、字节大小、关联版本（如有）、上传者及创建时间。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`     | 项目标识符或数字 ID。未指定时回退到当前认证配置的默认项目。 |
+| `--limit`       | 最大返回数量（`0` 表示全部） |
+| `--offset`      | 分页偏移量 |
+| `-o, --output`  | 输出格式：`table`、`json`、`csv` |
+
+<Tabs syncKey="files-list">
+  <TabItem label="默认">
+    ```bash
+    redmine files list --project myproject
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine files list --project myproject -o json
+    ```
+  </TabItem>
+  <TabItem label="分页">
+    ```bash
+    redmine files list --project myproject --limit 10 --offset 20
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside>
+  Redmine 在一次请求中返回项目的全部文件列表，并忽略服务器端的 `limit`/`offset` 参数，因此分页在客户端进行。即使项目下文件较多，使用 `--limit 0`（默认值）也是安全的。
+</Aside>
+
+## upload
+
+```bash
+redmine files upload <path> [flags]
+```
+
+别名：`add`、`create`。先调用 Redmine 的 `/uploads.json` 上传文件，再用返回的 token 把文件挂在项目下。通过 `--version` 可将文件绑定到某个里程碑，使其出现在按版本筛选的视图中。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`      | 项目标识符或数字 ID |
+| `--filename`     | 自定义显示文件名（默认为路径的基础名） |
+| `--version`      | 关联到指定版本：名称或数字 ID |
+| `--description`  | 可选描述 |
+| `--content-type` | 覆盖自动识别的 MIME 类型 |
+| `-o, --output`   | 输出格式 |
+
+```bash
+redmine files upload ./release.tar.gz --project myproject
+
+redmine files upload ./changelog.md --project myproject \
+  --version 1.2.0 --description "发布说明"
+
+redmine files upload ./build.zip --project myproject --filename "build-1.2.0.zip"
+```
+
+<Aside type="tip">
+  Redmine 上传成功后不会返回响应体。可在上传后执行 `redmine files list --project myproject` 以确认文件入库，并获取其 ID 与下载链接。
+</Aside>
