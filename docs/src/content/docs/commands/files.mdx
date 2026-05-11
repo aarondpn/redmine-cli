@@ -1,0 +1,82 @@
+---
+title: Files
+description: List and upload project-level files (release artifacts and other project attachments).
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `files` command surfaces Redmine's [project Files API](https://www.redmine.org/projects/redmine/wiki/Rest_Files), which keeps files such as release artifacts attached to a project rather than to an individual issue or wiki page.
+
+Every subcommand needs a project. Pass `--project <identifier>`, or rely on the default project of the active profile (see [`auth`](/redmine-cli/commands/auth/)).
+
+<CardGrid>
+  <LinkCard title="list"   href="#list"   description="List the files attached to a project." />
+  <LinkCard title="upload" href="#upload" description="Upload a file from disk and attach it to a project." />
+</CardGrid>
+
+## list
+
+```bash
+redmine files list [flags]
+```
+
+Aliases: `ls`. Prints each file's ID, name, size in bytes, associated version (if any), uploader, and creation timestamp.
+
+| Flag | Description |
+|------|-------------|
+| `--project`     | Project identifier or numeric ID. Falls back to the default project of the active profile. |
+| `--limit`       | Maximum number of results (`0` for all) |
+| `--offset`      | Result offset for pagination |
+| `-o, --output`  | Output format: `table`, `json`, `csv` |
+
+<Tabs syncKey="files-list">
+  <TabItem label="Default">
+    ```bash
+    redmine files list --project myproject
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine files list --project myproject -o json
+    ```
+  </TabItem>
+  <TabItem label="Paginated">
+    ```bash
+    redmine files list --project myproject --limit 10 --offset 20
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside>
+  Redmine returns the project file list in a single response and ignores the server-side `limit`/`offset` parameters, so pagination is applied client-side. `--limit 0` is the default behaviour and is safe to use even on busy projects.
+</Aside>
+
+## upload
+
+```bash
+redmine files upload <path> [flags]
+```
+
+Aliases: `add`, `create`. Uploads a file from disk to Redmine's `/uploads.json` endpoint, then attaches the resulting token to the project. Pass `--version` to pin the file to a milestone so it shows up in version-scoped views.
+
+| Flag | Description |
+|------|-------------|
+| `--project`      | Project identifier or numeric ID |
+| `--filename`     | Override the displayed filename (defaults to the file's base name) |
+| `--version`      | Attach to a version: name or numeric ID |
+| `--description`  | Optional description |
+| `--content-type` | Override the detected MIME type |
+| `-o, --output`   | Output format |
+
+```bash
+redmine files upload ./release.tar.gz --project myproject
+
+redmine files upload ./changelog.md --project myproject \
+  --version 1.2.0 --description "Release notes"
+
+redmine files upload ./build.zip --project myproject --filename "build-1.2.0.zip"
+```
+
+<Aside type="tip">
+  Redmine returns no body on a successful upload. Run `redmine files list --project myproject` afterwards to confirm the new file landed and to capture its assigned ID and content URL.
+</Aside>

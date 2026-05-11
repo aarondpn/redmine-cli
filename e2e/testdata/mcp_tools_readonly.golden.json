@@ -64,6 +64,10 @@
     "description": "List memberships for a project."
   },
   {
+    "name": "list_project_files",
+    "description": "List files attached to a project."
+  },
+  {
     "name": "list_project_members",
     "description": "List members for a Redmine project."
   },

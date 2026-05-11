@@ -39,6 +39,8 @@ var commandOutputContracts = map[string]commandContract{
 	"redmine config":             {Mode: outputContractStructured},
 	"redmine custom-fields get":  {Mode: outputContractStructured},
 	"redmine custom-fields list": {Mode: outputContractStructured},
+	"redmine files list":         {Mode: outputContractStructured},
+	"redmine files upload":       {Mode: outputContractStructured},
 	"redmine groups add-user":    {Mode: outputContractStructured},
 	"redmine groups create":      {Mode: outputContractStructured},
 	"redmine groups delete":      {Mode: outputContractStructured},
