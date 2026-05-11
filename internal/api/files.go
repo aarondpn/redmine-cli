@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
@@ -19,7 +20,12 @@ type FileService struct {
 // FetchAll's fallback path.
 func (s *FileService) List(ctx context.Context, projectID string, limit, offset int) ([]models.ProjectFile, int, error) {
 	path := fmt.Sprintf("/projects/%s/files.json", url.PathEscape(projectID))
-	return FetchAll[models.ProjectFile](ctx, s.client, path, nil, "files", limit)
+	var params url.Values
+	if offset > 0 {
+		params = url.Values{}
+		params.Set("offset", strconv.Itoa(offset))
+	}
+	return FetchAll[models.ProjectFile](ctx, s.client, path, params, "files", limit)
 }
 
 // Create uploads a file to a project using a previously obtained upload

@@ -43,6 +43,10 @@ func ListProjectFiles(ctx context.Context, client *api.Client, input ListProject
 // UploadProjectFile attaches a previously uploaded file (via the /uploads.json
 // flow) to a project. The Redmine API returns no body on success; callers can
 // re-list the project's files to surface the resulting record.
+//
+// Deliberately not exposed as an MCP tool: the function requires an upload
+// token obtained by streaming bytes to /uploads.json, and MCP has no tool that
+// produces such a token, so exposing it alone would be unusable.
 func UploadProjectFile(ctx context.Context, client *api.Client, input UploadProjectFileInput) (MessageResult, error) {
 	if input.Token == "" {
 		return MessageResult{}, fmt.Errorf("token is required")

@@ -12,9 +12,10 @@ import (
 // NewCmdFiles creates the parent files command.
 func NewCmdFiles(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "files",
-		Short: "Manage Redmine project files",
-		Long:  "List and upload Redmine project files (release artifacts and other attachments scoped to a project).",
+		Use:     "files",
+		Aliases: []string{"f"},
+		Short:   "Manage Redmine project files",
+		Long:    "List and upload Redmine project files (release artifacts and other attachments scoped to a project).",
 	}
 
 	cmd.AddCommand(newCmdList(f))

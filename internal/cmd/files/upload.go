@@ -28,7 +28,7 @@ func newCmdUpload(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "upload <path>",
-		Aliases: []string{"add", "create"},
+		Aliases: []string{"add"},
 		Short:   "Upload a file to a project",
 		Long:    "Upload a file from disk and attach it to a Redmine project. Optionally pin it to a version (milestone).",
 		Example: `  # Upload a release artifact

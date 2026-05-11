@@ -25,7 +25,9 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List project files",
-		Long:    "List files attached to a Redmine project.",
+		Long: "List files attached to a Redmine project.\n\n" +
+			"The Redmine endpoint returns the full file list in a single response and " +
+			"ignores server-side pagination, so --limit and --offset are applied client-side.",
 		Example: `  # List files in a project
   redmine files list --project myproject
 

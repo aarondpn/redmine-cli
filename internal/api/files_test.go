@@ -66,6 +66,39 @@ func TestFileService_List(t *testing.T) {
 	}
 }
 
+// TestFileService_List_OffsetIsTrimmedClientSide guards a regression where
+// offset was accepted but dropped before reaching FetchAll. The Redmine Files
+// endpoint ignores pagination params, so FetchAll's client-side trim must
+// observe the offset we set on the params.
+func TestFileService_List_OffsetIsTrimmedClientSide(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+            "files": [
+                {"id": 1, "filename": "a", "filesize": 1, "author": {"id": 1, "name": "A"}, "created_on": "2026-04-01T10:00:00Z"},
+                {"id": 2, "filename": "b", "filesize": 2, "author": {"id": 1, "name": "A"}, "created_on": "2026-04-01T10:00:00Z"},
+                {"id": 3, "filename": "c", "filesize": 3, "author": {"id": 1, "name": "A"}, "created_on": "2026-04-01T10:00:00Z"}
+            ],
+            "total_count": 3
+        }`))
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Files = &FileService{client: c}
+
+	files, _, err := c.Files.List(context.Background(), "proj", 0, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("files len = %d, want 1 (offset 2 of 3)", len(files))
+	}
+	if files[0].ID != 3 {
+		t.Errorf("files[0].ID = %d, want 3", files[0].ID)
+	}
+}
+
 func TestFileService_Create_Body(t *testing.T) {
 	var (
 		gotMethod string
