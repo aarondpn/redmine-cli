@@ -3,8 +3,6 @@ package files
 import (
 	"context"
 	"fmt"
-	"mime"
-	"net/http"
 	"os"
 	"path/filepath"
 
@@ -74,7 +72,7 @@ func newCmdUpload(f *cmdutil.Factory) *cobra.Command {
 
 			ct := contentType
 			if ct == "" {
-				ct = detectContentType(file, path)
+				ct = cmdutil.DetectContentType(file, path)
 				if _, err := file.Seek(0, 0); err != nil {
 					return fmt.Errorf("rewinding %s: %w", path, err)
 				}
@@ -125,19 +123,4 @@ func newCmdUpload(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteVersions(f))
 
 	return cmd
-}
-
-// detectContentType resolves a MIME type from the file extension, falling back
-// to sniffing the first 512 bytes. The file position is left unspecified; the
-// caller must seek before reading the file for upload.
-func detectContentType(f *os.File, path string) string {
-	if ct := mime.TypeByExtension(filepath.Ext(path)); ct != "" {
-		return ct
-	}
-	var sniff [512]byte
-	n, _ := f.Read(sniff[:])
-	if n == 0 {
-		return ""
-	}
-	return http.DetectContentType(sniff[:n])
 }

@@ -41,7 +41,7 @@ func uploadOne(ctx context.Context, client *api.Client, path string) (models.Upl
 		return models.Upload{}, err
 	}
 
-	ct := detectContentType(f, path)
+	ct := DetectContentType(f, path)
 	if _, err := f.Seek(0, 0); err != nil {
 		return models.Upload{}, err
 	}
@@ -59,10 +59,10 @@ func uploadOne(ctx context.Context, client *api.Client, path string) (models.Upl
 	}, nil
 }
 
-// detectContentType resolves a MIME type from the file extension, falling back
+// DetectContentType resolves a MIME type from the file extension, falling back
 // to sniffing the first 512 bytes. The file position is left unspecified; the
 // caller must seek before reading the file for upload.
-func detectContentType(f *os.File, path string) string {
+func DetectContentType(f *os.File, path string) string {
 	if ct := mime.TypeByExtension(filepath.Ext(path)); ct != "" {
 		return ct
 	}
