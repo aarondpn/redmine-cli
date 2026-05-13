@@ -231,6 +231,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.UpdateVersion,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ArchiveProjectInput, ops.MessageResult]{
+		Name:        "archive_project",
+		Description: "Archive a Redmine project. Hides it from default listings. Requires Redmine 5.0+ and --enable-writes.",
+		Category:    "projects",
+		Writes:      true,
+		Call:        ops.ArchiveProject,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateProjectInput, *models.Project]{
 		Name:        "create_project",
 		Description: "Create a new Redmine project. Requires --enable-writes.",
@@ -268,6 +275,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "List Redmine projects.",
 		Category:    "projects",
 		Call:        ops.ListProjects,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UnarchiveProjectInput, ops.MessageResult]{
+		Name:        "unarchive_project",
+		Description: "Unarchive a Redmine project. Requires Redmine 5.0+ and --enable-writes.",
+		Category:    "projects",
+		Writes:      true,
+		Call:        ops.UnarchiveProject,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateProjectInput, ops.MessageResult]{
 		Name:        "update_project",
@@ -434,12 +448,14 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_versions", Description: "List versions (milestones) for a project.", Group: "meta", Writes: false},
 		{Name: "update_version", Description: "Update an existing version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
+		{Name: "archive_project", Description: "Archive a Redmine project. Hides it from default listings. Requires Redmine 5.0+ and --enable-writes.", Group: "projects", Writes: true},
 		{Name: "create_project", Description: "Create a new Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "delete_project", Description: "Delete a Redmine project. Destructive. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "get_project", Description: "Fetch a single Redmine project by identifier or ID.", Group: "projects", Writes: false},
 		{Name: "list_project_files", Description: "List files attached to a project.", Group: "projects", Writes: false},
 		{Name: "list_project_members", Description: "List members for a Redmine project.", Group: "projects", Writes: false},
 		{Name: "list_projects", Description: "List Redmine projects.", Group: "projects", Writes: false},
+		{Name: "unarchive_project", Description: "Unarchive a Redmine project. Requires Redmine 5.0+ and --enable-writes.", Group: "projects", Writes: true},
 		{Name: "update_project", Description: "Update an existing Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "search", Description: "Search across Redmine issues, wiki pages, news, and more. If no type flag is set, issues and wiki pages are included by default.", Group: "search", Writes: false},
 		{Name: "create_time_entry", Description: "Log a new time entry. Requires --enable-writes.", Group: "time", Writes: true},

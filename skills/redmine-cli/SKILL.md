@@ -15,7 +15,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 |---------|---------|
 | `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
-| `projects` | List, get, create, update, delete projects; list project members |
+| `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |
 | `time` | Log, list, get, update, delete, summarize time entries |
 | `versions` | Create, list, get, update, delete project versions (milestones) |
 | `files` | List and upload project-level files (release artifacts) |

@@ -64,6 +64,16 @@ func (s *ProjectService) Delete(ctx context.Context, identifier string) error {
 	return s.client.Delete(ctx, fmt.Sprintf("/projects/%s.json", identifier))
 }
 
+// Archive archives a project. Requires Redmine 5.0+.
+func (s *ProjectService) Archive(ctx context.Context, identifier string) error {
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/archive.json", identifier), nil)
+}
+
+// Unarchive unarchives a previously-archived project. Requires Redmine 5.0+.
+func (s *ProjectService) Unarchive(ctx context.Context, identifier string) error {
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/unarchive.json", identifier), nil)
+}
+
 // Members retrieves project memberships.
 func (s *ProjectService) Members(ctx context.Context, identifier string, limit, offset int) ([]models.Membership, int, error) {
 	var params url.Values

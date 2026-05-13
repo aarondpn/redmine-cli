@@ -11,14 +11,14 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
-func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
+func newCmdArchive(f *cmdutil.Factory) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:               "delete <identifier>",
-		Aliases:           []string{"rm"},
-		Short:             "Delete a project",
-		Long:              "Delete a Redmine project and all its data.",
+		Use:   "archive <identifier>",
+		Short: "Archive a project",
+		Long: "Archive a Redmine project. Archived projects are hidden from " +
+			"default listings until unarchived. Requires Redmine 5.0 or newer.",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,18 +30,18 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			identifier := args[0]
 
 			if !force {
-				msg := fmt.Sprintf("Are you sure you want to delete project %q?", identifier)
+				msg := fmt.Sprintf("Are you sure you want to archive project %q?", identifier)
 				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Outcome(false, output.ActionDeleted, "project", identifier, "Deletion cancelled")
+					printer.Outcome(false, output.ActionArchived, "project", identifier, "Archive cancelled")
 					return nil
 				}
 			}
 
-			if _, err := ops.DeleteProject(context.Background(), client, ops.DeleteProjectInput{Identifier: identifier}); err != nil {
+			if _, err := ops.ArchiveProject(context.Background(), client, ops.ArchiveProjectInput{Identifier: identifier}); err != nil {
 				return err
 			}
 
-			printer.Action(output.ActionDeleted, "project", identifier, fmt.Sprintf("Project %q deleted", identifier))
+			printer.Action(output.ActionArchived, "project", identifier, fmt.Sprintf("Project %q archived", identifier))
 			return nil
 		},
 	}

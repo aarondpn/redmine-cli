@@ -56,6 +56,8 @@ const (
 	ActionInstalled   = "installed"
 	ActionOpened      = "opened"
 	ActionUploaded    = "uploaded"
+	ActionArchived    = "archived"
+	ActionUnarchived  = "unarchived"
 )
 
 // RenderActionJSON writes an action envelope as pretty-printed JSON.

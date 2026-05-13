@@ -21,10 +21,11 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "members <identifier>",
-		Short: "List project members",
-		Long:  "List all members of a Redmine project.",
-		Args:  cobra.ExactArgs(1),
+		Use:               "members <identifier>",
+		Short:             "List project members",
+		Long:              "List all members of a Redmine project.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {

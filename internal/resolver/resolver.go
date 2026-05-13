@@ -227,17 +227,7 @@ func resolveProjectFromList(client *api.Client, input string, projects []models.
 
 // ResolveTracker resolves a tracker by name or numeric ID.
 func ResolveTracker(ctx context.Context, client *api.Client, input string) (int, error) {
-	return Resolve(input, "tracker", client, func() ([]Option, error) {
-		trackers, err := client.Trackers.List(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch trackers: %w", err)
-		}
-		opts := make([]Option, len(trackers))
-		for i, t := range trackers {
-			opts[i] = Option{ID: t.ID, Name: t.Name}
-		}
-		return opts, nil
-	})
+	return Resolve(input, "tracker", client, trackerOptions(ctx, client))
 }
 
 // ResolveStatus resolves a status by name or numeric ID.
@@ -272,7 +262,25 @@ func ResolveRole(ctx context.Context, client *api.Client, input string) (int, er
 
 // ResolveCustomField resolves a custom field by name or numeric ID.
 func ResolveCustomField(ctx context.Context, client *api.Client, input string) (int, error) {
-	return Resolve(input, "custom field", client, func() ([]Option, error) {
+	return Resolve(input, "custom field", client, customFieldOptions(ctx, client))
+}
+
+func trackerOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
+	return func() ([]Option, error) {
+		trackers, err := client.Trackers.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch trackers: %w", err)
+		}
+		opts := make([]Option, len(trackers))
+		for i, t := range trackers {
+			opts[i] = Option{ID: t.ID, Name: t.Name}
+		}
+		return opts, nil
+	}
+}
+
+func customFieldOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
+	return func() ([]Option, error) {
 		fields, err := client.CustomFields.List(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch custom fields: %w", err)
@@ -282,7 +290,116 @@ func ResolveCustomField(ctx context.Context, client *api.Client, input string) (
 			opts[i] = Option{ID: f.ID, Name: f.Name}
 		}
 		return opts, nil
-	})
+	}
+}
+
+// ResolveAll resolves a batch of inputs against the same option set, fetching
+// the option list at most once. Numeric inputs short-circuit and never trigger
+// a fetch. Empty strings are skipped. The fetcher is only invoked when a
+// non-numeric input is encountered, matching the lazy behavior of Resolve.
+func ResolveAll(
+	ctx context.Context,
+	client *api.Client,
+	inputs []string,
+	resourceType string,
+	fetchOptions func() ([]Option, error),
+) ([]int, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+
+	var (
+		options []Option
+		optErr  error
+		loaded  bool
+	)
+	loadOptions := func() ([]Option, error) {
+		if loaded {
+			return options, optErr
+		}
+		loaded = true
+		opts, err := fetchOptions()
+		if err != nil {
+			if isForbiddenErr(err) {
+				optErr = &NameResolutionPermissionError{
+					message: fmt.Sprintf("cannot resolve %s by name (insufficient permissions). Use a numeric ID instead", resourceType),
+				}
+			} else {
+				optErr = err
+			}
+			return nil, optErr
+		}
+		options = opts
+		return options, nil
+	}
+
+	ids := make([]int, 0, len(inputs))
+	for _, raw := range inputs {
+		in := strings.TrimSpace(raw)
+		if in == "" {
+			continue
+		}
+		if id, err := strconv.Atoi(in); err == nil {
+			ids = append(ids, id)
+			continue
+		}
+
+		opts, err := loadOptions()
+		if err != nil {
+			return nil, err
+		}
+		id, err := matchOption(opts, in, resourceType)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// matchOption performs the case-insensitive single-name match used by Resolve
+// against an already-fetched option list. Surfaces buildSuggestions on miss
+// and the multiple-matches error on collision.
+func matchOption(options []Option, input, resourceType string) (int, error) {
+	needle := strings.ToLower(input)
+	var matches []Option
+	for _, o := range options {
+		if strings.ToLower(o.Name) == needle {
+			matches = append(matches, o)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		names := make([]string, len(options))
+		ids := make([]int, len(options))
+		for i, o := range options {
+			names[i] = o.Name
+			ids[i] = o.ID
+		}
+		return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, resourceType))
+	case 1:
+		return matches[0].ID, nil
+	default:
+		lines := make([]string, len(matches))
+		for i, o := range matches {
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", o.Name, o.ID)
+		}
+		return 0, fmt.Errorf("multiple %ss match %q, please use the numeric ID:\n%s", resourceType, input, strings.Join(lines, "\n"))
+	}
+}
+
+// ResolveTrackerNames resolves a batch of tracker inputs (names or numeric
+// IDs) to numeric IDs, fetching /trackers.json at most once.
+func ResolveTrackerNames(ctx context.Context, client *api.Client, inputs []string) ([]int, error) {
+	return ResolveAll(ctx, client, inputs, "tracker", trackerOptions(ctx, client))
+}
+
+// ResolveCustomFieldNames resolves a batch of custom-field inputs (names or
+// numeric IDs) to numeric IDs, fetching /custom_fields.json at most once.
+func ResolveCustomFieldNames(ctx context.Context, client *api.Client, inputs []string) ([]int, error) {
+	return ResolveAll(ctx, client, inputs, "custom field", customFieldOptions(ctx, client))
 }
 
 // ResolveQuery resolves a saved query by numeric ID or name. When the input
