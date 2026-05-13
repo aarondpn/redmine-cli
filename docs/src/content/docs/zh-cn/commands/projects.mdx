@@ -8,12 +8,14 @@ import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components'
 `projects` 命令（别名 `p`）用于管理 Redmine 项目。
 
 <CardGrid>
-  <LinkCard title="list"    href="#list"    description="列出所有项目。" />
-  <LinkCard title="get"     href="#get"     description="查看单个项目，可选包含关联数据。" />
-  <LinkCard title="create"  href="#create"  description="创建新项目。" />
-  <LinkCard title="update"  href="#update"  description="更新名称、描述或可见性。" />
-  <LinkCard title="delete"  href="#delete"  description="永久删除项目。" />
-  <LinkCard title="members" href="#members" description="列出成员及其角色。" />
+  <LinkCard title="list"      href="#list"      description="列出所有项目。" />
+  <LinkCard title="get"       href="#get"       description="查看单个项目，可选包含关联数据。" />
+  <LinkCard title="create"    href="#create"    description="创建新项目。" />
+  <LinkCard title="update"    href="#update"    description="更新字段、跟踪标签、模块及默认值。" />
+  <LinkCard title="archive"   href="#archive"   description="归档项目（Redmine 5.0+）。" />
+  <LinkCard title="unarchive" href="#unarchive" description="恢复已归档的项目（Redmine 5.0+）。" />
+  <LinkCard title="delete"    href="#delete"    description="永久删除项目。" />
+  <LinkCard title="members"   href="#members"   description="列出成员及其角色。" />
 </CardGrid>
 
 ## list
@@ -24,9 +26,12 @@ redmine projects list [flags]
 
 | 标志 | 描述 |
 |------|------|
+| `--include`    | 附加数据，可重复或以逗号分隔：`trackers`、`issue_categories`、`enabled_modules`、`time_entry_activities`、`issue_custom_fields` |
 | `--limit`      | 最大结果数 |
 | `--offset`     | 分页偏移量 |
 | `-o, --output` | 输出格式：`table`、`json`、`csv` |
+
+表格视图始终显示 `ID, Identifier, Name, Status, Public`。如需查看通过 `--include` 请求到的额外字段，请使用 `--output json`。
 
 ## get
 
@@ -38,8 +43,10 @@ redmine projects get <identifier> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`    | 附加数据：`trackers`、`issue_categories`、`enabled_modules`、`time_entry_activities` |
+| `--include`    | 附加数据，可重复或以逗号分隔：`trackers`、`issue_categories`、`enabled_modules`、`time_entry_activities`、`issue_custom_fields` |
 | `-o, --output` | 输出格式 |
+
+详情视图会在响应包含相关字段时显示主页、默认指派人、默认版本、已启用模块以及项目自定义字段值。
 
 ## create
 
@@ -49,11 +56,26 @@ redmine projects create [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--name`        | 项目名称 — <Badge text="必填" variant="danger" /> |
-| `--identifier`  | URL 友好的标识符 — <Badge text="必填" variant="danger" /> |
-| `--description` | 项目描述 |
-| `--public`      | 将项目设为公开 |
-| `--parent`      | 父项目 ID |
+| `--name`               | 项目名称 — <Badge text="必填" variant="danger" /> |
+| `--identifier`         | URL 友好的标识符 — <Badge text="必填" variant="danger" /> |
+| `--description`        | 项目描述 |
+| `--homepage`           | 项目主页 URL |
+| `--public`             | 将项目设为公开 |
+| `--parent`             | 父项目 ID |
+| `--inherit-members`    | 继承父项目的成员 |
+| `--default-assignee`   | 新工单的默认指派人（登录名、姓名或数字 ID） |
+| `--tracker`            | 启用的跟踪标签名称或 ID（可重复或以逗号分隔） |
+| `--enable-module`      | 启用的模块：`boards`、`calendar`、`documents`、`files`、`gantt`、`issue_tracking`、`news`、`repository`、`time_tracking`、`wiki` |
+| `--issue-custom-field` | 启用的工单级自定义字段名称或 ID（可重复） |
+| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+
+```bash
+redmine projects create \
+  --name "Platform" --identifier platform \
+  --homepage https://platform.example.test \
+  --tracker Bug,Feature \
+  --enable-module issue_tracking,wiki,time_tracking
+```
 
 ## update
 
@@ -61,11 +83,48 @@ redmine projects create [flags]
 redmine projects update <identifier> [flags]
 ```
 
+所有标志均为可选；未提供的字段保持不变。
+
 | 标志 | 描述 |
 |------|------|
-| `--name`        | 新项目名称 |
-| `--description` | 新描述 |
-| `--public`      | 设置为公开可见 |
+| `--name`               | 新项目名称 |
+| `--description`        | 新描述 |
+| `--homepage`           | 新主页 URL |
+| `--public`             | 设置为公开可见 |
+| `--parent`             | 新父项目 ID（0 表示取消父项目） |
+| `--inherit-members`    | 切换是否继承父项目成员 |
+| `--default-assignee`   | 默认指派人（登录名、姓名、ID；空值表示清除） |
+| `--default-version`    | 默认版本（名称或数字 ID；空值表示清除） |
+| `--tracker`            | 替换启用的跟踪标签集合 |
+| `--enable-module`      | 替换启用的模块集合 |
+| `--issue-custom-field` | 替换工单级自定义字段集合 |
+| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+
+<Aside type="note">
+  `--tracker`、`--enable-module` 和 `--issue-custom-field` 在提供时会替换当前集合，需要传入完整列表，而不仅是要新增的项。
+</Aside>
+
+## archive
+
+<Badge text="Redmine 5.0+" variant="note" />
+```bash
+redmine projects archive <identifier> [flags]
+```
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+已归档的项目会从默认项目列表中隐藏，在恢复之前无法编辑。
+
+## unarchive
+
+<Badge text="Redmine 5.0+" variant="note" />
+```bash
+redmine projects unarchive <identifier>
+```
+
+恢复先前归档的项目，使其再次出现在默认列表中。
 
 ## delete
 

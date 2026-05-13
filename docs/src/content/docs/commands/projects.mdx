@@ -8,12 +8,14 @@ import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components'
 The `projects` command (alias `p`) manages Redmine projects.
 
 <CardGrid>
-  <LinkCard title="list"    href="#list"    description="List all projects." />
-  <LinkCard title="get"     href="#get"     description="View a single project, optionally with related data." />
-  <LinkCard title="create"  href="#create"  description="Create a new project." />
-  <LinkCard title="update"  href="#update"  description="Update name, description, or visibility." />
-  <LinkCard title="delete"  href="#delete"  description="Permanently remove a project." />
-  <LinkCard title="members" href="#members" description="List members and their roles." />
+  <LinkCard title="list"      href="#list"      description="List all projects." />
+  <LinkCard title="get"       href="#get"       description="View a single project, optionally with related data." />
+  <LinkCard title="create"    href="#create"    description="Create a new project." />
+  <LinkCard title="update"    href="#update"    description="Update fields, trackers, modules, and defaults." />
+  <LinkCard title="archive"   href="#archive"   description="Archive a project (Redmine 5.0+)." />
+  <LinkCard title="unarchive" href="#unarchive" description="Restore an archived project (Redmine 5.0+)." />
+  <LinkCard title="delete"    href="#delete"    description="Permanently remove a project." />
+  <LinkCard title="members"   href="#members"   description="List members and their roles." />
 </CardGrid>
 
 ## list
@@ -24,9 +26,12 @@ redmine projects list [flags]
 
 | Flag | Description |
 |------|-------------|
+| `--include`    | Extra data, repeatable or comma-separated: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities`, `issue_custom_fields` |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format: `table`, `json`, `csv` |
+
+The table view always shows `ID, Identifier, Name, Status, Public`. Use `--output json` to inspect any extra sections you requested with `--include`.
 
 ## get
 
@@ -38,8 +43,10 @@ Aliases: `show`, `view`.
 
 | Flag | Description |
 |------|-------------|
-| `--include`    | Extra data: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities` |
+| `--include`    | Extra data, repeatable or comma-separated: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities`, `issue_custom_fields` |
 | `-o, --output` | Output format |
+
+The detail view surfaces homepage, default assignee, default version, enabled modules, and project custom field values whenever they are present on the response.
 
 ## create
 
@@ -49,11 +56,26 @@ redmine projects create [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--name`        | Project name — <Badge text="required" variant="danger" /> |
-| `--identifier`  | URL-friendly identifier — <Badge text="required" variant="danger" /> |
-| `--description` | Project description |
-| `--public`      | Make the project public |
-| `--parent`      | Parent project ID |
+| `--name`               | Project name — <Badge text="required" variant="danger" /> |
+| `--identifier`         | URL-friendly identifier — <Badge text="required" variant="danger" /> |
+| `--description`        | Project description |
+| `--homepage`           | Project homepage URL |
+| `--public`             | Make the project public |
+| `--parent`             | Parent project ID |
+| `--inherit-members`    | Inherit members from the parent project |
+| `--default-assignee`   | Default assignee for new issues (login, name, or numeric ID) |
+| `--tracker`            | Tracker name or ID to enable (repeatable or comma-separated) |
+| `--enable-module`      | Module to enable: `boards`, `calendar`, `documents`, `files`, `gantt`, `issue_tracking`, `news`, `repository`, `time_tracking`, `wiki` |
+| `--issue-custom-field` | Issue-level custom field name or ID to enable (repeatable) |
+| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable) |
+
+```bash
+redmine projects create \
+  --name "Platform" --identifier platform \
+  --homepage https://platform.example.test \
+  --tracker Bug,Feature \
+  --enable-module issue_tracking,wiki,time_tracking
+```
 
 ## update
 
@@ -61,11 +83,48 @@ redmine projects create [flags]
 redmine projects update <identifier> [flags]
 ```
 
+Every flag is optional; omitted flags leave the corresponding field untouched.
+
 | Flag | Description |
 |------|-------------|
-| `--name`        | New project name |
-| `--description` | New description |
-| `--public`      | Set public visibility |
+| `--name`               | New project name |
+| `--description`        | New description |
+| `--homepage`           | New homepage URL |
+| `--public`             | Set public visibility |
+| `--parent`             | New parent project ID (0 detaches) |
+| `--inherit-members`    | Toggle inheriting members from the parent project |
+| `--default-assignee`   | Default assignee (login, name, ID; empty clears) |
+| `--default-version`    | Default version (name or numeric ID; empty clears) |
+| `--tracker`            | Replace the enabled tracker set |
+| `--enable-module`      | Replace the enabled module set |
+| `--issue-custom-field` | Replace the issue-level custom field set |
+| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable) |
+
+<Aside type="note">
+  `--tracker`, `--enable-module`, and `--issue-custom-field` replace the current set when provided. Pass the full desired list, not just additions.
+</Aside>
+
+## archive
+
+<Badge text="Redmine 5.0+" variant="note" />
+```bash
+redmine projects archive <identifier> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |
+
+Archived projects are hidden from the default project listing and cannot be edited until they are unarchived.
+
+## unarchive
+
+<Badge text="Redmine 5.0+" variant="note" />
+```bash
+redmine projects unarchive <identifier>
+```
+
+Restore a previously archived project so it appears in default listings again.
 
 ## delete
 

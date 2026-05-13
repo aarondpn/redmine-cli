@@ -12,7 +12,7 @@ func NewCmdProject(f *cmdutil.Factory) *cobra.Command {
 		Use:     "projects",
 		Aliases: []string{"p"},
 		Short:   "Manage Redmine projects",
-		Long:    "List, view, create, update, and delete Redmine projects.",
+		Long:    "List, view, create, update, archive, unarchive, and delete Redmine projects.",
 	}
 
 	cmd.AddCommand(newCmdList(f))
@@ -21,6 +21,8 @@ func NewCmdProject(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(newCmdUpdate(f))
 	cmd.AddCommand(newCmdDelete(f))
 	cmd.AddCommand(newCmdMembers(f))
+	cmd.AddCommand(newCmdArchive(f))
+	cmd.AddCommand(newCmdUnarchive(f))
 
 	return cmd
 }
