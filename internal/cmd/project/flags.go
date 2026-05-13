@@ -36,66 +36,23 @@ func validateEnabledModules(values []string) error {
 			continue
 		}
 		if _, ok := allowedModules[v]; !ok {
-			return fmt.Errorf("unknown --enable-module value %q (allowed: %s)", v, allowedModulesString())
+			return fmt.Errorf("unknown --enable-module value %q (allowed: %s)", v, sortedKeys(allowedModules))
 		}
 	}
 	return nil
 }
 
-func allowedModulesString() string {
-	out := make([]string, 0, len(allowedModules))
-	for k := range allowedModules {
+func completeEnabledModules(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	return strings.Split(sortedKeys(allowedModules), ", "), cobra.ShellCompDirectiveNoFileComp
+}
+
+func sortedKeys(m map[string]struct{}) string {
+	out := make([]string, 0, len(m))
+	for k := range m {
 		out = append(out, k)
 	}
 	sort.Strings(out)
 	return strings.Join(out, ", ")
-}
-
-func completeEnabledModules(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	out := make([]string, 0, len(allowedModules))
-	for k := range allowedModules {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out, cobra.ShellCompDirectiveNoFileComp
-}
-
-func resolveTrackerNames(ctx context.Context, client *api.Client, values []string) ([]int, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	ids := make([]int, 0, len(values))
-	for _, v := range values {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		id, err := resolver.ResolveTracker(ctx, client, v)
-		if err != nil {
-			return nil, fmt.Errorf("resolve --tracker %q: %w", v, err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
-}
-
-func resolveCustomFieldNames(ctx context.Context, client *api.Client, values []string) ([]int, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	ids := make([]int, 0, len(values))
-	for _, v := range values {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		id, err := resolver.ResolveCustomField(ctx, client, v)
-		if err != nil {
-			return nil, fmt.Errorf("resolve --issue-custom-field %q: %w", v, err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
 }
 
 // parseCustomFieldValues parses repeated --custom-field key=value entries
@@ -106,14 +63,21 @@ func parseCustomFieldValues(ctx context.Context, client *api.Client, raws []stri
 	if len(raws) == 0 {
 		return nil, nil
 	}
+
 	out := make(map[string]string, len(raws))
+	var nameKeys []string
+	type pending struct {
+		name string
+		val  string
+	}
+	var deferred []pending
+
 	for _, raw := range raws {
-		eq := strings.IndexByte(raw, '=')
-		if eq <= 0 {
+		key, val, ok := strings.Cut(raw, "=")
+		if !ok {
 			return nil, fmt.Errorf("--custom-field %q must be key=value", raw)
 		}
-		key := strings.TrimSpace(raw[:eq])
-		val := raw[eq+1:]
+		key = strings.TrimSpace(key)
 		if key == "" {
 			return nil, fmt.Errorf("--custom-field %q: empty key", raw)
 		}
@@ -122,12 +86,20 @@ func parseCustomFieldValues(ctx context.Context, client *api.Client, raws []stri
 			out[key] = val
 			continue
 		}
+		nameKeys = append(nameKeys, key)
+		deferred = append(deferred, pending{name: key, val: val})
+	}
 
-		id, err := resolver.ResolveCustomField(ctx, client, key)
-		if err != nil {
-			return nil, fmt.Errorf("resolve --custom-field key %q: %w", key, err)
-		}
-		out[strconv.Itoa(id)] = val
+	if len(nameKeys) == 0 {
+		return out, nil
+	}
+
+	ids, err := resolver.ResolveCustomFieldNames(ctx, client, nameKeys)
+	if err != nil {
+		return nil, fmt.Errorf("resolve --custom-field keys: %w", err)
+	}
+	for i, p := range deferred {
+		out[strconv.Itoa(ids[i])] = p.val
 	}
 	return out, nil
 }

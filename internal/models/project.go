@@ -2,35 +2,25 @@ package models
 
 // Project represents a Redmine project.
 type Project struct {
-	ID                  int                 `json:"id"`
-	Name                string              `json:"name"`
-	Identifier          string              `json:"identifier"`
-	Description         string              `json:"description"`
-	Homepage            string              `json:"homepage,omitempty"`
-	Status              int                 `json:"status"`
-	IsPublic            bool                `json:"is_public"`
-	InheritMembers      bool                `json:"inherit_members,omitempty"`
-	Parent              *IDName             `json:"parent,omitempty"`
-	CreatedOn           string              `json:"created_on"`
-	UpdatedOn           string              `json:"updated_on"`
-	DefaultAssignedTo   *IDName             `json:"default_assigned_to,omitempty"`
-	DefaultVersion      *IDName             `json:"default_version,omitempty"`
-	Trackers            []IDName            `json:"trackers,omitempty"`
-	IssueCategories     []IDName            `json:"issue_categories,omitempty"`
-	EnabledModules      []IDName            `json:"enabled_modules,omitempty"`
-	TimeEntryActivities []TimeEntryActivity `json:"time_entry_activities,omitempty"`
-	IssueCustomFields   []IDName            `json:"issue_custom_fields,omitempty"`
-	CustomFields        []CustomFieldValue  `json:"custom_fields,omitempty"`
-}
-
-// TimeEntryActivity is returned when /projects/<id>.json is requested with
-// include=time_entry_activities. It also matches the shape returned by
-// /enumerations/time_entry_activities.json.
-type TimeEntryActivity struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	IsDefault bool   `json:"is_default,omitempty"`
-	Active    bool   `json:"active,omitempty"`
+	ID                  int                `json:"id"`
+	Name                string             `json:"name"`
+	Identifier          string             `json:"identifier"`
+	Description         string             `json:"description"`
+	Homepage            string             `json:"homepage,omitempty"`
+	Status              int                `json:"status"`
+	IsPublic            bool               `json:"is_public"`
+	InheritMembers      bool               `json:"inherit_members,omitempty"`
+	Parent              *IDName            `json:"parent,omitempty"`
+	CreatedOn           string             `json:"created_on"`
+	UpdatedOn           string             `json:"updated_on"`
+	DefaultAssignedTo   *IDName            `json:"default_assigned_to,omitempty"`
+	DefaultVersion      *IDName            `json:"default_version,omitempty"`
+	Trackers            []IDName           `json:"trackers,omitempty"`
+	IssueCategories     []IDName           `json:"issue_categories,omitempty"`
+	EnabledModules      []IDName           `json:"enabled_modules,omitempty"`
+	TimeEntryActivities []Enumeration      `json:"time_entry_activities,omitempty"`
+	IssueCustomFields   []IDName           `json:"issue_custom_fields,omitempty"`
+	CustomFields        []CustomFieldValue `json:"custom_fields,omitempty"`
 }
 
 // ProjectCreate defines fields for creating a project.

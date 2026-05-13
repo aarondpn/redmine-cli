@@ -147,7 +147,7 @@ func formatModuleList(items []models.IDName) string {
 	return strings.Join(parts, ", ")
 }
 
-func formatActivities(items []models.TimeEntryActivity) string {
+func formatActivities(items []models.Enumeration) string {
 	parts := make([]string, len(items))
 	for i, a := range items {
 		label := fmt.Sprintf("%s (#%d)", a.Name, a.ID)

@@ -2,7 +2,6 @@ package project
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,26 +24,12 @@ func validateProjectIncludes(values []string) error {
 			continue
 		}
 		if _, ok := allowedIncludes[v]; !ok {
-			return fmt.Errorf("unknown --include value %q (allowed: %s)", v, allowedIncludesString())
+			return fmt.Errorf("unknown --include value %q (allowed: %s)", v, sortedKeys(allowedIncludes))
 		}
 	}
 	return nil
 }
 
-func allowedIncludesString() string {
-	out := make([]string, 0, len(allowedIncludes))
-	for k := range allowedIncludes {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return strings.Join(out, ", ")
-}
-
 func completeProjectIncludes(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	out := make([]string, 0, len(allowedIncludes))
-	for k := range allowedIncludes {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out, cobra.ShellCompDirectiveNoFileComp
+	return strings.Split(sortedKeys(allowedIncludes), ", "), cobra.ShellCompDirectiveNoFileComp
 }

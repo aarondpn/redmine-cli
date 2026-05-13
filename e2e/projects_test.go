@@ -5,6 +5,7 @@ package e2e
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -118,14 +119,21 @@ func TestProjects_CreateExtendedFields(t *testing.T) {
 		t.Errorf("homepage = %q, want %q", fetched.Homepage, homepage)
 	}
 
-	modules := moduleNames(fetched.EnabledModules)
 	for _, want := range []string{"issue_tracking", "wiki"} {
-		if !containsString(modules, want) {
-			t.Errorf("enabled module %q missing from %v", want, modules)
+		if !slices.ContainsFunc(fetched.EnabledModules, func(m struct {
+			Name string `json:"name"`
+		}) bool {
+			return m.Name == want
+		}) {
+			t.Errorf("enabled module %q missing from %+v", want, fetched.EnabledModules)
 		}
 	}
 
-	if !containsTrackerName(fetched.Trackers, tracker) {
+	if !slices.ContainsFunc(fetched.Trackers, func(item struct {
+		Name string `json:"name"`
+	}) bool {
+		return item.Name == tracker
+	}) {
 		t.Errorf("tracker %q missing from %+v", tracker, fetched.Trackers)
 	}
 }
@@ -181,14 +189,22 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 		t.Fatalf("unexpected archive envelope: %+v", archived)
 	}
 
-	// After archive: project should still be fetchable by identifier.
-	var fetched struct {
-		Status int `json:"status"`
-	}
-	r.runJSON(t, &fetched, "projects", "get", proj.Identifier)
-	if fetched.Status != 5 {
-		t.Errorf("status = %d, want 5 (archived)", fetched.Status)
-	}
+	// Register an unarchive cleanup so the t.Cleanup that deletes the project
+	// (registered by createTestProject) operates on an active project. Redmine
+	// 5+ refuses to fetch or delete an archived project via the standard
+	// endpoints. The explicit unarchive below normally handles this; the
+	// cleanup is a belt-and-braces fallback for the failure paths between
+	// here and the explicit call. Errors are tolerated (already-active is
+	// not a failure mode worth surfacing).
+	t.Cleanup(func() {
+		_, _, _ = r.runRaw("projects", "unarchive", proj.Identifier)
+	})
+
+	// Skip a get-while-archived assertion: Redmine 5+ hides archived projects
+	// behind 403 on /projects/<id>.json, so the round-trip would fail on the
+	// versions where this test actually runs. The archive envelope above is
+	// the contract we ship; the post-unarchive get below proves the lifecycle
+	// is reversible.
 
 	var unarchived actionEnvelope
 	r.runJSON(t, &unarchived, "projects", "unarchive", proj.Identifier)
@@ -196,6 +212,9 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 		t.Fatalf("unexpected unarchive envelope: %+v", unarchived)
 	}
 
+	var fetched struct {
+		Status int `json:"status"`
+	}
 	r.runJSON(t, &fetched, "projects", "get", proj.Identifier)
 	if fetched.Status != 1 {
 		t.Errorf("status after unarchive = %d, want 1 (active)", fetched.Status)
@@ -231,34 +250,4 @@ func isProbablyUnsupportedArchive(stdout []byte) bool {
 	}
 	msg := strings.ToLower(env.Error.Message)
 	return strings.Contains(msg, "not found") || strings.Contains(msg, "404")
-}
-
-func moduleNames(items []struct {
-	Name string `json:"name"`
-}) []string {
-	out := make([]string, len(items))
-	for i, m := range items {
-		out[i] = m.Name
-	}
-	return out
-}
-
-func containsString(slice []string, want string) bool {
-	for _, s := range slice {
-		if s == want {
-			return true
-		}
-	}
-	return false
-}
-
-func containsTrackerName(items []struct {
-	Name string `json:"name"`
-}, want string) bool {
-	for _, it := range items {
-		if it.Name == want {
-			return true
-		}
-	}
-	return false
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -14,18 +15,18 @@ import (
 
 func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		name            string
-		description     string
-		homepage        string
-		public          bool
-		parentID        int
-		inheritMembers  bool
-		defaultAssignee string
-		defaultVersion  string
-		trackers        []string
-		enabledModules  []string
-		issueCustomFlds []string
-		customFieldRaw  []string
+		name              string
+		description       string
+		homepage          string
+		public            bool
+		parentID          int
+		inheritMembers    bool
+		defaultAssignee   string
+		defaultVersion    string
+		trackers          []string
+		enabledModules    []string
+		issueCustomFields []string
+		customFieldRaw    []string
 	)
 
 	cmd := &cobra.Command{
@@ -70,35 +71,25 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if cmd.Flags().Changed("default-assignee") {
-				if defaultAssignee == "" {
-					zero := 0
-					input.DefaultAssignedToID = &zero
-				} else {
-					id, err := resolver.ResolveAssignee(ctx, client, defaultAssignee)
-					if err != nil {
-						return fmt.Errorf("resolve --default-assignee: %w", err)
-					}
-					input.DefaultAssignedToID = &id
+				id, err := resolveOptionalUserID(ctx, client, defaultAssignee)
+				if err != nil {
+					return err
 				}
+				input.DefaultAssignedToID = &id
 			}
 
 			if cmd.Flags().Changed("default-version") {
-				if defaultVersion == "" {
-					zero := 0
-					input.DefaultVersionID = &zero
-				} else {
-					id, err := resolver.ResolveVersion(ctx, client, defaultVersion, identifier)
-					if err != nil {
-						return fmt.Errorf("resolve --default-version: %w", err)
-					}
-					input.DefaultVersionID = &id
+				id, err := resolveOptionalVersionID(ctx, client, defaultVersion, identifier)
+				if err != nil {
+					return err
 				}
+				input.DefaultVersionID = &id
 			}
 
 			if cmd.Flags().Changed("tracker") {
-				ids, err := resolveTrackerNames(ctx, client, trackers)
+				ids, err := resolver.ResolveTrackerNames(ctx, client, trackers)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve --tracker: %w", err)
 				}
 				input.TrackerIDs = ids
 			}
@@ -108,9 +99,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if cmd.Flags().Changed("issue-custom-field") {
-				ids, err := resolveCustomFieldNames(ctx, client, issueCustomFlds)
+				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve --issue-custom-field: %w", err)
 				}
 				input.IssueCustomFieldIDs = ids
 			}
@@ -143,11 +134,37 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (replaces current set)")
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module name to enable (replaces current set): boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki")
-	cmd.Flags().StringSliceVar(&issueCustomFlds, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (replaces current set)")
+	cmd.Flags().StringSliceVar(&issueCustomFields, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (replaces current set)")
 	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Project custom field value as name=value or id=value (repeatable)")
 
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("enable-module", completeEnabledModules)
 
 	return cmd
+}
+
+// resolveOptionalUserID returns 0 for an empty input (signals "clear" to
+// Redmine) and otherwise resolves the input via ResolveAssignee.
+func resolveOptionalUserID(ctx context.Context, client *api.Client, input string) (int, error) {
+	if input == "" {
+		return 0, nil
+	}
+	id, err := resolver.ResolveAssignee(ctx, client, input)
+	if err != nil {
+		return 0, fmt.Errorf("resolve --default-assignee: %w", err)
+	}
+	return id, nil
+}
+
+// resolveOptionalVersionID returns 0 for an empty input (signals "clear" to
+// Redmine) and otherwise resolves the input via ResolveVersion.
+func resolveOptionalVersionID(ctx context.Context, client *api.Client, input, projectIdentifier string) (int, error) {
+	if input == "" {
+		return 0, nil
+	}
+	id, err := resolver.ResolveVersion(ctx, client, input, projectIdentifier)
+	if err != nil {
+		return 0, fmt.Errorf("resolve --default-version: %w", err)
+	}
+	return id, nil
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
@@ -13,22 +14,19 @@ import (
 // TestCmdProjectCreate_ExtendedFieldsSerialize covers the full set of new
 // flags: homepage, public, parent, inherit-members, default-assignee,
 // tracker (with name resolution via /trackers.json), enable-module, and
-// numeric --custom-field passthrough.
+// numeric --custom-field passthrough. The trackerHits counter pins the
+// batch-resolver invariant: a single --tracker flag with N values must
+// issue exactly one /trackers.json call.
 func TestCmdProjectCreate_ExtendedFieldsSerialize(t *testing.T) {
 	var posted map[string]any
+	var trackerHits atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/trackers.json":
+			trackerHits.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"trackers":[{"id":11,"name":"Bug"},{"id":12,"name":"Feature"}]}`))
-			return
-		case "/users/current.json":
-			// Resolver.ResolveAssignee accepts a numeric ID directly so this is
-			// only hit if the user types --default-assignee me. We pass an
-			// integer to avoid the dependency in this test.
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"user":{"id":42}}`))
 			return
 		case "/projects.json":
 			raw, _ := io.ReadAll(r.Body)
@@ -60,6 +58,10 @@ func TestCmdProjectCreate_ExtendedFieldsSerialize(t *testing.T) {
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
+	}
+
+	if got := trackerHits.Load(); got != 1 {
+		t.Errorf("/trackers.json hit %d times, want 1 (batch resolver should fetch once for N names)", got)
 	}
 
 	proj, ok := posted["project"].(map[string]any)

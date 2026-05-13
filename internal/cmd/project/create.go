@@ -13,19 +13,19 @@ import (
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		name            string
-		identifier      string
-		description     string
-		homepage        string
-		public          bool
-		parentID        int
-		inheritMembers  bool
-		defaultAssignee string
-		trackers        []string
-		enabledModules  []string
-		issueCustomFlds []string
-		customFieldRaw  []string
-		format          string
+		name              string
+		identifier        string
+		description       string
+		homepage          string
+		public            bool
+		parentID          int
+		inheritMembers    bool
+		defaultAssignee   string
+		trackers          []string
+		enabledModules    []string
+		issueCustomFields []string
+		customFieldRaw    []string
+		format            string
 	)
 
 	cmd := &cobra.Command{
@@ -76,9 +76,9 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(trackers) > 0 {
-				ids, err := resolveTrackerNames(ctx, client, trackers)
+				ids, err := resolver.ResolveTrackerNames(ctx, client, trackers)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve --tracker: %w", err)
 				}
 				input.TrackerIDs = ids
 			}
@@ -87,10 +87,10 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				input.EnabledModuleNames = enabledModules
 			}
 
-			if len(issueCustomFlds) > 0 {
-				ids, err := resolveCustomFieldNames(ctx, client, issueCustomFlds)
+			if len(issueCustomFields) > 0 {
+				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve --issue-custom-field: %w", err)
 				}
 				input.IssueCustomFieldIDs = ids
 			}
@@ -124,7 +124,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (repeatable or comma-separated)")
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module to enable: boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki (repeatable or comma-separated)")
-	cmd.Flags().StringSliceVar(&issueCustomFlds, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (repeatable or comma-separated)")
+	cmd.Flags().StringSliceVar(&issueCustomFields, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (repeatable or comma-separated)")
 	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Project custom field value as name=value or id=value (repeatable)")
 
 	_ = cmd.MarkFlagRequired("name")
