@@ -19,7 +19,8 @@ func newCmdArchive(f *cmdutil.Factory) *cobra.Command {
 		Short: "Archive a project",
 		Long: "Archive a Redmine project. Archived projects are hidden from " +
 			"default listings until unarchived. Requires Redmine 5.0 or newer.",
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {

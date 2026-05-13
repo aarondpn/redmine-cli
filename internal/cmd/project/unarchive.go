@@ -13,10 +13,11 @@ import (
 
 func newCmdUnarchive(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "unarchive <identifier>",
-		Short: "Unarchive a project",
-		Long:  "Restore a previously archived Redmine project. Requires Redmine 5.0 or newer.",
-		Args:  cobra.ExactArgs(1),
+		Use:               "unarchive <identifier>",
+		Short:             "Unarchive a project",
+		Long:              "Restore a previously archived Redmine project. Requires Redmine 5.0 or newer.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {

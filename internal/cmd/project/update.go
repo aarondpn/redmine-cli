@@ -30,11 +30,12 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "update <identifier>",
-		Aliases: []string{"edit"},
-		Short:   "Update a project",
-		Long:    "Update an existing Redmine project.",
-		Args:    cobra.ExactArgs(1),
+		Use:               "update <identifier>",
+		Aliases:           []string{"edit"},
+		Short:             "Update a project",
+		Long:              "Update an existing Redmine project.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 

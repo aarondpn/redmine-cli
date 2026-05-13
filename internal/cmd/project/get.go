@@ -21,11 +21,12 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "get <identifier>",
-		Aliases: []string{"show", "view"},
-		Short:   "Get project details",
-		Long:    "Display detailed information about a Redmine project.",
-		Args:    cobra.ExactArgs(1),
+		Use:               "get <identifier>",
+		Aliases:           []string{"show", "view"},
+		Short:             "Get project details",
+		Long:              "Display detailed information about a Redmine project.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateProjectIncludes(includes); err != nil {
 				return err

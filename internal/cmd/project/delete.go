@@ -15,11 +15,12 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:     "delete <identifier>",
-		Aliases: []string{"rm"},
-		Short:   "Delete a project",
-		Long:    "Delete a Redmine project and all its data.",
-		Args:    cobra.ExactArgs(1),
+		Use:               "delete <identifier>",
+		Aliases:           []string{"rm"},
+		Short:             "Delete a project",
+		Long:              "Delete a Redmine project and all its data.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
