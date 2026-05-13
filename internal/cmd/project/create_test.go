@@ -28,6 +28,12 @@ func TestCmdProjectCreate_ExtendedFieldsSerialize(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"trackers":[{"id":11,"name":"Bug"},{"id":12,"name":"Feature"}]}`))
 			return
+		case "/projects/7.json":
+			// --parent now resolves via ResolveProject, which first tries
+			// GET /projects/<input>.json before falling back to a list scan.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":7,"identifier":"parentproj","name":"Parent"}}`))
+			return
 		case "/projects.json":
 			raw, _ := io.ReadAll(r.Body)
 			_ = json.Unmarshal(raw, &posted)
@@ -98,6 +104,43 @@ func TestCmdProjectCreate_ExtendedFieldsSerialize(t *testing.T) {
 	cfvs := proj["custom_field_values"].(map[string]any)
 	if cfvs["5"] != "hello" {
 		t.Errorf("custom_field_values[5] = %v", cfvs["5"])
+	}
+}
+
+// TestCmdProjectCreate_ParentByIdentifier asserts --parent accepts a
+// human-readable identifier and routes it through ResolveProject.
+func TestCmdProjectCreate_ParentByIdentifier(t *testing.T) {
+	var posted map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/parentproj.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":42,"identifier":"parentproj","name":"Parent"}}`))
+		case "/projects.json":
+			raw, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(raw, &posted)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"demo","name":"Demo"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdCreate(f)
+	cmd.SetArgs([]string{
+		"--name", "Demo", "--identifier", "demo",
+		"--parent", "parentproj",
+		"--output", "json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	proj := posted["project"].(map[string]any)
+	if proj["parent_id"].(float64) != 42 {
+		t.Errorf("parent_id = %v, want 42 (resolved from identifier)", proj["parent_id"])
 	}
 }
 

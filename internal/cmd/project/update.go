@@ -19,7 +19,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		description       string
 		homepage          string
 		public            bool
-		parentID          int
+		parent            string
 		inheritMembers    bool
 		defaultAssignee   string
 		defaultVersion    string
@@ -65,7 +65,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.IsPublic = &public
 			}
 			if cmd.Flags().Changed("parent") {
-				input.ParentID = &parentID
+				id, err := resolveOptionalParentID(ctx, client, parent)
+				if err != nil {
+					return err
+				}
+				input.ParentID = &id
 			}
 			if cmd.Flags().Changed("inherit-members") {
 				input.InheritMembers = &inheritMembers
@@ -128,7 +132,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
 	cmd.Flags().StringVar(&homepage, "homepage", "", "Project homepage URL")
 	cmd.Flags().BoolVar(&public, "public", false, "Set public visibility")
-	cmd.Flags().IntVar(&parentID, "parent", 0, "Parent project ID (0 detaches)")
+	cmd.Flags().StringVar(&parent, "parent", "", "Parent project identifier, name, or numeric ID. Pass empty to detach from the current parent.")
 	cmd.Flags().BoolVar(&inheritMembers, "inherit-members", false, "Toggle inheriting members from the parent project")
 	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
 	cmd.Flags().StringVar(&defaultVersion, "default-version", "", "Default version for new issues (name or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
@@ -138,10 +142,25 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&issueCustomFields, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (replaces current set)")
 	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Project custom field value as name=value or id=value (repeatable)")
 
+	_ = cmd.RegisterFlagCompletionFunc("parent", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("enable-module", completeEnabledModules)
 
 	return cmd
+}
+
+// resolveOptionalParentID returns 0 for an empty input (signals "detach
+// from parent" to Redmine) and otherwise resolves the input via
+// ResolveProject. Accepts identifier, name, or numeric ID.
+func resolveOptionalParentID(ctx context.Context, client *api.Client, input string) (int, error) {
+	if input == "" {
+		return 0, nil
+	}
+	id, _, err := resolver.ResolveProject(ctx, client, input)
+	if err != nil {
+		return 0, fmt.Errorf("resolve --parent: %w", err)
+	}
+	return id, nil
 }
 
 // resolveOptionalUserID returns 0 for an empty input (signals "clear" to

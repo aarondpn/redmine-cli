@@ -73,6 +73,64 @@ func TestCmdProjectUpdate_TrackerReplacement(t *testing.T) {
 	}
 }
 
+func TestCmdProjectUpdate_ParentDetachAndResolve(t *testing.T) {
+	// Sub-test A: empty --parent must send parent_id=0 (detach) without
+	// hitting any resolver endpoint.
+	t.Run("EmptyDetaches", func(t *testing.T) {
+		var putBody map[string]any
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/projects/demo.json" {
+				t.Fatalf("unexpected path %s", r.URL.Path)
+			}
+			raw, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(raw, &putBody)
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdUpdate(f)
+		cmd.SetArgs([]string{"demo", "--parent", ""})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+		proj := putBody["project"].(map[string]any)
+		if proj["parent_id"].(float64) != 0 {
+			t.Errorf("parent_id = %v, want 0 (detach)", proj["parent_id"])
+		}
+	})
+
+	// Sub-test B: --parent <identifier> resolves to a numeric ID.
+	t.Run("ResolvesByIdentifier", func(t *testing.T) {
+		var putBody map[string]any
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/projects/parentproj.json":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"project":{"id":99,"identifier":"parentproj","name":"Parent"}}`))
+			case "/projects/demo.json":
+				raw, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(raw, &putBody)
+				w.WriteHeader(http.StatusNoContent)
+			default:
+				t.Fatalf("unexpected path %s", r.URL.Path)
+			}
+		}))
+		defer srv.Close()
+
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdUpdate(f)
+		cmd.SetArgs([]string{"demo", "--parent", "parentproj"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+		proj := putBody["project"].(map[string]any)
+		if proj["parent_id"].(float64) != 99 {
+			t.Errorf("parent_id = %v, want 99", proj["parent_id"])
+		}
+	})
+}
+
 func TestCmdProjectUpdate_DefaultAssigneeEmptyClears(t *testing.T) {
 	var putBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

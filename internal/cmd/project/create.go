@@ -18,7 +18,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		description       string
 		homepage          string
 		public            bool
-		parentID          int
+		parent            string
 		inheritMembers    bool
 		defaultAssignee   string
 		trackers          []string
@@ -60,8 +60,12 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("public") {
 				input.IsPublic = &public
 			}
-			if parentID > 0 {
-				input.ParentID = parentID
+			if parent != "" {
+				id, _, err := resolver.ResolveProject(ctx, client, parent)
+				if err != nil {
+					return fmt.Errorf("resolve --parent: %w", err)
+				}
+				input.ParentID = id
 			}
 			if cmd.Flags().Changed("inherit-members") {
 				input.InheritMembers = inheritMembers
@@ -118,7 +122,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
 	cmd.Flags().StringVar(&homepage, "homepage", "", "Project homepage URL")
 	cmd.Flags().BoolVar(&public, "public", false, "Make project public")
-	cmd.Flags().IntVar(&parentID, "parent", 0, "Parent project ID")
+	cmd.Flags().StringVar(&parent, "parent", "", "Parent project identifier, name, or numeric ID")
 	cmd.Flags().BoolVar(&inheritMembers, "inherit-members", false, "Inherit members from the parent project")
 	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID)")
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (repeatable or comma-separated)")
@@ -130,6 +134,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("identifier")
 
+	_ = cmd.RegisterFlagCompletionFunc("parent", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("enable-module", completeEnabledModules)
 

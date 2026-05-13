@@ -61,7 +61,7 @@ redmine projects create [flags]
 | `--description`        | Project description |
 | `--homepage`           | Project homepage URL |
 | `--public`             | Make the project public |
-| `--parent`             | Parent project ID |
+| `--parent`             | Parent project identifier, name, or numeric ID |
 | `--inherit-members`    | Inherit members from the parent project |
 | `--default-assignee`   | Default assignee for new issues (login, name, or numeric ID) |
 | `--tracker`            | Tracker name or ID to enable (repeatable or comma-separated) |
@@ -91,7 +91,7 @@ Every flag is optional; omitted flags leave the corresponding field untouched.
 | `--description`        | New description |
 | `--homepage`           | New homepage URL |
 | `--public`             | Set public visibility |
-| `--parent`             | New parent project ID (0 detaches) |
+| `--parent`             | New parent (identifier, name, or numeric ID). Pass empty to detach from the current parent. |
 | `--inherit-members`    | Toggle inheriting members from the parent project |
 | `--default-assignee`   | Default assignee (login, name, or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
 | `--default-version`    | Default version (name or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |

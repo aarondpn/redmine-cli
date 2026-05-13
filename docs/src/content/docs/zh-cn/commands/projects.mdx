@@ -61,7 +61,7 @@ redmine projects create [flags]
 | `--description`        | 项目描述 |
 | `--homepage`           | 项目主页 URL |
 | `--public`             | 将项目设为公开 |
-| `--parent`             | 父项目 ID |
+| `--parent`             | 父项目标识符、名称或数字 ID |
 | `--inherit-members`    | 继承父项目的成员 |
 | `--default-assignee`   | 新工单的默认指派人（登录名、姓名或数字 ID） |
 | `--tracker`            | 启用的跟踪标签名称或 ID（可重复或以逗号分隔） |
@@ -91,7 +91,7 @@ redmine projects update <identifier> [flags]
 | `--description`        | 新描述 |
 | `--homepage`           | 新主页 URL |
 | `--public`             | 设置为公开可见 |
-| `--parent`             | 新父项目 ID（0 表示取消父项目） |
+| `--parent`             | 新父项目（标识符、名称或数字 ID）。空值表示从当前父项目中分离。 |
 | `--inherit-members`    | 切换是否继承父项目成员 |
 | `--default-assignee`   | 默认指派人（登录名、姓名或数字 ID）。空值会尝试清除（部分 Redmine 版本会忽略该清除操作）。 |
 | `--default-version`    | 默认版本（名称或数字 ID）。空值会尝试清除（部分 Redmine 版本会忽略该清除操作）。 |
