@@ -93,8 +93,8 @@ redmine projects update <identifier> [flags]
 | `--public`             | 设置为公开可见 |
 | `--parent`             | 新父项目 ID（0 表示取消父项目） |
 | `--inherit-members`    | 切换是否继承父项目成员 |
-| `--default-assignee`   | 默认指派人（登录名、姓名、ID；空值表示清除） |
-| `--default-version`    | 默认版本（名称或数字 ID；空值表示清除） |
+| `--default-assignee`   | 默认指派人（登录名、姓名或数字 ID）。空值会尝试清除（部分 Redmine 版本会忽略该清除操作）。 |
+| `--default-version`    | 默认版本（名称或数字 ID）。空值会尝试清除（部分 Redmine 版本会忽略该清除操作）。 |
 | `--tracker`            | 替换启用的跟踪标签集合 |
 | `--enable-module`      | 替换启用的模块集合 |
 | `--issue-custom-field` | 替换工单级自定义字段集合 |

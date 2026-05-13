@@ -129,8 +129,8 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&public, "public", false, "Set public visibility")
 	cmd.Flags().IntVar(&parentID, "parent", 0, "Parent project ID (0 detaches)")
 	cmd.Flags().BoolVar(&inheritMembers, "inherit-members", false, "Toggle inheriting members from the parent project")
-	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID; empty clears)")
-	cmd.Flags().StringVar(&defaultVersion, "default-version", "", "Default version for new issues (name or numeric ID; empty clears)")
+	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
+	cmd.Flags().StringVar(&defaultVersion, "default-version", "", "Default version for new issues (name or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (replaces current set)")
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module name to enable (replaces current set): boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki")

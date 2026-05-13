@@ -174,7 +174,6 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 
-	var archived actionEnvelope
 	stdout, stderr, err := r.runRaw("projects", "archive", proj.Identifier, "--force")
 	if err != nil {
 		if isProbablyUnsupportedArchive(stdout) {
@@ -182,23 +181,23 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 		}
 		t.Fatalf("archive failed: %v", err)
 	}
+
+	// Register the unarchive fallback immediately on archive success: if any
+	// later assertion calls t.Fatalf, createTestProject's delete cleanup runs
+	// against an active project. Redmine 5+ refuses to delete archived
+	// projects via the standard endpoint. Errors are tolerated (the explicit
+	// unarchive below normally makes this a no-op).
+	t.Cleanup(func() {
+		_, _, _ = r.runRaw("projects", "unarchive", proj.Identifier)
+	})
+
+	var archived actionEnvelope
 	if err := json.Unmarshal(stdout, &archived); err != nil {
 		t.Fatalf("decode archive envelope: %v\n%s", err, stdout)
 	}
 	if !archived.Ok || archived.Action != "archived" || archived.Resource != "project" {
 		t.Fatalf("unexpected archive envelope: %+v", archived)
 	}
-
-	// Register an unarchive cleanup so the t.Cleanup that deletes the project
-	// (registered by createTestProject) operates on an active project. Redmine
-	// 5+ refuses to fetch or delete an archived project via the standard
-	// endpoints. The explicit unarchive below normally handles this; the
-	// cleanup is a belt-and-braces fallback for the failure paths between
-	// here and the explicit call. Errors are tolerated (already-active is
-	// not a failure mode worth surfacing).
-	t.Cleanup(func() {
-		_, _, _ = r.runRaw("projects", "unarchive", proj.Identifier)
-	})
 
 	// Skip a get-while-archived assertion: Redmine 5+ hides archived projects
 	// behind 403 on /projects/<id>.json, so the round-trip would fail on the

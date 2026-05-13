@@ -122,6 +122,109 @@ func TestCmdProjectCreate_UnknownModuleRejected(t *testing.T) {
 	}
 }
 
+// TestCmdProjectCreate_IssueCustomFieldsBatchResolves exercises the parallel
+// path to the tracker resolver: --issue-custom-field with N names must hit
+// /custom_fields.json exactly once thanks to ResolveCustomFieldNames.
+func TestCmdProjectCreate_IssueCustomFieldsBatchResolves(t *testing.T) {
+	var posted map[string]any
+	var cfHits atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/custom_fields.json":
+			cfHits.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"custom_fields":[
+                {"id":21,"name":"Severity","customized_type":"issue","field_format":"string","is_required":false,"is_filter":true,"searchable":false,"multiple":false,"visible":true},
+                {"id":22,"name":"Effort","customized_type":"issue","field_format":"int","is_required":false,"is_filter":false,"searchable":false,"multiple":false,"visible":true}
+            ]}`))
+		case "/projects.json":
+			raw, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(raw, &posted)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"demo","name":"Demo"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdCreate(f)
+	cmd.SetArgs([]string{
+		"--name", "Demo", "--identifier", "demo",
+		"--issue-custom-field", "Severity,Effort",
+		"--output", "json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := cfHits.Load(); got != 1 {
+		t.Errorf("/custom_fields.json hit %d times, want 1 (batch resolver should fetch once)", got)
+	}
+
+	proj := posted["project"].(map[string]any)
+	ids := proj["issue_custom_field_ids"].([]any)
+	if len(ids) != 2 || ids[0].(float64) != 21 || ids[1].(float64) != 22 {
+		t.Errorf("issue_custom_field_ids = %v, want [21 22]", ids)
+	}
+}
+
+// TestCmdProjectCreate_CustomFieldNameKey covers the name-keyed branch of
+// parseCustomFieldValues, which must resolve "Severity" against
+// /custom_fields.json and emit the value under the resolved ID as a string
+// key. The numeric-key short-circuit is exercised by
+// TestCmdProjectCreate_ExtendedFieldsSerialize.
+func TestCmdProjectCreate_CustomFieldNameKey(t *testing.T) {
+	var posted map[string]any
+	var cfHits atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/custom_fields.json":
+			cfHits.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"custom_fields":[
+                {"id":99,"name":"Severity","customized_type":"project","field_format":"string","is_required":false,"is_filter":false,"searchable":false,"multiple":false,"visible":true}
+            ]}`))
+		case "/projects.json":
+			raw, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(raw, &posted)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"identifier":"demo","name":"Demo"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdCreate(f)
+	cmd.SetArgs([]string{
+		"--name", "Demo", "--identifier", "demo",
+		"--custom-field", "Severity=high",
+		"--output", "json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := cfHits.Load(); got != 1 {
+		t.Errorf("/custom_fields.json hit %d times, want 1", got)
+	}
+
+	proj := posted["project"].(map[string]any)
+	cfvs := proj["custom_field_values"].(map[string]any)
+	if cfvs["99"] != "high" {
+		t.Errorf("custom_field_values[99] = %v, want high", cfvs["99"])
+	}
+	// Verify the name key did not leak through unresolved.
+	if _, present := cfvs["Severity"]; present {
+		t.Errorf("custom_field_values still contains unresolved name key: %v", cfvs)
+	}
+}
+
 func TestCmdProjectCreate_MinimalBackwardCompatible(t *testing.T) {
 	var posted map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -53,6 +53,47 @@ func TestCmdProjectList_EmptyJSON(t *testing.T) {
 	}
 }
 
+func TestCmdProjectList_InvalidIncludeRejectedBeforeHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("server should not be called for invalid include; got %s", r.URL.String())
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdList(f)
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetArgs([]string{"--include", "bogus"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown include value")
+	}
+	if !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("err = %v, want mention of bogus", err)
+	}
+}
+
+func TestCmdProjectList_IncludePropagatedToURL(t *testing.T) {
+	var gotInclude string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotInclude = r.URL.Query().Get("include")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdList(f)
+	cmd.SetArgs([]string{"--include", "trackers,enabled_modules", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if gotInclude != "trackers,enabled_modules" {
+		t.Errorf("include = %q, want trackers,enabled_modules", gotInclude)
+	}
+}
+
 func TestCmdProjectList_CSVConfigDoesNotEmitANSI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/projects.json" {
