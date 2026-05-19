@@ -199,6 +199,7 @@ func TestAllToolsCatalogCoversEveryGroup(t *testing.T) {
 		GroupProjects:    "list_projects",
 		GroupTime:        "list_time_entries",
 		GroupUsers:       "list_users",
+		GroupMyAccount:   "get_my_account",
 		GroupGroups:      "list_groups",
 		GroupSearch:      "search",
 		GroupMeta:        "list_versions",

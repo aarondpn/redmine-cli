@@ -5,7 +5,7 @@ description: Manage Redmine users.
 
 import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
 
-The `users` command (alias `u`) manages Redmine users.
+The `users` command (alias `u`) manages Redmine users. All write operations require admin privileges; non-admin self-service lives under [`my-account`](./my_account/).
 
 <CardGrid>
   <LinkCard title="list"   href="#list"   description="List users with status, name, or group filters." />
@@ -39,6 +39,11 @@ redmine users get <id-or-name> [flags]
 
 Aliases: `show`, `view`. Accepts a numeric ID, login, full name, or `me`.
 
+| Flag | Description |
+|------|-------------|
+| `--include`    | Include related data: `memberships`, `groups` (repeatable or comma-separated). `groups` requires Redmine 2.1+. |
+| `-o, --output` | Output format |
+
 ## me
 
 ```bash
@@ -46,6 +51,15 @@ redmine users me [flags]
 ```
 
 Shows the authenticated user's details — useful in scripts to resolve the current account.
+
+| Flag | Description |
+|------|-------------|
+| `--include`    | Include related data: `memberships`, `groups` (repeatable or comma-separated). |
+| `-o, --output` | Output format |
+
+<Aside type="note" title="users me vs my-account get">
+  `users me` hits `/users/current.json` and returns the user record visible to the caller. [`my-account get`](./my_account/) hits `/my/account.json`, which also includes the API key and any custom fields, and is the endpoint paired with the writable self-service `my-account update`.
+</Aside>
 
 ## create
 
@@ -55,15 +69,20 @@ redmine users create [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--login`     | Login name — <Badge text="required" variant="danger" /> |
-| `--password`  | Password — <Badge text="required" variant="danger" /> |
-| `--firstname` | First name — <Badge text="required" variant="danger" /> |
-| `--lastname`  | Last name — <Badge text="required" variant="danger" /> |
-| `--mail`      | Email address — <Badge text="required" variant="danger" /> |
-| `--admin`     | Grant admin privileges |
+| `--login`              | Login name — <Badge text="required" variant="danger" /> |
+| `--password`           | Password — required unless `--generate-password` is set |
+| `--firstname`          | First name — <Badge text="required" variant="danger" /> |
+| `--lastname`           | Last name — <Badge text="required" variant="danger" /> |
+| `--mail`               | Email address — <Badge text="required" variant="danger" /> |
+| `--admin`              | Grant admin privileges |
+| `--mail-notification`  | Email notification preference: `all`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+| `--must-change-passwd` | Force the user to change their password on next login |
+| `--generate-password`  | Let the server generate a random password (omit `--password`) |
+| `--auth-source-id`     | Numeric authentication source ID for external auth |
+| `--send-information`   | Email the account info to the new user |
 
 <Aside type="caution" title="Passwords on the command line">
-  Passing `--password` on the command line may leak the value to shell history. Prefer creating the account in Redmine UI, or pipe the value from a secure source.
+  Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or pipe the password from a secure source.
 </Aside>
 
 ## update
@@ -72,7 +91,7 @@ redmine users create [flags]
 redmine users update <id-or-name> [flags]
 ```
 
-Accepts the same flags as [`create`](#create) (all optional). The user argument accepts a numeric ID, login, full name, or `me`.
+Accepts the same flags as [`create`](#create) (all optional, except `--send-information` which is create-only). The user argument accepts a numeric ID, login, full name, or `me`. Only fields whose flags are explicitly set are sent to the server, so partial updates do not clobber other fields.
 
 ## delete
 

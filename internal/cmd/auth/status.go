@@ -97,7 +97,7 @@ func runStatus(f *cmdutil.Factory) error {
 		authOK = false
 		kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("unavailable: %s", err)})
 	} else {
-		user, err := ops.GetCurrentUser(context.Background(), client, struct{}{})
+		user, err := ops.GetCurrentUser(context.Background(), client, ops.GetCurrentUserInput{})
 		if err == nil {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {

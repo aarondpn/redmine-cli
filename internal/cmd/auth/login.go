@@ -146,7 +146,7 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
-	user, err := client.Users.Current(context.Background())
+	user, err := client.Users.Current(context.Background(), nil)
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatError(err))
