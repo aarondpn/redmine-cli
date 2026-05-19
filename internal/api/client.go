@@ -33,6 +33,7 @@ type Client struct {
 	Projects     *ProjectService
 	TimeEntries  *TimeEntryService
 	Users        *UserService
+	MyAccount    *MyAccountService
 	Trackers     *TrackerService
 	Statuses     *StatusService
 	Roles        *RoleService
@@ -110,6 +111,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Projects = &ProjectService{client: c}
 	c.TimeEntries = &TimeEntryService{client: c}
 	c.Users = &UserService{client: c}
+	c.MyAccount = &MyAccountService{client: c}
 	c.Trackers = &TrackerService{client: c}
 	c.Statuses = &StatusService{client: c}
 	c.Roles = &RoleService{client: c}

@@ -8,11 +8,11 @@ import (
 )
 
 func GetCurrentUserForResource(ctx context.Context, client *api.Client) (*models.User, error) {
-	return client.Users.Current(ctx)
+	return client.Users.Current(ctx, nil)
 }
 
 func GetUserForResource(ctx context.Context, client *api.Client, id int) (*models.User, error) {
-	return client.Users.Get(ctx, id)
+	return client.Users.Get(ctx, id, nil)
 }
 
 func GetWikiPageForResource(ctx context.Context, client *api.Client, projectID, page string) (*models.WikiPage, error) {

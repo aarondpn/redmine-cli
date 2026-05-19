@@ -1,0 +1,48 @@
+---
+title: 我的账户
+description: 通过 /my/account.json 查看与更新自己的 Redmine 账户。
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+`my-account` 命令对应 Redmine 的 `/my/account.json` 接口，是 Redmine 提供给非管理员用户的唯一写入路径——任何能完成身份验证的用户都可以在无需管理员协助的情况下更新自己的名、姓、邮箱或通知偏好。
+
+<CardGrid>
+  <LinkCard title="get"    href="#get"    description="查看自己的账户详情，包括 api_key 和自定义字段。" />
+  <LinkCard title="update" href="#update" description="更新自己的名、姓、邮箱或通知偏好。" />
+</CardGrid>
+
+<Aside type="note" title="与 users me 的区别">
+  `users me` 返回 `/users/current.json` 的结果，与其他管理员看到的用户记录相同。`my-account get` 返回 `/my/account.json`，还会额外返回你的 **API 密钥** 和账户上的 **自定义字段**，并与可写命令 `my-account update` 配对使用。
+</Aside>
+
+## get
+
+```bash
+redmine my-account get [flags]
+```
+
+别名：`show`、`view`。显示 ID、登录名、姓名、邮箱、管理员标志、状态、邮件通知偏好、API 密钥（如有）、自定义字段、创建/最近登录时间戳。
+
+| 标志 | 描述 |
+|------|------|
+| `-o, --output` | 输出格式 |
+
+## update
+
+```bash
+redmine my-account update [flags]
+```
+
+别名：`edit`。更新自己的账户。仅显式设置的标志会发送到服务器——局部更新不会覆盖其他字段。
+
+| 标志 | 描述 |
+|------|------|
+| `--firstname`         | 新的名 |
+| `--lastname`          | 新的姓 |
+| `--mail`              | 新的邮箱地址 |
+| `--mail-notification` | 邮件通知偏好：`all`、`only_my_events`、`only_assigned`、`only_owner`、`none` |
+
+<Aside type="caution" title="无需管理员权限">
+  与 `users update` 不同，`my-account update` 不需要管理员权限——所有已认证的用户都能修改自己的资料。请务必确认使用的 API 密钥属于你想要修改的账户。
+</Aside>

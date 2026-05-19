@@ -620,7 +620,7 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 func resolveUser(ctx context.Context, client *api.Client, input string, label string) (int, error) {
 	if strings.ToLower(input) == "me" {
 		client.DebugLog().Printf("Resolver: resolving %s \"me\" via current user", label)
-		user, err := client.Users.Current(ctx)
+		user, err := client.Users.Current(ctx, nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get current user: %w", err)
 		}

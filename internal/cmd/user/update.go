@@ -13,11 +13,15 @@ import (
 
 func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		firstname string
-		lastname  string
-		mail      string
-		admin     bool
-		status    int
+		firstname        string
+		lastname         string
+		mail             string
+		admin            bool
+		status           int
+		mailNotification string
+		mustChangePasswd bool
+		generatePassword bool
+		authSourceID     int
 	)
 
 	cmd := &cobra.Command{
@@ -27,6 +31,12 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"edit"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("mail-notification") {
+				if err := ValidateMailNotification(mailNotification); err != nil {
+					return err
+				}
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -55,6 +65,22 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("status") {
 				input.Status = &status
 			}
+			if cmd.Flags().Changed("mail-notification") {
+				v := mailNotification
+				input.MailNotification = &v
+			}
+			if cmd.Flags().Changed("must-change-passwd") {
+				v := mustChangePasswd
+				input.MustChangePasswd = &v
+			}
+			if cmd.Flags().Changed("generate-password") {
+				v := generatePassword
+				input.GeneratePassword = &v
+			}
+			if cmd.Flags().Changed("auth-source-id") {
+				v := authSourceID
+				input.AuthSourceID = &v
+			}
 
 			stop := printer.Spinner("Updating user...")
 			_, err = ops.UpdateUser(context.Background(), client, input)
@@ -73,5 +99,10 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&mail, "mail", "", "Email address")
 	cmd.Flags().BoolVar(&admin, "admin", false, "Admin privileges")
 	cmd.Flags().IntVar(&status, "status", 0, "User status (1=active, 2=registered, 3=locked)")
+	cmd.Flags().StringVar(&mailNotification, "mail-notification", "", "Email notification preference (all, only_my_events, only_assigned, only_owner, none)")
+	cmd.Flags().BoolVar(&mustChangePasswd, "must-change-passwd", false, "Force the user to change their password on next login")
+	cmd.Flags().BoolVar(&generatePassword, "generate-password", false, "Let the server generate a random password")
+	cmd.Flags().IntVar(&authSourceID, "auth-source-id", 0, "Numeric authentication source ID for external auth")
+	_ = cmd.RegisterFlagCompletionFunc("mail-notification", CompleteMailNotification)
 	return cmd
 }

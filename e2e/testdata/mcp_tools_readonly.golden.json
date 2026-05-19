@@ -20,6 +20,10 @@
     "description": "Fetch a single project membership by ID."
   },
   {
+    "name": "get_my_account",
+    "description": "Fetch the authenticated user's account via /my/account.json. Includes api_key and custom_fields."
+  },
+  {
     "name": "get_project",
     "description": "Fetch a single Redmine project by identifier or ID."
   },
@@ -37,7 +41,7 @@
   },
   {
     "name": "get_user",
-    "description": "Fetch a single Redmine user by numeric ID."
+    "description": "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes."
   },
   {
     "name": "get_version",
@@ -121,7 +125,7 @@
   },
   {
     "name": "me",
-    "description": "Return the currently authenticated Redmine user."
+    "description": "Return the currently authenticated Redmine user. Supports memberships and groups includes."
   },
   {
     "name": "search",

@@ -19,6 +19,7 @@ const (
 	GroupProjects    Group = "projects"
 	GroupTime        Group = "time"
 	GroupUsers       Group = "users"
+	GroupMyAccount   Group = "my_account"
 	GroupGroups      Group = "groups"
 	GroupSearch      Group = "search"
 	GroupMeta        Group = "meta"
@@ -34,6 +35,7 @@ func AllGroups() []Group {
 		GroupProjects,
 		GroupTime,
 		GroupUsers,
+		GroupMyAccount,
 		GroupGroups,
 		GroupSearch,
 		GroupMeta,

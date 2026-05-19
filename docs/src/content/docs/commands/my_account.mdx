@@ -1,0 +1,48 @@
+---
+title: My Account
+description: Inspect and update your own Redmine account via /my/account.json.
+---
+
+import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
+
+The `my-account` command backs the Redmine `/my/account.json` endpoint. It is the only user-write path Redmine exposes to non-admin users — anyone who can authenticate can update their own first name, last name, email, or notification preferences without admin help.
+
+<CardGrid>
+  <LinkCard title="get"    href="#get"    description="Show your own account details, including api_key and custom fields." />
+  <LinkCard title="update" href="#update" description="Update your own first name, last name, email, or notification preference." />
+</CardGrid>
+
+<Aside type="note" title="How this differs from users me">
+  `users me` returns the user record from `/users/current.json` — the same view another admin would see. `my-account get` returns `/my/account.json`, which additionally includes your **API key** and any **custom fields** on your profile, and is paired with the writable `my-account update`.
+</Aside>
+
+## get
+
+```bash
+redmine my-account get [flags]
+```
+
+Aliases: `show`, `view`. Shows ID, login, name, email, admin flag, status, mail notification preference, API key (when populated), custom fields, created/last-login timestamps.
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format |
+
+## update
+
+```bash
+redmine my-account update [flags]
+```
+
+Alias: `edit`. Updates your own account. Only flags you explicitly set are sent to the server — partial updates do not clobber other fields.
+
+| Flag | Description |
+|------|-------------|
+| `--firstname`         | New first name |
+| `--lastname`          | New last name |
+| `--mail`              | New email address |
+| `--mail-notification` | Email notification preference: `all`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+
+<Aside type="caution" title="Works without admin">
+  Unlike `users update`, `my-account update` does **not** require admin privileges — every authenticated user can change their own profile. Be sure the API key you're using really belongs to the account you intend to modify.
+</Aside>
