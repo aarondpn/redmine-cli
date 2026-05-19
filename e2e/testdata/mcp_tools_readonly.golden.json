@@ -12,6 +12,10 @@
     "description": "Fetch a single Redmine issue by ID."
   },
   {
+    "name": "get_issue_relation",
+    "description": "Fetch a single issue relation by its relation ID."
+  },
+  {
     "name": "get_membership",
     "description": "Fetch a single project membership by ID."
   },
@@ -54,6 +58,14 @@
   {
     "name": "list_groups",
     "description": "List Redmine groups."
+  },
+  {
+    "name": "list_issue_relations",
+    "description": "List relations attached to an issue."
+  },
+  {
+    "name": "list_issue_watchers",
+    "description": "List watchers of an issue."
   },
   {
     "name": "list_issues",
