@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
@@ -24,10 +25,7 @@ var IssueRelationTypes = []string{
 
 // IssueRelationTypesSupportingDelay lists relation types that accept a delay
 // value. Redmine rejects delay on any other type.
-var IssueRelationTypesSupportingDelay = map[string]bool{
-	"precedes": true,
-	"follows":  true,
-}
+var IssueRelationTypesSupportingDelay = []string{"precedes", "follows"}
 
 type ListIssueRelationsInput struct {
 	IssueID int `json:"issue_id" jsonschema:"Issue ID to list relations for."`
@@ -54,13 +52,8 @@ type DeleteIssueRelationInput struct {
 }
 
 func validateRelationType(rt string) error {
-	if rt == "" {
+	if rt == "" || slices.Contains(IssueRelationTypes, rt) {
 		return nil
-	}
-	for _, t := range IssueRelationTypes {
-		if t == rt {
-			return nil
-		}
 	}
 	return fmt.Errorf("invalid relation_type %q (valid: %v)", rt, IssueRelationTypes)
 }
@@ -100,8 +93,8 @@ func CreateIssueRelation(ctx context.Context, client *api.Client, input CreateIs
 	if err := validateRelationType(input.RelationType); err != nil {
 		return nil, err
 	}
-	if input.Delay != nil && input.RelationType != "" && !IssueRelationTypesSupportingDelay[input.RelationType] {
-		return nil, fmt.Errorf("delay is only valid for relation types %v", keys(IssueRelationTypesSupportingDelay))
+	if input.Delay != nil && input.RelationType != "" && !slices.Contains(IssueRelationTypesSupportingDelay, input.RelationType) {
+		return nil, fmt.Errorf("delay is only valid for relation types %v", IssueRelationTypesSupportingDelay)
 	}
 	payload := models.IssueRelationCreate{
 		IssueToID:    input.IssueToID,
@@ -123,12 +116,4 @@ func DeleteIssueRelation(ctx context.Context, client *api.Client, input DeleteIs
 		return MessageResult{}, err
 	}
 	return MessageResult{Message: fmt.Sprintf("Deleted relation #%d", input.ID)}, nil
-}
-
-func keys(m map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }

@@ -131,11 +131,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
-			// MarkFlagsMutuallyExclusive (below) catches `--query foo --query-id N`,
-			// but it relies on cobra's `Changed` bookkeeping. We thread the same
-			// signal into the resolver so a lone `--query-id 0` (which leaves
-			// IntVar at its zero value) is rejected explicitly instead of being
-			// silently treated as "no filter".
+			// Threading Changed() into the resolver rejects `--query-id 0`
+			// explicitly; an IntVar at zero would otherwise look like "no filter".
 			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project)
 			if err != nil {
 				return err
@@ -163,7 +160,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				subprojectFilter = "!*"
 			}
 
-			extra, err := parseExtraFilters(extraFilter)
+			extra, err := cmdutil.ParseKeyValuePairs(extraFilter, "filter")
 			if err != nil {
 				return err
 			}
@@ -275,26 +272,4 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteVersions(f))
 
 	return cmd
-}
-
-// parseExtraFilters parses repeated --filter key=value entries into a map.
-// Keys are kept verbatim; values are passed through unchanged so callers can
-// use Redmine's operator syntax (>=YYYY-MM-DD, ><a|b, ~text, etc).
-func parseExtraFilters(raws []string) (map[string]string, error) {
-	if len(raws) == 0 {
-		return nil, nil
-	}
-	out := make(map[string]string, len(raws))
-	for _, raw := range raws {
-		key, val, ok := strings.Cut(raw, "=")
-		if !ok {
-			return nil, fmt.Errorf("--filter %q must be key=value", raw)
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			return nil, fmt.Errorf("--filter %q: empty key", raw)
-		}
-		out[key] = val
-	}
-	return out, nil
 }

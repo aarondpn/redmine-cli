@@ -10,43 +10,55 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
+// ParseKeyValuePairs parses repeated `key=value` flag inputs into a map. The
+// flagName is used to build clear error messages ("--filter %q must be
+// key=value"). Empty keys and missing `=` are rejected.
+func ParseKeyValuePairs(raws []string, flagName string) (map[string]string, error) {
+	if len(raws) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]string, len(raws))
+	for _, raw := range raws {
+		key, val, ok := strings.Cut(raw, "=")
+		if !ok {
+			return nil, fmt.Errorf("--%s %q must be key=value", flagName, raw)
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return nil, fmt.Errorf("--%s %q: empty key", flagName, raw)
+		}
+		out[key] = val
+	}
+	return out, nil
+}
+
 // ParseCustomFieldValues parses repeated --custom-field key=value entries
 // into the Redmine-expected map keyed by stringified custom-field ID.
 // Numeric keys are passed through; non-numeric keys are resolved by name
 // against /custom_fields.json (admin-only) via a single batch lookup.
 //
-// Shared by every resource that exposes a --custom-field flag (projects,
-// issues, ...). Multi-value (Multiple=true) custom fields are not supported
-// here yet — see issue tracker.
+// Multi-value (Multiple=true) custom fields are not supported here yet —
+// see issue tracker.
 func ParseCustomFieldValues(ctx context.Context, client *api.Client, raws []string) (map[string]string, error) {
-	if len(raws) == 0 {
+	raw, err := ParseKeyValuePairs(raws, "custom-field")
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 {
 		return nil, nil
 	}
 
-	out := make(map[string]string, len(raws))
+	out := make(map[string]string, len(raw))
 	var nameKeys []string
-	type pending struct {
-		name string
-		val  string
-	}
-	var deferred []pending
+	nameVals := make(map[string]string, len(raw))
 
-	for _, raw := range raws {
-		key, val, ok := strings.Cut(raw, "=")
-		if !ok {
-			return nil, fmt.Errorf("--custom-field %q must be key=value", raw)
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			return nil, fmt.Errorf("--custom-field %q: empty key", raw)
-		}
-
+	for key, val := range raw {
 		if _, err := strconv.Atoi(key); err == nil {
 			out[key] = val
 			continue
 		}
 		nameKeys = append(nameKeys, key)
-		deferred = append(deferred, pending{name: key, val: val})
+		nameVals[key] = val
 	}
 
 	if len(nameKeys) == 0 {
@@ -57,8 +69,8 @@ func ParseCustomFieldValues(ctx context.Context, client *api.Client, raws []stri
 	if err != nil {
 		return nil, fmt.Errorf("resolve --custom-field keys: %w", err)
 	}
-	for i, p := range deferred {
-		out[strconv.Itoa(ids[i])] = p.val
+	for i, name := range nameKeys {
+		out[strconv.Itoa(ids[i])] = nameVals[name]
 	}
 	return out, nil
 }

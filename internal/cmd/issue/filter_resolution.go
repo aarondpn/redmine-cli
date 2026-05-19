@@ -62,25 +62,34 @@ func resolveIssuePriorityFilter(ctx context.Context, client *api.Client, priorit
 	return strconv.Itoa(id), nil
 }
 
-// resolveIssueAuthorFilter accepts "me", a numeric ID, or a name/login. The
-// admin-permission soft-failure mirrors the assignee resolver: when listing
-// users requires admin rights, we warn and skip the filter rather than abort.
-func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author string, printer output.Printer) (string, error) {
-	if author == "" || author == "me" {
-		return author, nil
+// resolveIssueUserFilter accepts "me", a numeric ID, or a name/login. When
+// user lookup is forbidden (non-admin user trying to resolve a name) we warn
+// via the printer and drop the filter rather than abort — same behavior for
+// --assignee and --author. flagName is used in the warning text.
+func resolveIssueUserFilter(ctx context.Context, client *api.Client, input string, printer output.Printer, flagName string) (string, error) {
+	if input == "" || input == "me" {
+		return input, nil
 	}
-	if _, err := strconv.Atoi(author); err == nil {
-		return author, nil
+	if _, err := strconv.Atoi(input); err == nil {
+		return input, nil
 	}
-	id, err := resolver.ResolveAssignee(ctx, client, author)
+	id, err := resolver.ResolveAssignee(ctx, client, input)
 	if err != nil {
 		if resolver.IsNameResolutionPermissionError(err) {
-			printer.Warning("Could not resolve --author by name because user lookup requires admin privileges; ignoring the author filter. Use a numeric user ID or 'me' instead.")
+			printer.Warning(fmt.Sprintf("Could not resolve --%s by name because user lookup requires admin privileges; ignoring the %s filter. Use a numeric user ID or 'me' instead.", flagName, flagName))
 			return "", nil
 		}
-		return "", fmt.Errorf("resolving author: %w", err)
+		return "", fmt.Errorf("resolving %s: %w", flagName, err)
 	}
 	return strconv.Itoa(id), nil
+}
+
+func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
+	return resolveIssueUserFilter(ctx, client, assignee, printer, "assignee")
+}
+
+func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author string, printer output.Printer) (string, error) {
+	return resolveIssueUserFilter(ctx, client, author, printer, "author")
 }
 
 // resolveUserList resolves each input (name, login, ID, or 'me') to a numeric
@@ -98,25 +107,4 @@ func resolveUserList(ctx context.Context, client *api.Client, inputs []string, l
 		ids = append(ids, id)
 	}
 	return ids, nil
-}
-
-func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
-	if assignee == "" || assignee == "me" {
-		return assignee, nil
-	}
-
-	if _, err := strconv.Atoi(assignee); err == nil {
-		return assignee, nil
-	}
-
-	id, err := resolver.ResolveAssignee(ctx, client, assignee)
-	if err != nil {
-		if resolver.IsNameResolutionPermissionError(err) {
-			printer.Warning("Could not resolve --assignee by name because user lookup requires admin privileges; ignoring the assignee filter. Use a numeric user ID or 'me' instead.")
-			return "", nil
-		}
-		return "", fmt.Errorf("resolving assignee: %w", err)
-	}
-
-	return strconv.Itoa(id), nil
 }

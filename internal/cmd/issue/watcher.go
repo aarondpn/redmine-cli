@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
@@ -53,24 +54,13 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 			if cmdutil.HandleEmpty(printer, result.Watchers, "watchers") {
 				return nil
 			}
-			switch printer.Format() {
-			case output.FormatJSON:
-				printer.JSON(result.Watchers)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name"}
-				rows := make([][]string, len(result.Watchers))
-				for i, w := range result.Watchers {
-					rows[i] = []string{strconv.Itoa(w.ID), w.Name}
+			cmdutil.RenderCollection(printer, result.Watchers, []string{"ID", "Name"}, func(w models.IDName, styled bool) []string {
+				id := strconv.Itoa(w.ID)
+				if styled {
+					id = output.StyleID.Render(id)
 				}
-				printer.CSV(headers, rows)
-			default:
-				headers := []string{"ID", "Name"}
-				rows := make([][]string, len(result.Watchers))
-				for i, w := range result.Watchers {
-					rows[i] = []string{output.StyleID.Render(strconv.Itoa(w.ID)), w.Name}
-				}
-				printer.Table(headers, rows)
-			}
+				return []string{id, w.Name}
+			})
 			return nil
 		},
 	}

@@ -147,10 +147,10 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to fetch issue for name resolution: %w", err)
 				}
-				_, projectIdentifier, err = resolver.ResolveProject(ctx, client, strconv.Itoa(issue.Project.ID))
-				if err != nil {
-					return err
-				}
+				// Redmine accepts a numeric project ID anywhere the path expects
+				// an identifier, so the issue's project ID is enough to feed the
+				// downstream category/version list endpoints — no separate fetch.
+				projectIdentifier = strconv.Itoa(issue.Project.ID)
 			}
 
 			if cmd.Flags().Changed("category") {
