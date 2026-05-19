@@ -70,10 +70,11 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 
 func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "add <issue-id> <user>",
-		Short: "Add a watcher to an issue",
-		Long:  "Add a user as a watcher. The user can be a numeric ID, login, name, or 'me'.",
-		Args:  cobra.ExactArgs(2),
+		Use:               "add <issue-id> <user>",
+		Short:             "Add a watcher to an issue",
+		Long:              "Add a user as a watcher. The user can be a numeric ID, login, name, or 'me'.",
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeWatcherArgs(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			issueID, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -100,17 +101,17 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 			return nil
 		},
 	}
-	_ = cmd.RegisterFlagCompletionFunc("user", cmdutil.CompleteUsers(f))
 	return cmd
 }
 
 func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "remove <issue-id> <user>",
-		Aliases: []string{"rm", "delete"},
-		Short:   "Remove a watcher from an issue",
-		Long:    "Remove a user as a watcher. The user can be a numeric ID, login, name, or 'me'.",
-		Args:    cobra.ExactArgs(2),
+		Use:               "remove <issue-id> <user>",
+		Aliases:           []string{"rm", "delete"},
+		Short:             "Remove a watcher from an issue",
+		Long:              "Remove a user as a watcher. The user can be a numeric ID, login, name, or 'me'.",
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeWatcherArgs(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			issueID, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -138,4 +139,18 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// completeWatcherArgs supplies shell completions for the two positional args
+// of `watchers add` / `watchers remove`: issue-id is free-form (numeric) so
+// it falls through to no completion; the second slot completes against the
+// users endpoint just like --assignee.
+func completeWatcherArgs(f *cmdutil.Factory) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	complete := cmdutil.CompleteUsers(f)
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) == 1 {
+			return complete(cmd, args, toComplete)
+		}
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
 }
