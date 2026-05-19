@@ -16,46 +16,57 @@ import (
 // NewCmdList creates the issues list command.
 func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project     string
-		tracker     string
-		status      string
-		assignee    string
-		version     string
-		query       string
-		queryID     int
-		sort        string
-		include     string
-		attachments bool
-		relations   bool
-		limit       int
-		offset      int
-		format      string
+		project            string
+		tracker            string
+		status             string
+		assignee           string
+		author             string
+		priority           string
+		category           string
+		version            string
+		parent             int
+		subproject         string
+		includeSubprojects bool
+		isPrivate          bool
+		query              string
+		queryID            int
+		sort               string
+		include            string
+		attachments        bool
+		relations          bool
+		extraFilter        []string
+		limit              int
+		offset             int
+		format             string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List issues",
-		Long:    "List issues with optional filters for project, tracker, status, and assignee.",
+		Long:    "List issues with filters. Combine flags for narrow searches.",
 		Example: `  # List open issues for a project
   redmine issues list --project myproject
 
   # List ALL issues with no limit
   redmine issues list --project myproject --limit 0
 
-  # Page through issues
-  redmine issues list --project myproject --limit 25 --offset 0
-  redmine issues list --project myproject --limit 25 --offset 25
+  # Filter by author and priority
+  redmine issues list --project myproject --author me --priority High
 
-  # Filter by version (name or ID) and output as JSON
-  redmine issues list --project myproject --version "v1.0" -o json
-  redmine issues list --version 42 -o json
+  # Filter by parent issue and category
+  redmine issues list --project myproject --parent 1234 --category "Backend"
+
+  # Exclude subprojects
+  redmine issues list --project myproject --subproject "!*"
 
   # Closed issues assigned to me, sorted by update date
   redmine issues list --status closed --assignee me --sort updated_on:desc
 
-  # All issues regardless of status
-  redmine issues list --project myproject --status "*" --limit 0 -o json
+  # Raw filter escape hatch: date ranges, custom fields, subject text
+  redmine issues list --project myproject --filter created_on='>=2025-01-01'
+  redmine issues list --project myproject --filter cf_5='Critical'
+  redmine issues list --project myproject --filter subject='~login'
 
   # Run a saved query by name or ID
   redmine issues list --query "My open issues"
@@ -92,6 +103,25 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			resolvedAuthor, err := resolveIssueAuthorFilter(ctx, client, author, printer)
+			if err != nil {
+				return err
+			}
+
+			resolvedPriority, err := resolveIssuePriorityFilter(ctx, client, priority)
+			if err != nil {
+				return err
+			}
+
+			var categoryID int
+			if category != "" {
+				id, err := resolver.ResolveCategory(ctx, client, category, project)
+				if err != nil {
+					return fmt.Errorf("resolving category: %w", err)
+				}
+				categoryID = id
+			}
+
 			var versionID int
 			if version != "" {
 				id, err := resolver.ResolveVersion(ctx, client, version, project)
@@ -101,11 +131,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				versionID = id
 			}
 
-			// MarkFlagsMutuallyExclusive (below) catches `--query foo --query-id N`,
-			// but it relies on cobra's `Changed` bookkeeping. We thread the same
-			// signal into the resolver so a lone `--query-id 0` (which leaves
-			// IntVar at its zero value) is rejected explicitly instead of being
-			// silently treated as "no filter".
+			// Threading Changed() into the resolver rejects `--query-id 0`
+			// explicitly; an IntVar at zero would otherwise look like "no filter".
 			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project)
 			if err != nil {
 				return err
@@ -122,16 +149,39 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				includes = append(includes, "relations")
 			}
 
+			var isPrivatePtr *bool
+			if cmd.Flags().Changed("is-private") {
+				v := isPrivate
+				isPrivatePtr = &v
+			}
+
+			subprojectFilter := subproject
+			if cmd.Flags().Changed("include-subprojects") && !includeSubprojects && subprojectFilter == "" {
+				subprojectFilter = "!*"
+			}
+
+			extra, err := cmdutil.ParseKeyValuePairs(extraFilter, "filter")
+			if err != nil {
+				return err
+			}
+
 			stop := printer.Spinner("Fetching issues...")
 			result, err := ops.ListIssues(ctx, client, ops.ListIssuesInput{
 				ProjectID:      project,
+				SubprojectID:   subprojectFilter,
 				TrackerID:      trackerID,
 				StatusID:       resolvedStatus,
 				AssignedToID:   resolvedAssignee,
+				AuthorID:       resolvedAuthor,
+				PriorityID:     resolvedPriority,
+				CategoryID:     categoryID,
 				FixedVersionID: versionID,
+				ParentID:       parent,
+				IsPrivate:      isPrivatePtr,
 				QueryID:        resolvedQueryID,
 				Sort:           sort,
 				Includes:       includes,
+				ExtraParams:    extra,
 				Limit:          cmdutil.OpsLimit(limit),
 				Offset:         offset,
 			})
@@ -191,15 +241,24 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, status name, or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID, name, login, or 'me'")
+	cmd.Flags().StringVar(&author, "author", "", "Author ID, name, login, or 'me'")
+	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
+	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Filter by version name or ID")
+	cmd.Flags().IntVar(&parent, "parent", 0, "Restrict to children of this parent issue ID")
+	cmd.Flags().StringVar(&subproject, "subproject", "", "Subproject filter (numeric ID, or '!*' to exclude subprojects)")
+	cmd.Flags().BoolVar(&includeSubprojects, "include-subprojects", true, "Include issues from subprojects (set to false to exclude)")
+	cmd.Flags().BoolVar(&isPrivate, "is-private", false, "Filter by privacy: true returns only private, false returns only public issues")
 	cmd.Flags().StringVar(&query, "query", "", "Run a saved query by name (mutually exclusive with --query-id)")
 	cmd.Flags().IntVar(&queryID, "query-id", 0, "Run a saved query by numeric ID")
 	cmd.MarkFlagsMutuallyExclusive("query", "query-id")
+	cmd.MarkFlagsMutuallyExclusive("subproject", "include-subprojects")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
 	cmd.Flags().StringVar(&include, "include", "", "Include related data: attachments,relations")
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
+	cmd.Flags().StringArrayVar(&extraFilter, "filter", nil, "Raw Redmine filter as key=value (repeatable). Examples: --filter created_on='>=2025-01-01', --filter cf_5=Critical, --filter subject='~login'")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 
@@ -207,6 +266,9 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
 	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("author", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
+	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteVersions(f))
 
 	return cmd

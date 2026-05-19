@@ -191,6 +191,11 @@ func scrubVolatileIssueFields(raw map[string]any) map[string]any {
 	delete(raw, "due_date")
 	delete(raw, "project")
 	delete(raw, "author")
+	// custom_fields is dropped because the seeded "E2E Severity" fixture is
+	// attached to every issue via is_for_all=true; its numeric ID and value
+	// shape vary by bootstrap and aren't the schema signal this golden cares
+	// about.
+	delete(raw, "custom_fields")
 	if tracker, ok := raw["tracker"].(map[string]any); ok {
 		delete(tracker, "id")
 	}

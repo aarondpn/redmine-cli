@@ -301,6 +301,96 @@ func TestCmdIssueList_RejectsNonPositiveQueryID(t *testing.T) {
 	}
 }
 
+func TestCmdIssueList_PassesNewFilters(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/enumerations/issue_priorities.json":
+			_, _ = w.Write([]byte(`{"issue_priorities":[{"id":4,"name":"High"}]}`))
+		case "/issues.json":
+			issuesQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{
+		"--priority", "High",
+		"--author", "me",
+		"--parent", "42",
+		"--is-private", "true",
+		"--output", "json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []string{"priority_id=4", "author_id=me", "parent_id=42", "is_private=true"} {
+		if !strings.Contains(issuesQuery, want) {
+			t.Errorf("issues query = %q, want substring %q", issuesQuery, want)
+		}
+	}
+}
+
+func TestCmdIssueList_ExtraFilterEscapeHatch(t *testing.T) {
+	var issuesQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/issues.json" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		issuesQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{
+		"--filter", "cf_5=Critical",
+		"--filter", "subject=~login",
+		"--output", "json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(issuesQuery, "cf_5=Critical") {
+		t.Errorf("issues query = %q, want cf_5=Critical", issuesQuery)
+	}
+	if !strings.Contains(issuesQuery, "subject=") {
+		t.Errorf("issues query = %q, want subject filter", issuesQuery)
+	}
+}
+
+func TestCmdIssueList_ExcludeSubprojects(t *testing.T) {
+	var issuesQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		issuesQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--include-subprojects=false", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(issuesQuery, "subproject_id=") || !strings.Contains(issuesQuery, "%21") {
+		t.Errorf("issues query = %q, want subproject_id with !* (URL-encoded)", issuesQuery)
+	}
+}
+
 func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
 	var issuesQuery string
 

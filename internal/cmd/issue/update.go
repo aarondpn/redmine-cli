@@ -25,11 +25,15 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		category       string
 		version        string
 		parent         int
+		startDate      string
+		dueDate        string
 		estimatedHours float64
 		private        bool
 		doneRatio      int
 		note           string
+		privateNotes   bool
 		attach         []string
+		customFieldRaw []string
 	)
 
 	cmd := &cobra.Command{
@@ -43,11 +47,17 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   # Reassign to yourself with a note
   redmine issues update 123 --assignee me --note "Taking over this issue"
 
+  # Add a private note (only visible to staff)
+  redmine issues update 123 --note "Internal context" --private-notes
+
   # Change category
   redmine issues update 123 --category "Development"
 
-  # Set version and estimated hours
-  redmine issues update 123 --version "v2.0" --estimated-hours 4.5
+  # Set version, dates, and estimated hours
+  redmine issues update 123 --version "v2.0" --start-date 2026-05-01 --due-date 2026-05-15 --estimated-hours 4.5
+
+  # Update a custom field (by name or numeric ID)
+  redmine issues update 123 --custom-field Severity=Critical
 
   # Numeric IDs still work
   redmine issues update 123 --tracker 1 --status 5`,
@@ -78,8 +88,20 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("note") {
 				update.Notes = &note
 			}
+			if cmd.Flags().Changed("private-notes") {
+				if !cmd.Flags().Changed("note") {
+					return fmt.Errorf("--private-notes requires --note")
+				}
+				update.PrivateNotes = &privateNotes
+			}
 			if cmd.Flags().Changed("parent") {
 				update.ParentIssueID = &parent
+			}
+			if cmd.Flags().Changed("start-date") {
+				update.StartDate = &startDate
+			}
+			if cmd.Flags().Changed("due-date") {
+				update.DueDate = &dueDate
 			}
 			if cmd.Flags().Changed("estimated-hours") {
 				update.EstimatedHours = &estimatedHours
@@ -125,10 +147,10 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to fetch issue for name resolution: %w", err)
 				}
-				_, projectIdentifier, err = resolver.ResolveProject(ctx, client, strconv.Itoa(issue.Project.ID))
-				if err != nil {
-					return err
-				}
+				// Redmine accepts a numeric project ID anywhere the path expects
+				// an identifier, so the issue's project ID is enough to feed the
+				// downstream category/version list endpoints — no separate fetch.
+				projectIdentifier = strconv.Itoa(issue.Project.ID)
 			}
 
 			if cmd.Flags().Changed("category") {
@@ -144,6 +166,14 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 					return fmt.Errorf("resolving version: %w", err)
 				}
 				update.FixedVersionID = &vid
+			}
+
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw)
+				if err != nil {
+					return err
+				}
+				update.CustomFieldValues = values
 			}
 
 			if len(attach) > 0 {
@@ -175,12 +205,16 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
-	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
+	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID (0 clears the parent)")
+	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date (YYYY-MM-DD; empty clears)")
+	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD; empty clears)")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
+	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note as private (requires --note)")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
 
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))

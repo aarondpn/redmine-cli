@@ -58,6 +58,10 @@ const (
 	ActionUploaded    = "uploaded"
 	ActionArchived    = "archived"
 	ActionUnarchived  = "unarchived"
+	ActionWatched     = "watched"
+	ActionUnwatched   = "unwatched"
+	ActionRelated     = "related"
+	ActionUnrelated   = "unrelated"
 )
 
 // RenderActionJSON writes an action envelope as pretty-printed JSON.

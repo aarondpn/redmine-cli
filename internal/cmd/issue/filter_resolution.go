@@ -45,23 +45,66 @@ func resolveIssueQueryFilter(ctx context.Context, client *api.Client, query stri
 	return q.ID, nil
 }
 
-func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
-	if assignee == "" || assignee == "me" {
-		return assignee, nil
+// resolveIssuePriorityFilter accepts a numeric ID or a name; names are
+// resolved via /enumerations/issue_priorities.json. Returns the stringified
+// ID expected by the Redmine REST API filter.
+func resolveIssuePriorityFilter(ctx context.Context, client *api.Client, priority string) (string, error) {
+	if priority == "" {
+		return "", nil
 	}
-
-	if _, err := strconv.Atoi(assignee); err == nil {
-		return assignee, nil
+	if _, err := strconv.Atoi(priority); err == nil {
+		return priority, nil
 	}
+	id, err := resolver.ResolvePriority(ctx, client, priority)
+	if err != nil {
+		return "", fmt.Errorf("resolving priority: %w", err)
+	}
+	return strconv.Itoa(id), nil
+}
 
-	id, err := resolver.ResolveAssignee(ctx, client, assignee)
+// resolveIssueUserFilter accepts "me", a numeric ID, or a name/login. When
+// user lookup is forbidden (non-admin user trying to resolve a name) we warn
+// via the printer and drop the filter rather than abort — same behavior for
+// --assignee and --author. flagName is used in the warning text.
+func resolveIssueUserFilter(ctx context.Context, client *api.Client, input string, printer output.Printer, flagName string) (string, error) {
+	if input == "" || input == "me" {
+		return input, nil
+	}
+	if _, err := strconv.Atoi(input); err == nil {
+		return input, nil
+	}
+	id, err := resolver.ResolveAssignee(ctx, client, input)
 	if err != nil {
 		if resolver.IsNameResolutionPermissionError(err) {
-			printer.Warning("Could not resolve --assignee by name because user lookup requires admin privileges; ignoring the assignee filter. Use a numeric user ID or 'me' instead.")
+			printer.Warning(fmt.Sprintf("Could not resolve --%s by name because user lookup requires admin privileges; ignoring the %s filter. Use a numeric user ID or 'me' instead.", flagName, flagName))
 			return "", nil
 		}
-		return "", fmt.Errorf("resolving assignee: %w", err)
+		return "", fmt.Errorf("resolving %s: %w", flagName, err)
 	}
-
 	return strconv.Itoa(id), nil
+}
+
+func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
+	return resolveIssueUserFilter(ctx, client, assignee, printer, "assignee")
+}
+
+func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author string, printer output.Printer) (string, error) {
+	return resolveIssueUserFilter(ctx, client, author, printer, "author")
+}
+
+// resolveUserList resolves each input (name, login, ID, or 'me') to a numeric
+// user ID. Used by flags that accept multiple users like --watcher.
+func resolveUserList(ctx context.Context, client *api.Client, inputs []string, label string) ([]int, error) {
+	ids := make([]int, 0, len(inputs))
+	for _, raw := range inputs {
+		if raw == "" {
+			continue
+		}
+		id, err := resolver.ResolveAssignee(ctx, client, raw)
+		if err != nil {
+			return nil, fmt.Errorf("resolving --%s %q: %w", label, raw, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

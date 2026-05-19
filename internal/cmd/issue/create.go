@@ -25,8 +25,12 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		category       string
 		version        string
 		parent         int
+		startDate      string
+		dueDate        string
 		estimatedHours float64
 		private        bool
+		watchers       []string
+		customFieldRaw []string
 		attach         []string
 		format         string
 	)
@@ -39,13 +43,18 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		Example: `  # Create an issue using names instead of IDs
   redmine issues create --project myproject --tracker Bug --priority High --subject "Fix login"
 
-  # Assign to yourself
-  redmine issues create --project myproject --subject "My task" --assignee me
+  # Assign to yourself, watch yourself
+  redmine issues create --project myproject --subject "My task" --assignee me --watcher me
 
   # Create with all fields
   redmine issues create --project myproject --tracker Feature --priority Normal \
     --subject "Add search" --description "Full-text search" \
-    --assignee "John Smith" --category "Development" --version "v2.0" --estimated-hours 8 --private
+    --assignee "John Smith" --category "Development" --version "v2.0" \
+    --start-date 2026-05-01 --due-date 2026-05-15 --estimated-hours 8 --private
+
+  # Set custom field values (by name or numeric ID, repeatable)
+  redmine issues create --project myproject --subject "Bug" \
+    --custom-field Severity=High --custom-field 7=urgent
 
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
@@ -72,6 +81,8 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				Subject:        subject,
 				Description:    description,
 				ParentIssueID:  parent,
+				StartDate:      startDate,
+				DueDate:        dueDate,
 				EstimatedHours: estimatedHours,
 			}
 
@@ -127,6 +138,22 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.IsPrivate = &private
 			}
 
+			if len(watchers) > 0 {
+				ids, err := resolveUserList(ctx, client, watchers, "watcher")
+				if err != nil {
+					return err
+				}
+				create.WatcherUserIDs = ids
+			}
+
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw)
+				if err != nil {
+					return err
+				}
+				create.CustomFieldValues = values
+			}
+
 			if len(attach) > 0 {
 				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
 				if err != nil {
@@ -174,8 +201,12 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID")
+	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD)")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
+	cmd.Flags().StringArrayVar(&watchers, "watcher", nil, "Initial watcher (name, login, ID, or 'me') (repeatable)")
+	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)
 
@@ -186,6 +217,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
 	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("watcher", cmdutil.CompleteUsers(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))
 

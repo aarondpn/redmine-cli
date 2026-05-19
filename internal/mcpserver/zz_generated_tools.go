@@ -64,6 +64,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.AddIssueComment,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.AddIssueWatcherInput, ops.MessageResult]{
+		Name:        "add_issue_watcher",
+		Description: "Add a user as a watcher on an issue. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.AddIssueWatcher,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CloseIssueInput, ops.MessageResult]{
 		Name:        "close_issue",
 		Description: "Close an issue by setting its status to the first closed status. Requires --enable-writes.",
@@ -78,6 +85,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.CreateIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.CreateIssueRelationInput, *models.IssueRelation]{
+		Name:        "create_issue_relation",
+		Description: "Create a relation between two issues. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.CreateIssueRelation,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.DeleteIssueInput, ops.MessageResult]{
 		Name:        "delete_issue",
 		Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.",
@@ -85,17 +99,49 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.DeleteIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.DeleteIssueRelationInput, ops.MessageResult]{
+		Name:        "delete_issue_relation",
+		Description: "Delete an issue relation by its relation ID. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.DeleteIssueRelation,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueInput, *models.Issue]{
 		Name:        "get_issue",
 		Description: "Fetch a single Redmine issue by ID.",
 		Category:    "issues",
 		Call:        ops.GetIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueRelationInput, *models.IssueRelation]{
+		Name:        "get_issue_relation",
+		Description: "Fetch a single issue relation by its relation ID.",
+		Category:    "issues",
+		Call:        ops.GetIssueRelation,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListIssueRelationsInput, ops.IssueRelationsResult]{
+		Name:        "list_issue_relations",
+		Description: "List relations attached to an issue.",
+		Category:    "issues",
+		Call:        ops.ListIssueRelations,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListIssueWatchersInput, ops.IssueWatchersResult]{
+		Name:        "list_issue_watchers",
+		Description: "List watchers of an issue.",
+		Category:    "issues",
+		Call:        ops.ListIssueWatchers,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListIssuesInput, ops.IssuesListResult]{
 		Name:        "list_issues",
 		Description: "List Redmine issues matching the given filters.",
 		Category:    "issues",
 		Call:        ops.ListIssues,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.RemoveIssueWatcherInput, ops.MessageResult]{
+		Name:        "remove_issue_watcher",
+		Description: "Remove a user as a watcher from an issue. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.RemoveIssueWatcher,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ReopenIssueInput, ops.MessageResult]{
 		Name:        "reopen_issue",
@@ -422,11 +468,18 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "remove_group_user", Description: "Remove a user from a Redmine group. Requires --enable-writes.", Group: "groups", Writes: true},
 		{Name: "update_group", Description: "Update an existing Redmine group. Requires --enable-writes.", Group: "groups", Writes: true},
 		{Name: "add_issue_comment", Description: "Add a journal comment to an existing issue. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "add_issue_watcher", Description: "Add a user as a watcher on an issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "close_issue", Description: "Close an issue by setting its status to the first closed status. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue", Description: "Create a new Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "create_issue_relation", Description: "Create a relation between two issues. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "delete_issue_relation", Description: "Delete an issue relation by its relation ID. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID.", Group: "issues", Writes: false},
+		{Name: "get_issue_relation", Description: "Fetch a single issue relation by its relation ID.", Group: "issues", Writes: false},
+		{Name: "list_issue_relations", Description: "List relations attached to an issue.", Group: "issues", Writes: false},
+		{Name: "list_issue_watchers", Description: "List watchers of an issue.", Group: "issues", Writes: false},
 		{Name: "list_issues", Description: "List Redmine issues matching the given filters.", Group: "issues", Writes: false},
+		{Name: "remove_issue_watcher", Description: "Remove a user as a watcher from an issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},

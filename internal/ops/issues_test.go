@@ -85,6 +85,86 @@ func TestAddIssueComment_DoesNotTouchIssuePrivacy(t *testing.T) {
 	}
 }
 
+// CreateIssue propagates the new fields (start_date, due_date,
+// watcher_user_ids, custom_field_values) to the underlying POST body.
+func TestCreateIssue_PropagatesNewFields(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/issues.json" {
+			http.Error(w, "unexpected request "+r.Method+" "+r.URL.Path, http.StatusBadRequest)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &got)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":1}}`))
+	}))
+	defer srv.Close()
+	cfg := &config.Config{Server: srv.URL, APIKey: "k", AuthMethod: "apikey"}
+	client, err := api.NewClient(cfg, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := CreateIssue(context.Background(), client, CreateIssueInput{
+		ProjectID:         5,
+		Subject:           "Hi",
+		StartDate:         "2026-05-01",
+		DueDate:           "2026-05-15",
+		WatcherUserIDs:    []int{2, 3},
+		CustomFieldValues: map[string]string{"7": "urgent"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	issue := got["issue"].(map[string]any)
+	if issue["start_date"] != "2026-05-01" {
+		t.Errorf("start_date = %v, want 2026-05-01", issue["start_date"])
+	}
+	if issue["due_date"] != "2026-05-15" {
+		t.Errorf("due_date = %v, want 2026-05-15", issue["due_date"])
+	}
+	ids := issue["watcher_user_ids"].([]any)
+	if len(ids) != 2 || ids[0].(float64) != 2 || ids[1].(float64) != 3 {
+		t.Errorf("watcher_user_ids = %v, want [2 3]", ids)
+	}
+	cfvs := issue["custom_field_values"].(map[string]any)
+	if cfvs["7"] != "urgent" {
+		t.Errorf("custom_field_values[7] = %v, want urgent", cfvs["7"])
+	}
+}
+
+// UpdateIssue propagates the new pointer fields (start_date, private_notes,
+// custom_field_values) only when they are set.
+func TestUpdateIssue_PropagatesNewFields(t *testing.T) {
+	cap := &captureIssueUpdateHandler{}
+	client, closeTS := newTestAPIClient(t, cap)
+	defer closeTS()
+
+	start := "2026-06-01"
+	priv := true
+	notes := "internal"
+	if _, err := UpdateIssue(context.Background(), client, UpdateIssueInput{
+		ID:                42,
+		StartDate:         &start,
+		Notes:             &notes,
+		PrivateNotes:      &priv,
+		CustomFieldValues: map[string]string{"8": "yes"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	issue := cap.lastIssue(t)
+	if issue["start_date"] != "2026-06-01" {
+		t.Errorf("start_date = %v, want 2026-06-01", issue["start_date"])
+	}
+	if issue["private_notes"] != true {
+		t.Errorf("private_notes = %v, want true", issue["private_notes"])
+	}
+	cfvs := issue["custom_field_values"].(map[string]any)
+	if cfvs["8"] != "yes" {
+		t.Errorf("custom_field_values[8] = %v, want yes", cfvs["8"])
+	}
+}
+
 // AddIssueComment must wire private_notes (journal-level) when requested,
 // not is_private (issue-level).
 func TestAddIssueComment_SetsPrivateNotesWhenRequested(t *testing.T) {

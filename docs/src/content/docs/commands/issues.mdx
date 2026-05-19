@@ -8,17 +8,19 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 The `issues` command (alias `i`) manages Redmine issues end-to-end.
 
 <CardGrid>
-  <LinkCard title="list"    href="#list"    description="Filter and page through issues." />
-  <LinkCard title="get"     href="#get"     description="View a single issue with journals and relations." />
-  <LinkCard title="create"  href="#create"  description="Create an issue, optionally with attachments." />
-  <LinkCard title="update"  href="#update"  description="Change fields, add notes, attach files." />
-  <LinkCard title="close"   href="#close"   description="Close an issue with an optional comment." />
-  <LinkCard title="reopen"  href="#reopen"  description="Reopen a previously closed issue." />
-  <LinkCard title="assign"  href="#assign"  description="Assign an issue to a user." />
-  <LinkCard title="comment" href="#comment" description="Add a comment without other changes." />
-  <LinkCard title="delete"  href="#delete"  description="Permanently remove an issue." />
-  <LinkCard title="open"    href="#open"    description="Open the issue in your browser." />
-  <LinkCard title="browse"  href="#browse"  description="Interactive terminal browser." />
+  <LinkCard title="list"      href="#list"      description="Filter and page through issues." />
+  <LinkCard title="get"       href="#get"       description="View a single issue with journals and relations." />
+  <LinkCard title="create"    href="#create"    description="Create an issue, optionally with attachments." />
+  <LinkCard title="update"    href="#update"    description="Change fields, add notes, attach files." />
+  <LinkCard title="close"     href="#close"     description="Close an issue with an optional comment." />
+  <LinkCard title="reopen"    href="#reopen"    description="Reopen a previously closed issue." />
+  <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user." />
+  <LinkCard title="comment"   href="#comment"   description="Add a comment without other changes." />
+  <LinkCard title="watchers"  href="#watchers"  description="List, add, or remove watchers." />
+  <LinkCard title="relations" href="#relations" description="Link or unlink issues to each other." />
+  <LinkCard title="delete"    href="#delete"    description="Permanently remove an issue." />
+  <LinkCard title="open"      href="#open"      description="Open the issue in your browser." />
+  <LinkCard title="browse"    href="#browse"    description="Interactive terminal browser." />
 </CardGrid>
 
 ## list
@@ -29,20 +31,37 @@ redmine issues list [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--project`     | Filter by project (name, identifier, or ID) |
-| `--tracker`     | Filter by tracker (name or ID) |
-| `--status`      | Filter by status: `open`, `closed`, `*`, name, or ID |
-| `--assignee`    | Filter by assignee: `me`, name, or ID |
-| `--version`     | Filter by target version (name or ID) |
-| `--query`       | Run a saved query by name (see [`queries`](/redmine-cli/commands/queries/)) |
-| `--query-id`    | Run a saved query by numeric ID (mutually exclusive with `--query`) |
-| `--sort`        | Sort order, e.g. `updated_on:desc` |
-| `--include`     | Include related data: `attachments`, `relations` |
-| `--attachments` | Shorthand for `--include attachments` |
-| `--relations`   | Shorthand for `--include relations` |
-| `--limit`       | Maximum number of results (0 for all) |
-| `--offset`      | Result offset for pagination |
-| `-o, --output`  | Output format: `table`, `json`, `csv` |
+| `--project`              | Filter by project (name, identifier, or ID) |
+| `--tracker`              | Filter by tracker (name or ID) |
+| `--status`               | Filter by status: `open`, `closed`, `*`, name, or ID |
+| `--assignee`             | Filter by assignee: `me`, name, login, or ID |
+| `--author`               | Filter by author: `me`, name, login, or ID |
+| `--priority`             | Filter by priority (name or ID) |
+| `--category`             | Filter by issue category (name or ID) |
+| `--version`              | Filter by target version (name or ID) |
+| `--parent`               | Restrict to children of a parent issue ID |
+| `--subproject`           | Subproject filter: numeric ID, or `!*` to exclude subprojects |
+| `--include-subprojects`  | Include issues from subprojects (default `true`; pair with `=false` to exclude) |
+| `--is-private`           | Filter by privacy: `true` returns private issues only, `false` public only |
+| `--filter`               | Raw Redmine filter as `key=value` (repeatable). Use for date ranges, custom fields, subject text |
+| `--query`                | Run a saved query by name (see [`queries`](/redmine-cli/commands/queries/)) |
+| `--query-id`             | Run a saved query by numeric ID (mutually exclusive with `--query`) |
+| `--sort`                 | Sort order, e.g. `updated_on:desc` |
+| `--include`              | Include related data: `attachments`, `relations` |
+| `--attachments`          | Shorthand for `--include attachments` |
+| `--relations`            | Shorthand for `--include relations` |
+| `--limit`                | Maximum number of results (0 for all) |
+| `--offset`               | Result offset for pagination |
+| `-o, --output`           | Output format: `table`, `json`, `csv` |
+
+<Aside type="tip">
+  `--filter` is an escape hatch for Redmine's filter operator syntax. Examples:
+
+  - `--filter created_on='>=2025-01-01'` — created on or after a date
+  - `--filter updated_on='><2025-01-01|2025-12-31'` — updated in a range
+  - `--filter cf_5='Critical'` — custom field `cf_5` equals "Critical"
+  - `--filter subject='~login'` — subject contains "login"
+</Aside>
 
 <Tabs syncKey="issues-list">
   <TabItem label="Mine">
@@ -96,14 +115,21 @@ redmine issues create [flags]
 | `--parent`          | Parent issue ID |
 | `--category`        | Category (name or ID) |
 | `--version`         | Target version (name or ID) |
+| `--start-date`      | Start date (`YYYY-MM-DD`) |
+| `--due-date`        | Due date (`YYYY-MM-DD`) |
 | `--estimated-hours` | Estimated hours |
 | `--private`         | Mark as private |
+| `--watcher`         | Initial watcher (name, login, ID, or `me`; repeatable) |
+| `--custom-field`    | Custom field value as `name=value` or `id=value` (repeatable) |
 | `--attach`          | File path to attach (repeatable) |
 
 ```bash
 redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
 
 redmine issues create --project myproject --subject "Bug report" \
+  --start-date 2026-05-01 --due-date 2026-05-15 \
+  --watcher me --watcher "QA Bot" \
+  --custom-field Severity=High \
   --attach /path/to/screenshot.png --attach /path/to/log.txt
 ```
 
@@ -113,16 +139,26 @@ redmine issues create --project myproject --subject "Bug report" \
 redmine issues update <id> [flags]
 ```
 
-Accepts the same flags as `create` (except `--project`) plus:
+Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
 
 | Flag | Description |
 |------|-------------|
-| `--note`       | Add a comment |
-| `--done-ratio` | Completion percentage (0-100) |
-| `--attach`     | File path to attach (repeatable) |
+| `--note`           | Add a journal note |
+| `--private-notes`  | Mark the journal note from `--note` as private (requires `--note`) |
+| `--done-ratio`     | Completion percentage (0-100) |
+| `--start-date`     | Start date (empty string clears) |
+| `--due-date`       | Due date (empty string clears) |
+| `--custom-field`   | Custom field value as `name=value` or `id=value` (repeatable) |
+| `--attach`         | File path to attach (repeatable) |
 
 ```bash
 redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
+
+# Private journal note visible only to staff
+redmine issues update 123 --note "Internal context" --private-notes
+
+# Update custom field by name
+redmine issues update 123 --custom-field Severity=Critical
 ```
 
 ## close
@@ -154,6 +190,61 @@ The user argument accepts a numeric ID, login, full name, or `me`.
 ```bash
 redmine issues comment <id> --message "Your comment" [flags]
 ```
+
+## watchers
+
+```bash
+redmine issues watchers list <id>
+redmine issues watchers add <id> <user>
+redmine issues watchers remove <id> <user>
+```
+
+`<user>` accepts a numeric ID, login, full name, or `me`.
+
+```bash
+redmine issues watchers add 123 me
+redmine issues watchers list 123
+redmine issues watchers remove 123 alice
+```
+
+## relations
+
+```bash
+redmine issues relations list <id>
+redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
+redmine issues relations remove <relation-id>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--to`    | Target issue ID — <Badge text="required" variant="danger" /> |
+| `--type`  | Relation type. Default `relates`. See table below |
+| `--delay` | Number of days delay. Only valid for `precedes`/`follows` |
+
+Supported relation types (from the [Redmine REST docs](https://www.redmine.org/projects/redmine/wiki/Rest_IssueRelations)):
+
+| Type | Meaning |
+|------|---------|
+| `relates`     | Generic association |
+| `duplicates`  | This issue duplicates the target |
+| `duplicated`  | This issue is duplicated by the target |
+| `blocks`      | This issue blocks the target |
+| `blocked`     | This issue is blocked by the target |
+| `precedes`    | This issue precedes the target (accepts `--delay`) |
+| `follows`     | This issue follows the target (accepts `--delay`) |
+| `copied_to`   | This issue was copied to the target |
+| `copied_from` | This issue was copied from the target |
+
+```bash
+redmine issues relations add 123 --to 124 --type blocks
+redmine issues relations add 123 --to 124 --type precedes --delay 5
+redmine issues relations list 123
+redmine issues relations remove 42
+```
+
+<Aside type="note">
+  `relations remove` takes the **relation ID**, not an issue ID. Use `relations list` first to discover the relation IDs on an issue.
+</Aside>
 
 ## delete
 

@@ -263,22 +263,24 @@ func CompleteActivities(f *Factory) func(cmd *cobra.Command, args []string, toCo
 }
 
 // CompleteUsers returns a completion function for user-related flags.
-// Returns empty completions gracefully if the user lacks admin privileges.
+// "me" is always offered because the resolver handles it without listing
+// users; the rest of the list comes from /users.json, which requires admin.
+// Non-admin sessions degrade gracefully to just the "me" candidate.
 func CompleteUsers(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		items := []string{"me\tCurrent user"}
+
 		client, ctx, cancel := completionClient(f)
 		if client == nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
+			return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
 		}
 		defer cancel()
 
 		users, _, err := client.Users.List(ctx, models.UserFilter{Limit: 100})
 		if err != nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
+			return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
 		}
 
-		items := make([]string, 0, len(users)+1)
-		items = append(items, "me\tCurrent user")
 		for _, u := range users {
 			name := strings.TrimSpace(u.FirstName + " " + u.LastName)
 			if u.Login != "" {
