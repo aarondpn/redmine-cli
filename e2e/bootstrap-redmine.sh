@@ -46,17 +46,18 @@ docker compose -f "$compose_file" exec -T \
     # Seed an issue custom field so the custom-fields e2e suite has a stable
     # fixture. Redmine has no REST endpoint for creating custom field
     # definitions, so the bootstrap is the only place this can live.
+    # is_for_all is enforced on every run (not just new records) so the field
+    # applies automatically to projects created on the fly by e2e tests.
     custom_field_name = "E2E Severity"
     seeded_custom_field = IssueCustomField.find_or_initialize_by(name: custom_field_name)
-    if seeded_custom_field.new_record?
-      seeded_custom_field.field_format = "list"
-      seeded_custom_field.possible_values = ["Low", "Medium", "High"]
-      seeded_custom_field.is_required = false
-      seeded_custom_field.is_filter = true
-      seeded_custom_field.searchable = false
-      seeded_custom_field.tracker_ids = Tracker.pluck(:id)
-      seeded_custom_field.save!
-    end
+    seeded_custom_field.field_format = "list" if seeded_custom_field.field_format.blank?
+    seeded_custom_field.possible_values = ["Low", "Medium", "High"] if seeded_custom_field.possible_values.blank?
+    seeded_custom_field.is_required = false
+    seeded_custom_field.is_filter = true
+    seeded_custom_field.searchable = false
+    seeded_custom_field.is_for_all = true
+    seeded_custom_field.tracker_ids = Tracker.pluck(:id)
+    seeded_custom_field.save!
 
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,

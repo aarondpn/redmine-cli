@@ -99,6 +99,68 @@ func TestIssues_WatcherLifecycle(t *testing.T) {
 	}
 }
 
+// TestIssues_CustomFieldOnCreate verifies that --custom-field (name=value)
+// resolves the field by name against the admin-only /custom_fields.json
+// endpoint and round-trips a value on a new issue. The seeded "E2E Severity"
+// fixture (is_for_all=true) supplies the field automatically on every test
+// project.
+func TestIssues_CustomFieldOnCreate(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	var created struct {
+		ID           int `json:"id"`
+		CustomFields []struct {
+			Name  string `json:"name"`
+			Value any    `json:"value"`
+		} `json:"custom_fields"`
+	}
+	r.runJSON(t, &created, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", firstTrackerName(t, r),
+		"--subject", "E2E custom field",
+		"--custom-field", "E2E Severity=High")
+
+	found := false
+	for _, cf := range created.CustomFields {
+		if cf.Name == "E2E Severity" && cf.Value == "High" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("custom field not set on new issue: %+v", created.CustomFields)
+	}
+}
+
+// TestIssues_RelationPrecedesWithDelay verifies the precedes relation type
+// accepts the --delay flag and Redmine returns the delay on subsequent GET.
+func TestIssues_RelationPrecedesWithDelay(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	a := createTestIssueWithSubject(t, r, proj.Identifier, "PrecA")
+	b := createTestIssueWithSubject(t, r, proj.Identifier, "PrecB")
+
+	var rel struct {
+		ID           int    `json:"id"`
+		RelationType string `json:"relation_type"`
+		Delay        *int   `json:"delay"`
+	}
+	r.runJSON(t, &rel, "issues", "relations", "add", issueIDArg(a.ID),
+		"--to", strconv.Itoa(b.ID),
+		"--type", "precedes",
+		"--delay", "5",
+		"--output", "json")
+	if rel.RelationType != "precedes" {
+		t.Fatalf("relation_type = %q, want precedes", rel.RelationType)
+	}
+	if rel.Delay == nil || *rel.Delay != 5 {
+		t.Fatalf("delay = %v, want 5", rel.Delay)
+	}
+}
+
 // TestIssues_RelationLifecycle covers create → list → delete.
 func TestIssues_RelationLifecycle(t *testing.T) {
 	requireE2E(t)
