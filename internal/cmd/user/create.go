@@ -3,47 +3,11 @@ package user
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/spf13/cobra"
 )
-
-// allowedMailNotifications lists the Redmine mail notification preference
-// values. The wiki documents only "only_my_events" and "none"; the full set
-// comes from app/models/user.rb in Redmine.
-var allowedMailNotifications = map[string]struct{}{
-	"all":            {},
-	"only_my_events": {},
-	"only_assigned":  {},
-	"only_owner":     {},
-	"none":           {},
-}
-
-func validateMailNotification(value string) error {
-	if value == "" {
-		return nil
-	}
-	if _, ok := allowedMailNotifications[value]; !ok {
-		return fmt.Errorf("invalid --mail-notification %q (allowed: %s)", value, sortedMailNotificationKeys())
-	}
-	return nil
-}
-
-func sortedMailNotificationKeys() string {
-	keys := make([]string, 0, len(allowedMailNotifications))
-	for k := range allowedMailNotifications {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return strings.Join(keys, ", ")
-}
-
-func completeMailNotification(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return strings.Split(sortedMailNotificationKeys(), ", "), cobra.ShellCompDirectiveNoFileComp
-}
 
 func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
@@ -66,7 +30,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Create a new user",
 		Aliases: []string{"new"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := validateMailNotification(mailNotification); err != nil {
+			if err := ValidateMailNotification(mailNotification); err != nil {
 				return err
 			}
 			if password == "" && !generatePassword {
@@ -132,7 +96,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.MarkFlagRequired("firstname")
 	cmd.MarkFlagRequired("lastname")
 	cmd.MarkFlagRequired("mail")
-	_ = cmd.RegisterFlagCompletionFunc("mail-notification", completeMailNotification)
+	_ = cmd.RegisterFlagCompletionFunc("mail-notification", CompleteMailNotification)
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }

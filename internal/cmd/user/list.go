@@ -72,7 +72,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 						u.FirstName + " " + u.LastName,
 						u.Mail,
 						admin,
-						userStatusName(u.Status),
+						UserStatusName(u.Status),
 					}
 				},
 			)
@@ -96,7 +96,8 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-func userStatusName(status int) string {
+// UserStatusName renders a numeric Redmine user status as a human label.
+func UserStatusName(status int) string {
 	switch status {
 	case 1:
 		return "active"

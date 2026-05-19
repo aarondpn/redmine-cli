@@ -3,8 +3,8 @@ package myaccount
 import (
 	"context"
 	"fmt"
-	"strings"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/user"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
@@ -29,18 +29,18 @@ func newCmdMyAccountGet(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching account...")
-			user, err := ops.GetMyAccount(context.Background(), client, ops.GetMyAccountInput{})
+			u, err := ops.GetMyAccount(context.Background(), client, ops.GetMyAccountInput{})
 			stop()
 			if err != nil {
 				return err
 			}
 
 			if printer.Format() == output.FormatJSON {
-				printer.JSON(user)
+				printer.JSON(u)
 				return nil
 			}
 
-			printer.Detail(myAccountDetailRows(user))
+			printer.Detail(myAccountDetailRows(u))
 			return nil
 		},
 	}
@@ -49,56 +49,34 @@ func newCmdMyAccountGet(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-func myAccountDetailRows(user *models.User) []output.KeyValue {
+func myAccountDetailRows(u *models.User) []output.KeyValue {
 	admin := "no"
-	if user.Admin {
+	if u.Admin {
 		admin = "yes"
 	}
-	status := userStatusName(user.Status)
 
 	pairs := []output.KeyValue{
-		{Key: "ID", Value: fmt.Sprintf("%d", user.ID)},
-		{Key: "Login", Value: user.Login},
-		{Key: "Name", Value: user.FirstName + " " + user.LastName},
-		{Key: "Email", Value: user.Mail},
+		{Key: "ID", Value: fmt.Sprintf("%d", u.ID)},
+		{Key: "Login", Value: u.Login},
+		{Key: "Name", Value: u.FirstName + " " + u.LastName},
+		{Key: "Email", Value: u.Mail},
 		{Key: "Admin", Value: admin},
-		{Key: "Status", Value: status},
+		{Key: "Status", Value: user.UserStatusName(u.Status)},
 	}
 
-	if user.MailNotification != "" {
-		pairs = append(pairs, output.KeyValue{Key: "Mail Notification", Value: user.MailNotification})
+	if u.MailNotification != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Mail Notification", Value: u.MailNotification})
 	}
-	if user.APIKey != "" {
-		pairs = append(pairs, output.KeyValue{Key: "API Key", Value: user.APIKey})
+	if u.APIKey != "" {
+		pairs = append(pairs, output.KeyValue{Key: "API Key", Value: u.APIKey})
 	}
-	if len(user.CustomFields) > 0 {
-		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: formatCustomFieldValues(user.CustomFields)})
+	if len(u.CustomFields) > 0 {
+		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: user.FormatCustomFieldValues(u.CustomFields)})
 	}
 
 	pairs = append(pairs,
-		output.KeyValue{Key: "Created", Value: user.CreatedOn},
-		output.KeyValue{Key: "Last Login", Value: user.LastLoginOn},
+		output.KeyValue{Key: "Created", Value: u.CreatedOn},
+		output.KeyValue{Key: "Last Login", Value: u.LastLoginOn},
 	)
 	return pairs
-}
-
-func userStatusName(status int) string {
-	switch status {
-	case 1:
-		return "active"
-	case 2:
-		return "registered"
-	case 3:
-		return "locked"
-	default:
-		return fmt.Sprintf("%d", status)
-	}
-}
-
-func formatCustomFieldValues(items []models.CustomFieldValue) string {
-	parts := make([]string, len(items))
-	for i, cf := range items {
-		parts[i] = fmt.Sprintf("%s: %v", cf.Name, cf.Value)
-	}
-	return strings.Join(parts, "; ")
 }

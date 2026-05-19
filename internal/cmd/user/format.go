@@ -34,8 +34,9 @@ func formatUserMembershipList(items []models.UserMembership) string {
 	return strings.Join(parts, "; ")
 }
 
-// formatCustomFieldValues renders "Name: Value; ..." for custom field arrays.
-func formatCustomFieldValues(items []models.CustomFieldValue) string {
+// FormatCustomFieldValues renders "Name: Value; ..." for custom field arrays.
+// Exported so the my-account command group can reuse it.
+func FormatCustomFieldValues(items []models.CustomFieldValue) string {
 	parts := make([]string, len(items))
 	for i, cf := range items {
 		parts[i] = fmt.Sprintf("%s: %v", cf.Name, cf.Value)

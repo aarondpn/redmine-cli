@@ -2,46 +2,13 @@ package myaccount
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/user"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
-
-var allowedMailNotifications = map[string]struct{}{
-	"all":            {},
-	"only_my_events": {},
-	"only_assigned":  {},
-	"only_owner":     {},
-	"none":           {},
-}
-
-func validateMailNotification(value string) error {
-	if value == "" {
-		return nil
-	}
-	if _, ok := allowedMailNotifications[value]; !ok {
-		return fmt.Errorf("invalid --mail-notification %q (allowed: %s)", value, sortedMailNotificationKeys())
-	}
-	return nil
-}
-
-func sortedMailNotificationKeys() string {
-	keys := make([]string, 0, len(allowedMailNotifications))
-	for k := range allowedMailNotifications {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return strings.Join(keys, ", ")
-}
-
-func completeMailNotification(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return strings.Split(sortedMailNotificationKeys(), ", "), cobra.ShellCompDirectiveNoFileComp
-}
 
 func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
@@ -59,7 +26,7 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("mail-notification") {
-				if err := validateMailNotification(mailNotification); err != nil {
+				if err := user.ValidateMailNotification(mailNotification); err != nil {
 					return err
 				}
 			}
@@ -104,6 +71,6 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&lastname, "lastname", "", "Last name")
 	cmd.Flags().StringVar(&mail, "mail", "", "Email address")
 	cmd.Flags().StringVar(&mailNotification, "mail-notification", "", "Email notification preference (all, only_my_events, only_assigned, only_owner, none)")
-	_ = cmd.RegisterFlagCompletionFunc("mail-notification", completeMailNotification)
+	_ = cmd.RegisterFlagCompletionFunc("mail-notification", user.CompleteMailNotification)
 	return cmd
 }

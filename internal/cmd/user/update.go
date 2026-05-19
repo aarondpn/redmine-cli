@@ -32,7 +32,7 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("mail-notification") {
-				if err := validateMailNotification(mailNotification); err != nil {
+				if err := ValidateMailNotification(mailNotification); err != nil {
 					return err
 				}
 			}
@@ -103,6 +103,6 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&mustChangePasswd, "must-change-passwd", false, "Force the user to change their password on next login")
 	cmd.Flags().BoolVar(&generatePassword, "generate-password", false, "Let the server generate a random password")
 	cmd.Flags().IntVar(&authSourceID, "auth-source-id", 0, "Numeric authentication source ID for external auth")
-	_ = cmd.RegisterFlagCompletionFunc("mail-notification", completeMailNotification)
+	_ = cmd.RegisterFlagCompletionFunc("mail-notification", CompleteMailNotification)
 	return cmd
 }

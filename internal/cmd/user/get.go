@@ -80,7 +80,7 @@ func userDetailRows(user *models.User) []output.KeyValue {
 		{Key: "Name", Value: user.FirstName + " " + user.LastName},
 		{Key: "Email", Value: user.Mail},
 		{Key: "Admin", Value: admin},
-		{Key: "Status", Value: userStatusName(user.Status)},
+		{Key: "Status", Value: UserStatusName(user.Status)},
 	}
 
 	if user.MailNotification != "" {
@@ -93,7 +93,7 @@ func userDetailRows(user *models.User) []output.KeyValue {
 		pairs = append(pairs, output.KeyValue{Key: "Groups", Value: formatIDNameList(user.Groups)})
 	}
 	if len(user.CustomFields) > 0 {
-		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: formatCustomFieldValues(user.CustomFields)})
+		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: FormatCustomFieldValues(user.CustomFields)})
 	}
 
 	pairs = append(pairs,
