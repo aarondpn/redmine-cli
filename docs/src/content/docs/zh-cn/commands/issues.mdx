@@ -8,17 +8,19 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 `issues` 命令（别名 `i`）提供对 Redmine 工单的全流程管理。
 
 <CardGrid>
-  <LinkCard title="list"    href="#list"    description="过滤并分页浏览工单。" />
-  <LinkCard title="get"     href="#get"     description="查看单个工单，包括日志和关联关系。" />
-  <LinkCard title="create"  href="#create"  description="创建工单，可选添加附件。" />
-  <LinkCard title="update"  href="#update"  description="修改字段、添加备注、附加文件。" />
-  <LinkCard title="close"   href="#close"   description="关闭工单，可选添加评论。" />
-  <LinkCard title="reopen"  href="#reopen"  description="重新打开已关闭的工单。" />
-  <LinkCard title="assign"  href="#assign"  description="将工单指派给用户。" />
-  <LinkCard title="comment" href="#comment" description="仅添加评论，不做其他修改。" />
-  <LinkCard title="delete"  href="#delete"  description="永久删除工单。" />
-  <LinkCard title="open"    href="#open"    description="在浏览器中打开工单。" />
-  <LinkCard title="browse"  href="#browse"  description="交互式终端浏览器。" />
+  <LinkCard title="list"      href="#list"      description="过滤并分页浏览工单。" />
+  <LinkCard title="get"       href="#get"       description="查看单个工单，包括日志和关联关系。" />
+  <LinkCard title="create"    href="#create"    description="创建工单，可选添加附件。" />
+  <LinkCard title="update"    href="#update"    description="修改字段、添加备注、附加文件。" />
+  <LinkCard title="close"     href="#close"     description="关闭工单，可选添加评论。" />
+  <LinkCard title="reopen"    href="#reopen"    description="重新打开已关闭的工单。" />
+  <LinkCard title="assign"    href="#assign"    description="将工单指派给用户。" />
+  <LinkCard title="comment"   href="#comment"   description="仅添加评论，不做其他修改。" />
+  <LinkCard title="watchers"  href="#watchers"  description="查看、添加或移除观察者。" />
+  <LinkCard title="relations" href="#relations" description="创建或删除工单之间的关联。" />
+  <LinkCard title="delete"    href="#delete"    description="永久删除工单。" />
+  <LinkCard title="open"      href="#open"      description="在浏览器中打开工单。" />
+  <LinkCard title="browse"    href="#browse"    description="交互式终端浏览器。" />
 </CardGrid>
 
 ## list
@@ -29,20 +31,37 @@ redmine issues list [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--project`     | 按项目过滤（名称、标识符或 ID） |
-| `--tracker`     | 按跟踪类型过滤（名称或 ID） |
-| `--status`      | 按状态过滤：`open`、`closed`、`*`、名称或 ID |
-| `--assignee`    | 按指派人过滤：`me`、名称或 ID |
-| `--version`     | 按目标版本过滤（名称或 ID） |
-| `--query`       | 按名称运行自定义查询（参见 [`queries`](/redmine-cli/zh-cn/commands/queries/)） |
-| `--query-id`    | 按数字 ID 运行自定义查询（与 `--query` 互斥） |
-| `--sort`        | 排序方式，例如 `updated_on:desc` |
-| `--include`     | 包含关联数据：`attachments`、`relations` |
-| `--attachments` | `--include attachments` 的简写 |
-| `--relations`   | `--include relations` 的简写 |
-| `--limit`       | 最大结果数（0 表示全部） |
-| `--offset`      | 分页偏移量 |
-| `-o, --output`  | 输出格式：`table`、`json`、`csv` |
+| `--project`              | 按项目过滤（名称、标识符或 ID） |
+| `--tracker`              | 按跟踪类型过滤（名称或 ID） |
+| `--status`               | 按状态过滤：`open`、`closed`、`*`、名称或 ID |
+| `--assignee`             | 按指派人过滤：`me`、名称、登录名或 ID |
+| `--author`               | 按作者过滤：`me`、名称、登录名或 ID |
+| `--priority`             | 按优先级过滤（名称或 ID） |
+| `--category`             | 按工单类别过滤（名称或 ID） |
+| `--version`              | 按目标版本过滤（名称或 ID） |
+| `--parent`               | 仅列出某父工单的子工单 |
+| `--subproject`           | 子项目过滤：数字 ID，或 `!*` 表示排除子项目 |
+| `--include-subprojects`  | 是否包含子项目工单（默认 `true`；指定 `=false` 可排除） |
+| `--is-private`           | 按私密性过滤：`true` 仅返回私有，`false` 仅返回公共 |
+| `--filter`               | 原生 Redmine 过滤器（`key=value`，可重复）。用于日期范围、自定义字段、主题搜索 |
+| `--query`                | 按名称运行自定义查询（参见 [`queries`](/redmine-cli/zh-cn/commands/queries/)） |
+| `--query-id`             | 按数字 ID 运行自定义查询（与 `--query` 互斥） |
+| `--sort`                 | 排序方式，例如 `updated_on:desc` |
+| `--include`              | 包含关联数据：`attachments`、`relations` |
+| `--attachments`          | `--include attachments` 的简写 |
+| `--relations`            | `--include relations` 的简写 |
+| `--limit`                | 最大结果数（0 表示全部） |
+| `--offset`               | 分页偏移量 |
+| `-o, --output`           | 输出格式：`table`、`json`、`csv` |
+
+<Aside type="tip">
+  `--filter` 是用于 Redmine 过滤器操作符语法的逃逸路径。示例：
+
+  - `--filter created_on='>=2025-01-01'` — 创建日期不早于指定日期
+  - `--filter updated_on='><2025-01-01|2025-12-31'` — 更新日期在区间内
+  - `--filter cf_5='Critical'` — 自定义字段 `cf_5` 等于 "Critical"
+  - `--filter subject='~login'` — 标题包含 "login"
+</Aside>
 
 <Tabs syncKey="issues-list">
   <TabItem label="我的工单">
@@ -96,14 +115,21 @@ redmine issues create [flags]
 | `--parent`          | 父工单 ID |
 | `--category`        | 类别（名称或 ID） |
 | `--version`         | 目标版本（名称或 ID） |
+| `--start-date`      | 开始日期（`YYYY-MM-DD`） |
+| `--due-date`        | 截止日期（`YYYY-MM-DD`） |
 | `--estimated-hours` | 预估工时 |
 | `--private`         | 标记为私有 |
+| `--watcher`         | 初始观察者（名称、登录名、ID 或 `me`；可重复） |
+| `--custom-field`    | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
 | `--attach`          | 要附加的文件路径（可重复使用） |
 
 ```bash
 redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
 
 redmine issues create --project myproject --subject "Bug report" \
+  --start-date 2026-05-01 --due-date 2026-05-15 \
+  --watcher me --watcher "QA Bot" \
+  --custom-field Severity=High \
   --attach /path/to/screenshot.png --attach /path/to/log.txt
 ```
 
@@ -113,16 +139,26 @@ redmine issues create --project myproject --subject "Bug report" \
 redmine issues update <id> [flags]
 ```
 
-接受与 `create` 相同的标志（`--project` 除外），并额外支持：
+接受与 `create` 相同的标志（`--project` 与 `--watcher` 除外），并额外支持：
 
 | 标志 | 描述 |
 |------|------|
-| `--note`       | 添加评论 |
-| `--done-ratio` | 完成度百分比（0-100） |
-| `--attach`     | 要附加的文件路径（可重复使用） |
+| `--note`           | 添加日志注释 |
+| `--private-notes`  | 将 `--note` 添加的注释标记为私有（需同时提供 `--note`） |
+| `--done-ratio`     | 完成度百分比（0-100） |
+| `--start-date`     | 开始日期（传入空字符串可清除） |
+| `--due-date`       | 截止日期（传入空字符串可清除） |
+| `--custom-field`   | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+| `--attach`         | 要附加的文件路径（可重复使用） |
 
 ```bash
 redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
+
+# 私有日志注释（仅工作人员可见）
+redmine issues update 123 --note "Internal context" --private-notes
+
+# 按名称更新自定义字段
+redmine issues update 123 --custom-field Severity=Critical
 ```
 
 ## close
@@ -154,6 +190,61 @@ redmine issues assign <id> <user-id-or-name> [flags]
 ```bash
 redmine issues comment <id> --message "Your comment" [flags]
 ```
+
+## watchers
+
+```bash
+redmine issues watchers list <id>
+redmine issues watchers add <id> <user>
+redmine issues watchers remove <id> <user>
+```
+
+`<user>` 可以是数字 ID、登录名、全名或 `me`。
+
+```bash
+redmine issues watchers add 123 me
+redmine issues watchers list 123
+redmine issues watchers remove 123 alice
+```
+
+## relations
+
+```bash
+redmine issues relations list <id>
+redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
+redmine issues relations remove <relation-id>
+```
+
+| 标志 | 描述 |
+|------|------|
+| `--to`    | 目标工单 ID — <Badge text="必填" variant="danger" /> |
+| `--type`  | 关联类型。默认 `relates`，详见下表 |
+| `--delay` | 延迟天数，仅对 `precedes`/`follows` 有效 |
+
+Redmine 支持的关联类型（参见 [Redmine REST 文档](https://www.redmine.org/projects/redmine/wiki/Rest_IssueRelations)）：
+
+| 类型 | 含义 |
+|------|------|
+| `relates`     | 通用关联 |
+| `duplicates`  | 当前工单重复了目标工单 |
+| `duplicated`  | 当前工单被目标工单重复 |
+| `blocks`      | 当前工单阻塞目标工单 |
+| `blocked`     | 当前工单被目标工单阻塞 |
+| `precedes`    | 当前工单先于目标工单（支持 `--delay`） |
+| `follows`     | 当前工单晚于目标工单（支持 `--delay`） |
+| `copied_to`   | 当前工单被复制到目标工单 |
+| `copied_from` | 当前工单复制自目标工单 |
+
+```bash
+redmine issues relations add 123 --to 124 --type blocks
+redmine issues relations add 123 --to 124 --type precedes --delay 5
+redmine issues relations list 123
+redmine issues relations remove 42
+```
+
+<Aside type="note">
+  `relations remove` 接受的是 **关联 ID**，而非工单 ID。请先用 `relations list` 查询关联 ID。
+</Aside>
 
 ## delete
 

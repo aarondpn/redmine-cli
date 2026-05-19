@@ -35,6 +35,8 @@ func NewCmdIssue(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(NewCmdComment(f))
 	cmd.AddCommand(NewCmdBrowse(f))
 	cmd.AddCommand(NewCmdOpen(f))
+	cmd.AddCommand(NewCmdWatchers(f))
+	cmd.AddCommand(NewCmdRelations(f))
 
 	return cmd
 }

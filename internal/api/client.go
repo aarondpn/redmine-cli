@@ -47,6 +47,7 @@ type Client struct {
 	Queries      *QueryService
 	CustomFields *CustomFieldService
 	Files        *FileService
+	Relations    *RelationService
 }
 
 // DebugLog returns the client's debug logger.
@@ -123,6 +124,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Queries = &QueryService{client: c}
 	c.CustomFields = &CustomFieldService{client: c}
 	c.Files = &FileService{client: c}
+	c.Relations = &RelationService{client: c}
 
 	return c, nil
 }
