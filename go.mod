@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/lithammer/fuzzysearch v1.1.8
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/pterm/pterm v0.12.83
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/term v0.43.0
