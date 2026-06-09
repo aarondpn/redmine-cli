@@ -273,6 +273,106 @@ func TestWikiService_Update_Conflict_ReturnsAPIErrorIsConflict(t *testing.T) {
 	}
 }
 
+func TestWikiService_Update_WithSection_SendsSectionInBody(t *testing.T) {
+	var gotBody map[string]interface{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "section content"
+	section := 5
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text:    &text,
+		Section: &section,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatal("body missing wiki_page key")
+	}
+	got, ok := wp["section"].(float64)
+	if !ok {
+		t.Fatalf("section not present or wrong type in body: %#v", wp["section"])
+	}
+	if int(got) != section {
+		t.Errorf("body section = %v, want %d", got, section)
+	}
+}
+
+func TestWikiService_Update_WithSectionHash_SendsSectionHashInBody(t *testing.T) {
+	var gotBody map[string]interface{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "section content"
+	section := 3
+	sectionHash := "abc123def456"
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text:        &text,
+		Section:     &section,
+		SectionHash: &sectionHash,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatal("body missing wiki_page key")
+	}
+	if wp["section_hash"] != sectionHash {
+		t.Errorf("body section_hash = %v, want %q", wp["section_hash"], sectionHash)
+	}
+}
+
+func TestWikiService_Update_WithoutSection_OmitsSectionField(t *testing.T) {
+	var gotBody map[string]interface{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	text := "rewritten body"
+	err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+		Text: &text,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	if !ok {
+		t.Fatal("body missing wiki_page key")
+	}
+	if _, present := wp["section"]; present {
+		t.Errorf("section should be omitted when nil, got %#v", wp["section"])
+	}
+	if _, present := wp["section_hash"]; present {
+		t.Errorf("section_hash should be omitted when nil, got %#v", wp["section_hash"])
+	}
+}
+
 func TestWikiService_Delete(t *testing.T) {
 	var (
 		gotMethod string

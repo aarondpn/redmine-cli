@@ -51,9 +51,11 @@ type WikiPageCreate struct {
 // 409 Conflict if the page has moved on, giving callers optimistic-locking
 // semantics for the update.
 type WikiPageUpdate struct {
-	Text     *string  `json:"text,omitempty"`
-	Comments *string  `json:"comments,omitempty"`
-	Title    *string  `json:"title,omitempty"`
-	Version  *int     `json:"version,omitempty"`
-	Uploads  []Upload `json:"uploads,omitempty"`
+	Text        *string  `json:"text,omitempty"`
+	Comments    *string  `json:"comments,omitempty"`
+	Title       *string  `json:"title,omitempty"`
+	Version     *int     `json:"version,omitempty"`
+	Uploads     []Upload `json:"uploads,omitempty"`
+	Section     *int     `json:"section,omitempty"`
+	SectionHash *string  `json:"section_hash,omitempty"`
 }

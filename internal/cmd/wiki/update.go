@@ -23,6 +23,8 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		attach        []string
 		expectVersion int
 		ensureCurrent bool
+		section       int
+		sectionHash   string
 	)
 
 	cmd := &cobra.Command{
@@ -33,7 +35,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			"To avoid silently overwriting concurrent edits, pass --expect-version " +
 			"with the version you last fetched, or --ensure-current to refetch the " +
 			"page and use its current version. Either flag turns 409 Conflict into a " +
-			"clear error instead of a silent overwrite.",
+			"clear error instead of a silent overwrite.\n\n" +
+			"To update only a single section of a page (based on heading position), " +
+			"pass --section with the 1-based section number. Redmine replaces only " +
+			"that section; the rest of the page is preserved. Use --section-hash to " +
+			"add optimistic-locking at the section level.",
 		Example: `  # Update page content
   redmine wiki update MyPage --project myproject --text "Updated content"
 
@@ -45,6 +51,15 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
   # Attach a file
   redmine wiki update MyPage --project myproject --attach ./screenshot.png
+
+  # Update only section 5 of the page
+  redmine wiki update MyPage --project myproject \
+    --section 5 --text "h3. Updated Section Content"
+
+  # Section update with conflict detection
+  redmine wiki update MyPage --project myproject \
+    --section 5 --section-hash abc123 \
+    --text "h3. Updated Section Content"
 
   # Optimistic concurrency: fail if the page has been edited since version 7
   redmine wiki update MyPage --project myproject \
@@ -62,6 +77,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 			if cmd.Flags().Changed("expect-version") && expectVersion < 1 {
 				return fmt.Errorf("--expect-version must be >= 1")
+			}
+			if cmd.Flags().Changed("section") && section < 1 {
+				return fmt.Errorf("--section must be >= 1")
 			}
 
 			client, err := f.ApiClient()
@@ -107,6 +125,13 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 			if cmd.Flags().Changed("comments") {
 				input.Comments = &comments
+			}
+			if cmd.Flags().Changed("section") {
+				s := section
+				input.Section = &s
+			}
+			if cmd.Flags().Changed("section-hash") {
+				input.SectionHash = &sectionHash
 			}
 
 			switch {
@@ -156,6 +181,8 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmd.Flags().IntVar(&expectVersion, "expect-version", 0, "Expected current page version. Server returns 409 Conflict if the page has moved on.")
 	cmd.Flags().BoolVar(&ensureCurrent, "ensure-current", false, "Refetch the page first and assert its current version on update. Mutually exclusive with --expect-version.")
+	cmd.Flags().IntVar(&section, "section", 0, "Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires --text.")
+	cmd.Flags().StringVar(&sectionHash, "section-hash", "", "Hash of the original section content, used by Redmine for conflict detection on section edits. Only meaningful with --section.")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 

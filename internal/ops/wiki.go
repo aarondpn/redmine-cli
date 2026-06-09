@@ -36,13 +36,15 @@ type CreateWikiPageInput struct {
 }
 
 type UpdateWikiPageInput struct {
-	ProjectID string          `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	Page      string          `json:"page" jsonschema:"Wiki page title (slug) to update."`
-	Text      *string         `json:"text,omitempty" jsonschema:"New page body."`
-	Title     *string         `json:"title,omitempty" jsonschema:"New display title."`
-	Comments  *string         `json:"comments,omitempty" jsonschema:"Edit comment."`
-	Version   *int            `json:"version,omitempty" jsonschema:"Expected current page version. When set, Redmine returns 409 Conflict if the stored version does not match, giving optimistic-locking semantics."`
-	Uploads   []models.Upload `json:"-"`
+	ProjectID   string          `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Page        string          `json:"page" jsonschema:"Wiki page title (slug) to update."`
+	Text        *string         `json:"text,omitempty" jsonschema:"New page body, or new section content when --section is set."`
+	Title       *string         `json:"title,omitempty" jsonschema:"New display title."`
+	Comments    *string         `json:"comments,omitempty" jsonschema:"Edit comment."`
+	Version     *int            `json:"version,omitempty" jsonschema:"Expected current page version. When set, Redmine returns 409 Conflict if the stored version does not match, giving optimistic-locking semantics."`
+	Uploads     []models.Upload `json:"-"`
+	Section     *int            `json:"section,omitempty" jsonschema:"Section number (1-based) to update instead of the full page."`
+	SectionHash *string         `json:"section_hash,omitempty" jsonschema:"Hash of the original section content, used by Redmine for conflict detection on section edits."`
 }
 
 type DeleteWikiPageInput struct {
@@ -90,11 +92,13 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 		return MessageResult{}, fmt.Errorf("version must be >= 1 when asserting optimistic concurrency")
 	}
 	if err := client.Wikis.Update(ctx, input.ProjectID, input.Page, models.WikiPageUpdate{
-		Text:     input.Text,
-		Title:    input.Title,
-		Comments: input.Comments,
-		Version:  input.Version,
-		Uploads:  input.Uploads,
+		Text:        input.Text,
+		Title:       input.Title,
+		Comments:    input.Comments,
+		Version:     input.Version,
+		Uploads:     input.Uploads,
+		Section:     input.Section,
+		SectionHash: input.SectionHash,
 	}); err != nil {
 		return MessageResult{}, err
 	}
