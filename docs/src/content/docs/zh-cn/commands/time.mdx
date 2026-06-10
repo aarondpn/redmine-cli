@@ -8,7 +8,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 `time` 命令（别名 `t`）用于管理工时记录。
 
 <CardGrid>
-  <LinkCard title="log"     href="#log"     description="通过交互式表单或标志记录工时。" />
+  <LinkCard title="log"     href="#log"     description="通过标志记录工时。" />
   <LinkCard title="list"    href="#list"    description="过滤并分页浏览工时记录。" />
   <LinkCard title="get"     href="#get"     description="查看单条工时记录。" />
   <LinkCard title="update"  href="#update"  description="修改工时、活动类型、评论或日期。" />
@@ -22,8 +22,6 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 redmine time log [flags]
 ```
 
-不带标志时，打开交互式填写表单。
-
 | 标志 | 描述 |
 |------|------|
 | `--issue`    | 工单 ID |
@@ -35,12 +33,7 @@ redmine time log [flags]
 | `--user`     | 代他人记录工时（`me`、登录名、姓名或 ID） |
 
 <Tabs syncKey="time-log">
-  <TabItem label="交互式">
-    ```bash
-    redmine time log
-    ```
-  </TabItem>
-  <TabItem label="一次性">
+  <TabItem label="基础">
     ```bash
     redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
     ```
