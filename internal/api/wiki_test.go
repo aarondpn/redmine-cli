@@ -295,16 +295,19 @@ func TestWikiService_Update_WithSection_SendsSectionInBody(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wp, ok := gotBody["wiki_page"].(map[string]interface{})
+	// Redmine reads the section selector from the top level of the params,
+	// not from inside wiki_page, so it must be sent there.
+	got, ok := gotBody["section"].(float64)
 	if !ok {
-		t.Fatal("body missing wiki_page key")
-	}
-	got, ok := wp["section"].(float64)
-	if !ok {
-		t.Fatalf("section not present or wrong type in body: %#v", wp["section"])
+		t.Fatalf("section not present or wrong type at top level of body: %#v", gotBody["section"])
 	}
 	if int(got) != section {
 		t.Errorf("body section = %v, want %d", got, section)
+	}
+	if wp, ok := gotBody["wiki_page"].(map[string]interface{}); ok {
+		if _, present := wp["section"]; present {
+			t.Errorf("section must not be nested under wiki_page, got %#v", wp["section"])
+		}
 	}
 }
 
@@ -332,12 +335,13 @@ func TestWikiService_Update_WithSectionHash_SendsSectionHashInBody(t *testing.T)
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wp, ok := gotBody["wiki_page"].(map[string]interface{})
-	if !ok {
-		t.Fatal("body missing wiki_page key")
+	if gotBody["section_hash"] != sectionHash {
+		t.Errorf("top-level body section_hash = %v, want %q", gotBody["section_hash"], sectionHash)
 	}
-	if wp["section_hash"] != sectionHash {
-		t.Errorf("body section_hash = %v, want %q", wp["section_hash"], sectionHash)
+	if wp, ok := gotBody["wiki_page"].(map[string]interface{}); ok {
+		if _, present := wp["section_hash"]; present {
+			t.Errorf("section_hash must not be nested under wiki_page, got %#v", wp["section_hash"])
+		}
 	}
 }
 
@@ -361,15 +365,14 @@ func TestWikiService_Update_WithoutSection_OmitsSectionField(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wp, ok := gotBody["wiki_page"].(map[string]interface{})
-	if !ok {
+	if _, ok := gotBody["wiki_page"].(map[string]interface{}); !ok {
 		t.Fatal("body missing wiki_page key")
 	}
-	if _, present := wp["section"]; present {
-		t.Errorf("section should be omitted when nil, got %#v", wp["section"])
+	if _, present := gotBody["section"]; present {
+		t.Errorf("section should be omitted when nil, got %#v", gotBody["section"])
 	}
-	if _, present := wp["section_hash"]; present {
-		t.Errorf("section_hash should be omitted when nil, got %#v", wp["section_hash"])
+	if _, present := gotBody["section_hash"]; present {
+		t.Errorf("section_hash should be omitted when nil, got %#v", gotBody["section_hash"])
 	}
 }
 

@@ -51,11 +51,18 @@ type WikiPageCreate struct {
 // 409 Conflict if the page has moved on, giving callers optimistic-locking
 // semantics for the update.
 type WikiPageUpdate struct {
-	Text        *string  `json:"text,omitempty"`
-	Comments    *string  `json:"comments,omitempty"`
-	Title       *string  `json:"title,omitempty"`
-	Version     *int     `json:"version,omitempty"`
-	Uploads     []Upload `json:"uploads,omitempty"`
-	Section     *int     `json:"section,omitempty"`
-	SectionHash *string  `json:"section_hash,omitempty"`
+	Text     *string  `json:"text,omitempty"`
+	Comments *string  `json:"comments,omitempty"`
+	Title    *string  `json:"title,omitempty"`
+	Version  *int     `json:"version,omitempty"`
+	Uploads  []Upload `json:"uploads,omitempty"`
+
+	// Section and SectionHash select a single section to replace. Redmine
+	// reads these from the top level of the request params (see
+	// WikiController#update), NOT from inside the wiki_page object, so they
+	// are excluded from the wiki_page JSON here and added top-level by
+	// WikiService.Update. Sending them nested makes Redmine ignore them and
+	// overwrite the entire page.
+	Section     *int    `json:"-"`
+	SectionHash *string `json:"-"`
 }

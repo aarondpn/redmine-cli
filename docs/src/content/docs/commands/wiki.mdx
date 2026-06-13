@@ -124,7 +124,7 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 | `--expect-version` | Expected current page version. The server returns `409 Conflict` (and the CLI surfaces error code `conflict`) if the page has moved on since you last fetched it. |
 | `--ensure-current` | Refetch the page first and assert its current version on update. Mutually exclusive with `--expect-version`. |
 | `--section`        | Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires `--text`. |
-| `--section-hash`   | Hash of the original section content, used by Redmine for conflict detection on section edits. Only meaningful with `--section`. |
+| `--section-hash`   | Hash of the original section content, used by Redmine for conflict detection on section edits. Requires `--section`. |
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"

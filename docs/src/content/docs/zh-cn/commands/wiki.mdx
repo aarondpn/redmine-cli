@@ -123,6 +123,8 @@ redmine wiki update <page> [flags]
 | `--attach`         | 要附加的文件路径（可重复） |
 | `--expect-version` | 期望的当前页面版本号。若页面在你上次获取后已被修改，服务器返回 `409 Conflict`，CLI 以错误码 `conflict` 反馈。 |
 | `--ensure-current` | 在更新前先重新获取页面，并以其当前版本号断言。与 `--expect-version` 互斥。 |
+| `--section`        | 要更新的章节编号（从 1 开始）。设置后仅替换该章节，页面其余部分保持不变。需要配合 `--text`。 |
+| `--section-hash`   | 原始章节内容的哈希值，Redmine 用它在章节级编辑时进行冲突检测。需要配合 `--section`。 |
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"
@@ -132,6 +134,15 @@ redmine wiki update MyPage --project myproject --comments "Fixed typo"
 redmine wiki update MyPage --project myproject --title "New Title"
 
 redmine wiki update MyPage --project myproject --attach ./screenshot.png
+
+# 仅更新页面的第 5 个章节
+redmine wiki update MyPage --project myproject \
+  --section 5 --text "h3. Updated Section Content"
+
+# 带冲突检测的章节更新
+redmine wiki update MyPage --project myproject \
+  --section 5 --section-hash abc123 \
+  --text "h3. Updated Section Content"
 
 # 乐观并发：若版本 7 之后页面已被修改则失败
 redmine wiki update MyPage --project myproject \

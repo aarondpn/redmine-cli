@@ -91,6 +91,17 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 	if input.Version != nil && *input.Version < 1 {
 		return MessageResult{}, fmt.Errorf("version must be >= 1 when asserting optimistic concurrency")
 	}
+	if input.Section != nil {
+		if *input.Section < 1 {
+			return MessageResult{}, fmt.Errorf("section must be >= 1")
+		}
+		if input.Text == nil {
+			return MessageResult{}, fmt.Errorf("section update requires text")
+		}
+	}
+	if input.SectionHash != nil && input.Section == nil {
+		return MessageResult{}, fmt.Errorf("section_hash requires section")
+	}
 	if err := client.Wikis.Update(ctx, input.ProjectID, input.Page, models.WikiPageUpdate{
 		Text:        input.Text,
 		Title:       input.Title,

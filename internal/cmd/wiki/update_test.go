@@ -322,7 +322,8 @@ func TestUpdate_ExpectVersionWithTitle_StillSendsVersion(t *testing.T) {
 }
 
 // TestUpdate_Section_SendsSectionInBody verifies that --section is propagated
-// as the wiki_page.section field on the PUT body.
+// as a top-level section field on the PUT body (Redmine reads it there, not
+// nested under wiki_page).
 func TestUpdate_Section_SendsSectionInBody(t *testing.T) {
 	var (
 		mu      sync.Mutex
@@ -357,13 +358,9 @@ func TestUpdate_Section_SendsSectionInBody(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wp, ok := putBody["wiki_page"].(map[string]interface{})
+	got, ok := putBody["section"].(float64)
 	if !ok {
-		t.Fatalf("body missing wiki_page key: %#v", putBody)
-	}
-	got, ok := wp["section"].(float64)
-	if !ok {
-		t.Fatalf("section not present in PUT body: %#v", wp["section"])
+		t.Fatalf("section not present at top level of PUT body: %#v", putBody["section"])
 	}
 	if int(got) != 5 {
 		t.Errorf("body section = %v, want 5", got)
@@ -371,7 +368,7 @@ func TestUpdate_Section_SendsSectionInBody(t *testing.T) {
 }
 
 // TestUpdate_SectionHash_SendsSectionHashInBody verifies that --section-hash
-// is propagated as the wiki_page.section_hash field on the PUT body.
+// is propagated as a top-level section_hash field on the PUT body.
 func TestUpdate_SectionHash_SendsSectionHashInBody(t *testing.T) {
 	var (
 		mu      sync.Mutex
@@ -407,12 +404,8 @@ func TestUpdate_SectionHash_SendsSectionHashInBody(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wp, ok := putBody["wiki_page"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("body missing wiki_page key: %#v", putBody)
-	}
-	if wp["section_hash"] != "abc123def456" {
-		t.Errorf("body section_hash = %v, want abc123def456", wp["section_hash"])
+	if putBody["section_hash"] != "abc123def456" {
+		t.Errorf("top-level body section_hash = %v, want abc123def456", putBody["section_hash"])
 	}
 }
 
@@ -438,6 +431,57 @@ func TestUpdate_SectionMustBePositive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), ">= 1") {
 		t.Errorf("error = %q, want a >= 1 message", err.Error())
+	}
+}
+
+// TestUpdate_SectionRequiresText guards against a section edit without --text.
+// Omitting --text makes the command resend the current full page body as the
+// section content, silently collapsing the page, so it must be rejected before
+// any request is sent.
+func TestUpdate_SectionRequiresText(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--section", "2",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "--section requires --text") {
+		t.Errorf("error = %q, want a '--section requires --text' message", err.Error())
+	}
+}
+
+// TestUpdate_SectionHashRequiresSection rejects --section-hash without
+// --section, which Redmine would silently ignore.
+func TestUpdate_SectionHashRequiresSection(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{
+		"MyPage",
+		"--project", "proj",
+		"--text", "x",
+		"--section-hash", "abc123",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "--section-hash requires --section") {
+		t.Errorf("error = %q, want a '--section-hash requires --section' message", err.Error())
 	}
 }
 

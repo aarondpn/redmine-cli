@@ -81,6 +81,15 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("section") && section < 1 {
 				return fmt.Errorf("--section must be >= 1")
 			}
+			// A section edit replaces the targeted section with --text. Without
+			// --text the command would resend the whole current page body as
+			// the section content, silently collapsing the page. Require it.
+			if cmd.Flags().Changed("section") && !cmd.Flags().Changed("text") {
+				return fmt.Errorf("--section requires --text")
+			}
+			if cmd.Flags().Changed("section-hash") && !cmd.Flags().Changed("section") {
+				return fmt.Errorf("--section-hash requires --section")
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
