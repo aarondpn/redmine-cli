@@ -4,8 +4,7 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
-	site: 'https://aarondpn.github.io',
-	base: '/redmine-cli',
+	site: 'https://redmine-cli.aaron-doeppner.workers.dev',
 	integrations: [
 		starlight({
 			title: 'redmine-cli',
