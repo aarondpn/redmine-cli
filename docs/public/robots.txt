@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://redmine-cli.aaron-doeppner.workers.dev/sitemap-index.xml
+Sitemap: https://redmine-cli.dev/sitemap-index.xml
