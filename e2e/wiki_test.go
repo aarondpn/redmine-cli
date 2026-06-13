@@ -3,10 +3,12 @@
 package e2e
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -221,6 +223,140 @@ func TestWiki_GetMissing(t *testing.T) {
 	stdout, _ := r.runExpectError(t, "wiki", "get", "Nonexistent-"+wikiPageName(t),
 		"--project", proj.Identifier)
 	assertErrorCode(t, stdout, "not_found")
+}
+
+// TestWiki_SectionUpdate verifies the --section flag end-to-end: only the
+// targeted section is replaced and the surrounding sections are preserved.
+// Without --section, a wiki update rewrites the whole body, so this test
+// fails loudly if the section parameter never reaches Redmine (e.g. if it is
+// sent nested under wiki_page, where Redmine ignores it).
+func TestWiki_SectionUpdate(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	style := wikiHeadingStyle()
+	page := wikiPageName(t)
+	const (
+		alphaBody = "Alpha body untouched."
+		bravoOld  = "Bravo body original."
+		bravoNew  = "Bravo body REPLACED by section edit."
+		charlBody = "Charlie body untouched."
+	)
+	initial := wikiSection(style, "Alpha", alphaBody) + "\n\n" +
+		wikiSection(style, "Bravo", bravoOld) + "\n\n" +
+		wikiSection(style, "Charlie", charlBody)
+
+	var created struct {
+		Version int `json:"version"`
+	}
+	r.runJSON(t, &created, "wiki", "create", page,
+		"--project", proj.Identifier,
+		"--text", initial)
+	if created.Version != 1 {
+		t.Fatalf("created version = %d, want 1", created.Version)
+	}
+
+	// Replace only section 2 (Bravo). Sections are 1-based and count headings
+	// in document order: 1=Alpha, 2=Bravo, 3=Charlie.
+	var updated actionEnvelope
+	r.runJSON(t, &updated, "wiki", "update", page,
+		"--project", proj.Identifier,
+		"--section", "2",
+		"--text", wikiSection(style, "Bravo", bravoNew))
+	if !updated.Ok || updated.Action != "updated" {
+		t.Fatalf("unexpected section update envelope: %+v", updated)
+	}
+
+	var after struct {
+		Text    string `json:"text"`
+		Version int    `json:"version"`
+	}
+	r.runJSON(t, &after, "wiki", "get", page, "--project", proj.Identifier)
+
+	// The edited section must carry the new content.
+	if !strings.Contains(after.Text, bravoNew) {
+		t.Errorf("section 2 not updated; page text = %q", after.Text)
+	}
+	// The surrounding sections must survive untouched. If --section was
+	// dropped, Redmine rewrites the whole page with just the Bravo text and
+	// these markers disappear.
+	if !strings.Contains(after.Text, alphaBody) {
+		t.Errorf("section 1 (Alpha) was lost; page text = %q", after.Text)
+	}
+	if !strings.Contains(after.Text, charlBody) {
+		t.Errorf("section 3 (Charlie) was lost; page text = %q", after.Text)
+	}
+	// The old section-2 body must be gone (it was replaced, not appended).
+	if strings.Contains(after.Text, bravoOld) {
+		t.Errorf("old section 2 body still present; page text = %q", after.Text)
+	}
+	if after.Version != 2 {
+		t.Errorf("after section update version = %d, want 2", after.Version)
+	}
+}
+
+// TestWiki_SectionUpdate_InvalidSection verifies the client-side guard that
+// rejects non-positive --section values before any request is sent.
+func TestWiki_SectionUpdate_InvalidSection(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	stdout, stderr := r.runExpectError(t, "wiki", "update", "AnyPage",
+		"--project", proj.Identifier,
+		"--text", "x",
+		"--section", "0")
+	// The CLI emits a JSON error envelope on stdout; ">" is escaped as >
+	// there, so match on the unescaped prefix of the message instead.
+	combined := string(stdout) + string(stderr)
+	if !strings.Contains(combined, "section must be") {
+		t.Errorf("expected a '--section must be >= 1' validation error, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+// TestWiki_SectionUpdate_StaleHashConflict verifies that --section-hash
+// reaches Redmine and drives section-level optimistic locking: a stale hash
+// must surface as a conflict, not silently overwrite the section.
+func TestWiki_SectionUpdate_StaleHashConflict(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	style := wikiHeadingStyle()
+	page := wikiPageName(t)
+	initial := wikiSection(style, "Alpha", "Alpha body.") + "\n\n" +
+		wikiSection(style, "Bravo", "Bravo body.")
+	r.run(t, "wiki", "create", page,
+		"--project", proj.Identifier,
+		"--text", initial)
+
+	stdout, _ := r.runExpectError(t, "wiki", "update", page,
+		"--project", proj.Identifier,
+		"--section", "2",
+		"--section-hash", "deadbeefdeadbeefdeadbeefdeadbeef",
+		"--text", wikiSection(style, "Bravo", "should not land"))
+	assertErrorCode(t, stdout, "conflict")
+}
+
+// wikiHeadingStyle returns the markup the e2e server's default formatter
+// recognises as headings. Redmine 5.0+ defaults to CommonMark (Markdown);
+// 4.x and earlier default to Textile. Section editing keys off recognised
+// headings, so test content must match the active formatter.
+func wikiHeadingStyle() string {
+	version := os.Getenv("REDMINE_E2E_VERSION")
+	if strings.HasPrefix(version, "4.") || strings.HasPrefix(version, "3.") || strings.HasPrefix(version, "2.") {
+		return "textile"
+	}
+	return "markdown"
+}
+
+// wikiSection renders a single heading + body block in the given style.
+func wikiSection(style, heading, body string) string {
+	if style == "textile" {
+		return fmt.Sprintf("h1. %s\n\n%s", heading, body)
+	}
+	return fmt.Sprintf("# %s\n\n%s", heading, body)
 }
 
 // wikiPageName returns a unique, Redmine-safe wiki page name for a single

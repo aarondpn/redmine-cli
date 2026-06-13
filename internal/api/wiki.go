@@ -78,6 +78,16 @@ func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki m
 // Update updates an existing wiki page.
 func (s *WikiService) Update(ctx context.Context, projectID, page string, update models.WikiPageUpdate) error {
 	body := map[string]interface{}{"wiki_page": update}
+	// Section selectors live at the top level of the params, not inside
+	// wiki_page (see WikiController#update). Adding them here keeps the rest
+	// of the update in the wiki_page object while letting Redmine apply the
+	// section edit instead of overwriting the whole page.
+	if update.Section != nil {
+		body["section"] = *update.Section
+	}
+	if update.SectionHash != nil {
+		body["section_hash"] = *update.SectionHash
+	}
 	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page)), body)
 }
 
