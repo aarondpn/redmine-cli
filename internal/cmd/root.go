@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	apicmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/attachment"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/auth"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/category"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/completion"
@@ -94,6 +95,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(apicmd.NewCmdAPI(f))
 	cmd.AddCommand(auth.NewCmdAuth(f))
 	cmd.AddCommand(issue.NewCmdIssue(f))
+	cmd.AddCommand(attachment.NewCmdAttachments(f))
 	cmd.AddCommand(group.NewCmdGroup(f))
 	cmd.AddCommand(membership.NewCmdMemberships(f))
 	cmd.AddCommand(project.NewCmdProject(f))

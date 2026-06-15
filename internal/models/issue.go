@@ -34,6 +34,7 @@ type Issue struct {
 	Children       []IDRef            `json:"children,omitempty"`
 	Watchers       []IDName           `json:"watchers,omitempty"`
 	Relations      []IssueRelation    `json:"relations,omitempty"`
+	Attachments    []Attachment       `json:"attachments,omitempty"`
 }
 
 // IssueRelation represents a relation between two issues. Returned both via

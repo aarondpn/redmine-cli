@@ -1,0 +1,106 @@
+---
+title: Attachments
+description: Inspect attachment metadata and download attachment files without curl or manual API-key handling.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+The `attachments` command (aliases `attachment`, `a`) surfaces Redmine's [Attachments API](https://www.redmine.org/projects/redmine/wiki/Rest_api#Attachments) so you can inspect an attachment's metadata and download its bytes. Downloads reuse the active profile's server and API key, streaming straight to disk - no `curl`, no manually extracted key.
+
+<CardGrid>
+  <LinkCard title="get"      href="#get"      description="Print attachment metadata (filename, size, type, author)." />
+  <LinkCard title="download" href="#download" description="Download the file to disk or stream it to stdout." />
+</CardGrid>
+
+<Aside type="tip">
+  Don't know the attachment ID? List an issue's attachments with
+  [`redmine issues get <id> --attachments`](/commands/issues/#get) - it prints each
+  attachment's ID, filename, size, and content type.
+</Aside>
+
+## get
+
+```bash
+redmine attachments get <id> [flags]
+```
+
+Aliases: `show`, `view`, `metadata`. Fetches the attachment's ID, filename, size, content type, description, author, and creation time via `GET /attachments/:id.json`. Table output also shows the download URL (when present); `json` returns every field, including `content_url`.
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format: `table`, `json`, `csv` |
+
+<Tabs syncKey="attachments-get">
+  <TabItem label="Table">
+    ```bash
+    redmine attachments get 42
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine attachments get 42 -o json
+    ```
+  </TabItem>
+  <TabItem label="CSV">
+    ```bash
+    redmine attachments get 42 -o csv
+    ```
+  </TabItem>
+</Tabs>
+
+## download
+
+```bash
+redmine attachments download <id> [flags]
+```
+
+Aliases: `dl`, `get-file`. Streams the attachment's raw bytes to disk (or stdout), authenticating with the active profile. The response is streamed, never buffered entirely in memory, so large files are safe.
+
+| Flag | Description |
+|------|-------------|
+| `-d, --dir`    | Directory to save into, using the attachment's real filename (created if missing) |
+| `--path`       | Exact destination file path. Use `-` to stream to stdout |
+| `-o, --output` | Confirmation format: `json` prints a result object; otherwise a human line is written to stderr |
+
+With no destination flag, the file is saved as `./<filename>` in the current directory.
+
+<Aside>
+  Unlike most commands, `-o/--output` here controls only the **confirmation**
+  output, not where the bytes go - use `--dir` / `--path` for that. When
+  streaming to stdout (`--path -`), the bytes go to stdout and the confirmation
+  always goes to stderr, so the pipe stays clean even with `-o json`.
+</Aside>
+
+<Tabs syncKey="attachments-download">
+  <TabItem label="Current dir">
+    ```bash
+    # Saves ./<filename>
+    redmine attachments download 42
+    ```
+  </TabItem>
+  <TabItem label="Into a directory">
+    ```bash
+    redmine attachments download 42 --dir ./downloads
+    ```
+  </TabItem>
+  <TabItem label="Exact path">
+    ```bash
+    redmine attachments download 42 --path ./logo.png
+    ```
+  </TabItem>
+  <TabItem label="Pipe to stdout">
+    ```bash
+    redmine attachments download 42 --path - | file -
+    ```
+  </TabItem>
+  <TabItem label="JSON result">
+    ```bash
+    redmine attachments download 42 --dir ./downloads -o json
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  To grab **every** attachment of an issue in one step, use
+  [`redmine issues get <id> --download-attachments <dir>`](/commands/issues/#get).
+</Aside>

@@ -106,6 +106,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.DeleteIssueRelation,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetAttachmentInput, *models.Attachment]{
+		Name:        "get_attachment",
+		Description: "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"].",
+		Category:    "issues",
+		Call:        ops.GetAttachment,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueInput, *models.Issue]{
 		Name:        "get_issue",
 		Description: "Fetch a single Redmine issue by ID.",
@@ -487,6 +493,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "create_issue_relation", Description: "Create a relation between two issues. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue_relation", Description: "Delete an issue relation by its relation ID. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "get_attachment", Description: "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"].", Group: "issues", Writes: false},
 		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID.", Group: "issues", Writes: false},
 		{Name: "get_issue_relation", Description: "Fetch a single issue relation by its relation ID.", Group: "issues", Writes: false},
 		{Name: "list_issue_relations", Description: "List relations attached to an issue.", Group: "issues", Writes: false},

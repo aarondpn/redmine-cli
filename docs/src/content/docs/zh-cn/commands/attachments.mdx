@@ -1,0 +1,105 @@
+---
+title: 附件
+description: 查看附件元数据并下载附件文件，无需 curl，也无需手动处理 API 密钥。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+
+`attachments` 命令（别名 `attachment`、`a`）封装了 Redmine 的[附件 API](https://www.redmine.org/projects/redmine/wiki/Rest_api#Attachments)，让你既能查看附件的元数据，也能下载其字节内容。下载会复用当前 profile 的服务器地址和 API 密钥，并直接流式写入磁盘 - 无需 `curl`，也无需手动提取密钥。
+
+<CardGrid>
+  <LinkCard title="get"      href="#get"      description="打印附件元数据（文件名、大小、类型、作者）。" />
+  <LinkCard title="download" href="#download" description="将文件下载到磁盘，或流式输出到 stdout。" />
+</CardGrid>
+
+<Aside type="tip">
+  不知道附件 ID？用
+  [`redmine issues get <id> --attachments`](/zh-cn/commands/issues/#get)
+  列出工单的附件 - 它会打印每个附件的 ID、文件名、大小和内容类型。
+</Aside>
+
+## get
+
+```bash
+redmine attachments get <id> [flags]
+```
+
+别名：`show`、`view`、`metadata`。通过 `GET /attachments/:id.json` 获取附件的 ID、文件名、大小、内容类型、描述、作者和创建时间。表格输出还会显示下载 URL（若存在）；`json` 会返回所有字段，包括 `content_url`。
+
+| 标志 | 描述 |
+|------|------|
+| `-o, --output` | 输出格式：`table`、`json`、`csv` |
+
+<Tabs syncKey="attachments-get">
+  <TabItem label="表格">
+    ```bash
+    redmine attachments get 42
+    ```
+  </TabItem>
+  <TabItem label="JSON">
+    ```bash
+    redmine attachments get 42 -o json
+    ```
+  </TabItem>
+  <TabItem label="CSV">
+    ```bash
+    redmine attachments get 42 -o csv
+    ```
+  </TabItem>
+</Tabs>
+
+## download
+
+```bash
+redmine attachments download <id> [flags]
+```
+
+别名：`dl`、`get-file`。使用当前 profile 进行认证，将附件的原始字节流式写入磁盘（或 stdout）。响应是流式处理的，不会整体缓存在内存中，因此下载大文件也很安全。
+
+| 标志 | 描述 |
+|------|------|
+| `-d, --dir`    | 保存到的目录，使用附件的真实文件名（目录不存在时自动创建） |
+| `--path`       | 精确的目标文件路径。使用 `-` 可流式输出到 stdout |
+| `-o, --output` | 确认信息的格式：`json` 打印结果对象；否则向 stderr 写入一行可读信息 |
+
+若不指定目标标志，文件会以 `./<文件名>` 保存到当前目录。
+
+<Aside>
+  与大多数命令不同，这里的 `-o/--output` 仅控制**确认信息**的输出，而不决定字节写到哪里 -
+  请用 `--dir` / `--path` 来指定目标。当流式输出到 stdout（`--path -`）时，字节写入 stdout，
+  确认信息始终写入 stderr，因此即便加上 `-o json`，管道内容也不会被污染。
+</Aside>
+
+<Tabs syncKey="attachments-download">
+  <TabItem label="当前目录">
+    ```bash
+    # 保存为 ./<文件名>
+    redmine attachments download 42
+    ```
+  </TabItem>
+  <TabItem label="保存到目录">
+    ```bash
+    redmine attachments download 42 --dir ./downloads
+    ```
+  </TabItem>
+  <TabItem label="精确路径">
+    ```bash
+    redmine attachments download 42 --path ./logo.png
+    ```
+  </TabItem>
+  <TabItem label="管道到 stdout">
+    ```bash
+    redmine attachments download 42 --path - | file -
+    ```
+  </TabItem>
+  <TabItem label="JSON 结果">
+    ```bash
+    redmine attachments download 42 --dir ./downloads -o json
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  若要一次性获取某个工单的**所有**附件，请使用
+  [`redmine issues get <id> --download-attachments <dir>`](/zh-cn/commands/issues/#get)。
+</Aside>

@@ -91,11 +91,34 @@ redmine issues get <id> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`    | 包含关联数据：`journals`、`children`、`relations` |
-| `--journals`   | `--include journals` 的简写 |
-| `--children`   | `--include children` 的简写 |
-| `--relations`  | `--include relations` 的简写 |
-| `-o, --output` | 输出格式 |
+| `--include`                | 包含关联数据：`journals`、`children`、`relations`、`attachments` |
+| `--journals`               | `--include journals` 的简写 |
+| `--children`               | `--include children` 的简写 |
+| `--relations`              | `--include relations` 的简写 |
+| `--attachments`            | 列出工单的附件（id、文件名、大小、内容类型） |
+| `--download-attachments`   | 将工单的所有附件下载到指定目录 |
+| `-o, --output`             | 输出格式 |
+
+<Tabs syncKey="issues-get">
+  <TabItem label="附件">
+    ```bash
+    # 列出附件 ID，以便下载某个附件
+    redmine issues get 123 --attachments
+    ```
+  </TabItem>
+  <TabItem label="全部下载">
+    ```bash
+    # 将所有附件下载到 ./issue-123
+    redmine issues get 123 --download-attachments ./issue-123
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  `--attachments` 会显示每个附件的 ID。把该 ID 传给
+  [`attachments download <id>`](/zh-cn/commands/attachments/#download) 可下载单个文件，
+  或使用 `--download-attachments <dir>` 一次性下载全部附件。
+</Aside>
 
 ## create
 

@@ -160,9 +160,9 @@ func TestIssues_Assign(t *testing.T) {
 }
 
 // TestIssues_Attachment verifies the multipart upload path: create an issue
-// with --attach, then fetch via the raw api with ?include=attachments (the
-// typed Issue model doesn't surface attachments) and assert the file is
-// present.
+// with --attach, then fetch via the raw api with ?include=attachments and
+// assert the file is present. (The typed `issues get --attachments` flow is
+// covered separately in attachments_test.go.)
 func TestIssues_Attachment(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
