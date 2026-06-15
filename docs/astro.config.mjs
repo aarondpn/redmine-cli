@@ -41,6 +41,7 @@ export default defineConfig({
 						{ label: 'Memberships', translations: { 'zh-CN': '成员关系' }, slug: 'commands/memberships' },
 						{ label: 'Versions', translations: { 'zh-CN': '版本' }, slug: 'commands/versions' },
 						{ label: 'Files', translations: { 'zh-CN': '项目文件' }, slug: 'commands/files' },
+						{ label: 'Attachments', translations: { 'zh-CN': '附件' }, slug: 'commands/attachments' },
 						{ label: 'Time Entries', translations: { 'zh-CN': '工时记录' }, slug: 'commands/time' },
 						{ label: 'Users', translations: { 'zh-CN': '用户' }, slug: 'commands/users' },
 						{ label: 'My Account', translations: { 'zh-CN': '我的账户' }, slug: 'commands/my_account' },

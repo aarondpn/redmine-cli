@@ -63,6 +63,13 @@ type authTransport struct {
 	apiKey     string
 	username   string
 	password   string
+	// host is the configured server host (host[:port]). Credentials are only
+	// attached when the request targets this host, so a redirect off-site
+	// (e.g. an attachment content_url that 302s to external object storage)
+	// never receives the API key or basic-auth credentials. An empty host
+	// means "always attach" (used by tests that construct the transport
+	// directly without a configured server).
+	host string
 }
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -71,11 +78,16 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	switch t.authMethod {
-	case "basic":
-		req.SetBasicAuth(t.username, t.password)
-	default:
-		req.Header.Set("X-Redmine-API-Key", t.apiKey)
+	// Only attach credentials to the configured server's host. This keeps the
+	// API key (and basic-auth) from leaking to a third party if the server, or
+	// an attachment's content_url, redirects to an off-site host.
+	if t.host == "" || strings.EqualFold(req.URL.Host, t.host) {
+		switch t.authMethod {
+		case "basic":
+			req.SetBasicAuth(t.username, t.password)
+		default:
+			req.Header.Set("X-Redmine-API-Key", t.apiKey)
+		}
 	}
 
 	base := t.base
@@ -93,12 +105,18 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 
 	baseURL := strings.TrimRight(cfg.Server, "/")
 
+	var host string
+	if u, err := url.Parse(baseURL); err == nil {
+		host = u.Host
+	}
+
 	transport := &authTransport{
 		base:       http.DefaultTransport,
 		authMethod: cfg.AuthMethod,
 		apiKey:     cfg.APIKey,
 		username:   cfg.Username,
 		password:   cfg.Password,
+		host:       host,
 	}
 
 	c := &Client{

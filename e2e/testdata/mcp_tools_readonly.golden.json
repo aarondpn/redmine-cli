@@ -1,5 +1,9 @@
 [
   {
+    "name": "get_attachment",
+    "description": "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"]."
+  },
+  {
     "name": "get_custom_field",
     "description": "Fetch a single custom field definition by ID. Admin-only endpoint."
   },

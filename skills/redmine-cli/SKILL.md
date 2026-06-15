@@ -14,6 +14,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | Command | Purpose |
 |---------|---------|
 | `issues` | Create, list, get, update, close, reopen, assign, comment, delete, search, browse issues; manage watchers and relations (`issues watchers …`, `issues relations …`) |
+| `attachments` | Inspect attachment metadata (`attachments get <id>`) and download attachment files (`attachments download <id>`) using the active profile's auth |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |
 | `time` | Log, list, get, update, delete, summarize time entries |
@@ -90,10 +91,32 @@ When you create an issue, project, user, or other resource, the CLI returns the 
 
 Get the server URL from `redmine config` (or from the JSON output's hints). Always mention the URL or the `open` command after a successful create so the user can quickly navigate to the new resource.
 
+## Attachments: Always Download and Inspect Them
+
+Issues often carry attachments (screenshots, diagrams, logs, PDFs) that contain
+information not present in the text. **Whenever an issue has attachments,
+download them and inspect their contents before answering** - especially
+images, which frequently hold the actual error, mockup, or detail the ticket is
+about.
+
+1. **Discover attachment IDs**: `redmine issues get <id> --attachments` lists each
+   attachment's `id`, `filename`, `size`, and `content_type`. With `-o json` the
+   issue's `attachments[]` array is included in the output.
+2. **Download one file**: `redmine attachments download <att-id> -d <dir>` saves it
+   under its real filename (or `--path <file>` for an exact path, `--path -` to
+   stream to stdout). No `curl`, no manual API-key handling - it reuses the active
+   profile's auth.
+3. **Download everything at once**: `redmine issues get <id> --download-attachments <dir>`
+   pulls every attachment of the issue into `<dir>` in one step.
+4. **Inspect metadata only** (no download): `redmine attachments get <att-id>`.
+
+After downloading an image, open/read it and use what it shows. Do not answer a
+question about a ticket with attachments without first looking at them.
+
 ## Non-Obvious Behaviors
 
 - `redmine issues list` defaults to `--status open`. Use `--status closed`, `--status "*"`, or a specific status name.
-- `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`.
+- `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`, `--attachments`.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - Projects can accumulate hundreds of versions, most of them closed or locked. When you need a version for a new issue, time entry, or similar workflow, always start from `redmine versions list --open` so the shortlist stays small and you don't pick a version that can no longer accept work.

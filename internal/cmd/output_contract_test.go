@@ -29,6 +29,8 @@ type commandContract struct {
 // failure instead of a review surprise.
 var commandOutputContracts = map[string]commandContract{
 	"redmine api":                     {Mode: outputContractStructured},
+	"redmine attachments download":    {Mode: outputContractStructured},
+	"redmine attachments get":         {Mode: outputContractStructured},
 	"redmine auth list":               {Mode: outputContractStructured},
 	"redmine auth login":              {Mode: outputContractInteractive, Reason: "runs an interactive Huh form to collect credentials"},
 	"redmine auth logout":             {Mode: outputContractInteractive, Reason: "may prompt for interactive confirmation before deleting a profile"},
