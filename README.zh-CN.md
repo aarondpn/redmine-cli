@@ -112,7 +112,7 @@ redmine-cli 同时附带 [Agent Skill](https://agentskills.io)（35 多个代理
 
 skill 教代理掌握 CLI 中不显然的部分（输出格式、名称解析、分页、常见工作流）。MCP 服务器以类型化工具调用的形式暴露相同的操作，默认只读，并支持按 group / tool 的允许列表与拒绝列表。
 
-完整配置、各宿主专属代码片段（Claude Desktop、Cursor、Zed、VS Code）以及写入工具的开关，请参阅 [AI 代理集成指南](https://aarondpn.github.io/redmine-cli/guides/ai-agents/)。
+完整配置、各宿主专属代码片段（Claude Desktop、Cursor、Zed、VS Code）以及写入工具的开关，请参阅 [AI 代理集成指南](https://redmine-cli.dev/guides/ai-agents/)。
 
 ## 开发
 

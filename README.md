@@ -112,7 +112,7 @@ redmine-cli ships an [Agent Skill](https://agentskills.io) (the open `SKILL.md` 
 
 The skill teaches the agent the non-obvious parts of the CLI (output formats, name resolution, pagination, common workflows). The MCP server exposes the same operations as typed tool calls, read-only by default, with per-group / per-tool allow- and deny-lists.
 
-Full configuration, host-specific snippets (Claude Desktop, Cursor, Zed, VS Code), and write-tool gating: see the [AI Agent Integration guide](https://aarondpn.github.io/redmine-cli/guides/ai-agents/).
+Full configuration, host-specific snippets (Claude Desktop, Cursor, Zed, VS Code), and write-tool gating: see the [AI Agent Integration guide](https://redmine-cli.dev/guides/ai-agents/).
 
 ## Development
 

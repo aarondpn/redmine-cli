@@ -112,7 +112,7 @@ redmine-cli は [Agent Skill](https://agentskills.io)（35 以上のエージェ
 
 skill は CLI の非自明な部分（出力形式、名前解決、ページネーション、一般的なワークフロー）をエージェントに教えます。MCP サーバーは同じ操作を型付きツールコールとして公開し、デフォルトは読み取り専用、グループ単位／ツール単位の allow / deny リストを備えます。
 
-詳細な設定、ホスト別スニペット（Claude Desktop、Cursor、Zed、VS Code）、書き込みツールのゲートについては [AI エージェント連携ガイド](https://aarondpn.github.io/redmine-cli/guides/ai-agents/) を参照してください。
+詳細な設定、ホスト別スニペット（Claude Desktop、Cursor、Zed、VS Code）、書き込みツールのゲートについては [AI エージェント連携ガイド](https://redmine-cli.dev/guides/ai-agents/) を参照してください。
 
 ## 開発
 
