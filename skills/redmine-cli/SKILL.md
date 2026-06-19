@@ -22,10 +22,13 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `files` | List and upload project-level files (release artifacts) |
 | `memberships` | List, get, create, update, delete project memberships |
 | `users` | List, get, create, update, delete users |
+| `my-account` | Get and update your own Redmine account (works without admin) |
 | `groups` | List, get, create, update, delete groups; add/remove users |
+| `roles` | List and get roles, including their permissions |
 | `categories` | List issue categories |
-| `trackers` | List trackers |
+| `trackers` | List and get trackers |
 | `statuses` | List issue statuses |
+| `custom-fields` | List and get custom field definitions (admin-only endpoint) |
 | `search` | Search issues, wiki, news, messages, or browse results |
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |
 | `wiki` | List, get, create, update, delete wiki pages |
