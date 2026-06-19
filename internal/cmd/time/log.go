@@ -37,7 +37,16 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 			ctx := context.Background()
 
-			project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			// When logging against a specific issue, Redmine derives the project
+			// from the issue. Applying the configured default project would inject
+			// a conflicting project_id that Redmine can reject. Only fall back to
+			// the default project when no issue is given; an explicit --project is
+			// still honored.
+			if issue > 0 {
+				project, err = cmdutil.ResolveProjectID(ctx, f, project)
+			} else {
+				project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			}
 			if err != nil {
 				return err
 			}

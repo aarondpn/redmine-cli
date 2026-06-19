@@ -175,6 +175,119 @@ func TestTimeList_EmptyCSVPrintsHeaders(t *testing.T) {
 	}
 }
 
+// TestTimeList_IssueScopeIgnoresDefaultProject pins that filtering by --issue
+// does not inject the configured default project's project_id, which would
+// change Redmine's authorization scope and can surface as a 403. See issue #123.
+func TestTimeList_IssueScopeIgnoresDefaultProject(t *testing.T) {
+	var capturedQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/demo.json":
+			// Default-project resolution would hit this if (wrongly) attempted.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":7,"identifier":"demo","name":"Demo"}}`))
+		case "/time_entries.json":
+			capturedQuery = r.URL.Query()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"time_entries":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactoryWithConfig(t, srv.URL, "default_project: demo\n")
+	cmd := newCmdTimeList(f)
+	cmd.SetArgs([]string{"--issue", "42", "--limit", "0", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := capturedQuery.Get("issue_id"); got != "42" {
+		t.Errorf("issue_id query = %q, want 42", got)
+	}
+	if got, ok := capturedQuery["project_id"]; ok {
+		t.Errorf("project_id must be absent when filtering by issue, got %q", got)
+	}
+}
+
+// TestTimeLog_IssueScopeIgnoresDefaultProject pins that logging against --issue
+// does not inject the configured default project into the request body. See
+// issue #123.
+func TestTimeLog_IssueScopeIgnoresDefaultProject(t *testing.T) {
+	var capturedBody map[string]interface{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/demo.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":7,"identifier":"demo","name":"Demo"}}`))
+		case "/time_entries.json":
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &capturedBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"time_entry":{"id":99,"hours":1,"spent_on":"2025-06-15","project":{"id":1,"name":"Demo"},"user":{"id":2,"name":"Alice"},"activity":{"id":9,"name":"Development"}}}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactoryWithConfig(t, srv.URL, "default_project: demo\n")
+	cmd := newCmdTimeLog(f)
+	cmd.SetArgs([]string{"--hours", "1", "--issue", "42", "--date", "2025-06-15"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	te, _ := capturedBody["time_entry"].(map[string]interface{})
+	if te == nil {
+		t.Fatal("request body missing time_entry wrapper")
+	}
+	if te["issue_id"] != float64(42) {
+		t.Errorf("payload issue_id = %v, want 42", te["issue_id"])
+	}
+	if v, ok := te["project_id"]; ok {
+		t.Errorf("project_id must be absent when logging against an issue, got %v", v)
+	}
+}
+
+// TestTimeSummary_HonorsDefaultProject pins a deliberate decision from the
+// issue #123 audit: `time summary` has no issue scope, so applying the
+// configured default project is intended behavior (the same fallback the fix
+// keeps in the no-issue branch of list/log). It must NOT be "fixed" to drop the
+// default project, which would regress project-scoped summaries.
+func TestTimeSummary_HonorsDefaultProject(t *testing.T) {
+	var capturedQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/demo.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":7,"identifier":"demo","name":"Demo"}}`))
+		case "/time_entries.json":
+			capturedQuery = r.URL.Query()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"time_entries":[],"total_count":0}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactoryWithConfig(t, srv.URL, "default_project: demo\n")
+	cmd := newCmdTimeSummary(f)
+	cmd.SetArgs([]string{"--from", "2025-06-01", "--to", "2025-06-30", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := capturedQuery.Get("project_id"); got != "7" {
+		t.Errorf("project_id query = %q, want 7 (summary should honor the default project)", got)
+	}
+}
+
 // --- get ---
 
 func TestTimeGet_Detail(t *testing.T) {
