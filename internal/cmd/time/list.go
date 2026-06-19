@@ -41,7 +41,17 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			from = cmdutil.ResolveDateKeyword(from)
 			to = cmdutil.ResolveDateKeyword(to)
 
-			project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			// When filtering by a specific issue, the issue already determines
+			// the scope. Applying the configured default project would inject an
+			// unrelated project_id, which Redmine authorizes against that project
+			// (often a 403 when its time-tracking module is disabled or the issue
+			// lives elsewhere). Only fall back to the default project for
+			// project-scoped listings; an explicit --project is still honored.
+			if issue > 0 {
+				project, err = cmdutil.ResolveProjectID(ctx, f, project)
+			} else {
+				project, err = cmdutil.DefaultProjectID(ctx, f, project)
+			}
 			if err != nil {
 				return err
 			}

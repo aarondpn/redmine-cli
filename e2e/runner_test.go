@@ -85,6 +85,17 @@ func (r *cliRunner) runJSON(t *testing.T, dest any, args ...string) {
 	}
 }
 
+// runJSONWithEnv is like runJSON but appends extra env vars to the child
+// process. Tests that need to drive config via REDMINE_* env (e.g. a default
+// project) and still decode JSON output use this.
+func (r *cliRunner) runJSONWithEnv(t *testing.T, extraEnv []string, dest any, args ...string) {
+	t.Helper()
+	stdout := r.runWithEnv(t, extraEnv, args...)
+	if err := json.Unmarshal(stdout, dest); err != nil {
+		t.Fatalf("decode JSON for %q: %v\nstdout:\n%s", strings.Join(args, " "), err, stdout)
+	}
+}
+
 // runExpectError runs the CLI and requires a non-zero exit. It returns
 // stdout and stderr so tests can inspect the error envelope.
 func (r *cliRunner) runExpectError(t *testing.T, args ...string) (stdout, stderr []byte) {
