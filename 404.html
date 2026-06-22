@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>redmine-cli docs have moved to redmine-cli.dev</title>
+    <link rel="canonical" href="https://redmine-cli.dev/" />
+    <script>
+      // Map any old GitHub Pages URL (base path /redmine-cli) to the same
+      // path on the new domain, so deep links indexed by search engines land
+      // on the equivalent page instead of a generic root redirect.
+      (function () {
+        var base = "/redmine-cli";
+        var path = location.pathname;
+        if (path.indexOf(base) === 0) path = path.slice(base.length);
+        if (path.charAt(0) !== "/") path = "/" + path;
+        var target = "https://redmine-cli.dev" + path + location.search + location.hash;
+        var canonical = document.querySelector('link[rel="canonical"]');
+        if (canonical) canonical.href = target;
+        location.replace(target);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=https://redmine-cli.dev/" />
+    </noscript>
+  </head>
+  <body>
+    <p>
+      This page has moved to
+      <a href="https://redmine-cli.dev/">redmine-cli.dev</a>. Redirecting&hellip;
+    </p>
+  </body>
+</html>
