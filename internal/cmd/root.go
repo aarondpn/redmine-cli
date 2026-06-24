@@ -55,6 +55,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 		verbose      bool
 		cfgFile      string
 		outputFormat string
+		readOnly     bool
 	)
 
 	cmd := &cobra.Command{
@@ -72,6 +73,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 			}
 			f.Verbose = verbose
 			f.OutputFormat = outputFormat
+			if cmd.Flags().Changed("read-only") {
+				f.ReadOnly = &readOnly
+			}
 			return nil
 		},
 		SilenceUsage:  true,
@@ -86,6 +90,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
+	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all write requests (GET/HEAD only)")
 	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
 
 	// Version

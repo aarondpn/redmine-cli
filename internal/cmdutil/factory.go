@@ -30,6 +30,10 @@ type Factory struct {
 	APIKeyOverride  string
 	NoColorOverride bool
 
+	// ReadOnly, when non-nil, is the --read-only flag value and overrides
+	// both REDMINE_READ_ONLY and the per-profile config (highest precedence).
+	ReadOnly *bool
+
 	// OutputFormat is set by the root persistent --output/-o flag and used
 	// as the default format when commands call Printer("").
 	OutputFormat string
@@ -91,6 +95,9 @@ func (f *Factory) Config() (*config.Config, error) {
 
 	if f.NoColorOverride {
 		cfg.NoColor = true
+	}
+	if f.ReadOnly != nil {
+		cfg.ReadOnly = *f.ReadOnly
 	}
 
 	f.config = cfg

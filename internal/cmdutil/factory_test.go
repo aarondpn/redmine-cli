@@ -337,3 +337,41 @@ func testFactoryWithConfig(t *testing.T, body string) *Factory {
 }
 
 var _ = config.Config{}
+
+func TestFactoryReadOnlyFlagBeatsConfig(t *testing.T) {
+	// File says read_only: true...
+	cfgPath := writeConfigFile(t, "active_profile: default\nprofiles:\n  default:\n    server: https://x\n    api_key: k\n    read_only: true\n")
+
+	// ...but the flag explicitly sets it false (highest precedence).
+	ff := false
+	f := NewFactory()
+	f.ConfigPath = cfgPath
+	f.ProfileOverride = "default"
+	f.ReadOnly = &ff
+
+	cfg, err := f.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ReadOnly {
+		t.Fatal("flag --read-only=false must override config read_only: true")
+	}
+}
+
+func TestFactoryReadOnlyEnvWhenNoFlag(t *testing.T) {
+	cfgPath := writeConfigFile(t, "active_profile: default\nprofiles:\n  default:\n    server: https://x\n    api_key: k\n")
+	t.Setenv("REDMINE_READ_ONLY", "true")
+
+	f := NewFactory()
+	f.ConfigPath = cfgPath
+	f.ProfileOverride = "default"
+	// f.ReadOnly stays nil (flag not set)
+
+	cfg, err := f.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ReadOnly {
+		t.Fatal("REDMINE_READ_ONLY=true must apply when --read-only is not set")
+	}
+}
