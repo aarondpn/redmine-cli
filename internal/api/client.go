@@ -119,8 +119,12 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 		host:       host,
 	}
 
+	var rt http.RoundTripper = transport
+	if cfg.ReadOnly {
+		rt = &readOnlyTransport{base: transport}
+	}
 	c := &Client{
-		httpClient: &http.Client{Transport: transport},
+		httpClient: &http.Client{Transport: rt},
 		baseURL:    baseURL,
 		debugLog:   log,
 	}
