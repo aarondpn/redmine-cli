@@ -586,6 +586,10 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		cfg.NoColor = true
 	}
 
+	if val := os.Getenv("REDMINE_READ_ONLY"); val != "" {
+		cfg.ReadOnly = parseBoolEnv(val)
+	}
+
 	mcpListEnv := map[string]*[]string{
 		"REDMINE_MCP_ENABLE_GROUPS":  &cfg.MCP.EnableGroups,
 		"REDMINE_MCP_DISABLE_GROUPS": &cfg.MCP.DisableGroups,

@@ -622,3 +622,18 @@ func TestLoadProfilesTightensLegacyWorldReadableFile(t *testing.T) {
 		t.Errorf("config mode after load = %o, want 600 (should be tightened on read)", got)
 	}
 }
+
+func TestReadOnlyEnvOverride(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("profiles:\n  default:\n    server: https://x\n    api_key: k\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_READ_ONLY", "1")
+	cfg, err := Load(cfgPath, "default", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ReadOnly {
+		t.Fatal("expected ReadOnly=true from REDMINE_READ_ONLY=1")
+	}
+}
