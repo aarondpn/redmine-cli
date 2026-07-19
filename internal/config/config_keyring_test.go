@@ -366,7 +366,7 @@ func TestCrossConfigSameNameDoNotCollide(t *testing.T) {
 	}
 }
 
-func TestDeleteProfileKeyringErrorAborts(t *testing.T) {
+func TestDeleteProfileSurfacesKeyringErrorAfterCommit(t *testing.T) {
 	keyring.MockInitWithError(errors.New("keychain locked"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: work
@@ -376,20 +376,48 @@ profiles:
     auth_method: apikey
     credential_store: keyring
     keyring_id: locked-id
+  keep:
+    server: https://keep.example.com
+    auth_method: apikey
+    api_key: keep-key
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := DeleteProfile("work", cfgPath); err == nil {
-		t.Fatal("DeleteProfile error = nil, want keyring failure")
+		t.Fatal("DeleteProfile error = nil, want surfaced keyring failure")
 	}
 
 	pc, err := LoadProfiles(cfgPath, debug.New(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := pc.Profiles["work"]; !ok {
-		t.Fatal("profile removed despite keyring deletion failure; logout is not retryable")
+	if _, ok := pc.Profiles["work"]; ok {
+		t.Fatal("profile not removed; config change must commit before keyring cleanup")
+	}
+	if _, ok := pc.Profiles["keep"]; !ok {
+		t.Fatal("unrelated profile lost")
+	}
+}
+
+func TestServerOverrideOnlyReportsMissingKeyringSecret(t *testing.T) {
+	keyring.MockInitWithError(errors.New("dbus unavailable"))
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    credential_store: keyring
+    keyring_id: srv-id
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadWithOverrides(cfgPath, "", Overrides{Server: "https://other.example.com"}, debug.New(nil))
+	if err == nil || !strings.Contains(err.Error(), "keyring") {
+		t.Fatalf("Load error = %v, want a clear keyring error (only --server supplied)", err)
 	}
 }
