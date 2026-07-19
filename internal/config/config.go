@@ -141,6 +141,11 @@ func LoadProfiles(configPath string, log *debug.Logger) (*ProfileConfig, error) 
 		return nil, err
 	}
 
+	// Best-effort tighten of credential files written 0o644 by older versions.
+	if info, statErr := os.Stat(configPath); statErr == nil && info.Mode().Perm()&0o077 != 0 {
+		_ = os.Chmod(configPath, 0o600)
+	}
+
 	// Try to detect format by checking for "profiles" key
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
@@ -198,7 +203,13 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+
+	// Chmod because WriteFile keeps an existing file's mode (older versions wrote 0o644).
+	_ = os.Chmod(path, 0o600)
+	return nil
 }
 
 // Save writes a single profile's configuration (used by auth login).
