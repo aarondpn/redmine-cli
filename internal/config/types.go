@@ -10,11 +10,15 @@ type Config struct {
 	// CredentialStore selects where the secret fields live: "" or "file" keeps
 	// them plaintext in this file (legacy default); "keyring" stores them in the
 	// OS keyring and omits them from the file.
-	CredentialStore string    `mapstructure:"credential_store" yaml:"credential_store,omitempty"`
-	DefaultProject  string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat    string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
-	NoColor         bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
-	MCP             MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
+	CredentialStore string `mapstructure:"credential_store" yaml:"credential_store,omitempty"`
+	// KeyringID is the opaque account under which this profile's secrets are
+	// stored in the OS keyring. It is generated on first keyring save and keeps
+	// entries unique across config files and stable across profile renames.
+	KeyringID      string    `mapstructure:"keyring_id" yaml:"keyring_id,omitempty"`
+	DefaultProject string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
+	OutputFormat   string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
+	NoColor        bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
+	MCP            MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.

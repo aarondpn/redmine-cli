@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -129,7 +131,7 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 	// Keyring is consulted only after file/env/flag resolution, and only for
 	// fields still empty. This keeps CI (which sets REDMINE_* env vars) and
 	// explicit CLI flags from ever touching the keyring.
-	resolveKeyringSecrets(&cfg, selectedName, log)
+	resolveKeyringSecrets(&cfg, log)
 
 	// When a profile opted into the keyring but the required secret could not be
 	// retrieved and no higher-precedence source supplied it, fail with a clear,
@@ -163,12 +165,9 @@ func applyOverrides(cfg *Config, ov Overrides) {
 // credential (or an unrelated one) never triggers a keyring access. Any keyring
 // failure is logged and left for the caller's missing-credentials handling; it
 // never aborts the load.
-func resolveKeyringSecrets(cfg *Config, profileName string, log *debug.Logger) {
-	if cfg.CredentialStore != CredentialStoreKeyring {
+func resolveKeyringSecrets(cfg *Config, log *debug.Logger) {
+	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" {
 		return
-	}
-	if profileName == "" {
-		profileName = ProfileNameFromURL(cfg.Server)
 	}
 
 	field := secrets.FieldAPIKey
@@ -181,7 +180,7 @@ func resolveKeyringSecrets(cfg *Config, profileName string, log *debug.Logger) {
 		return
 	}
 
-	secret, ok, err := secrets.Default.Get(profileName, field)
+	secret, ok, err := secrets.Default.Get(cfg.KeyringID, field)
 	if err != nil {
 		log.Printf("Config: keyring lookup for %s failed: %v", field, err)
 		return
@@ -310,7 +309,19 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 	toWrite.Profiles = make(map[string]Config, len(pc.Profiles))
 	for name, cfg := range pc.Profiles {
 		if cfg.CredentialStore == CredentialStoreKeyring {
-			if err := persistKeyringSecrets(name, cfg); err != nil {
+			if cfg.KeyringID == "" {
+				id, err := newKeyringID()
+				if err != nil {
+					return err
+				}
+				cfg.KeyringID = id
+				// Record the id on the source too so a second save in the same
+				// process reuses it instead of orphaning the stored secret.
+				src := pc.Profiles[name]
+				src.KeyringID = id
+				pc.Profiles[name] = src
+			}
+			if err := persistKeyringSecrets(cfg); err != nil {
 				return err
 			}
 			cfg.APIKey = ""
@@ -333,19 +344,42 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 	return nil
 }
 
-// persistKeyringSecrets writes a profile's non-empty secrets to the keyring.
-func persistKeyringSecrets(name string, cfg Config) error {
+// persistKeyringSecrets writes a profile's non-empty secrets to the keyring
+// under its opaque KeyringID.
+func persistKeyringSecrets(cfg Config) error {
 	if cfg.APIKey != "" {
-		if err := secrets.Default.Set(name, secrets.FieldAPIKey, cfg.APIKey); err != nil {
+		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldAPIKey, cfg.APIKey); err != nil {
 			return fmt.Errorf("storing API key in system keyring: %w", err)
 		}
 	}
 	if cfg.Password != "" {
-		if err := secrets.Default.Set(name, secrets.FieldPassword, cfg.Password); err != nil {
+		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldPassword, cfg.Password); err != nil {
 			return fmt.Errorf("storing password in system keyring: %w", err)
 		}
 	}
 	return nil
+}
+
+// newKeyringID returns a random opaque identifier for keyring entries.
+func newKeyringID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating keyring id: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// removeKeyringSecrets deletes both of a keyring profile's stored secrets. A
+// not-found entry is not an error (Store.Delete maps it to nil); a real backend
+// failure is returned so callers can surface it rather than orphan the secret.
+func removeKeyringSecrets(cfg Config) error {
+	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" {
+		return nil
+	}
+	if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldAPIKey); err != nil {
+		return err
+	}
+	return secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword)
 }
 
 // Save writes a single profile's configuration (used by auth login).
@@ -365,7 +399,11 @@ func Save(cfg *Config, path string) error {
 		name = "default"
 	}
 
-	pc.Profiles[name] = *cfg
+	entry, err := prepareProfileEntry(pc, name, cfg)
+	if err != nil {
+		return err
+	}
+	pc.Profiles[name] = entry
 	if pc.ActiveProfile == "" {
 		pc.ActiveProfile = name
 	}
@@ -384,12 +422,40 @@ func SaveProfile(name string, cfg *Config, path string) error {
 		pc = &ProfileConfig{Profiles: make(map[string]Config)}
 	}
 
-	pc.Profiles[name] = *cfg
+	entry, err := prepareProfileEntry(pc, name, cfg)
+	if err != nil {
+		return err
+	}
+	pc.Profiles[name] = entry
 	if pc.ActiveProfile == "" || len(pc.Profiles) == 1 {
 		pc.ActiveProfile = name
 	}
 
 	return SaveProfiles(pc, path)
+}
+
+// prepareProfileEntry reconciles an incoming profile with an existing one of the
+// same name. It inherits the existing KeyringID when the profile stays on the
+// keyring but arrives without one (so a re-login reuses the same entry instead
+// of orphaning the old secret), and it removes the stored secret when a profile
+// leaves the keyring for the plaintext file. Keyring cleanup runs before the
+// config is written, so a backend failure aborts the save with the state intact
+// and retryable rather than orphaning credentials.
+func prepareProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config, error) {
+	entry := *cfg
+	old, had := pc.Profiles[name]
+	if !had {
+		return entry, nil
+	}
+	if entry.CredentialStore == CredentialStoreKeyring && entry.KeyringID == "" && old.KeyringID != "" {
+		entry.KeyringID = old.KeyringID
+	}
+	if old.CredentialStore == CredentialStoreKeyring && entry.CredentialStore != CredentialStoreKeyring {
+		if err := removeKeyringSecrets(old); err != nil {
+			return Config{}, fmt.Errorf("removing old keyring credentials for profile %q: %w", name, err)
+		}
+	}
+	return entry, nil
 }
 
 // DeleteProfile removes a profile from the config file.
@@ -405,9 +471,12 @@ func DeleteProfile(name string, path string) error {
 		return fmt.Errorf("profile %q not found", name)
 	}
 
-	if deleted.CredentialStore == CredentialStoreKeyring {
-		_ = secrets.Default.Delete(name, secrets.FieldAPIKey)
-		_ = secrets.Default.Delete(name, secrets.FieldPassword)
+	// Remove the stored secret before touching the config. If the keyring
+	// rejects the deletion (e.g. a locked keychain), abort with an actionable
+	// error while the profile is still intact, so 'auth logout' can be retried
+	// rather than silently leaving the credential behind.
+	if err := removeKeyringSecrets(deleted); err != nil {
+		return fmt.Errorf("removing credentials for profile %q from the system keyring: %w. Unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
 	}
 
 	delete(pc.Profiles, name)
