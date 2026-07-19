@@ -450,6 +450,52 @@ func TestPlaintextSwitchKeyringFailureLeavesProfileUntouched(t *testing.T) {
 	}
 }
 
+func TestPlaintextSwitchWriteFailureRestoresKeyringSecret(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	kr := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "kr-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", kr, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	id := keyringIDOf(t, cfgPath, "work")
+
+	if err := os.Chmod(cfgPath, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cfgPath, 0o600) })
+
+	plain := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "plain-key"}
+	if err := SaveProfile("work", plain, cfgPath); err == nil {
+		t.Fatal("SaveProfile error = nil, want config write failure")
+	}
+
+	stored, ok, err := secrets.Default.Get(id, secrets.FieldAPIKey)
+	if err != nil || !ok {
+		t.Fatalf("keyring secret not restored after failed write, ok=%v err=%v", ok, err)
+	}
+	if stored != "kr-key" {
+		t.Fatalf("restored keyring value = %q, want %q", stored, "kr-key")
+	}
+
+	if err := os.Chmod(cfgPath, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveProfile("work", plain, cfgPath); err != nil {
+		t.Fatalf("retry after write recovery = %v", err)
+	}
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.APIKey != "plain-key" {
+		t.Fatalf("loaded APIKey = %q, want %q", loaded.APIKey, "plain-key")
+	}
+	if _, ok, _ := secrets.Default.Get(id, secrets.FieldAPIKey); ok {
+		t.Fatal("keyring secret orphaned after successful switch to plaintext")
+	}
+}
+
 func TestSaveKeyringFailurePreservesPlaintextCredential(t *testing.T) {
 	keyring.MockInitWithError(errors.New("keychain locked"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")

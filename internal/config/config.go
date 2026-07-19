@@ -436,10 +436,7 @@ func Save(cfg *Config, path string) error {
 		pc.ActiveProfile = name
 	}
 
-	if err := removeOrphanedKeyring(name, orphan); err != nil {
-		return err
-	}
-	return SaveProfiles(pc, path)
+	return saveProfilesRemovingOrphan(pc, path, name, orphan)
 }
 
 // SaveProfile writes a named profile to the config file.
@@ -459,10 +456,7 @@ func SaveProfile(name string, cfg *Config, path string) error {
 		pc.ActiveProfile = name
 	}
 
-	if err := removeOrphanedKeyring(name, orphan); err != nil {
-		return err
-	}
-	return SaveProfiles(pc, path)
+	return saveProfilesRemovingOrphan(pc, path, name, orphan)
 }
 
 // reconcileProfileEntry inherits the existing KeyringID on re-login and
@@ -483,15 +477,38 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 	return entry, nil
 }
 
-// removeOrphanedKeyring deletes the old secret of a profile switching to
-// plaintext. Delete-before-write keeps the switch retryable and cannot orphan
-// the secret, since the rewrite drops the keyring id from the file.
-func removeOrphanedKeyring(name string, orphan *Config) error {
-	if orphan == nil {
-		return nil
+// saveProfilesRemovingOrphan handles a profile switching to plaintext:
+// delete-before-write keeps the switch retryable and cannot orphan the secret
+// (the rewrite drops the keyring id), while the snapshot restores the old
+// secret if the write fails so the only working credential survives.
+func saveProfilesRemovingOrphan(pc *ProfileConfig, path, name string, orphan *Config) error {
+	restore := func() error { return nil }
+	if orphan != nil && orphan.CredentialStore == CredentialStoreKeyring && orphan.KeyringID != "" {
+		saved := map[string]string{}
+		for _, field := range []string{secrets.FieldAPIKey, secrets.FieldPassword} {
+			if v, ok, err := secrets.Default.Get(orphan.KeyringID, field); err == nil && ok {
+				saved[field] = v
+			}
+		}
+		if err := removeKeyringSecrets(*orphan); err != nil {
+			return fmt.Errorf("removing previous keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
+		}
+		restore = func() error {
+			var firstErr error
+			for field, v := range saved {
+				if err := secrets.Default.Set(orphan.KeyringID, field, v); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		}
 	}
-	if err := removeKeyringSecrets(*orphan); err != nil {
-		return fmt.Errorf("removing previous keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
+
+	if err := SaveProfiles(pc, path); err != nil {
+		if rerr := restore(); rerr != nil {
+			return fmt.Errorf("%w; additionally, restoring the previous keyring credential failed: %v", err, rerr)
+		}
+		return err
 	}
 	return nil
 }

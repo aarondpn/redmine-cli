@@ -12,8 +12,8 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// service is the keyring service name used for all redmine-cli secrets.
-const service = "redmine-cli"
+// Service is the keyring service name used for all redmine-cli secrets.
+const Service = "redmine-cli"
 
 // Field names for the two secrets that may live in the keyring.
 const (
@@ -45,10 +45,10 @@ func userKey(profile, field string) string {
 	return profile + ":" + field
 }
 
-// disabled reports whether REDMINE_NO_KEYRING hard-disables all keyring access.
-// This is the escape hatch that keeps a misconfigured runner from ever stalling
-// on a keyring prompt.
-func disabled() bool {
+// Disabled reports whether REDMINE_NO_KEYRING hard-disables all keyring
+// access. Callers skipping cleanup because of it should warn the user that
+// the stored credential remains.
+func Disabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("REDMINE_NO_KEYRING"))) {
 	case "1", "true", "yes", "on":
 		return true
@@ -58,10 +58,10 @@ func disabled() bool {
 }
 
 func (keyringStore) Get(profile, field string) (string, bool, error) {
-	if disabled() {
+	if Disabled() {
 		return "", false, nil
 	}
-	secret, err := keyring.Get(service, userKey(profile, field))
+	secret, err := keyring.Get(Service, userKey(profile, field))
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return "", false, nil
@@ -72,17 +72,17 @@ func (keyringStore) Get(profile, field string) (string, bool, error) {
 }
 
 func (keyringStore) Set(profile, field, secret string) error {
-	if disabled() {
+	if Disabled() {
 		return errors.New("system keyring disabled via REDMINE_NO_KEYRING")
 	}
-	return keyring.Set(service, userKey(profile, field), secret)
+	return keyring.Set(Service, userKey(profile, field), secret)
 }
 
 func (keyringStore) Delete(profile, field string) error {
-	if disabled() {
+	if Disabled() {
 		return nil
 	}
-	err := keyring.Delete(service, userKey(profile, field))
+	err := keyring.Delete(Service, userKey(profile, field))
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil
 	}
@@ -90,11 +90,11 @@ func (keyringStore) Delete(profile, field string) error {
 }
 
 func (keyringStore) Available() bool {
-	if disabled() {
+	if Disabled() {
 		return false
 	}
 	// Probe with a read of an unlikely key: a reachable backend answers with
 	// ErrNotFound, while an unusable one returns a connection/platform error.
-	_, err := keyring.Get(service, "__redmine_cli_probe__")
+	_, err := keyring.Get(Service, "__redmine_cli_probe__")
 	return err == nil || errors.Is(err, keyring.ErrNotFound)
 }

@@ -211,6 +211,10 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		return fmt.Errorf("saving profile: %w", err)
 	}
 
+	if existing != nil && !storeInKeyring {
+		warnSkippedKeyringCleanup(printer, existing)
+	}
+
 	// Set as active profile
 	if err := config.SetActiveProfile(profileName, configPath); err != nil {
 		return fmt.Errorf("setting active profile: %w", err)
