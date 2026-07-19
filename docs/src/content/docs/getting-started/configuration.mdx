@@ -81,6 +81,28 @@ profiles:
   The config file stores API keys in plaintext. Keep it `0600` and out of dotfile repositories. Use environment variables in CI.
 </Aside>
 
+## System keyring (optional)
+
+You can keep the API key (or password) out of the config file and in your operating system keyring instead. It is fully opt-in and backward compatible: existing plaintext profiles keep working unchanged.
+
+<Steps>
+
+1. Opt in during login. The wizard asks whether to use the keyring when a usable backend is detected on a TTY. For scripted logins use the flag:
+
+   ```bash
+   redmine auth login --keyring
+   ```
+
+2. The profile records `credential_store: keyring` and the secret is written to the keyring, not the file. On the next run the secret is read back from the keyring automatically.
+
+</Steps>
+
+Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is ever consulted.
+
+<Aside type="tip" title="CI and headless environments">
+  Keep using environment variables (`REDMINE_API_KEY`, `REDMINE_PASSWORD`) in CI. Set `REDMINE_NO_KEYRING=1` to hard-disable all keyring reads and writes on runners that have no usable keyring, so nothing ever stalls on a keyring prompt.
+</Aside>
+
 ## Environment variables
 
 <Badge text="CI friendly" variant="success" />
@@ -93,6 +115,9 @@ export REDMINE_AUTH_METHOD=apikey
 
 # opt out of the startup update check
 export REDMINE_NO_UPDATE_CHECK=1
+
+# hard-disable the optional system keyring
+export REDMINE_NO_KEYRING=1
 ```
 
 See [Self-Update](/commands/other/#startup-update-check) for details on the update check.

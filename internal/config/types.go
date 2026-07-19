@@ -2,15 +2,19 @@ package config
 
 // Config holds the CLI configuration for a single profile.
 type Config struct {
-	Server         string    `mapstructure:"server" yaml:"server,omitempty"`
-	APIKey         string    `mapstructure:"api_key" yaml:"api_key,omitempty"`
-	Username       string    `mapstructure:"username" yaml:"username,omitempty"`
-	Password       string    `mapstructure:"password" yaml:"password,omitempty"`
-	AuthMethod     string    `mapstructure:"auth_method" yaml:"auth_method,omitempty"` // "apikey" or "basic"
-	DefaultProject string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat   string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
-	NoColor        bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
-	MCP            MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
+	Server     string `mapstructure:"server" yaml:"server,omitempty"`
+	APIKey     string `mapstructure:"api_key" yaml:"api_key,omitempty"`
+	Username   string `mapstructure:"username" yaml:"username,omitempty"`
+	Password   string `mapstructure:"password" yaml:"password,omitempty"`
+	AuthMethod string `mapstructure:"auth_method" yaml:"auth_method,omitempty"` // "apikey" or "basic"
+	// CredentialStore selects where the secret fields live: "" or "file" keeps
+	// them plaintext in this file (legacy default); "keyring" stores them in the
+	// OS keyring and omits them from the file.
+	CredentialStore string    `mapstructure:"credential_store" yaml:"credential_store,omitempty"`
+	DefaultProject  string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
+	OutputFormat    string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
+	NoColor         bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
+	MCP             MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.

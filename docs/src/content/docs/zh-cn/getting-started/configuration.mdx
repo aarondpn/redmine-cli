@@ -81,6 +81,28 @@ profiles:
   配置文件以明文形式存储 API 密钥。请将其权限设置为 `0600`，并避免纳入 dotfile 仓库。在 CI 环境中请使用环境变量。
 </Aside>
 
+## 系统密钥环（可选）
+
+你可以将 API 密钥（或密码）保存在操作系统的密钥环中，而不是配置文件里。此功能完全需要主动启用，并向后兼容：现有的明文配置文件将继续照常工作。
+
+<Steps>
+
+1. 在登录时启用。当检测到终端上有可用的密钥环后端时，向导会询问是否使用密钥环。对于脚本化登录，请使用以下标志：
+
+   ```bash
+   redmine auth login --keyring
+   ```
+
+2. 该配置文件会记录 `credential_store: keyring`，密钥被写入密钥环而非文件。下次运行时会自动从密钥环读取该密钥。
+
+</Steps>
+
+解析顺序为：命令行标志、环境变量、密钥环，最后才是明文文件中的字段。环境变量和标志始终在访问密钥环之前解析。
+
+<Aside type="tip" title="CI 与无头环境">
+  在 CI 中请继续使用环境变量（`REDMINE_API_KEY`、`REDMINE_PASSWORD`）。在没有可用密钥环的运行器上，设置 `REDMINE_NO_KEYRING=1` 可彻底禁用所有密钥环读写操作，从而避免因密钥环提示而卡住。
+</Aside>
+
 ## 环境变量
 
 <Badge text="适用于 CI" variant="success" />
@@ -93,6 +115,9 @@ export REDMINE_AUTH_METHOD=apikey
 
 # 关闭启动时的更新检查
 export REDMINE_NO_UPDATE_CHECK=1
+
+# 彻底禁用可选的系统密钥环
+export REDMINE_NO_KEYRING=1
 ```
 
 参见 [自动更新](/zh-cn/commands/other/#启动时更新检查) 了解更新检查的详细信息。

@@ -11,11 +11,13 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 )
 
 // NewCmdLogin creates the auth login command.
 func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 	var name string
+	var useKeyring bool
 
 	cmd := &cobra.Command{
 		Use:   "login",
@@ -25,16 +27,17 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 				return err
 			}
-			return runLogin(f, name)
+			return runLogin(f, name, useKeyring, cmd.Flags().Changed("keyring"))
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Profile name (default: derived from server hostname)")
+	cmd.Flags().BoolVar(&useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
 
 	return cmd
 }
 
-func runLogin(f *cmdutil.Factory, profileName string) error {
+func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSet bool) error {
 	var (
 		server     string
 		authMethod string
@@ -183,7 +186,16 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	// Step 6: Save profile
+	// Step 6: Credential storage choice
+	storeInKeyring, err := resolveKeyringChoice(f, keyringFlag, keyringFlagSet)
+	if err != nil {
+		return err
+	}
+	if storeInKeyring {
+		cfg.CredentialStore = config.CredentialStoreKeyring
+	}
+
+	// Step 7: Save profile
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
@@ -202,4 +214,33 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
+}
+
+// resolveKeyringChoice decides whether to store credentials in the system
+// keyring. The --keyring flag forces it (failing if the backend is unusable);
+// otherwise an interactive prompt is shown only on a TTY with a usable backend.
+func resolveKeyringChoice(f *cmdutil.Factory, keyringFlag, keyringFlagSet bool) (bool, error) {
+	if keyringFlagSet {
+		if keyringFlag && !secrets.Default.Available() {
+			return false, fmt.Errorf("system keyring is not available on this machine; re-run without --keyring or store credentials via environment variables")
+		}
+		return keyringFlag, nil
+	}
+
+	if !f.IOStreams.IsTTY || !secrets.Default.Available() {
+		return false, nil
+	}
+
+	confirm := true
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Store credentials in system keyring?").
+				Description("Keeps secrets out of the plaintext config file").
+				Value(&confirm),
+		),
+	).Run(); err != nil {
+		return false, err
+	}
+	return confirm, nil
 }

@@ -13,6 +13,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/pterm/pterm v0.12.83
 	github.com/spf13/cobra v1.10.2
+	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/term v0.44.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -35,9 +36,11 @@ require (
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/containerd/console v1.0.5 // indirect
+	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
