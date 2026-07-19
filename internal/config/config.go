@@ -337,6 +337,20 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
 
+	// Snapshot the previous file so a keyring failure below can restore it:
+	// converting a plaintext profile to the keyring must never destroy the
+	// still-working file credential.
+	var prev []byte
+	prevExisted := false
+	if len(pending) > 0 {
+		b, readErr := os.ReadFile(path)
+		if readErr == nil {
+			prev, prevExisted = b, true
+		} else if !os.IsNotExist(readErr) {
+			return readErr
+		}
+	}
+
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return err
 	}
@@ -345,15 +359,31 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 	_ = os.Chmod(path, 0o600)
 
 	// Secrets go into the keyring only after the config referencing their
-	// keyring ids is durably on disk. A backend failure here leaves a profile
-	// whose missing secret surfaces as a clear, retryable error on load,
-	// instead of an orphaned keyring entry under an id recorded nowhere.
+	// keyring ids is durably on disk, so a crash between the two writes cannot
+	// orphan a secret under an id recorded nowhere. A keyring failure rolls the
+	// file back to its previous state instead.
 	for _, cfg := range pending {
 		if err := persistKeyringSecrets(cfg); err != nil {
-			return err
+			return rollbackConfigFile(path, prev, prevExisted, err)
 		}
 	}
 	return nil
+}
+
+// rollbackConfigFile restores the config file overwritten by SaveProfiles
+// after a keyring persistence failure, so a failed plaintext-to-keyring
+// conversion keeps the previous, still-working credential in the file.
+func rollbackConfigFile(path string, prev []byte, prevExisted bool, cause error) error {
+	var rbErr error
+	if prevExisted {
+		rbErr = os.WriteFile(path, prev, 0o600)
+	} else {
+		rbErr = os.Remove(path)
+	}
+	if rbErr != nil {
+		return fmt.Errorf("%w; additionally, restoring the previous config failed: %v", cause, rbErr)
+	}
+	return fmt.Errorf("%w (config file restored to its previous state)", cause)
 }
 
 // persistKeyringSecrets writes a profile's non-empty secrets to the keyring
@@ -431,10 +461,10 @@ func Save(cfg *Config, path string) error {
 		pc.ActiveProfile = name
 	}
 
-	if err := SaveProfiles(pc, path); err != nil {
+	if err := removeOrphanedKeyring(name, orphan); err != nil {
 		return err
 	}
-	return cleanupOrphanedKeyring(name, orphan)
+	return SaveProfiles(pc, path)
 }
 
 // SaveProfile writes a named profile to the config file.
@@ -454,19 +484,19 @@ func SaveProfile(name string, cfg *Config, path string) error {
 		pc.ActiveProfile = name
 	}
 
-	if err := SaveProfiles(pc, path); err != nil {
+	if err := removeOrphanedKeyring(name, orphan); err != nil {
 		return err
 	}
-	return cleanupOrphanedKeyring(name, orphan)
+	return SaveProfiles(pc, path)
 }
 
 // reconcileProfileEntry reconciles an incoming profile with an existing one of
 // the same name, without any keyring side effects. It inherits the existing
 // KeyringID when the profile stays on the keyring but arrives without one (so a
 // re-login reuses the same entry instead of orphaning the old secret), and it
-// returns the previous config as an orphan to clean up when a profile leaves the
-// keyring for the plaintext file. Cleanup is deferred to after the config is
-// durably written so an I/O failure can never destroy a still-referenced secret.
+// returns the previous config as an orphan to clean up when a profile leaves
+// the keyring for the plaintext file; see removeOrphanedKeyring for why the
+// orphan is removed before the config is rewritten.
 func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config, *Config) {
 	entry := *cfg
 	old, had := pc.Profiles[name]
@@ -483,15 +513,19 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 	return entry, nil
 }
 
-// cleanupOrphanedKeyring removes a profile's old keyring secret after the config
-// has been committed. A backend failure is surfaced (the config change already
-// stuck) rather than silently leaving the secret behind.
-func cleanupOrphanedKeyring(name string, orphan *Config) error {
+// removeOrphanedKeyring deletes the old keyring secret of a profile switching
+// to plaintext storage, before the config is rewritten. Because Store.Delete
+// maps not-found to nil the switch is retryable in both failure modes: a
+// keyring failure aborts with nothing changed, and a config write failure
+// afterwards leaves the profile still on the keyring so a retry no-ops the
+// delete. The rewrite drops the opaque keyring id from the file, so deleting
+// first is the only order that cannot orphan the secret.
+func removeOrphanedKeyring(name string, orphan *Config) error {
 	if orphan == nil {
 		return nil
 	}
 	if err := removeKeyringSecrets(*orphan); err != nil {
-		return fmt.Errorf("profile %q saved, but its previous keyring credential could not be removed: %w. Unlock your keyring and remove it manually, or set REDMINE_NO_KEYRING=1", name, err)
+		return fmt.Errorf("removing previous keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
 	}
 	return nil
 }
@@ -509,6 +543,17 @@ func DeleteProfile(name string, path string) error {
 		return fmt.Errorf("profile %q not found", name)
 	}
 
+	// Remove the keyring secret before committing the config change. Because
+	// Store.Delete maps not-found to nil this order is retryable in both
+	// failure modes: a keyring failure aborts with nothing changed, and a
+	// config write failure below leaves the profile in place so a repeated
+	// logout no-ops the keyring delete and retries the write. Deleting after
+	// the commit would drop the only reference to the opaque keyring id and
+	// permanently orphan the secret if cleanup then failed.
+	if err := removeKeyringSecrets(deleted); err != nil {
+		return fmt.Errorf("removing keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
+	}
+
 	delete(pc.Profiles, name)
 
 	if pc.ActiveProfile == name {
@@ -521,28 +566,13 @@ func DeleteProfile(name string, path string) error {
 		}
 	}
 
-	// Commit the config change before deleting the credential. If the write or
-	// removal fails the secret is still intact and the profile still references
-	// it, so the operation is fully retryable rather than leaving a profile that
-	// points at a destroyed secret.
+	// If no profiles remain, remove the config file entirely to avoid
+	// serializing an empty config that would be misinterpreted as legacy
+	// format on next load.
 	if len(pc.Profiles) == 0 {
-		// No profiles remain: remove the config file entirely to avoid
-		// serializing an empty config that would be misinterpreted as legacy
-		// format on next load.
-		if err := os.Remove(path); err != nil {
-			return err
-		}
-	} else if err := SaveProfiles(pc, path); err != nil {
-		return err
+		return os.Remove(path)
 	}
-
-	// Config is committed; the stored secret is now unreferenced. Surface a
-	// backend failure so an incomplete cleanup is not silently reported as
-	// success, but the profile is already gone.
-	if err := removeKeyringSecrets(deleted); err != nil {
-		return fmt.Errorf("profile %q removed, but its keyring credential could not be deleted: %w. Unlock your keyring and remove it manually, or set REDMINE_NO_KEYRING=1", name, err)
-	}
-	return nil
+	return SaveProfiles(pc, path)
 }
 
 // SetActiveProfile sets the active profile in the config file.

@@ -366,7 +366,7 @@ func TestCrossConfigSameNameDoNotCollide(t *testing.T) {
 	}
 }
 
-func TestDeleteProfileSurfacesKeyringErrorAfterCommit(t *testing.T) {
+func TestDeleteProfileKeyringFailureIsRetryable(t *testing.T) {
 	keyring.MockInitWithError(errors.New("keychain locked"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: work
@@ -393,15 +393,102 @@ profiles:
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, ok := pc.Profiles["work"]; !ok {
+		t.Fatal("profile removed despite keyring failure; keyring id reference lost")
+	}
+
+	keyring.MockInit()
+	if err := DeleteProfile("work", cfgPath); err != nil {
+		t.Fatalf("retry after keyring recovery = %v", err)
+	}
+	pc, err = LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := pc.Profiles["work"]; ok {
-		t.Fatal("profile not removed; config change must commit before keyring cleanup")
+		t.Fatal("profile still present after successful retry")
 	}
 	if _, ok := pc.Profiles["keep"]; !ok {
 		t.Fatal("unrelated profile lost")
 	}
 }
 
-func TestSaveKeyringFailureCommitsConfigAndIsRetryable(t *testing.T) {
+func TestPlaintextSwitchKeyringFailureLeavesProfileUntouched(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	kr := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "kr-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", kr, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	id := keyringIDOf(t, cfgPath, "work")
+
+	keyring.MockInitWithError(errors.New("keychain locked"))
+	plain := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "plain-key"}
+	if err := SaveProfile("work", plain, cfgPath); err == nil {
+		t.Fatal("SaveProfile error = nil, want orphan cleanup failure")
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pc.Profiles["work"].CredentialStore != CredentialStoreKeyring || pc.Profiles["work"].KeyringID != id {
+		t.Fatal("profile rewritten despite failed keyring cleanup; keyring id reference lost")
+	}
+
+	keyring.MockInit()
+	if err := SaveProfile("work", plain, cfgPath); err != nil {
+		t.Fatalf("retry after keyring recovery = %v", err)
+	}
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.APIKey != "plain-key" {
+		t.Fatalf("loaded APIKey = %q, want %q", loaded.APIKey, "plain-key")
+	}
+}
+
+func TestSaveKeyringFailurePreservesPlaintextCredential(t *testing.T) {
+	keyring.MockInitWithError(errors.New("keychain locked"))
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	plain := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "plain-key"}
+	if err := SaveProfile("work", plain, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	convert := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "plain-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", convert, cfgPath); err == nil {
+		t.Fatal("SaveProfile error = nil, want keyring failure")
+	}
+
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load after failed conversion = %v, want working previous profile", err)
+	}
+	if loaded.APIKey != "plain-key" {
+		t.Fatalf("previous plaintext credential lost, APIKey = %q", loaded.APIKey)
+	}
+	if loaded.CredentialStore == CredentialStoreKeyring {
+		t.Fatal("profile left pointing at keyring despite failed conversion")
+	}
+
+	keyring.MockInit()
+	if err := SaveProfile("work", convert, cfgPath); err != nil {
+		t.Fatalf("retry after keyring recovery = %v", err)
+	}
+	stored, ok, err := secrets.Default.Get(keyringIDOf(t, cfgPath, "work"), secrets.FieldAPIKey)
+	if err != nil || !ok {
+		t.Fatalf("keyring Get ok=%v err=%v", ok, err)
+	}
+	if stored != "plain-key" {
+		t.Fatalf("keyring value = %q, want %q", stored, "plain-key")
+	}
+}
+
+func TestSaveKeyringFailureOnFreshConfigRemovesFile(t *testing.T) {
 	keyring.MockInitWithError(errors.New("keychain locked"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 
@@ -410,30 +497,8 @@ func TestSaveKeyringFailureCommitsConfigAndIsRetryable(t *testing.T) {
 		t.Fatal("SaveProfile error = nil, want keyring failure")
 	}
 
-	id := keyringIDOf(t, cfgPath, "work")
-
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "secret-key") {
-		t.Fatalf("plaintext api key leaked into config file on keyring failure:\n%s", data)
-	}
-
-	keyring.MockInit()
-	retry := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "secret-key", CredentialStore: CredentialStoreKeyring}
-	if err := SaveProfile("work", retry, cfgPath); err != nil {
-		t.Fatal(err)
-	}
-	if got := keyringIDOf(t, cfgPath, "work"); got != id {
-		t.Fatalf("retry generated new keyring id %q, want reuse of %q", got, id)
-	}
-	stored, ok, err := secrets.Default.Get(id, secrets.FieldAPIKey)
-	if err != nil || !ok {
-		t.Fatalf("keyring Get ok=%v err=%v", ok, err)
-	}
-	if stored != "secret-key" {
-		t.Fatalf("keyring value = %q, want %q", stored, "secret-key")
+	if _, err := os.Stat(cfgPath); !os.IsNotExist(err) {
+		t.Fatalf("config file left behind after rollback, stat err = %v", err)
 	}
 }
 
