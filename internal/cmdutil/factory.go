@@ -77,8 +77,7 @@ func (f *Factory) Config() (*config.Config, error) {
 	var cfg *config.Config
 	var err error
 	if f.ServerOverride != "" || f.APIKeyOverride != "" {
-		// Pass overrides into Load so they resolve before any keyring lookup;
-		// an explicit --api-key/--server must never trigger a keyring read.
+		// Overrides resolve inside Load, before any keyring lookup.
 		cfg, err = config.LoadWithOverrides(f.ConfigPath, f.ProfileOverride, config.Overrides{
 			Server: f.ServerOverride,
 			APIKey: f.APIKeyOverride,
@@ -90,8 +89,6 @@ func (f *Factory) Config() (*config.Config, error) {
 		return nil, err
 	}
 
-	// NoColor is not a credential and has no keyring interaction, so it is safe
-	// to apply after load. Server/APIKey overrides are handled inside load above.
 	if f.NoColorOverride {
 		cfg.NoColor = true
 	}

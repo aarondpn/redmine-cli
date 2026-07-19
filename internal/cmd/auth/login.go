@@ -191,9 +191,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		configPath = f.ConfigPath
 	}
 
-	// Step 6: Credential storage choice. The existing profile (if any) supplies
-	// the default so a re-login never silently moves credentials out of the
-	// keyring back into the plaintext file.
+	// Step 6: Credential storage choice
 	var existing *config.Config
 	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
 		if p, ok := pc.Profiles[profileName]; ok {
@@ -225,11 +223,8 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 }
 
 // resolveKeyringChoice decides whether to store credentials in the system
-// keyring. The --keyring flag forces it (failing if the backend is unusable);
-// otherwise the existing profile's storage is the default, and an interactive
-// prompt is shown only on a TTY with a usable backend. A profile already on the
-// keyring is never silently downgraded to plaintext: without a TTY the keyring
-// is kept, and an unusable backend is an error instead of a fallback.
+// keyring. The flag wins, then the existing profile's storage is the default;
+// a keyring profile is never silently downgraded to plaintext.
 func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool) (bool, error) {
 	if keyringFlagSet {
 		if keyringFlag && !secrets.Default.Available() {
