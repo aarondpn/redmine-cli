@@ -186,8 +186,21 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	// Step 6: Credential storage choice
-	storeInKeyring, err := resolveKeyringChoice(f, keyringFlag, keyringFlagSet)
+	configPath := config.DefaultConfigPath()
+	if f.ConfigPath != "" {
+		configPath = f.ConfigPath
+	}
+
+	// Step 6: Credential storage choice. The existing profile (if any) supplies
+	// the default so a re-login never silently moves credentials out of the
+	// keyring back into the plaintext file.
+	var existing *config.Config
+	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
+		if p, ok := pc.Profiles[profileName]; ok {
+			existing = &p
+		}
+	}
+	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, keyringFlag, keyringFlagSet)
 	if err != nil {
 		return err
 	}
@@ -196,11 +209,6 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	}
 
 	// Step 7: Save profile
-	configPath := config.DefaultConfigPath()
-	if f.ConfigPath != "" {
-		configPath = f.ConfigPath
-	}
-
 	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
 		return fmt.Errorf("saving profile: %w", err)
 	}
@@ -218,8 +226,11 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 
 // resolveKeyringChoice decides whether to store credentials in the system
 // keyring. The --keyring flag forces it (failing if the backend is unusable);
-// otherwise an interactive prompt is shown only on a TTY with a usable backend.
-func resolveKeyringChoice(f *cmdutil.Factory, keyringFlag, keyringFlagSet bool) (bool, error) {
+// otherwise the existing profile's storage is the default, and an interactive
+// prompt is shown only on a TTY with a usable backend. A profile already on the
+// keyring is never silently downgraded to plaintext: without a TTY the keyring
+// is kept, and an unusable backend is an error instead of a fallback.
+func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool) (bool, error) {
 	if keyringFlagSet {
 		if keyringFlag && !secrets.Default.Available() {
 			return false, fmt.Errorf("system keyring is not available on this machine; re-run without --keyring or store credentials via environment variables")
@@ -227,7 +238,16 @@ func resolveKeyringChoice(f *cmdutil.Factory, keyringFlag, keyringFlagSet bool) 
 		return keyringFlag, nil
 	}
 
-	if !f.IOStreams.IsTTY || !secrets.Default.Available() {
+	wasKeyring := existing != nil && existing.CredentialStore == config.CredentialStoreKeyring
+	available := secrets.Default.Available()
+
+	if wasKeyring && !available {
+		return false, fmt.Errorf("profile %q stores credentials in the system keyring, which is not available right now; make the keyring usable, or re-run with --keyring=false to switch to plaintext storage", profileName)
+	}
+	if !f.IOStreams.IsTTY {
+		return wasKeyring, nil
+	}
+	if !available {
 		return false, nil
 	}
 

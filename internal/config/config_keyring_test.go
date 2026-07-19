@@ -401,6 +401,95 @@ profiles:
 	}
 }
 
+func TestSaveKeyringFailureCommitsConfigAndIsRetryable(t *testing.T) {
+	keyring.MockInitWithError(errors.New("keychain locked"))
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	cfg := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "secret-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", cfg, cfgPath); err == nil {
+		t.Fatal("SaveProfile error = nil, want keyring failure")
+	}
+
+	id := keyringIDOf(t, cfgPath, "work")
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "secret-key") {
+		t.Fatalf("plaintext api key leaked into config file on keyring failure:\n%s", data)
+	}
+
+	keyring.MockInit()
+	retry := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "secret-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", retry, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	if got := keyringIDOf(t, cfgPath, "work"); got != id {
+		t.Fatalf("retry generated new keyring id %q, want reuse of %q", got, id)
+	}
+	stored, ok, err := secrets.Default.Get(id, secrets.FieldAPIKey)
+	if err != nil || !ok {
+		t.Fatalf("keyring Get ok=%v err=%v", ok, err)
+	}
+	if stored != "secret-key" {
+		t.Fatalf("keyring value = %q, want %q", stored, "secret-key")
+	}
+}
+
+func TestAuthMethodSwitchRemovesStaleKeyringField(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	first := &Config{Server: "https://work.example.com", AuthMethod: "apikey", APIKey: "old-key", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	id := keyringIDOf(t, cfgPath, "work")
+
+	second := &Config{Server: "https://work.example.com", AuthMethod: "basic", Username: "user", Password: "pw", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", second, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := keyringIDOf(t, cfgPath, "work"); got != id {
+		t.Fatalf("keyring id changed on auth method switch: %q -> %q", id, got)
+	}
+	if _, ok, _ := secrets.Default.Get(id, secrets.FieldAPIKey); ok {
+		t.Fatal("stale api key entry remains after switching to basic auth")
+	}
+	stored, ok, err := secrets.Default.Get(id, secrets.FieldPassword)
+	if err != nil || !ok {
+		t.Fatalf("keyring Get ok=%v err=%v", ok, err)
+	}
+	if stored != "pw" {
+		t.Fatalf("keyring password = %q, want %q", stored, "pw")
+	}
+}
+
+func TestSetActiveProfileKeepsCounterpartKeyringField(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	cfg := &Config{Server: "https://work.example.com", AuthMethod: "basic", Username: "user", Password: "pw", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", cfg, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	id := keyringIDOf(t, cfgPath, "work")
+
+	if err := SetActiveProfile("work", cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, ok, err := secrets.Default.Get(id, secrets.FieldPassword)
+	if err != nil || !ok {
+		t.Fatalf("keyring Get ok=%v err=%v", ok, err)
+	}
+	if stored != "pw" {
+		t.Fatalf("keyring password after re-save = %q, want %q", stored, "pw")
+	}
+}
+
 func TestServerOverrideOnlyReportsMissingKeyringSecret(t *testing.T) {
 	keyring.MockInitWithError(errors.New("dbus unavailable"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")

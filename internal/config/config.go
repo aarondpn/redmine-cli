@@ -143,7 +143,7 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 		if cfg.AuthMethod == "basic" {
 			field = "REDMINE_PASSWORD"
 		}
-		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', set %s, or set REDMINE_NO_KEYRING=1 to disable keyring lookups", selectedName, field)
+		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field)
 	}
 
 	return &cfg, nil
@@ -302,12 +302,13 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 		return err
 	}
 
-	// For keyring profiles, push non-empty secrets into the keyring and strip
-	// them from the copy that gets marshaled so no plaintext lands on disk.
-	// Empty secret fields are left untouched so re-saving a loaded keyring
-	// profile does not clobber the stored value.
+	// For keyring profiles, strip non-empty secrets from the copy that gets
+	// marshaled so no plaintext lands on disk. Empty secret fields are left
+	// untouched so re-saving a loaded keyring profile does not clobber the
+	// stored value.
 	toWrite := *pc
 	toWrite.Profiles = make(map[string]Config, len(pc.Profiles))
+	var pending []Config
 	for name, cfg := range pc.Profiles {
 		if cfg.CredentialStore == CredentialStoreKeyring {
 			if cfg.KeyringID == "" {
@@ -322,8 +323,8 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 				src.KeyringID = id
 				pc.Profiles[name] = src
 			}
-			if err := persistKeyringSecrets(cfg); err != nil {
-				return err
+			if cfg.APIKey != "" || cfg.Password != "" {
+				pending = append(pending, cfg)
 			}
 			cfg.APIKey = ""
 			cfg.Password = ""
@@ -342,6 +343,16 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 
 	// Chmod because WriteFile keeps an existing file's mode (older versions wrote 0o644).
 	_ = os.Chmod(path, 0o600)
+
+	// Secrets go into the keyring only after the config referencing their
+	// keyring ids is durably on disk. A backend failure here leaves a profile
+	// whose missing secret surfaces as a clear, retryable error on load,
+	// instead of an orphaned keyring entry under an id recorded nowhere.
+	for _, cfg := range pending {
+		if err := persistKeyringSecrets(cfg); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -356,6 +367,20 @@ func persistKeyringSecrets(cfg Config) error {
 	if cfg.Password != "" {
 		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldPassword, cfg.Password); err != nil {
 			return fmt.Errorf("storing password in system keyring: %w", err)
+		}
+	}
+	// A fresh secret write carries the profile's full credential set, so drop
+	// the counterpart left over from a previous auth method. Saves with both
+	// fields empty (e.g. re-saving a loaded profile) never reach this point
+	// with a write, so stored values are never clobbered.
+	if cfg.APIKey != "" && cfg.Password == "" {
+		if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword); err != nil {
+			return fmt.Errorf("removing stale password from system keyring: %w", err)
+		}
+	}
+	if cfg.Password != "" && cfg.APIKey == "" {
+		if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldAPIKey); err != nil {
+			return fmt.Errorf("removing stale API key from system keyring: %w", err)
 		}
 	}
 	return nil

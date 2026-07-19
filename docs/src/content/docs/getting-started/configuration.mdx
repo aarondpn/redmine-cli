@@ -97,6 +97,8 @@ You can keep the API key (or password) out of the config file and in your operat
 
 </Steps>
 
+Logging in again for a profile that already uses the keyring keeps the keyring by default; it never silently falls back to the plaintext file. Pass `--keyring=false` to explicitly switch a profile back to plaintext storage.
+
 Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is ever consulted.
 
 <Aside type="tip" title="CI and headless environments">
