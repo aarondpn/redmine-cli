@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -542,5 +543,82 @@ func TestApplyEnvOverrides_MCPAuthToken(t *testing.T) {
 	}
 	if cfg.MCP.AuthToken != "from-env" {
 		t.Errorf("AuthToken = %q, want from-env (env should override file)", cfg.MCP.AuthToken)
+	}
+}
+
+func fileMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	return info.Mode().Perm()
+}
+
+func TestSaveProfilesWritesOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not meaningful on Windows")
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	pc := &ProfileConfig{
+		ActiveProfile: "example-com",
+		Profiles: map[string]Config{
+			"example-com": {Server: "https://example.com", APIKey: "secret"},
+		},
+	}
+	if err := SaveProfiles(pc, cfgPath); err != nil {
+		t.Fatalf("SaveProfiles: %v", err)
+	}
+
+	if got := fileMode(t, cfgPath); got != 0o600 {
+		t.Errorf("new config mode = %o, want 600", got)
+	}
+}
+
+func TestSaveProfilesTightensLegacyWorldReadableFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not meaningful on Windows")
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	if err := os.WriteFile(cfgPath, []byte("profiles:\n  example-com:\n    server: https://example.com\n    api_key: old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileMode(t, cfgPath); got != 0o644 {
+		t.Fatalf("precondition mode = %o, want 644", got)
+	}
+
+	pc := &ProfileConfig{
+		ActiveProfile: "example-com",
+		Profiles: map[string]Config{
+			"example-com": {Server: "https://example.com", APIKey: "new"},
+		},
+	}
+	if err := SaveProfiles(pc, cfgPath); err != nil {
+		t.Fatalf("SaveProfiles: %v", err)
+	}
+
+	if got := fileMode(t, cfgPath); got != 0o600 {
+		t.Errorf("overwritten legacy config mode = %o, want 600 (should be tightened)", got)
+	}
+}
+
+func TestLoadProfilesTightensLegacyWorldReadableFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not meaningful on Windows")
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	if err := os.WriteFile(cfgPath, []byte("profiles:\n  example-com:\n    server: https://example.com\n    api_key: k\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := LoadProfiles(cfgPath, debug.New(nil)); err != nil {
+		t.Fatalf("LoadProfiles: %v", err)
+	}
+
+	if got := fileMode(t, cfgPath); got != 0o600 {
+		t.Errorf("config mode after load = %o, want 600 (should be tightened on read)", got)
 	}
 }
