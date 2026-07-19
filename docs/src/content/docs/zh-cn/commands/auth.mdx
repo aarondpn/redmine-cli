@@ -27,6 +27,7 @@ redmine auth login --name work   # 显式指定配置文件名称
 | 标志 | 描述 |
 |------|------|
 | `--name` | 配置文件名称（默认：从服务器主机名派生） |
+| `--keyring` | 将凭据存储到系统密钥环，而非明文配置文件。参见 [配置](/zh-cn/getting-started/configuration/#系统密钥环可选)。 |
 
 <Aside type="tip">
   随时再次执行 `redmine auth login` 即可添加新的配置文件——向导在未经确认的情况下绝不会覆盖已有配置文件。

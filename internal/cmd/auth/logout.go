@@ -11,6 +11,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 )
 
 // NewCmdLogout creates the auth logout command.
@@ -52,7 +53,8 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	if _, ok := pc.Profiles[name]; !ok {
+	deleted, ok := pc.Profiles[name]
+	if !ok {
 		return profileNotFoundError(name)
 	}
 
@@ -80,8 +82,18 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 		return fmt.Errorf("removing profile: %w", err)
 	}
 
+	warnSkippedKeyringCleanup(printer, &deleted)
+
 	printer.Action(output.ActionLoggedOut, "profile", name, fmt.Sprintf("Profile %q removed", name))
 	return nil
+}
+
+// warnSkippedKeyringCleanup tells the user how to find the credential that
+// REDMINE_NO_KEYRING left behind, since its config reference is now gone.
+func warnSkippedKeyringCleanup(printer output.Printer, deleted *config.Config) {
+	if deleted.CredentialStore == config.CredentialStoreKeyring && deleted.KeyringID != "" && secrets.Disabled() {
+		printer.Warning(fmt.Sprintf("Keyring cleanup skipped because REDMINE_NO_KEYRING is set. The credential remains in the system keyring under service %q; remove it with your keyring manager", secrets.Service))
+	}
 }
 
 func resolveLogoutProfileName(pc *config.ProfileConfig, args []string, override string) (string, error) {

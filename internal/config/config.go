@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -9,10 +11,23 @@ import (
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 	"gopkg.in/yaml.v3"
 )
 
+// CredentialStoreKeyring is the credential_store value that stores the secret
+// fields in the OS keyring instead of the plaintext config file.
+const CredentialStoreKeyring = "keyring"
+
 var errNoActiveProfile = errors.New("multiple profiles exist but no active profile set")
+
+// Overrides carries CLI-flag credential values that outrank both the config
+// file and the keyring. They are resolved before any keyring lookup so an
+// explicit --server/--api-key never triggers a keyring read.
+type Overrides struct {
+	Server string
+	APIKey string
+}
 
 func DefaultConfigPath() string {
 	home, _ := os.UserHomeDir()
@@ -23,16 +38,24 @@ func DefaultConfigPath() string {
 // If profileName is non-empty, that profile is used instead of the active one.
 // Environment variables (REDMINE_*) override file values.
 func Load(configPath string, profileName string, log *debug.Logger) (*Config, error) {
-	return load(configPath, profileName, false, log)
+	return load(configPath, profileName, false, Overrides{}, log)
 }
 
 // LoadAllowNoActiveProfile reads configuration while allowing the caller to
 // recover with explicit CLI credentials when no active profile is selected.
 func LoadAllowNoActiveProfile(configPath string, profileName string, log *debug.Logger) (*Config, error) {
-	return load(configPath, profileName, true, log)
+	return load(configPath, profileName, true, Overrides{}, log)
 }
 
-func load(configPath string, profileName string, allowNoActiveProfile bool, log *debug.Logger) (*Config, error) {
+// LoadWithOverrides reads configuration and applies CLI-flag overrides before
+// the keyring is consulted, so a flag-supplied secret short-circuits the keyring
+// lookup. It allows recovery without an active profile, mirroring
+// LoadAllowNoActiveProfile.
+func LoadWithOverrides(configPath string, profileName string, ov Overrides, log *debug.Logger) (*Config, error) {
+	return load(configPath, profileName, true, ov, log)
+}
+
+func load(configPath string, profileName string, allowNoActiveProfile bool, ov Overrides, log *debug.Logger) (*Config, error) {
 	if configPath == "" {
 		configPath = DefaultConfigPath()
 	}
@@ -47,6 +70,7 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, log 
 				OutputFormat: "table",
 			}
 			applyEnvOverrides(cfg, log)
+			applyOverrides(cfg, ov)
 			return cfg, nil
 		}
 		return nil, err
@@ -59,17 +83,20 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, log 
 	}
 
 	var cfg Config
+	var selectedName string
 	if name != "" {
 		p, ok := pc.Profiles[name]
 		if !ok {
 			return nil, fmt.Errorf("profile %q not found. Run 'redmine auth list' to see available profiles", name)
 		}
 		cfg = p
+		selectedName = name
 		log.Printf("Config: loaded profile %q from %s", name, configPath)
 	} else if len(pc.Profiles) == 1 {
 		// Single profile, use it even without active_profile set
 		for n, p := range pc.Profiles {
 			cfg = p
+			selectedName = n
 			log.Printf("Config: loaded only profile %q from %s", n, configPath)
 		}
 	} else if len(pc.Profiles) == 0 {
@@ -97,7 +124,71 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, log 
 		cfg.OutputFormat = "table"
 	}
 
+	// Flags outrank file/env and must land before the keyring lookup.
+	applyOverrides(&cfg, ov)
+
+	resolveKeyringSecrets(&cfg, log)
+
+	if keyringSecretMissing(&cfg) {
+		field := "REDMINE_API_KEY"
+		if cfg.AuthMethod == "basic" {
+			field = "REDMINE_PASSWORD"
+		}
+		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field)
+	}
+
 	return &cfg, nil
+}
+
+// applyOverrides applies CLI-flag credential values onto cfg. Empty overrides
+// leave the existing value untouched.
+func applyOverrides(cfg *Config, ov Overrides) {
+	if ov.Server != "" {
+		cfg.Server = ov.Server
+	}
+	if ov.APIKey != "" {
+		cfg.APIKey = ov.APIKey
+	}
+}
+
+// resolveKeyringSecrets fills the auth method's secret from the keyring when
+// no higher-precedence source supplied it. Failures are logged, never fatal.
+func resolveKeyringSecrets(cfg *Config, log *debug.Logger) {
+	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" {
+		return
+	}
+
+	field := secrets.FieldAPIKey
+	target := &cfg.APIKey
+	if cfg.AuthMethod == "basic" {
+		field = secrets.FieldPassword
+		target = &cfg.Password
+	}
+	if *target != "" {
+		return
+	}
+
+	secret, ok, err := secrets.Default.Get(cfg.KeyringID, field)
+	if err != nil {
+		log.Printf("Config: keyring lookup for %s failed: %v", field, err)
+		return
+	}
+	if ok {
+		*target = secret
+		log.Printf("Config: loaded %s from system keyring", field)
+	}
+}
+
+// keyringSecretMissing reports whether a keyring profile is still missing the
+// secret required by its auth method.
+func keyringSecretMissing(cfg *Config) bool {
+	if cfg.CredentialStore != CredentialStoreKeyring {
+		return false
+	}
+	if cfg.AuthMethod == "basic" {
+		return cfg.Password == ""
+	}
+	return cfg.APIKey == ""
 }
 
 // IsNoActiveProfileError reports whether err is the missing-active-profile error.
@@ -198,9 +289,49 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 		return err
 	}
 
-	data, err := yaml.Marshal(pc)
+	// Empty secret fields are never persisted so re-saving a loaded keyring
+	// profile cannot clobber the stored value.
+	toWrite := *pc
+	toWrite.Profiles = make(map[string]Config, len(pc.Profiles))
+	var pending []Config
+	for name, cfg := range pc.Profiles {
+		if cfg.CredentialStore == CredentialStoreKeyring {
+			if cfg.KeyringID == "" {
+				id, err := newKeyringID()
+				if err != nil {
+					return err
+				}
+				cfg.KeyringID = id
+				// Mirror onto the source so a second in-process save reuses it.
+				src := pc.Profiles[name]
+				src.KeyringID = id
+				pc.Profiles[name] = src
+			}
+			if cfg.APIKey != "" || cfg.Password != "" {
+				pending = append(pending, cfg)
+			}
+			cfg.APIKey = ""
+			cfg.Password = ""
+		}
+		toWrite.Profiles[name] = cfg
+	}
+
+	data, err := yaml.Marshal(&toWrite)
 	if err != nil {
 		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	// Snapshot for rollback: a failed keyring write must not destroy a
+	// still-working plaintext credential.
+	var prev []byte
+	prevExisted := false
+	if len(pending) > 0 {
+		b, readErr := os.ReadFile(path)
+		if readErr == nil {
+			prev, prevExisted = b, true
+		} else if !os.IsNotExist(readErr) {
+			return readErr
+		}
 	}
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -209,32 +340,77 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 
 	// Chmod because WriteFile keeps an existing file's mode (older versions wrote 0o644).
 	_ = os.Chmod(path, 0o600)
+
+	// File first, so a crash cannot orphan a secret under an unrecorded id.
+	for _, cfg := range pending {
+		if err := persistKeyringSecrets(cfg); err != nil {
+			return rollbackConfigFile(path, prev, prevExisted, err)
+		}
+	}
 	return nil
 }
 
-// Save writes a single profile's configuration (used by auth login).
-func Save(cfg *Config, path string) error {
-	// Load existing profiles or create new
-	log := debug.New(nil)
-	pc, err := LoadProfiles(path, log)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
+// rollbackConfigFile restores the config after a keyring persistence failure.
+func rollbackConfigFile(path string, prev []byte, prevExisted bool, cause error) error {
+	var rbErr error
+	if prevExisted {
+		rbErr = os.WriteFile(path, prev, 0o600)
+	} else {
+		rbErr = os.Remove(path)
+	}
+	if rbErr != nil {
+		return fmt.Errorf("%w; additionally, restoring the previous config failed: %v", cause, rbErr)
+	}
+	return fmt.Errorf("%w (config file restored to its previous state)", cause)
+}
+
+// persistKeyringSecrets writes a profile's non-empty secrets to the keyring
+// under its opaque KeyringID.
+func persistKeyringSecrets(cfg Config) error {
+	if cfg.APIKey != "" {
+		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldAPIKey, cfg.APIKey); err != nil {
+			return fmt.Errorf("storing API key in system keyring: %w", err)
 		}
-		pc = &ProfileConfig{Profiles: make(map[string]Config)}
 	}
-
-	name := ProfileNameFromURL(cfg.Server)
-	if name == "" {
-		name = "default"
+	if cfg.Password != "" {
+		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldPassword, cfg.Password); err != nil {
+			return fmt.Errorf("storing password in system keyring: %w", err)
+		}
 	}
-
-	pc.Profiles[name] = *cfg
-	if pc.ActiveProfile == "" {
-		pc.ActiveProfile = name
+	// A fresh write carries the full credential set: drop the counterpart
+	// left over from a previous auth method.
+	if cfg.APIKey != "" && cfg.Password == "" {
+		if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword); err != nil {
+			return fmt.Errorf("removing stale password from system keyring: %w", err)
+		}
 	}
+	if cfg.Password != "" && cfg.APIKey == "" {
+		if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldAPIKey); err != nil {
+			return fmt.Errorf("removing stale API key from system keyring: %w", err)
+		}
+	}
+	return nil
+}
 
-	return SaveProfiles(pc, path)
+// newKeyringID returns a random opaque identifier for keyring entries.
+func newKeyringID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating keyring id: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// removeKeyringSecrets deletes both of a keyring profile's stored secrets.
+// Not-found is not an error; real backend failures are returned.
+func removeKeyringSecrets(cfg Config) error {
+	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" {
+		return nil
+	}
+	if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldAPIKey); err != nil {
+		return err
+	}
+	return secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword)
 }
 
 // SaveProfile writes a named profile to the config file.
@@ -248,12 +424,67 @@ func SaveProfile(name string, cfg *Config, path string) error {
 		pc = &ProfileConfig{Profiles: make(map[string]Config)}
 	}
 
-	pc.Profiles[name] = *cfg
+	entry, orphan := reconcileProfileEntry(pc, name, cfg)
+	pc.Profiles[name] = entry
 	if pc.ActiveProfile == "" || len(pc.Profiles) == 1 {
 		pc.ActiveProfile = name
 	}
 
-	return SaveProfiles(pc, path)
+	return saveProfilesRemovingOrphan(pc, path, name, orphan)
+}
+
+// reconcileProfileEntry inherits the existing KeyringID on re-login and
+// returns the previous config as an orphan when a profile leaves the keyring.
+func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config, *Config) {
+	entry := *cfg
+	old, had := pc.Profiles[name]
+	if !had {
+		return entry, nil
+	}
+	if entry.CredentialStore == CredentialStoreKeyring && entry.KeyringID == "" && old.KeyringID != "" {
+		entry.KeyringID = old.KeyringID
+	}
+	if old.CredentialStore == CredentialStoreKeyring && entry.CredentialStore != CredentialStoreKeyring {
+		orphan := old
+		return entry, &orphan
+	}
+	return entry, nil
+}
+
+// saveProfilesRemovingOrphan handles a profile switching to plaintext:
+// delete-before-write keeps the switch retryable and cannot orphan the secret
+// (the rewrite drops the keyring id), while the snapshot restores the old
+// secret if the write fails so the only working credential survives.
+func saveProfilesRemovingOrphan(pc *ProfileConfig, path, name string, orphan *Config) error {
+	restore := func() error { return nil }
+	if orphan != nil && orphan.CredentialStore == CredentialStoreKeyring && orphan.KeyringID != "" {
+		saved := map[string]string{}
+		for _, field := range []string{secrets.FieldAPIKey, secrets.FieldPassword} {
+			if v, ok, err := secrets.Default.Get(orphan.KeyringID, field); err == nil && ok {
+				saved[field] = v
+			}
+		}
+		if err := removeKeyringSecrets(*orphan); err != nil {
+			return fmt.Errorf("removing previous keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
+		}
+		restore = func() error {
+			var firstErr error
+			for field, v := range saved {
+				if err := secrets.Default.Set(orphan.KeyringID, field, v); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		}
+	}
+
+	if err := SaveProfiles(pc, path); err != nil {
+		if rerr := restore(); rerr != nil {
+			return fmt.Errorf("%w; additionally, restoring the previous keyring credential failed: %v", err, rerr)
+		}
+		return err
+	}
+	return nil
 }
 
 // DeleteProfile removes a profile from the config file.
@@ -264,8 +495,15 @@ func DeleteProfile(name string, path string) error {
 		return err
 	}
 
-	if _, ok := pc.Profiles[name]; !ok {
+	deleted, ok := pc.Profiles[name]
+	if !ok {
 		return fmt.Errorf("profile %q not found", name)
+	}
+
+	// Delete-before-write: retryable either way, and the keyring id reference
+	// cannot be lost before the secret is gone.
+	if err := removeKeyringSecrets(deleted); err != nil {
+		return fmt.Errorf("removing keyring credential for profile %q: %w. Nothing was changed; unlock your keyring and retry, or set REDMINE_NO_KEYRING=1 to skip keyring cleanup", name, err)
 	}
 
 	delete(pc.Profiles, name)
@@ -280,13 +518,10 @@ func DeleteProfile(name string, path string) error {
 		}
 	}
 
-	// If no profiles remain, remove the config file entirely
-	// to avoid serializing an empty config that would be
-	// misinterpreted as legacy format on next load.
+	// An empty config would be misread as legacy format on next load.
 	if len(pc.Profiles) == 0 {
 		return os.Remove(path)
 	}
-
 	return SaveProfiles(pc, path)
 }
 

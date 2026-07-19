@@ -67,30 +67,28 @@ func (f *Factory) DebugLogger() *debug.Logger {
 }
 
 // Config returns the loaded configuration (cached after first call).
-// CLI flag overrides (ServerOverride, APIKeyOverride, NoColorOverride) are
-// applied after loading from file and environment, giving them the highest
-// precedence.
+// CLI flag overrides carry the highest precedence: ServerOverride and
+// APIKeyOverride are resolved inside Load (before any keyring lookup), while
+// NoColorOverride is applied afterward.
 func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
-	loadFn := config.Load
+	var cfg *config.Config
+	var err error
 	if f.ServerOverride != "" || f.APIKeyOverride != "" {
-		loadFn = config.LoadAllowNoActiveProfile
+		// Overrides resolve inside Load, before any keyring lookup.
+		cfg, err = config.LoadWithOverrides(f.ConfigPath, f.ProfileOverride, config.Overrides{
+			Server: f.ServerOverride,
+			APIKey: f.APIKeyOverride,
+		}, f.DebugLogger())
+	} else {
+		cfg, err = config.Load(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	}
-
-	cfg, err := loadFn(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply CLI flag overrides (highest precedence).
-	if f.ServerOverride != "" {
-		cfg.Server = f.ServerOverride
-	}
-	if f.APIKeyOverride != "" {
-		cfg.APIKey = f.APIKeyOverride
-	}
 	if f.NoColorOverride {
 		cfg.NoColor = true
 	}

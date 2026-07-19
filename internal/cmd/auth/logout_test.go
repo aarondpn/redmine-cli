@@ -75,6 +75,36 @@ func TestResolveLogoutProfileName_NoActiveProfile(t *testing.T) {
 	}
 }
 
+func TestWarnSkippedKeyringCleanup(t *testing.T) {
+	t.Setenv("REDMINE_NO_KEYRING", "1")
+	errOut := &strings.Builder{}
+	f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: &strings.Builder{}, ErrOut: errOut}}
+
+	deleted := &config.Config{CredentialStore: config.CredentialStoreKeyring, KeyringID: "some-id"}
+	warnSkippedKeyringCleanup(f.Printer(""), deleted)
+	if !strings.Contains(errOut.String(), "remains in the system keyring") {
+		t.Fatalf("expected skipped-cleanup warning, got:\n%s", errOut.String())
+	}
+
+	errOut.Reset()
+	warnSkippedKeyringCleanup(f.Printer(""), &config.Config{})
+	if errOut.String() != "" {
+		t.Fatalf("unexpected warning for plaintext profile:\n%s", errOut.String())
+	}
+}
+
+func TestWarnSkippedKeyringCleanup_SilentWhenKeyringEnabled(t *testing.T) {
+	t.Setenv("REDMINE_NO_KEYRING", "")
+	errOut := &strings.Builder{}
+	f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: &strings.Builder{}, ErrOut: errOut}}
+
+	deleted := &config.Config{CredentialStore: config.CredentialStoreKeyring, KeyringID: "some-id"}
+	warnSkippedKeyringCleanup(f.Printer(""), deleted)
+	if errOut.String() != "" {
+		t.Fatalf("unexpected warning without REDMINE_NO_KEYRING:\n%s", errOut.String())
+	}
+}
+
 func TestLogout_NoProfilesConfiguredWarns(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(cfgPath, []byte("profiles: {}\n"), 0o644); err != nil {

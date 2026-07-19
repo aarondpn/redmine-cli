@@ -11,11 +11,13 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 )
 
 // NewCmdLogin creates the auth login command.
 func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 	var name string
+	var useKeyring bool
 
 	cmd := &cobra.Command{
 		Use:   "login",
@@ -25,16 +27,17 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 				return err
 			}
-			return runLogin(f, name)
+			return runLogin(f, name, useKeyring, cmd.Flags().Changed("keyring"))
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Profile name (default: derived from server hostname)")
+	cmd.Flags().BoolVar(&useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
 
 	return cmd
 }
 
-func runLogin(f *cmdutil.Factory, profileName string) error {
+func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSet bool) error {
 	var (
 		server     string
 		authMethod string
@@ -183,14 +186,33 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	// Step 6: Save profile
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
 	}
 
+	// Step 6: Credential storage choice
+	var existing *config.Config
+	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
+		if p, ok := pc.Profiles[profileName]; ok {
+			existing = &p
+		}
+	}
+	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, keyringFlag, keyringFlagSet)
+	if err != nil {
+		return err
+	}
+	if storeInKeyring {
+		cfg.CredentialStore = config.CredentialStoreKeyring
+	}
+
+	// Step 7: Save profile
 	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
 		return fmt.Errorf("saving profile: %w", err)
+	}
+
+	if existing != nil && !storeInKeyring {
+		warnSkippedKeyringCleanup(printer, existing)
 	}
 
 	// Set as active profile
@@ -202,4 +224,42 @@ func runLogin(f *cmdutil.Factory, profileName string) error {
 		fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
+}
+
+// resolveKeyringChoice decides whether to store credentials in the system
+// keyring. The flag wins, then the existing profile's storage is the default;
+// a keyring profile is never silently downgraded to plaintext.
+func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool) (bool, error) {
+	if keyringFlagSet {
+		if keyringFlag && !secrets.Default.Available() {
+			return false, fmt.Errorf("system keyring is not available on this machine; re-run without --keyring or store credentials via environment variables")
+		}
+		return keyringFlag, nil
+	}
+
+	wasKeyring := existing != nil && existing.CredentialStore == config.CredentialStoreKeyring
+	available := secrets.Default.Available()
+
+	if wasKeyring && !available {
+		return false, fmt.Errorf("profile %q stores credentials in the system keyring, which is not available right now; make the keyring usable, or re-run with --keyring=false to switch to plaintext storage", profileName)
+	}
+	if !f.IOStreams.IsTTY {
+		return wasKeyring, nil
+	}
+	if !available {
+		return false, nil
+	}
+
+	confirm := true
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Store credentials in system keyring?").
+				Description("Keeps secrets out of the plaintext config file").
+				Value(&confirm),
+		),
+	).Run(); err != nil {
+		return false, err
+	}
+	return confirm, nil
 }
