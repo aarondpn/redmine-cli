@@ -413,32 +413,6 @@ func removeKeyringSecrets(cfg Config) error {
 	return secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword)
 }
 
-// Save writes a single profile's configuration (used by auth login).
-func Save(cfg *Config, path string) error {
-	// Load existing profiles or create new
-	log := debug.New(nil)
-	pc, err := LoadProfiles(path, log)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-		pc = &ProfileConfig{Profiles: make(map[string]Config)}
-	}
-
-	name := ProfileNameFromURL(cfg.Server)
-	if name == "" {
-		name = "default"
-	}
-
-	entry, orphan := reconcileProfileEntry(pc, name, cfg)
-	pc.Profiles[name] = entry
-	if pc.ActiveProfile == "" {
-		pc.ActiveProfile = name
-	}
-
-	return saveProfilesRemovingOrphan(pc, path, name, orphan)
-}
-
 // SaveProfile writes a named profile to the config file.
 func SaveProfile(name string, cfg *Config, path string) error {
 	log := debug.New(nil)

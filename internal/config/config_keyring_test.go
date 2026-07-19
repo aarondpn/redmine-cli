@@ -67,6 +67,57 @@ func TestKeyringProfileRoundtrip(t *testing.T) {
 	}
 }
 
+func TestBasicAuthKeyringRoundtrip(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	cfg := &Config{Server: "https://work.example.com", AuthMethod: "basic", Username: "user", Password: "hunter2", CredentialStore: CredentialStoreKeyring}
+	if err := SaveProfile("work", cfg, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "hunter2") {
+		t.Fatalf("plaintext password found in config file:\n%s", data)
+	}
+
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Password != "hunter2" {
+		t.Fatalf("loaded Password = %q, want %q", loaded.Password, "hunter2")
+	}
+	if loaded.Username != "user" {
+		t.Fatalf("loaded Username = %q, want %q", loaded.Username, "user")
+	}
+}
+
+func TestBasicAuthKeyringMissingSecretMentionsPasswordEnv(t *testing.T) {
+	keyring.MockInit()
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: basic
+    username: user
+    credential_store: keyring
+    keyring_id: absent-id
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath, "", debug.New(nil))
+	if err == nil || !strings.Contains(err.Error(), "REDMINE_PASSWORD") {
+		t.Fatalf("Load error = %v, want mention of REDMINE_PASSWORD", err)
+	}
+}
+
 type fatalStore struct{ t *testing.T }
 
 func (s fatalStore) Get(profile, field string) (string, bool, error) {

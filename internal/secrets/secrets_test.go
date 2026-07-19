@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -85,6 +86,23 @@ func TestNoKeyringDisables(t *testing.T) {
 	}
 	if ok {
 		t.Fatalf("ok = true with REDMINE_NO_KEYRING set, want false")
+	}
+}
+
+func TestNoKeyringDeleteIsNoOp(t *testing.T) {
+	keyring.MockInit()
+	if err := Default.Set("work", FieldAPIKey, "abc123"); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("REDMINE_NO_KEYRING", "1")
+	if err := Default.Delete("work", FieldAPIKey); err != nil {
+		t.Fatalf("Delete error = %v, want nil with REDMINE_NO_KEYRING set", err)
+	}
+
+	os.Unsetenv("REDMINE_NO_KEYRING")
+	if _, ok, _ := Default.Get("work", FieldAPIKey); !ok {
+		t.Fatal("secret deleted despite disabled keyring")
 	}
 }
 
