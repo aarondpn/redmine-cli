@@ -26,11 +26,20 @@ func TestReadOnlyBlocksWritesAllowsReads(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Write is refused before reaching the server.
-	err = c.Post(context.Background(), "/issues.json", map[string]any{}, nil)
-	var roErr *ErrReadOnly
-	if !errors.As(err, &roErr) {
-		t.Fatalf("Post error = %v, want *ErrReadOnly", err)
+	// Writes are refused before reaching the server.
+	ctx := context.Background()
+	writes := map[string]error{
+		"Post":   c.Post(ctx, "/issues.json", map[string]any{}, nil),
+		"Put":    c.Put(ctx, "/issues/1.json", map[string]any{}),
+		"Delete": c.Delete(ctx, "/issues/1.json"),
+	}
+	_, rawErr := c.DoRaw(ctx, http.MethodPatch, "/issues/1.json", nil, nil)
+	writes["DoRaw PATCH"] = rawErr
+	for name, err := range writes {
+		var roErr *ErrReadOnly
+		if !errors.As(err, &roErr) {
+			t.Errorf("%s error = %v, want *ErrReadOnly", name, err)
+		}
 	}
 	if hits != 0 {
 		t.Fatalf("server received %d requests, want 0", hits)

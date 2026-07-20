@@ -14,7 +14,7 @@ type ErrReadOnly struct {
 
 func (e *ErrReadOnly) Error() string {
 	return fmt.Sprintf(
-		"read-only mode enabled: refusing %s %s (unset --read-only / REDMINE_READ_ONLY to allow writes)",
+		"read-only mode enabled: refusing %s %s (set via --read-only, REDMINE_READ_ONLY, or read_only in the profile; pass --read-only=false to allow writes)",
 		e.Method, e.Path,
 	)
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -90,7 +91,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
-	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all write requests (GET/HEAD only)")
+	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all requests that modify data on the server")
 	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
 
 	// Version
@@ -153,6 +154,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 					"auth_method":     cfg.AuthMethod,
 					"default_project": cfg.DefaultProject,
 					"output_format":   cfg.OutputFormat,
+					"read_only":       strconv.FormatBool(cfg.ReadOnly),
 				})
 				return nil
 			}
@@ -162,6 +164,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Auth Method", Value: cfg.AuthMethod},
 				{Key: "Default Project", Value: cfg.DefaultProject},
 				{Key: "Output Format", Value: cfg.OutputFormat},
+				{Key: "Read Only", Value: strconv.FormatBool(cfg.ReadOnly)},
 			})
 			return nil
 		},
