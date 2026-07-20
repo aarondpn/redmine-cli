@@ -18,6 +18,7 @@ type Config struct {
 	DefaultProject string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
 	OutputFormat   string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
 	NoColor        bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
+	ReadOnly       bool      `mapstructure:"read_only" yaml:"read_only,omitempty"`
 	MCP            MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
 }
 

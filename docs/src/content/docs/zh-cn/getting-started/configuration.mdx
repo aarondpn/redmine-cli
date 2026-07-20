@@ -118,6 +118,9 @@ export REDMINE_AUTH_METHOD=apikey
 # 关闭启动时的更新检查
 export REDMINE_NO_UPDATE_CHECK=1
 
+# 拒绝所有修改数据的请求（只读模式）
+export REDMINE_READ_ONLY=1
+
 # 彻底禁用可选的系统密钥环
 export REDMINE_NO_KEYRING=1
 ```
@@ -135,7 +138,34 @@ export REDMINE_NO_KEYRING=1
 | `--profile`     | 使用指定的身份验证配置文件 |
 | `--config`      | 配置文件路径（默认为 `~/.redmine-cli.yaml`） |
 | `--no-color`    | 禁用彩色输出 |
+| `--read-only`   | 拒绝所有修改服务器数据的请求 |
 | `-v, --verbose` | 启用调试日志 |
+
+## 只读模式
+
+将 CLI 指向生产环境的 Redmine 而无需担心数据被修改。启用后，任何会修改服务器数据的请求都会在发送前被拒绝；所有列表、查看和搜索命令继续正常工作。
+
+可通过三种方式启用（优先级：标志 > 环境变量 > 配置文件）：
+
+```bash
+redmine --read-only issues list   # 单次调用
+export REDMINE_READ_ONLY=1        # 整个 shell 会话
+```
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  prod:
+    server: https://redmine.example.com
+    auth_method: apikey
+    api_key: your-api-key
+    read_only: true
+```
+
+传入 `--read-only=false` 可在单次调用中覆盖环境变量或配置文件中的 `read_only: true`。
+
+<Aside type="note" title="MCP 服务器">
+  MCP 服务器有自己的开关：只有传入 `--enable-writes` 时才会注册写入类工具（参见 [AI 代理](/zh-cn/guides/ai-agents/)）。配置文件中的 `read_only: true` 会额外在 HTTP 层阻止写入，即使已传入 `--enable-writes`。
+</Aside>
 
 ## 查看当前配置
 
@@ -143,7 +173,7 @@ export REDMINE_NO_KEYRING=1
 redmine config
 ```
 
-输出活跃配置文件、服务器、身份验证方式、默认项目及输出格式。
+输出活跃配置文件、服务器、身份验证方式、默认项目、输出格式及只读状态。
 
 ## 下一步
 

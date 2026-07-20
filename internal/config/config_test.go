@@ -167,6 +167,38 @@ func TestSaveProfile(t *testing.T) {
 	}
 }
 
+func TestSaveProfileReloginPreservesReadOnly(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	first := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "old-secret",
+		ReadOnly:   true,
+	}
+	if err := SaveProfile("test", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// auth login rebuilds the profile from authentication fields and leaves
+	// settings it does not manage at their zero values.
+	relogin := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "new-secret",
+	}
+	if err := SaveProfile("test", relogin, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pc.Profiles["test"].ReadOnly {
+		t.Fatal("read_only was disabled on re-login")
+	}
+}
+
 func TestDeleteProfile(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: a
@@ -620,5 +652,51 @@ func TestLoadProfilesTightensLegacyWorldReadableFile(t *testing.T) {
 
 	if got := fileMode(t, cfgPath); got != 0o600 {
 		t.Errorf("config mode after load = %o, want 600 (should be tightened on read)", got)
+	}
+}
+
+func TestReadOnlyFromConfigFile(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	body := "profiles:\n  default:\n    server: https://x\n    api_key: k\n    read_only: true\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(cfgPath, "default", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ReadOnly {
+		t.Fatal("expected ReadOnly=true from profile read_only: true")
+	}
+}
+
+func TestReadOnlyEnvDisablesConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	body := "profiles:\n  default:\n    server: https://x\n    api_key: k\n    read_only: true\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_READ_ONLY", "false")
+	cfg, err := Load(cfgPath, "default", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ReadOnly {
+		t.Fatal("REDMINE_READ_ONLY=false must override profile read_only: true")
+	}
+}
+
+func TestReadOnlyEnvOverride(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("profiles:\n  default:\n    server: https://x\n    api_key: k\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_READ_ONLY", "1")
+	cfg, err := Load(cfgPath, "default", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ReadOnly {
+		t.Fatal("expected ReadOnly=true from REDMINE_READ_ONLY=1")
 	}
 }
