@@ -167,6 +167,38 @@ func TestSaveProfile(t *testing.T) {
 	}
 }
 
+func TestSaveProfileReloginPreservesReadOnly(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	first := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "old-secret",
+		ReadOnly:   true,
+	}
+	if err := SaveProfile("test", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// auth login rebuilds the profile from authentication fields and leaves
+	// settings it does not manage at their zero values.
+	relogin := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "new-secret",
+	}
+	if err := SaveProfile("test", relogin, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pc.Profiles["test"].ReadOnly {
+		t.Fatal("read_only was disabled on re-login")
+	}
+}
+
 func TestDeleteProfile(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: a

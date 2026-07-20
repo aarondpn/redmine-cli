@@ -433,14 +433,15 @@ func SaveProfile(name string, cfg *Config, path string) error {
 	return saveProfilesRemovingOrphan(pc, path, name, orphan)
 }
 
-// reconcileProfileEntry inherits the existing KeyringID on re-login and
-// returns the previous config as an orphan when a profile leaves the keyring.
+// reconcileProfileEntry preserves settings that auth login does not manage
+// and returns the previous config as an orphan when a profile leaves the keyring.
 func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config, *Config) {
 	entry := *cfg
 	old, had := pc.Profiles[name]
 	if !had {
 		return entry, nil
 	}
+	entry.ReadOnly = old.ReadOnly
 	if entry.CredentialStore == CredentialStoreKeyring && entry.KeyringID == "" && old.KeyringID != "" {
 		entry.KeyringID = old.KeyringID
 	}
