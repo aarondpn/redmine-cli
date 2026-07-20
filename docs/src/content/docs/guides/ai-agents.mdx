@@ -39,7 +39,7 @@ The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarond
 
 - **Transport:** stdio by default. The host can spawn `redmine mcp serve` and talk JSON-RPC over its standard streams, or you can pass `--http :8080` to expose the same server over streamable HTTP.
 - **Authentication:** the active profile is used by default. Override with `--profile <name>`, `--server` / `--api-key`, or the `REDMINE_*` environment variables -- exactly like every other subcommand.
-- **Read-only by default.** Mutating tools (create / update / delete, comment, close, reopen, and similar write operations) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`.
+- **Read-only by default.** Mutating tools (create / update / delete, comment, close, reopen, and similar write operations) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`. For a second, transport-level guarantee, set [read-only mode](/getting-started/configuration/#read-only-mode) (`read_only: true` in the profile or `REDMINE_READ_ONLY=1`) -- it blocks every write at the HTTP layer, even when `--enable-writes` is passed.
 - **Configurable surface.** `--enable-groups` / `--disable-groups` constrain the registered tools to specific categories (`issues`, `wiki`, `time`, ...). For sharper control, `--enable-tools` / `--disable-tools` allow- or deny-list individual tool names. Run `redmine mcp tools` to print the full catalog.
 
 <Aside type="caution">

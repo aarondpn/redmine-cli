@@ -118,6 +118,9 @@ export REDMINE_AUTH_METHOD=apikey
 # opt out of the startup update check
 export REDMINE_NO_UPDATE_CHECK=1
 
+# refuse all requests that modify data (read-only mode)
+export REDMINE_READ_ONLY=1
+
 # hard-disable the optional system keyring
 export REDMINE_NO_KEYRING=1
 ```
@@ -135,7 +138,34 @@ Flags take precedence over config values and environment variables.
 | `--profile`     | Use a specific auth profile |
 | `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
 | `--no-color`    | Disable colored output |
+| `--read-only`   | Refuse all requests that modify data on the server |
 | `-v, --verbose` | Enable debug logging |
+
+## Read-only mode
+
+Point the CLI at a production Redmine without any risk of changing data. When enabled, every request that would modify the server is refused before it is sent; all listing, viewing, and searching commands keep working.
+
+Enable it in any of three ways (precedence: flag > environment variable > config):
+
+```bash
+redmine --read-only issues list   # single invocation
+export REDMINE_READ_ONLY=1        # whole shell session
+```
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  prod:
+    server: https://redmine.example.com
+    auth_method: apikey
+    api_key: your-api-key
+    read_only: true
+```
+
+Pass `--read-only=false` to override the environment variable or a `read_only: true` profile for a single invocation.
+
+<Aside type="note" title="MCP server">
+  The MCP server has its own gate: mutating tools are only registered when `--enable-writes` is passed (see [AI agents](/guides/ai-agents/)). A profile with `read_only: true` additionally blocks writes at the HTTP layer, even when `--enable-writes` is set.
+</Aside>
 
 ## Inspect current config
 
@@ -143,7 +173,7 @@ Flags take precedence over config values and environment variables.
 redmine config
 ```
 
-Prints the active profile, server, auth method, default project, and output format.
+Prints the active profile, server, auth method, default project, output format, and read-only state.
 
 ## Next
 
