@@ -65,8 +65,10 @@ func e2eVersion() string { return os.Getenv("REDMINE_E2E_VERSION") }
 
 // redmineAtLeast reports whether the Redmine line under test is at least
 // major.minor. An unset or unparseable REDMINE_E2E_VERSION counts as "new
-// enough" so ad-hoc runs still exercise the newest assertions; version-gated
-// tests should therefore stay tolerant of a server that turns out to be older.
+// enough", which is the right default for choosing between two behaviours
+// that both exist (see wikiHeadingStyle). It is the wrong default for
+// asserting that a brand-new field is present, because an unknown server may
+// simply be too old - such tests must call skipIfVersionUnknown as well.
 func redmineAtLeast(major, minor int) bool {
 	gotMajor, gotMinor, ok := parseRedmineVersion(e2eVersion())
 	if !ok {
@@ -87,12 +89,25 @@ func skipBelowRedmine(t *testing.T, major, minor int, feature string) {
 	}
 }
 
+// skipIfVersionUnknown skips the calling test when REDMINE_E2E_VERSION is
+// absent or unparseable. Pair it with skipBelowRedmine on tests that require a
+// field only newer servers send: without it, running the suite by hand against
+// an older instance reports a missing 7.0 field as a Redmine bug rather than
+// as an untestable configuration.
+func skipIfVersionUnknown(t *testing.T, feature string) {
+	t.Helper()
+	if _, _, ok := parseRedmineVersion(e2eVersion()); !ok {
+		t.Skipf("REDMINE_E2E_VERSION is unset or unparseable (%q); cannot assert %s", e2eVersion(), feature)
+	}
+}
+
 // parseRedmineVersion extracts the major and minor components from a version
 // string such as "6.1" or "7.0.0". ok is false when the string is empty or
-// does not start with a numeric major component.
+// when either component is not a number, so a typo like "6.x" is reported as
+// unknown rather than silently read as 6.0.
 func parseRedmineVersion(v string) (major, minor int, ok bool) {
 	parts := strings.Split(strings.TrimSpace(v), ".")
-	if len(parts) == 0 || parts[0] == "" {
+	if parts[0] == "" {
 		return 0, 0, false
 	}
 	major, err := strconv.Atoi(parts[0])
@@ -101,7 +116,7 @@ func parseRedmineVersion(v string) (major, minor int, ok bool) {
 	}
 	if len(parts) > 1 {
 		if minor, err = strconv.Atoi(parts[1]); err != nil {
-			minor = 0
+			return 0, 0, false
 		}
 	}
 	return major, minor, true

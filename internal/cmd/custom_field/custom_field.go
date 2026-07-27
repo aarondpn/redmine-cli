@@ -32,9 +32,9 @@ func boolLabel(v bool) string {
 	return "no"
 }
 
-// optionalBoolLabel renders a tri-state flag: servers older than Redmine 7.0
-// omit is_for_all/editable entirely, and a blank cell is the honest answer
-// there rather than "no".
+// optionalBoolLabel renders a tri-state flag for CSV, where a row cannot be
+// dropped the way the detail view drops it. A server that never sent the flag
+// gets a blank cell, because "no" would assert a restriction it never stated.
 func optionalBoolLabel(v *bool) string {
 	if v == nil {
 		return ""

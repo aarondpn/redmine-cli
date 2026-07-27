@@ -344,6 +344,7 @@ func TestWiki_SectionUpdate_StaleHashConflict(t *testing.T) {
 // rather than made tolerant: the point is that 7.0+ actually populates it.
 func TestWiki_ProjectInResponse(t *testing.T) {
 	requireE2E(t)
+	skipIfVersionUnknown(t, "project in wiki page API response")
 	skipBelowRedmine(t, 7, 0, "project in wiki page API response")
 
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())

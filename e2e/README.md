@@ -15,7 +15,7 @@ The harness is version-aware. The supported matrix in this repo is:
 - `6.1`
 - `7.0`
 
-If you want to test a custom image, set `REDMINE_IMAGE` when you start the stack.
+If you want to test a custom image, set `E2E_IMAGE` when you start the stack.
 
 ## Start Redmine
 
@@ -23,7 +23,7 @@ If you want to test a custom image, set `REDMINE_IMAGE` when you start the stack
 make e2e-up
 ```
 
-That starts Docker Compose from [compose.yaml](/Users/aarond/Documents/Projects/github/redmine-cli/e2e/compose.yaml:1), waits until Redmine is reachable, and bootstraps the instance for CLI testing by enabling the Redmine REST API.
+That starts Docker Compose from [compose.yaml](compose.yaml), waits until Redmine is reachable, and bootstraps the instance for CLI testing by enabling the Redmine REST API.
 
 To choose a supported Redmine line explicitly:
 
@@ -37,8 +37,12 @@ make e2e-up E2E_VERSION=7.0
 To override the Redmine image:
 
 ```bash
-REDMINE_IMAGE=your-registry/redmine:7.0 make e2e-up
+make e2e-up E2E_IMAGE=your-registry/redmine:7.0-custom
 ```
+
+It has to be a make variable, not an environment variable: the recipe passes
+`REDMINE_IMAGE=$(E2E_IMAGE)` to Docker Compose itself, and that assignment
+wins over anything inherited from the environment.
 
 ## Write a local CLI config
 
@@ -78,7 +82,10 @@ fixtures, tracker / activity lookups).
 
 `bootstrap-redmine.sh` seeds the fixtures that have no REST endpoint: a public
 saved query, an issue custom field (`E2E Severity`, applied to all projects)
-and a role-restricted time entry custom field (`E2E Billing Code`).
+and a role-restricted time entry custom field (`E2E Billing Code`, seeded
+`visible: false` so the role restriction has meaning). The seeding uses `save!`
+throughout: a fixture that cannot be created should stop the bootstrap, not
+degrade quietly into a confusing test failure later.
 
 ### Version-gated assertions
 
@@ -133,7 +140,7 @@ make e2e-down
 - `REDMINE_E2E_TIMEOUT_SECONDS`
 - `REDMINE_E2E_CONFIG_PATH`
 - `REDMINE_E2E_PROFILE_NAME`
-- `REDMINE_IMAGE`
+- `E2E_IMAGE` - Makefile-level override for the Redmine image. `REDMINE_IMAGE` is set by the recipe and cannot be overridden from the environment.
 - `E2E_VERSION`
 - `E2E_PORT`
 - `E2E_PASSWORD` - Makefile-level override for the forced admin password (propagates into `REDMINE_E2E_PASSWORD`).

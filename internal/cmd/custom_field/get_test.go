@@ -17,12 +17,21 @@ const detailFixture = `{"custom_fields":[
 	{"id":2,"name":"Department","customized_type":"user","field_format":"string"}
 ]}`
 
-// redmine7Fixture carries the fields Redmine 7.0 added to /custom_fields.json:
-// is_for_all plus the associated projects (#44153) and roles on a non-issue
-// custom field (#44152).
+// redmine7Fixture carries the fields Redmine 7.0 added to /custom_fields.json.
+// Field 1 mirrors an issue custom field, the only type upstream emits the
+// projects array for (#44153). Field 2 is a date field, the only format that
+// carries default_value_mode. editable is true here and is_for_all false, so
+// both rendered values differ and neither can be asserted by accident.
 const redmine7Fixture = `{"custom_fields":[
-	{"id":1,"name":"Billing Code","description":"Cost centre","customized_type":"time_entry","field_format":"string","visible":true,"editable":true,"is_for_all":false,"projects":[{"id":7,"name":"Apollo"}],"roles":[{"id":3,"name":"Manager"}]}
+	{"id":1,"name":"Billing Code","description":"Cost centre","customized_type":"issue","field_format":"string","visible":true,"editable":true,"is_for_all":false,"projects":[{"id":7,"name":"Apollo"}],"roles":[{"id":3,"name":"Manager"}]},
+	{"id":2,"name":"Target Date","customized_type":"issue","field_format":"date","visible":true,"default_value":"7","default_value_mode":"days_after_today"}
 ]}`
+
+// normalizeSpacing collapses runs of whitespace so a "Key  value" assertion
+// does not depend on the detail printer's column padding.
+func normalizeSpacing(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
 
 func TestCustomFieldGet_JSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -120,8 +129,38 @@ func TestCustomFieldGet_Redmine7Fields(t *testing.T) {
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
 		}
+		// Assert the rendered values, not just the row labels: a label-only
+		// check stays green if the flag is inverted. is_for_all is false and
+		// editable true in the fixture, so the two cannot be confused.
 		stdout := testutil.Stdout(f)
-		for _, want := range []string{"For All Projects", "Editable", "Description", "Cost centre", "Projects", "Apollo (ID: 7)", "Manager (ID: 3)"} {
+		for _, want := range []string{
+			"Description", "Cost centre",
+			"Editable: yes",
+			"For All Projects: no",
+			"Apollo (ID: 7)", "Manager (ID: 3)",
+		} {
+			if !strings.Contains(normalizeSpacing(stdout), normalizeSpacing(want)) {
+				t.Errorf("detail output missing %q:\n%s", want, stdout)
+			}
+		}
+	})
+
+	t.Run("date field surfaces default_value_mode", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(redmine7Fixture))
+		}))
+		defer srv.Close()
+
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdCustomFieldGet(f)
+		cmd.SetArgs([]string{"2", "--output", "table"})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		stdout := testutil.Stdout(f)
+		for _, want := range []string{"Default Mode", "days_after_today"} {
 			if !strings.Contains(stdout, want) {
 				t.Errorf("detail output missing %q:\n%s", want, stdout)
 			}

@@ -16,7 +16,11 @@ if docker compose -f "$compose_file" exec -T "$container_service" \
     >/dev/null
 fi
 
-docker compose -f "$compose_file" exec -T \
+# The result is captured rather than piped straight into tail: a pipeline
+# reports the exit status of its last command, so `rails runner ... | tail`
+# would report success even when the seeding aborted. With set -e, a failing
+# command substitution stops the script here instead.
+bootstrap_output=$(docker compose -f "$compose_file" exec -T \
   -e REDMINE_E2E_PASSWORD="$admin_password" \
   "$container_service" \
   bundle exec rails runner '
@@ -61,20 +65,24 @@ docker compose -f "$compose_file" exec -T \
 
     # Seed a role-restricted time entry custom field. Redmine 7.0 (#44152)
     # started returning "roles" for non-issue custom fields, and this fixture
-    # is what makes that observable over the REST API. Older lines may reject
-    # role restrictions on non-issue fields, so the save falls back to a plain
-    # visible field and the assertion is version-gated on the Go side.
+    # is what makes that observable over the REST API. visible=false is what
+    # gives the role restriction meaning: a visible field is visible to every
+    # role and reports no roles at all.
+    #
+    # save! rather than a rescue-and-degrade: role_ids and visible live on the
+    # base CustomField class in every supported line (verified on 4.2, 6.1 and
+    # 7.0), so a failure here is a real regression. Degrading quietly would
+    # surface later as "Redmine did not return roles", blaming the server for
+    # a broken fixture.
     time_entry_cf_name = "E2E Billing Code"
     seeded_time_entry_cf = TimeEntryCustomField.find_or_initialize_by(name: time_entry_cf_name)
     seeded_time_entry_cf.field_format = "string" if seeded_time_entry_cf.field_format.blank?
     seeded_time_entry_cf.is_required = false
     seeded_time_entry_cf.visible = false
-    seeded_time_entry_cf.role_ids = Role.givable.pluck(:id).first(1)
-    unless seeded_time_entry_cf.save
-      seeded_time_entry_cf.visible = true
-      seeded_time_entry_cf.role_ids = []
-      seeded_time_entry_cf.save!
-    end
+    restricted_role_ids = Role.givable.pluck(:id).first(1)
+    abort("no givable roles to restrict the time entry custom field to") if restricted_role_ids.empty?
+    seeded_time_entry_cf.role_ids = restricted_role_ids
+    seeded_time_entry_cf.save!
 
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
@@ -89,4 +97,6 @@ docker compose -f "$compose_file" exec -T \
       seeded_time_entry_custom_field_id: seeded_time_entry_cf.id,
       seeded_time_entry_custom_field_roles: seeded_time_entry_cf.roles.count
     }.inspect)
-  ' 2>/dev/null | tail -n 1
+  ' 2>/dev/null)
+
+printf '%s\n' "$bootstrap_output" | tail -n 1

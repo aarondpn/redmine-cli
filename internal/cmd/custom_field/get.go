@@ -92,6 +92,9 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 			if field.DefaultValue != "" {
 				details = append(details, output.KeyValue{Key: "Default", Value: field.DefaultValue})
 			}
+			if field.DefaultValueMode != "" {
+				details = append(details, output.KeyValue{Key: "Default Mode", Value: field.DefaultValueMode})
+			}
 			if field.Regexp != "" {
 				details = append(details, output.KeyValue{Key: "Regexp", Value: field.Regexp})
 			}

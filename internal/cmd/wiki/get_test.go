@@ -57,7 +57,9 @@ func TestGet_ProjectRow(t *testing.T) {
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
 		}
-		if stdout := testutil.Stdout(f); strings.Contains(stdout, "Project") {
+		// Match the row label, not a bare "Project" substring, so unrelated
+		// future rows or page text containing the word cannot fail this.
+		if stdout := testutil.Stdout(f); strings.Contains(stdout, "Project:") {
 			t.Errorf("detail output unexpectedly contains a Project row:\n%s", stdout)
 		}
 	})

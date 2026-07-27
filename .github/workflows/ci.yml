@@ -35,3 +35,12 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      # The e2e package is behind a build tag, so neither `go test ./...` nor
+      # golangci-lint compiles it. Without this, a compile error there is only
+      # caught by the E2E workflow, which needs live containers.
+      - name: Vet e2e package
+        run: go vet -tags=e2e ./e2e
+
+      - name: Test e2e helpers
+        run: go test -tags=e2e -run 'TestParseRedmineVersion|TestRedmineAtLeast' ./e2e

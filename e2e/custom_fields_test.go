@@ -81,6 +81,7 @@ func TestCustomFields_ListAndGet(t *testing.T) {
 // (#44153), and roles on non-issue custom fields (#44152).
 func TestCustomFields_Redmine7Metadata(t *testing.T) {
 	requireE2E(t)
+	skipIfVersionUnknown(t, "custom field scope and role metadata")
 	skipBelowRedmine(t, 7, 0, "custom field scope and role metadata")
 
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
