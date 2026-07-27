@@ -78,6 +78,9 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Version", Value: strconv.Itoa(page.Version)},
 			}
 
+			if page.Project != nil {
+				pairs = append(pairs, output.KeyValue{Key: "Project", Value: page.Project.Name})
+			}
 			if page.Author != nil {
 				pairs = append(pairs, output.KeyValue{Key: "Author", Value: page.Author.Name})
 			}

@@ -11,9 +11,18 @@ type CustomFieldPossibleValue struct {
 
 // CustomField represents a Redmine custom field definition as returned by
 // /custom_fields.json. The endpoint is admin-only.
+//
+// IsForAll and Projects were added to the API in Redmine 7.0 (#44153). Roles
+// is emitted for issue, time entry, project and version fields since 7.0
+// (#44152); older versions restrict it to issue fields.
+//
+// The bool flags a server may omit are pointers so "not reported" stays
+// distinguishable from "reported as false" - rendering them as "no" would
+// claim a restriction the server never stated.
 type CustomField struct {
 	ID             int                        `json:"id"`
 	Name           string                     `json:"name"`
+	Description    string                     `json:"description,omitempty"`
 	CustomizedType string                     `json:"customized_type"`
 	FieldFormat    string                     `json:"field_format"`
 	Regexp         string                     `json:"regexp,omitempty"`
@@ -25,7 +34,10 @@ type CustomField struct {
 	Multiple       bool                       `json:"multiple"`
 	DefaultValue   string                     `json:"default_value,omitempty"`
 	Visible        bool                       `json:"visible"`
+	Editable       *bool                      `json:"editable,omitempty"`
+	IsForAll       *bool                      `json:"is_for_all,omitempty"`
 	PossibleValues []CustomFieldPossibleValue `json:"possible_values,omitempty"`
+	Projects       []IDName                   `json:"projects,omitempty"`
 	Trackers       []IDName                   `json:"trackers,omitempty"`
 	Roles          []IDName                   `json:"roles,omitempty"`
 }

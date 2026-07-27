@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"encoding/json"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -221,18 +220,11 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 }
 
 // skipIfArchiveUnsupported skips the calling test when the e2e matrix is
-// running against a Redmine version known to lack the archive endpoint.
-// REDMINE_E2E_VERSION is set by the Makefile e2e-test target.
+// running against a Redmine version known to lack the archive endpoint, which
+// landed in Redmine 5.0.
 func skipIfArchiveUnsupported(t *testing.T) {
 	t.Helper()
-	version := os.Getenv("REDMINE_E2E_VERSION")
-	if version == "" {
-		return
-	}
-	// Archive/unarchive endpoints landed in Redmine 5.0.
-	if strings.HasPrefix(version, "4.") || strings.HasPrefix(version, "3.") || strings.HasPrefix(version, "2.") {
-		t.Skipf("REDMINE_E2E_VERSION=%s does not support project archive (requires 5.0+)", version)
-	}
+	skipBelowRedmine(t, 5, 0, "project archive")
 }
 
 // isProbablyUnsupportedArchive inspects an error envelope on stdout and

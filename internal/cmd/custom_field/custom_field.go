@@ -32,6 +32,16 @@ func boolLabel(v bool) string {
 	return "no"
 }
 
+// optionalBoolLabel renders a tri-state flag: servers older than Redmine 7.0
+// omit is_for_all/editable entirely, and a blank cell is the honest answer
+// there rather than "no".
+func optionalBoolLabel(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	return boolLabel(*v)
+}
+
 func formatPossibleValues(values []models.CustomFieldPossibleValue) string {
 	if len(values) == 0 {
 		return ""

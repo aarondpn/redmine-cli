@@ -1,12 +1,16 @@
 package models
 
 // WikiPage represents a Redmine wiki page.
+//
+// Project is only sent by Redmine 7.0+ (#43569), so it stays a pointer and
+// callers must treat it as optional.
 type WikiPage struct {
 	Title       string         `json:"title"`
 	Text        string         `json:"text"`
 	Comments    string         `json:"comments,omitempty"`
 	Version     int            `json:"version"`
 	Author      *IDName        `json:"author,omitempty"`
+	Project     *IDName        `json:"project,omitempty"`
 	UpdatedOn   string         `json:"updated_on"`
 	CreatedOn   string         `json:"created_on"`
 	Parent      *WikiPageTitle `json:"parent,omitempty"`

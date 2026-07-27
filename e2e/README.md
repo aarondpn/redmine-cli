@@ -4,7 +4,7 @@ This directory contains a local end-to-end harness for `redmine-cli`.
 
 It uses:
 
-- Docker Official Image `redmine:6.1` by default
+- Docker Official Image `redmine:7.0` by default
 - `postgres:16-alpine`
 - The default Redmine admin account to derive an API key for CLI tests
 
@@ -13,6 +13,7 @@ The harness is version-aware. The supported matrix in this repo is:
 - `4.2`
 - `5.1`
 - `6.1`
+- `7.0`
 
 If you want to test a custom image, set `REDMINE_IMAGE` when you start the stack.
 
@@ -30,12 +31,13 @@ To choose a supported Redmine line explicitly:
 make e2e-up E2E_VERSION=4.2
 make e2e-up E2E_VERSION=5.1
 make e2e-up E2E_VERSION=6.1
+make e2e-up E2E_VERSION=7.0
 ```
 
 To override the Redmine image:
 
 ```bash
-REDMINE_IMAGE=your-registry/redmine:7.0-rc make e2e-up
+REDMINE_IMAGE=your-registry/redmine:7.0 make e2e-up
 ```
 
 ## Write a local CLI config
@@ -67,11 +69,29 @@ Redmine instance. The suite is split into topical files:
 | `api_test.go`            | raw `api` passthrough GET + POST + PUT with `--input` |
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
+| `custom_fields_test.go`  | `custom-fields list` / `get` plus the Redmine 7.0 scope and role metadata |
 
 Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
 `runner_test.go` (CLI runner + profile constructors), `helpers_test.go`
 (envelope types + env accessors) and `fixtures_test.go` (project / issue
 fixtures, tracker / activity lookups).
+
+`bootstrap-redmine.sh` seeds the fixtures that have no REST endpoint: a public
+saved query, an issue custom field (`E2E Severity`, applied to all projects)
+and a role-restricted time entry custom field (`E2E Billing Code`).
+
+### Version-gated assertions
+
+Some behaviour only exists from a given Redmine line onwards. Gate those
+assertions with the helpers in `helpers_test.go` rather than parsing
+`REDMINE_E2E_VERSION` inline:
+
+- `skipBelowRedmine(t, 7, 0, "…")` skips the test on older servers.
+- `redmineAtLeast(5, 0)` branches on the version, e.g. to pick Textile over
+  Markdown.
+
+An unset `REDMINE_E2E_VERSION` counts as "new enough", so ad-hoc runs against
+an unknown server still exercise the newest assertions.
 
 ### Adding a new test
 
@@ -96,6 +116,7 @@ The matrix uses separate ports per Redmine line to avoid collisions:
 - `4.2` -> `http://127.0.0.1:3402`
 - `5.1` -> `http://127.0.0.1:3501`
 - `6.1` -> `http://127.0.0.1:3601`
+- `7.0` -> `http://127.0.0.1:3700`
 
 ## Tear it down
 

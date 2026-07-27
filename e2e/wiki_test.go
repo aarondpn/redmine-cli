@@ -339,13 +339,48 @@ func TestWiki_SectionUpdate_StaleHashConflict(t *testing.T) {
 	assertErrorCode(t, stdout, "conflict")
 }
 
+// TestWiki_ProjectInResponse covers the project node Redmine 7.0 added to the
+// wiki page API response (#43569). Older lines omit it, so the test is gated
+// rather than made tolerant: the point is that 7.0+ actually populates it.
+func TestWiki_ProjectInResponse(t *testing.T) {
+	requireE2E(t)
+	skipBelowRedmine(t, 7, 0, "project in wiki page API response")
+
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	page := wikiPageName(t)
+	r.run(t, "wiki", "create", page,
+		"--project", proj.Identifier,
+		"--text", wikiSection(wikiHeadingStyle(), "Scope", "Body from e2e."))
+
+	var fetched struct {
+		Title   string `json:"title"`
+		Project *struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"project"`
+	}
+	r.runJSON(t, &fetched, "wiki", "get", page, "--project", proj.Identifier)
+	if fetched.Project == nil {
+		t.Fatalf("wiki get omitted project node on Redmine %s: %+v", e2eVersion(), fetched)
+	}
+	if fetched.Project.ID != proj.ID {
+		t.Errorf("wiki page project id = %d, want %d", fetched.Project.ID, proj.ID)
+	}
+
+	stdout := r.run(t, "wiki", "get", page, "--project", proj.Identifier, "--output", "table")
+	if !strings.Contains(string(stdout), fetched.Project.Name) {
+		t.Errorf("wiki get table output missing project name %q\nstdout:\n%s", fetched.Project.Name, stdout)
+	}
+}
+
 // wikiHeadingStyle returns the markup the e2e server's default formatter
 // recognises as headings. Redmine 5.0+ defaults to CommonMark (Markdown);
 // 4.x and earlier default to Textile. Section editing keys off recognised
 // headings, so test content must match the active formatter.
 func wikiHeadingStyle() string {
-	version := os.Getenv("REDMINE_E2E_VERSION")
-	if strings.HasPrefix(version, "4.") || strings.HasPrefix(version, "3.") || strings.HasPrefix(version, "2.") {
+	if !redmineAtLeast(5, 0) {
 		return "textile"
 	}
 	return "markdown"

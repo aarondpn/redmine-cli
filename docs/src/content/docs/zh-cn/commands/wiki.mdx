@@ -58,6 +58,8 @@ redmine wiki get <page> [flags]
 
 别名：`show`、`view`。打印页面的元数据以及完整的 Textile/Markdown 源文本。传入 `--version` 可获取历史版本而非当前版本。
 
+Redmine 7.0 在 wiki 页面 API 响应中新增了所属项目，因此在 7.0 及以上版本中 `wiki get` 会显示 `Project` 行（JSON 输出中为 `project` 字段）。较旧的服务器不返回该字段，此行会被省略。
+
 | 标志 | 描述 |
 |------|------|
 | `--project`    | 项目标识符或数字 ID |

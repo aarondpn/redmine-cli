@@ -59,6 +59,23 @@ docker compose -f "$compose_file" exec -T \
     seeded_custom_field.tracker_ids = Tracker.pluck(:id)
     seeded_custom_field.save!
 
+    # Seed a role-restricted time entry custom field. Redmine 7.0 (#44152)
+    # started returning "roles" for non-issue custom fields, and this fixture
+    # is what makes that observable over the REST API. Older lines may reject
+    # role restrictions on non-issue fields, so the save falls back to a plain
+    # visible field and the assertion is version-gated on the Go side.
+    time_entry_cf_name = "E2E Billing Code"
+    seeded_time_entry_cf = TimeEntryCustomField.find_or_initialize_by(name: time_entry_cf_name)
+    seeded_time_entry_cf.field_format = "string" if seeded_time_entry_cf.field_format.blank?
+    seeded_time_entry_cf.is_required = false
+    seeded_time_entry_cf.visible = false
+    seeded_time_entry_cf.role_ids = Role.givable.pluck(:id).first(1)
+    unless seeded_time_entry_cf.save
+      seeded_time_entry_cf.visible = true
+      seeded_time_entry_cf.role_ids = []
+      seeded_time_entry_cf.save!
+    end
+
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
       admin_api_key_present: admin.api_key.to_s != "",
@@ -68,6 +85,8 @@ docker compose -f "$compose_file" exec -T \
       seeded_query_id: seeded_query.id,
       seeded_query_name: seeded_query.name,
       seeded_custom_field_id: seeded_custom_field.id,
-      seeded_custom_field_name: seeded_custom_field.name
+      seeded_custom_field_name: seeded_custom_field.name,
+      seeded_time_entry_custom_field_id: seeded_time_entry_cf.id,
+      seeded_time_entry_custom_field_roles: seeded_time_entry_cf.roles.count
     }.inspect)
   ' 2>/dev/null | tail -n 1

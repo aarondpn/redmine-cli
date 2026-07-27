@@ -48,7 +48,7 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 			}
 			if printer.Format() == output.FormatCSV {
 				printer.CSV(
-					[]string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple", "Default", "Possible Values", "Trackers", "Roles"},
+					[]string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple", "Default", "Possible Values", "Trackers", "Roles", "For All", "Projects"},
 					[][]string{{
 						fmt.Sprintf("%d", field.ID),
 						field.Name,
@@ -62,6 +62,8 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 						formatPossibleValues(field.PossibleValues),
 						formatIDNames(field.Trackers),
 						formatIDNames(field.Roles),
+						optionalBoolLabel(field.IsForAll),
+						formatIDNames(field.Projects),
 					}},
 				)
 				return nil
@@ -77,6 +79,15 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Searchable", Value: boolLabel(field.Searchable)},
 				{Key: "Multiple", Value: boolLabel(field.Multiple)},
 				{Key: "Visible", Value: boolLabel(field.Visible)},
+			}
+			if field.Description != "" {
+				details = append(details, output.KeyValue{Key: "Description", Value: field.Description})
+			}
+			if field.Editable != nil {
+				details = append(details, output.KeyValue{Key: "Editable", Value: boolLabel(*field.Editable)})
+			}
+			if field.IsForAll != nil {
+				details = append(details, output.KeyValue{Key: "For All Projects", Value: boolLabel(*field.IsForAll)})
 			}
 			if field.DefaultValue != "" {
 				details = append(details, output.KeyValue{Key: "Default", Value: field.DefaultValue})
@@ -98,6 +109,9 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 			}
 			if value := formatIDNames(field.Roles); value != "" {
 				details = append(details, output.KeyValue{Key: "Roles", Value: value})
+			}
+			if value := formatIDNames(field.Projects); value != "" {
+				details = append(details, output.KeyValue{Key: "Projects", Value: value})
 			}
 
 			printer.Detail(details)

@@ -58,6 +58,8 @@ redmine wiki get <page> [flags]
 
 Aliases: `show`, `view`. Prints the page metadata and full Textile/Markdown source. Pass `--version` to fetch a historical revision instead of the current one.
 
+Redmine 7.0 added the owning project to the wiki page API response, so `wiki get` shows a `Project` row (and a `project` key in JSON output) against 7.0+ servers. Older servers do not send it and the row is omitted.
+
 | Flag | Description |
 |------|-------------|
 | `--project`    | Project identifier or numeric ID |

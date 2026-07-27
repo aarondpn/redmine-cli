@@ -103,6 +103,10 @@ Lists or inspects custom field definitions. The list view surfaces target resour
   The underlying `GET /custom_fields.json` endpoint is admin-only - the command returns `403 Forbidden` for non-admin API keys.
 </Aside>
 
+<Aside type="note">
+  Redmine 7.0 extended this endpoint. `custom-fields get` shows the `For All Projects` flag and the `Projects` a field is scoped to, and roles are now reported for time entry, project and version fields instead of issue fields only. Against older servers those rows are omitted rather than shown as `no`, so an empty row means "this server does not report it" - not "restricted".
+</Aside>
+
 ## Shell completion
 
 <Tabs syncKey="shell">

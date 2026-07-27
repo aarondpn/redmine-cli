@@ -103,6 +103,10 @@ redmine custom-fields get 7 --output json
   底层的 `GET /custom_fields.json` 端点仅限管理员访问，使用非管理员 API key 时命令会返回 `403 Forbidden`。
 </Aside>
 
+<Aside type="note">
+  Redmine 7.0 扩展了该端点。`custom-fields get` 会显示 `For All Projects` 标志以及字段限定的 `Projects`；角色信息现在也会针对工时、项目和版本字段返回，而不再仅限于工单字段。对于较旧的服务器，这些行会被直接省略，而不是显示为 `no`，因此缺少该行表示“此服务器不提供该信息”，而非“未受限制”。
+</Aside>
+
 ## Shell 补全
 
 <Tabs syncKey="shell">
