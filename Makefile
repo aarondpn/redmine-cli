@@ -2,7 +2,7 @@ BINARY_NAME=redmine
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X main.version=$(VERSION) $(EXTRA_LDFLAGS)"
 E2E_COMPOSE_FILE=e2e/compose.yaml
-E2E_VERSION ?= 6.1
+E2E_VERSION ?= 7.0
 E2E_IMAGE ?= redmine:$(E2E_VERSION)
 E2E_PORT ?= 3000
 E2E_BASE_URL ?= http://127.0.0.1:$(E2E_PORT)
@@ -11,7 +11,7 @@ E2E_PROJECT_NAME ?= e2e-$(subst .,-,$(E2E_VERSION))
 # empty to skip the password reset (in which case basic-auth tests will
 # be skipped as well).
 E2E_PASSWORD ?= admintest123
-SUPPORTED_E2E_VERSIONS=4.2 5.1 6.1
+SUPPORTED_E2E_VERSIONS=4.2 5.1 6.1 7.0
 
 .PHONY: build test lint clean install e2e-up e2e-down e2e-config e2e-test e2e-logs e2e-matrix
 
@@ -60,6 +60,7 @@ e2e-matrix:
 			4.2) port=3402 ;; \
 			5.1) port=3501 ;; \
 			6.1) port=3601 ;; \
+			7.0) port=3700 ;; \
 			*) port=3000 ;; \
 		esac; \
 		project_name=e2e-$$(echo $$version | tr . -); \

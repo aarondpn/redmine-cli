@@ -25,6 +25,7 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-4.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 4.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-5.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 5.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
+  <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-7.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 7.x"></a>
 </p>
 
 <p align="center">
@@ -116,4 +117,4 @@ Full configuration, host-specific snippets (Claude Desktop, Cursor, Zed, VS Code
 
 ## Development
 
-Local E2E testing against a real Redmine instance (Docker, supported on Redmine `4.2`, `5.1`, `6.1`): see [e2e/README.md](e2e/README.md).
+Local E2E testing against a real Redmine instance (Docker, supported on Redmine `4.2`, `5.1`, `6.1`, `7.0`): see [e2e/README.md](e2e/README.md).

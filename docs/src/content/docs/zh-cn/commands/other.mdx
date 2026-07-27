@@ -103,6 +103,18 @@ redmine custom-fields get 7 --output json
   底层的 `GET /custom_fields.json` 端点仅限管理员访问，使用非管理员 API key 时命令会返回 `403 Forbidden`。
 </Aside>
 
+<Aside type="note">
+  Redmine 7.0 扩展了该端点，`custom-fields get` 会在表格输出中展示这些新增信息：
+
+  - `For All Projects` 与 `Projects` 描述字段的项目适用范围。Redmine 仅针对**工单**自定义字段返回项目范围，因此工时、项目和版本字段永远不会出现这两行。
+  - `Roles` 现在也会针对工时、项目和版本字段返回，而较旧的服务器仅针对工单字段返回。
+  - `Default Mode` 出现在使用相对默认值的日期格式字段上（例如 `days_after_today`）。
+
+  当服务器不返回该标志时，`For All Projects` 行会被整行省略，而不是显示为 `no`，因此该行缺失表示「服务器未提供该信息」，绝不表示「受到限制」。`Projects` 行缺失的含义则不同：它表示该字段未限定到特定项目，对工单字段而言通常意味着适用于所有项目。
+
+  CSV 输出仅包含两个范围列，列名为 `For All` 和 `Projects`，且 `For All` 为空值而非省略。`Description`、`Editable` 与 `Default Mode` 仅在表格输出中提供。
+</Aside>
+
 ## Shell 补全
 
 <Tabs syncKey="shell">

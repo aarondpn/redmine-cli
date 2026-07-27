@@ -103,6 +103,18 @@ Lists or inspects custom field definitions. The list view surfaces target resour
   The underlying `GET /custom_fields.json` endpoint is admin-only - the command returns `403 Forbidden` for non-admin API keys.
 </Aside>
 
+<Aside type="note">
+  Redmine 7.0 extended this endpoint, and `custom-fields get` surfaces the additions in its table output:
+
+  - `For All Projects` and `Projects` describe a field's project scope. Redmine only reports project scope for **issue** custom fields, so these never appear for a time entry, project or version field.
+  - `Roles` is now reported for time entry, project and version fields too, where older servers reported it for issue fields only.
+  - `Default Mode` appears on date-format fields whose default is relative (for example `days_after_today`).
+
+  The `For All Projects` row is omitted entirely when the server does not report the flag, rather than shown as `no`, so its absence means "not reported" and never "restricted". A missing `Projects` row is different: it means the field is not scoped to specific projects, which for an issue field usually means it applies to all of them.
+
+  CSV output carries only the two scope columns, named `For All` and `Projects`, and leaves `For All` blank instead of dropping it. `Description`, `Editable` and `Default Mode` are table-only.
+</Aside>
+
 ## Shell completion
 
 <Tabs syncKey="shell">

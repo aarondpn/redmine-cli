@@ -25,6 +25,7 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-4.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 4.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-5.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 5.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
+  <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-7.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 7.x"></a>
 </p>
 
 <p align="center">
@@ -116,4 +117,4 @@ skill 教代理掌握 CLI 中不显然的部分（输出格式、名称解析、
 
 ## 开发
 
-针对真实 Redmine 实例的本地端到端测试（Docker，支持 `4.2`、`5.1`、`6.1`）：参见 [e2e/README.md](e2e/README.md)。
+针对真实 Redmine 实例的本地端到端测试（Docker，支持 `4.2`、`5.1`、`6.1`、`7.0`）：参见 [e2e/README.md](e2e/README.md)。

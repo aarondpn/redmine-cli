@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -56,6 +57,70 @@ func e2eBaseURL() string  { return getenvDefault("REDMINE_E2E_BASE_URL", "http:/
 func e2eUsername() string { return getenvDefault("REDMINE_E2E_USERNAME", "admin") }
 func e2eAPIKey() string   { return os.Getenv("REDMINE_E2E_API_KEY") }
 func e2ePassword() string { return os.Getenv("REDMINE_E2E_PASSWORD") }
+
+// e2eVersion returns the Redmine line under test ("4.2", "6.1", "7.0", ...).
+// The Makefile e2e-test target sets REDMINE_E2E_VERSION; it is empty for
+// ad-hoc runs against an instance of unknown version.
+func e2eVersion() string { return os.Getenv("REDMINE_E2E_VERSION") }
+
+// redmineAtLeast reports whether the Redmine line under test is at least
+// major.minor. An unset or unparseable REDMINE_E2E_VERSION counts as "new
+// enough", which is the right default for choosing between two behaviours
+// that both exist (see wikiHeadingStyle). It is the wrong default for
+// asserting that a brand-new field is present, because an unknown server may
+// simply be too old - such tests must call skipIfVersionUnknown as well.
+func redmineAtLeast(major, minor int) bool {
+	gotMajor, gotMinor, ok := parseRedmineVersion(e2eVersion())
+	if !ok {
+		return true
+	}
+	if gotMajor != major {
+		return gotMajor > major
+	}
+	return gotMinor >= minor
+}
+
+// skipBelowRedmine skips the calling test when the version under test predates
+// major.minor. feature names the capability for the skip message.
+func skipBelowRedmine(t *testing.T, major, minor int, feature string) {
+	t.Helper()
+	if !redmineAtLeast(major, minor) {
+		t.Skipf("REDMINE_E2E_VERSION=%s does not support %s (requires %d.%d+)", e2eVersion(), feature, major, minor)
+	}
+}
+
+// skipIfVersionUnknown skips the calling test when REDMINE_E2E_VERSION is
+// absent or unparseable. Pair it with skipBelowRedmine on tests that require a
+// field only newer servers send: without it, running the suite by hand against
+// an older instance reports a missing 7.0 field as a Redmine bug rather than
+// as an untestable configuration.
+func skipIfVersionUnknown(t *testing.T, feature string) {
+	t.Helper()
+	if _, _, ok := parseRedmineVersion(e2eVersion()); !ok {
+		t.Skipf("REDMINE_E2E_VERSION is unset or unparseable (%q); cannot assert %s", e2eVersion(), feature)
+	}
+}
+
+// parseRedmineVersion extracts the major and minor components from a version
+// string such as "6.1" or "7.0.0". ok is false when the string is empty or
+// when either component is not a number, so a typo like "6.x" is reported as
+// unknown rather than silently read as 6.0.
+func parseRedmineVersion(v string) (major, minor int, ok bool) {
+	parts := strings.Split(strings.TrimSpace(v), ".")
+	if parts[0] == "" {
+		return 0, 0, false
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, false
+	}
+	if len(parts) > 1 {
+		if minor, err = strconv.Atoi(parts[1]); err != nil {
+			return 0, 0, false
+		}
+	}
+	return major, minor, true
+}
 
 // requireErrorEnvelopeMessage decodes stdout as an error envelope and requires
 // a non-empty message. Returns the decoded envelope so callers can perform

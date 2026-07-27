@@ -33,6 +33,7 @@ on:
           - '4.2'
           - '5.1'
           - '6.1'
+          - '7.0'
           - all
         default: default
 
@@ -49,13 +50,13 @@ jobs:
         run: |
           case "${INPUT_VERSION:-default}" in
             all)
-              echo 'versions=["4.2","5.1","6.1"]' >> "$GITHUB_OUTPUT"
+              echo 'versions=["4.2","5.1","6.1","7.0"]' >> "$GITHUB_OUTPUT"
               ;;
-            4.2|5.1|6.1)
+            4.2|5.1|6.1|7.0)
               echo "versions=[\"${INPUT_VERSION}\"]" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo 'versions=["4.2","5.1","6.1"]' >> "$GITHUB_OUTPUT"
+              echo 'versions=["4.2","5.1","6.1","7.0"]' >> "$GITHUB_OUTPUT"
               ;;
           esac
 

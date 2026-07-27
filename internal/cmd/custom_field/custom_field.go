@@ -32,6 +32,16 @@ func boolLabel(v bool) string {
 	return "no"
 }
 
+// optionalBoolLabel renders a tri-state flag for CSV, where a row cannot be
+// dropped the way the detail view drops it. A server that never sent the flag
+// gets a blank cell, because "no" would assert a restriction it never stated.
+func optionalBoolLabel(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	return boolLabel(*v)
+}
+
 func formatPossibleValues(values []models.CustomFieldPossibleValue) string {
 	if len(values) == 0 {
 		return ""

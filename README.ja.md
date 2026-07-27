@@ -25,6 +25,7 @@
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-4.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 4.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-5.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 5.x"></a>
   <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-6.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 6.x"></a>
+  <a href="https://www.redmine.org/projects/redmine/wiki/changelog"><img src="https://img.shields.io/badge/Redmine-7.x-B32024?style=for-the-badge&logo=redmine&logoColor=white" alt="Redmine 7.x"></a>
 </p>
 
 <p align="center">
@@ -116,4 +117,4 @@ skill は CLI の非自明な部分（出力形式、名前解決、ページネ
 
 ## 開発
 
-実際の Redmine インスタンスに対するローカル E2E テスト（Docker、Redmine `4.2`、`5.1`、`6.1` をサポート）：[e2e/README.md](e2e/README.md) を参照してください。
+実際の Redmine インスタンスに対するローカル E2E テスト（Docker、Redmine `4.2`、`5.1`、`6.1`、`7.0` をサポート）：[e2e/README.md](e2e/README.md) を参照してください。
