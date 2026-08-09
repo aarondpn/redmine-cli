@@ -51,6 +51,12 @@ func BuildHTTPHandler(client *api.Client, opts Options) http.Handler {
 		return srv
 	}, &mcp.StreamableHTTPOptions{
 		JSONResponse: true,
+		// The MCP revision 2026-07-28 is only offered over HTTP when the
+		// handler is stateless. Every tool here is a self-contained Redmine
+		// API call, so there is no session state worth keeping: GET/DELETE
+		// answer 405 and resumability is dropped, but older clients still
+		// negotiate down to 2025-11-25 and keep working.
+		Stateless: true,
 	})
 }
 

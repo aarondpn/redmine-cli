@@ -63,6 +63,8 @@ redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
 
 When a non-loopback bind is detected without `--auth-token`, the CLI prints a warning to stderr but still starts. The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
 
+The HTTP transport is stateless, so it speaks MCP revision `2026-07-28` (sessionless, `server/discover` instead of the `initialize` handshake). Every tool call is a self-contained Redmine API request, so there is no session to keep. Practical consequences: only `POST` is served (`GET` and `DELETE` answer `405`), and stream resumption via `Last-Event-ID` is not available. Older clients negotiate down to `2025-11-25` and keep working unchanged.
+
 Clients must send the bearer token on every request:
 
 ```http
