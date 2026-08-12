@@ -40,6 +40,12 @@ archives:
     files:
       - completions/*
 
+# Publish an SPDX JSON software bill of materials for every release archive.
+# GoReleaser invokes Syft for this step; the release workflow installs a pinned
+# Syft version before running GoReleaser.
+sboms:
+  - artifacts: archive
+
 changelog:
   use: github
   sort: asc
