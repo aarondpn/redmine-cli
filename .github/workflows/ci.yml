@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -19,7 +22,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
-          version: latest
+          version: v2.13.1
 
   test:
     runs-on: ubuntu-latest
@@ -44,3 +47,12 @@ jobs:
 
       - name: Test e2e helpers
         run: go test -tags=e2e -run 'TestParseRedmineVersion|TestRedmineAtLeast' ./e2e
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scan for known vulnerabilities
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          go-version-input: "1.26"
+          go-package: ./...
