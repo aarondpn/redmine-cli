@@ -37,6 +37,9 @@ on:
           - all
         default: default
 
+permissions:
+  contents: read
+
 jobs:
   prepare:
     name: Select versions
