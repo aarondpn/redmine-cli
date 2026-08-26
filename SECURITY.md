@@ -12,6 +12,23 @@ receive backported fixes.
 | Latest release | Yes |
 | Older releases | No |
 
+## Verifying releases
+
+Every release ships with SHA-256 checksums, SPDX SBOMs, and GitHub build
+provenance attestations. The install script and `redmine update` verify
+checksums automatically, but checksums only prove the download matches the
+release — they cannot detect a compromised release itself. To verify that an
+artifact was really built by this repository's release workflow, use the
+[GitHub CLI](https://cli.github.com/):
+
+```sh
+gh attestation verify redmine-cli-darwin-arm64.tar.gz --repo aarondpn/redmine-cli
+```
+
+This checks the artifact against a signed provenance attestation recording
+the source commit and the exact workflow that produced it. Verification of a
+tampered or unofficial artifact fails.
+
 ## Reporting a vulnerability
 
 Please report suspected vulnerabilities through
