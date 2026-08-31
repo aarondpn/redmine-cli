@@ -24,6 +24,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List project memberships",
 		Long:    "List all memberships for a project.",

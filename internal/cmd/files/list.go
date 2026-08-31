@@ -23,6 +23,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List project files",
 		Long: "List files attached to a Redmine project.\n\n" +

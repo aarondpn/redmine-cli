@@ -16,6 +16,7 @@ import (
 func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
+		Args:  cobra.NoArgs,
 		Short: "List authentication profiles",
 		Long:  "Show all configured profiles with their server URLs.",
 		RunE: func(cmd *cobra.Command, args []string) error {

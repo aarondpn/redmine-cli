@@ -16,6 +16,7 @@ func NewCmdInstallSkill(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "install-skill",
+		Args:  cobra.NoArgs,
 		Short: "Install the AI agent skill for redmine-cli",
 		Long:  "Installs a skill that teaches AI coding agents (Claude Code, Cursor, etc.) how to use redmine-cli effectively.",
 		RunE: func(cmd *cobra.Command, args []string) error {

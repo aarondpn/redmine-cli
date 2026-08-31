@@ -32,6 +32,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Short:   "List issue categories for a project",
 		Aliases: []string{"ls"},
 		Example: `  # List categories for a project

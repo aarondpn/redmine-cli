@@ -17,6 +17,7 @@ import (
 func NewCmdStatus(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
+		Args:  cobra.NoArgs,
 		Short: "Show current authentication status",
 		Long:  "Display the active profile, server, and authenticated user.",
 		RunE: func(cmd *cobra.Command, args []string) error {

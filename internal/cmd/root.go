@@ -130,6 +130,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
+		Args:  cobra.NoArgs,
 		Short: "Display current configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := f.Config()

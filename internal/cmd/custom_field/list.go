@@ -17,6 +17,7 @@ func newCmdCustomFieldList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List all custom field definitions",
 		Long: "List Redmine custom field definitions. Requires an administrator API " +

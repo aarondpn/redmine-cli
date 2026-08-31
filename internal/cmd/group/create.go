@@ -18,6 +18,7 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "create",
+		Args:    cobra.NoArgs,
 		Short:   "Create a new group",
 		Aliases: []string{"new"},
 		RunE: func(cmd *cobra.Command, args []string) error {

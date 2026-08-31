@@ -32,6 +32,7 @@ func newCmdTrackerList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Short:   "List all trackers",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {

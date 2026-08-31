@@ -24,6 +24,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "create",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"new"},
 		Short:   "Create a project version",
 		Long:    "Create a Redmine project version (milestone).",

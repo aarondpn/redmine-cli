@@ -37,6 +37,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "create",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"new"},
 		Short:   "Create a new issue",
 		Long:    "Create a new issue in the specified project.",
@@ -55,6 +56,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Set custom field values (by name or numeric ID, repeatable)
   redmine issues create --project myproject --subject "Bug" \
     --custom-field Severity=High --custom-field 7=urgent
+
+  # Values with spaces: quote the whole pair and repeat the flag per field
+  redmine issues create --project myproject --subject "Bug" \
+    --custom-field "2=Value for field 2" --custom-field "61=Value for 61"
 
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,

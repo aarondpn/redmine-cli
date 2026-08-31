@@ -324,7 +324,7 @@ func TestCmdIssueList_PassesNewFilters(t *testing.T) {
 		"--priority", "High",
 		"--author", "me",
 		"--parent", "42",
-		"--is-private", "true",
+		"--is-private=true",
 		"--output", "json",
 	})
 

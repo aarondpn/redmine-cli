@@ -21,6 +21,7 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "login",
+		Args:  cobra.NoArgs,
 		Short: "Log in to a Redmine instance",
 		Long:  "Interactive setup to authenticate with a Redmine server and save the profile.",
 		RunE: func(cmd *cobra.Command, args []string) error {

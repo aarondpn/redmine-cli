@@ -17,6 +17,7 @@ func newCmdUserMe(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "me",
+		Args:  cobra.NoArgs,
 		Short: "Show current authenticated user",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateUserIncludes(includes); err != nil {

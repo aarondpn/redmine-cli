@@ -17,6 +17,7 @@ func newCmdRoleList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List all roles",
 		RunE: func(cmd *cobra.Command, args []string) error {

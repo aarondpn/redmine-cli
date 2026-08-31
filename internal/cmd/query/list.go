@@ -21,6 +21,7 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List saved queries",
 		Long:    "List saved queries (custom filters) visible to the authenticated user. The list includes both global queries and queries scoped to a project.",
