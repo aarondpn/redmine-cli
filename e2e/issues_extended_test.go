@@ -134,6 +134,65 @@ func TestIssues_CustomFieldOnCreate(t *testing.T) {
 	}
 }
 
+// TestIssues_CustomFieldValueWithSpaces pins the fix for issue #155: a
+// repeated --custom-field flag whose value contains spaces must round-trip
+// unchanged. Uses the seeded string-format "E2E Notes" fixture because the
+// list-format "E2E Severity" field only accepts its fixed possible values.
+func TestIssues_CustomFieldValueWithSpaces(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	const notesValue = "Value with several words"
+
+	var created struct {
+		ID           int `json:"id"`
+		CustomFields []struct {
+			Name  string `json:"name"`
+			Value any    `json:"value"`
+		} `json:"custom_fields"`
+	}
+	r.runJSON(t, &created, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", firstTrackerName(t, r),
+		"--subject", "E2E custom field with spaces",
+		"--custom-field", "E2E Severity=High",
+		"--custom-field", "E2E Notes="+notesValue)
+
+	got := map[string]any{}
+	for _, cf := range created.CustomFields {
+		got[cf.Name] = cf.Value
+	}
+	if got["E2E Severity"] != "High" {
+		t.Fatalf("E2E Severity = %v, want High (all: %+v)", got["E2E Severity"], created.CustomFields)
+	}
+	if got["E2E Notes"] != notesValue {
+		t.Fatalf("E2E Notes = %v, want %q (all: %+v)", got["E2E Notes"], notesValue, created.CustomFields)
+	}
+}
+
+// TestIssues_CreateRejectsStrayPositionalArgs pins the other half of issue
+// #155: a key=value pair not attached to a --custom-field flag must fail
+// loudly instead of being silently dropped (the command previously accepted
+// arbitrary positionals and ignored them, creating the issue without the
+// second field).
+func TestIssues_CreateRejectsStrayPositionalArgs(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	stdout, stderr := r.runExpectError(t, "issues", "create",
+		"--project", proj.Identifier,
+		"--subject", "E2E stray positional",
+		"--custom-field", "E2E Notes=Value for notes",
+		"61=Value for 61")
+
+	combined := string(stdout) + string(stderr)
+	if !strings.Contains(combined, "unknown command") && !strings.Contains(combined, "arg") {
+		t.Fatalf("expected the stray positional to be reported, got stdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
 // TestIssues_RelationPrecedesWithDelay verifies the precedes relation type
 // accepts the --delay flag and Redmine returns the delay on subsequent GET.
 func TestIssues_RelationPrecedesWithDelay(t *testing.T) {

@@ -22,6 +22,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "create",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"add", "new"},
 		Short:   "Add a member to a project",
 		Long:    "Create a new membership, adding a user or group to a project with specified roles.",

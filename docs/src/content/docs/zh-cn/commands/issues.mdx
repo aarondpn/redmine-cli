@@ -154,6 +154,11 @@ redmine issues create --project myproject --subject "Bug report" \
   --watcher me --watcher "QA Bot" \
   --custom-field Severity=High \
   --attach /path/to/screenshot.png --attach /path/to/log.txt
+
+# 值包含空格时：用引号包住整个键值对，并为每个字段重复使用该标志
+redmine issues create --project myproject --subject "Bug" \
+  --custom-field "2=Value for field 2" \
+  --custom-field "61=Value for 61"
 ```
 
 ## update

@@ -63,6 +63,19 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
     seeded_custom_field.tracker_ids = Tracker.pluck(:id)
     seeded_custom_field.save!
 
+    # Seed a free-text issue custom field alongside the list-format one.
+    # The list field can only carry its fixed possible_values, so it cannot
+    # exercise values containing spaces (issue #155); a string field can.
+    notes_field_name = "E2E Notes"
+    seeded_notes_field = IssueCustomField.find_or_initialize_by(name: notes_field_name)
+    seeded_notes_field.field_format = "string" if seeded_notes_field.field_format.blank?
+    seeded_notes_field.is_required = false
+    seeded_notes_field.is_filter = false
+    seeded_notes_field.searchable = false
+    seeded_notes_field.is_for_all = true
+    seeded_notes_field.tracker_ids = Tracker.pluck(:id)
+    seeded_notes_field.save!
+
     # Seed a role-restricted time entry custom field. Redmine 7.0 (#44152)
     # started returning "roles" for non-issue custom fields, and this fixture
     # is what makes that observable over the REST API. visible=false is what
@@ -94,6 +107,7 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
       seeded_query_name: seeded_query.name,
       seeded_custom_field_id: seeded_custom_field.id,
       seeded_custom_field_name: seeded_custom_field.name,
+      seeded_notes_custom_field_id: seeded_notes_field.id,
       seeded_time_entry_custom_field_id: seeded_time_entry_cf.id,
       seeded_time_entry_custom_field_roles: seeded_time_entry_cf.roles.count
     }.inspect)

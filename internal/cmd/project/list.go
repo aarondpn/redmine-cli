@@ -22,6 +22,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List projects",
 		Long:    "List all accessible Redmine projects.",

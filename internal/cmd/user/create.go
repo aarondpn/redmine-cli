@@ -27,6 +27,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "create",
+		Args:    cobra.NoArgs,
 		Short:   "Create a new user",
 		Aliases: []string{"new"},
 		RunE: func(cmd *cobra.Command, args []string) error {

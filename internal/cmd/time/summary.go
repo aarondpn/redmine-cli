@@ -27,6 +27,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "summary",
+		Args:  cobra.NoArgs,
 		Short: "Summarize time entries",
 		Long:  "Aggregate time entries by day, project, or activity.",
 		RunE: func(cmd *cobra.Command, args []string) error {

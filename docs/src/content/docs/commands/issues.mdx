@@ -154,6 +154,11 @@ redmine issues create --project myproject --subject "Bug report" \
   --watcher me --watcher "QA Bot" \
   --custom-field Severity=High \
   --attach /path/to/screenshot.png --attach /path/to/log.txt
+
+# Values with spaces: quote the whole pair and repeat the flag per field
+redmine issues create --project myproject --subject "Bug" \
+  --custom-field "2=Value for field 2" \
+  --custom-field "61=Value for 61"
 ```
 
 ## update

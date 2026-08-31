@@ -20,6 +20,7 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Short:   "List groups",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -27,6 +27,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "log",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"add", "create"},
 		Short:   "Log a time entry",
 		RunE: func(cmd *cobra.Command, args []string) error {

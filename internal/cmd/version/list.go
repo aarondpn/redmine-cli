@@ -43,6 +43,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List project versions",
 		Long:    "List all versions for a project, optionally filtered by status.",

@@ -50,6 +50,7 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update",
+		Args:  cobra.NoArgs,
 		Short: "Update redmine CLI to the latest version",
 		Long:  "Check GitHub releases for a newer version and replace the current binary.",
 		RunE: func(cmd *cobra.Command, args []string) error {

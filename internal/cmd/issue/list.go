@@ -42,6 +42,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list",
+		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List issues",
 		Long:    "List issues with filters. Combine flags for narrow searches.",
