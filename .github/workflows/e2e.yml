@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.26"
+          go-version: "1.27"
 
       - name: Bring up Redmine ${{ matrix.version }}
         run: make e2e-up E2E_VERSION=${{ matrix.version }}
