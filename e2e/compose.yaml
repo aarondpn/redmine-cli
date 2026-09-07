@@ -15,7 +15,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   redmine:
-    image: ${REDMINE_IMAGE:-redmine:7.0.0}
+    image: ${REDMINE_IMAGE:-redmine:7.0.1}
     restart: unless-stopped
     depends_on:
       postgres:
