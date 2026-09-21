@@ -61,10 +61,16 @@ homebrew_casks:
       bash: completions/redmine.bash
       zsh: completions/redmine.zsh
       fish: completions/redmine.fish
-    hooks:
-      post:
-        install: |
-          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/redmine"]
+    # Homebrew 7.0.4 deprecated `postflight` in favour of `postflight_steps`.
+    # GoReleaser < 2.19 can only emit the old stanza via `hooks`, so the new
+    # stanza is written through `custom_block`. The rendered cask is passed
+    # through Go templating, so Homebrew's `{{staged_path}}` token has to be
+    # escaped. Once GoReleaser 2.19 is out this can move to
+    # `hooks.post.install_steps` with `{{ .StagedPath }}`.
+    custom_block: |
+      postflight_steps do
+        run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/redmine"]
+      end
     repository:
       owner: aarondpn
       name: homebrew-tap
