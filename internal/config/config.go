@@ -442,7 +442,9 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
-	if entry.Headers == nil {
+	// Headers may hold secrets scoped to the old server; drop them when the
+	// profile is pointed at a different host.
+	if entry.Headers == nil && SameServerHost(old.Server, entry.Server) {
 		entry.Headers = old.Headers
 	}
 	if entry.CredentialStore == CredentialStoreKeyring && entry.KeyringID == "" && old.KeyringID != "" {

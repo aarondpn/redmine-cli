@@ -2,6 +2,9 @@ package cmdutil
 
 import (
 	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -387,7 +390,7 @@ func TestFactoryHeaderFlagMergesOverProfileHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"user-agent": "Mozilla/5.0", "X-Team": "core"}
+	want := map[string]string{"User-Agent": "Mozilla/5.0", "X-Team": "core"}
 	if len(cfg.Headers) != len(want) {
 		t.Fatalf("Headers = %v, want %v", cfg.Headers, want)
 	}
@@ -407,5 +410,31 @@ func TestFactoryHeaderFlagRejectsMalformedValue(t *testing.T) {
 
 	if _, err := f.Config(); err == nil {
 		t.Fatal("expected an error for a header without a colon")
+	}
+}
+
+func TestFactoryApiClientSendsConfiguredHeaders(t *testing.T) {
+	var gotUA, gotTeam string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		gotTeam = r.Header.Get("X-Team")
+		_, _ = w.Write([]byte(`{"user":{"id":1}}`))
+	}))
+	defer ts.Close()
+
+	cfgPath := writeConfigFile(t, "server: "+ts.URL+"\napi_key: k\nheaders:\n  X-Team: core\n")
+	f := NewFactory()
+	f.ConfigPath = cfgPath
+	f.Headers = []string{"User-Agent: Mozilla/5.0"}
+
+	client, err := f.ApiClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Users.Current(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if gotUA != "Mozilla/5.0" || gotTeam != "core" {
+		t.Fatalf("server got User-Agent=%q X-Team=%q, want configured headers", gotUA, gotTeam)
 	}
 }

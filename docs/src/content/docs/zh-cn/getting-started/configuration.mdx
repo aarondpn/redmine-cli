@@ -195,7 +195,13 @@ redmine --header "User-Agent: Mozilla/5.0" issues list
 redmine auth login --header "User-Agent: Mozilla/5.0"
 ```
 
-请求头只会发送到配置的服务器，不会发送到其重定向的其他主机。身份验证请求头和请求专用的请求头（例如上传时的 `Content-Type`）始终优先。未配置 `User-Agent` 时，CLI 以 `redmine-cli/<version>` 标识自己。
+再次登录时，只要服务器主机不变，配置文件中的请求头会被保留。若将配置文件指向其他服务器，这些请求头会被丢弃，因为它们可能是属于旧服务器的机密信息。如需删除某个请求头，请直接在配置文件中将其删除。
+
+请求头只会发送到配置的服务器，不会发送到其重定向的其他主机。身份验证请求头始终优先。由 HTTP 客户端自行管理的请求头（`Host`、`Content-Type`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Accept-Encoding`）无法配置，空值也会被拒绝。未配置 `User-Agent` 时，CLI 以 `redmine-cli/<version>` 标识自己。
+
+<Aside type="caution" title="请求头以明文存储">
+  请求头始终写入配置文件，即使配置文件的凭据存储在系统密钥环中。如果请求头包含令牌，请像对待其他机密一样保护该文件。
+</Aside>
 
 ## 查看当前配置
 

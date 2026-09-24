@@ -225,6 +225,32 @@ func TestSaveProfileReloginPreservesHeaders(t *testing.T) {
 	}
 }
 
+func TestSaveProfileReloginToOtherServerDropsHeaders(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	first := &Config{
+		Server:     "https://a.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "k",
+		Headers:    map[string]string{"X-Proxy-Token": "secret-for-a"},
+	}
+	if err := SaveProfile("test", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	relogin := &Config{Server: "https://b.example.com", AuthMethod: "apikey", APIKey: "k2"}
+	if err := SaveProfile("test", relogin, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := pc.Profiles["test"].Headers; len(h) != 0 {
+		t.Fatalf("headers = %v after re-login to another server, want none", h)
+	}
+}
+
 func TestDeleteProfile(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: a

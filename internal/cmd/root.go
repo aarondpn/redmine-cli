@@ -81,6 +81,12 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 			if cmd.Flags().Changed("read-only") {
 				f.ReadOnly = &readOnly
 			}
+			// Validate early so a typo fails before any interactive prompt.
+			for _, h := range headers {
+				if _, _, err := config.ParseHeader(h); err != nil {
+					return err
+				}
+			}
 			f.Headers = headers
 			return nil
 		},

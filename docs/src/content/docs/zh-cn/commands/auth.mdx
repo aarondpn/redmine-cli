@@ -22,12 +22,14 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 ```bash
 redmine auth login
 redmine auth login --name work   # 显式指定配置文件名称
+redmine auth login --header "User-Agent: Mozilla/5.0"   # 服务器位于有特定要求的防火墙之后
 ```
 
 | 标志 | 描述 |
 |------|------|
 | `--name` | 配置文件名称（默认：从服务器主机名派生） |
 | `--keyring` | 将凭据存储到系统密钥环，而非明文配置文件。参见 [配置](/zh-cn/getting-started/configuration/#系统密钥环可选)。 |
+| `--header` | 全局标志。请求头用于连接测试并保存到配置文件中。参见 [自定义 HTTP 请求头](/zh-cn/getting-started/configuration/#自定义-http-请求头)。 |
 
 <Aside type="tip">
   随时再次执行 `redmine auth login` 即可添加新的配置文件——向导在未经确认的情况下绝不会覆盖已有配置文件。

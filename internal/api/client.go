@@ -90,8 +90,8 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// API key (and basic-auth) from leaking to a third party if the server, or
 	// an attachment's content_url, redirects to an off-site host.
 	if t.host == "" || strings.EqualFold(req.URL.Host, t.host) {
-		// Request-specific headers (e.g. an upload's Content-Type) win over
-		// configured ones; authentication below wins over both.
+		// Headers already set on the request win over configured ones;
+		// authentication below wins over both.
 		for name, value := range t.headers {
 			if req.Header.Get(name) == "" {
 				req.Header.Set(name, value)

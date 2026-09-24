@@ -195,7 +195,13 @@ Passed to `redmine auth login`, the headers are used for the connection test and
 redmine auth login --header "User-Agent: Mozilla/5.0"
 ```
 
-Headers are only sent to the configured server, never to hosts it redirects to. Authentication headers and request-specific headers (such as an upload's `Content-Type`) always take precedence. Without a configured `User-Agent`, the CLI identifies itself as `redmine-cli/<version>`.
+Logging in again keeps a profile's headers as long as the server's host stays the same. If you point the profile at a different server, its headers are dropped, since they may be secrets meant for the old one. To remove a header, delete it from the config file.
+
+Headers are only sent to the configured server, never to hosts it redirects to. Authentication headers always take precedence. Headers the HTTP client manages itself (`Host`, `Content-Type`, `Content-Length`, `Transfer-Encoding`, `Connection`, `Accept-Encoding`) cannot be configured, and empty values are rejected. Without a configured `User-Agent`, the CLI identifies itself as `redmine-cli/<version>`.
+
+<Aside type="caution" title="Header values are stored in plaintext">
+  Headers are always written to the config file, even for profiles that keep their credentials in the system keyring. If a header carries a token, treat the file like any other secret.
+</Aside>
 
 ## Inspect current config
 
