@@ -139,6 +139,7 @@ export REDMINE_NO_KEYRING=1
 | `--config`      | 配置文件路径（默认为 `~/.redmine-cli.yaml`） |
 | `--no-color`    | 禁用彩色输出 |
 | `--read-only`   | 拒绝所有修改服务器数据的请求 |
+| `--header`      | 额外的 HTTP 请求头，格式为 `"Name: value"`（可重复） |
 | `-v, --verbose` | 启用调试日志 |
 
 ## 只读模式
@@ -167,13 +168,48 @@ profiles:
   MCP 服务器有自己的开关：只有传入 `--enable-writes` 时才会注册写入类工具（参见 [AI 代理](/zh-cn/guides/ai-agents/)）。配置文件中的 `read_only: true` 会额外在 HTTP 层阻止写入，即使已传入 `--enable-writes`。
 </Aside>
 
+## 自定义 HTTP 请求头
+
+部分服务器位于防火墙或反向代理之后，要求附加请求头，例如类似浏览器的 `User-Agent` 或访问令牌。可在配置文件的 `headers` 下按配置文件添加：
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  work:
+    server: https://redmine.work.com
+    auth_method: apikey
+    api_key: your-api-key
+    headers:
+      User-Agent: Mozilla/5.0
+      X-Proxy-Token: your-proxy-token
+```
+
+单次调用时可传入 `--header`（可重复），它会覆盖配置文件中同名的请求头：
+
+```bash
+redmine --header "User-Agent: Mozilla/5.0" issues list
+```
+
+传给 `redmine auth login` 时，这些请求头会用于连接测试并保存到配置文件中，因此需要它们的服务器在首次登录时即可使用：
+
+```bash
+redmine auth login --header "User-Agent: Mozilla/5.0"
+```
+
+再次登录时，只要服务器主机不变，配置文件中的请求头会被保留。若将配置文件指向其他服务器，这些请求头会被丢弃，因为它们可能是属于旧服务器的机密信息。如需删除某个请求头，请直接在配置文件中将其删除。
+
+请求头只会发送到配置的服务器，不会发送到其重定向的其他主机。身份验证请求头始终优先。由 HTTP 客户端自行管理的请求头（`Host`、`Content-Type`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Accept-Encoding`）无法配置，空值也会被拒绝。未配置 `User-Agent` 时，CLI 以 `redmine-cli/<version>` 标识自己。
+
+<Aside type="caution" title="请求头以明文存储">
+  请求头始终写入配置文件，即使配置文件的凭据存储在系统密钥环中。如果请求头包含令牌，请像对待其他机密一样保护该文件。
+</Aside>
+
 ## 查看当前配置
 
 ```bash
 redmine config
 ```
 
-输出活跃配置文件、服务器、身份验证方式、默认项目、输出格式及只读状态。
+输出活跃配置文件、服务器、身份验证方式、默认项目、输出格式、只读状态以及已配置请求头的名称（不显示值）。
 
 ## 下一步
 

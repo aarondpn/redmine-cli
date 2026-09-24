@@ -151,3 +151,47 @@ func TestConfigCommandShowsSoleProfileName(t *testing.T) {
 		t.Errorf("expected config output to contain the sole profile server, got:\n%s", output)
 	}
 }
+
+func TestConfigCommandHidesHeaderValues(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `server: https://only.example.com
+api_key: only-key
+headers:
+  X-Proxy-Token: super-secret
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, format := range []string{"table", "json"} {
+		out := &strings.Builder{}
+		f := &cmdutil.Factory{
+			ConfigPath:   cfgPath,
+			OutputFormat: format,
+			IOStreams: &cmdutil.IOStreams{
+				In:     strings.NewReader(""),
+				Out:    out,
+				ErrOut: &strings.Builder{},
+			},
+		}
+		if err := newCmdConfig(f).Execute(); err != nil {
+			t.Fatalf("%s: unexpected error: %v", format, err)
+		}
+		if !strings.Contains(out.String(), "X-Proxy-Token") {
+			t.Errorf("%s: expected header name in output, got:\n%s", format, out)
+		}
+		if strings.Contains(out.String(), "super-secret") {
+			t.Errorf("%s: header value leaked into output:\n%s", format, out)
+		}
+	}
+}
+
+func TestRootRejectsMalformedHeaderFlag(t *testing.T) {
+	root, _ := NewRootCmdWithFactory("test")
+	if err := root.PersistentFlags().Set("header", "no-colon"); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.PersistentPreRunE(root, []string{}); err == nil {
+		t.Fatal("expected PersistentPreRunE to reject a malformed --header")
+	}
+}

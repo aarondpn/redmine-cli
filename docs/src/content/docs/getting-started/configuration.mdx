@@ -139,6 +139,7 @@ Flags take precedence over config values and environment variables.
 | `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
 | `--no-color`    | Disable colored output |
 | `--read-only`   | Refuse all requests that modify data on the server |
+| `--header`      | Extra HTTP header as `"Name: value"` (repeatable) |
 | `-v, --verbose` | Enable debug logging |
 
 ## Read-only mode
@@ -167,13 +168,48 @@ Pass `--read-only=false` to override the environment variable or a `read_only: t
   The MCP server has its own gate: mutating tools are only registered when `--enable-writes` is passed (see [AI agents](/guides/ai-agents/)). A profile with `read_only: true` additionally blocks writes at the HTTP layer, even when `--enable-writes` is set.
 </Aside>
 
+## Custom HTTP headers
+
+Some servers sit behind a firewall or reverse proxy that expects extra request headers, for example a browser-like `User-Agent` or an access token. Add them per profile under `headers`:
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  work:
+    server: https://redmine.work.com
+    auth_method: apikey
+    api_key: your-api-key
+    headers:
+      User-Agent: Mozilla/5.0
+      X-Proxy-Token: your-proxy-token
+```
+
+For a single invocation, pass `--header` (repeatable). It overrides a profile header with the same name:
+
+```bash
+redmine --header "User-Agent: Mozilla/5.0" issues list
+```
+
+Passed to `redmine auth login`, the headers are used for the connection test and saved to the profile, so a server that requires them works from the first login:
+
+```bash
+redmine auth login --header "User-Agent: Mozilla/5.0"
+```
+
+Logging in again keeps a profile's headers as long as the server's host stays the same. If you point the profile at a different server, its headers are dropped, since they may be secrets meant for the old one. To remove a header, delete it from the config file.
+
+Headers are only sent to the configured server, never to hosts it redirects to. Authentication headers always take precedence. Headers the HTTP client manages itself (`Host`, `Content-Type`, `Content-Length`, `Transfer-Encoding`, `Connection`, `Accept-Encoding`) cannot be configured, and empty values are rejected. Without a configured `User-Agent`, the CLI identifies itself as `redmine-cli/<version>`.
+
+<Aside type="caution" title="Header values are stored in plaintext">
+  Headers are always written to the config file, even for profiles that keep their credentials in the system keyring. If a header carries a token, treat the file like any other secret.
+</Aside>
+
 ## Inspect current config
 
 ```bash
 redmine config
 ```
 
-Prints the active profile, server, auth method, default project, output format, and read-only state.
+Prints the active profile, server, auth method, default project, output format, read-only state, and the names of configured headers (values are hidden).
 
 ## Next
 

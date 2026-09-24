@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	apicmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/attachment"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/auth"
@@ -57,6 +60,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 		cfgFile      string
 		outputFormat string
 		readOnly     bool
+		headers      []string
 	)
 
 	cmd := &cobra.Command{
@@ -77,6 +81,13 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 			if cmd.Flags().Changed("read-only") {
 				f.ReadOnly = &readOnly
 			}
+			// Validate early so a typo fails before any interactive prompt.
+			for _, h := range headers {
+				if _, _, err := config.ParseHeader(h); err != nil {
+					return err
+				}
+			}
+			f.Headers = headers
 			return nil
 		},
 		SilenceUsage:  true,
@@ -92,10 +103,12 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
 	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all requests that modify data on the server")
+	cmd.PersistentFlags().StringArrayVar(&headers, "header", nil, `Extra HTTP header sent to the server, as "Name: value" (repeatable)`)
 	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
 
 	// Version
 	cmd.Version = version
+	api.UserAgent = "redmine-cli/" + version
 
 	// Subcommands
 	cmd.AddCommand(apicmd.NewCmdAPI(f))
@@ -147,6 +160,13 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				profileName = config.EffectiveProfileName(pc, f.ProfileOverride)
 			}
 
+			// Header values may carry proxy tokens, so only names are shown.
+			headerNames := make([]string, 0, len(cfg.Headers))
+			for name := range cfg.Headers {
+				headerNames = append(headerNames, name)
+			}
+			sort.Strings(headerNames)
+
 			printer := f.Printer("")
 			if printer.Format() == output.FormatJSON {
 				printer.JSON(map[string]string{
@@ -156,6 +176,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 					"default_project": cfg.DefaultProject,
 					"output_format":   cfg.OutputFormat,
 					"read_only":       strconv.FormatBool(cfg.ReadOnly),
+					"headers":         strings.Join(headerNames, ", "),
 				})
 				return nil
 			}
@@ -166,6 +187,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Default Project", Value: cfg.DefaultProject},
 				{Key: "Output Format", Value: cfg.OutputFormat},
 				{Key: "Read Only", Value: strconv.FormatBool(cfg.ReadOnly)},
+				{Key: "Headers", Value: strings.Join(headerNames, ", ")},
 			})
 			return nil
 		},

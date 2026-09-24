@@ -22,12 +22,14 @@ Start an interactive login wizard:
 ```bash
 redmine auth login
 redmine auth login --name work   # explicit profile name
+redmine auth login --header "User-Agent: Mozilla/5.0"   # server behind a picky firewall
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--name` | Profile name (default: derived from server hostname) |
 | `--keyring` | Store credentials in the system keyring instead of the plaintext config file. See [Configuration](/getting-started/configuration/#system-keyring-optional). |
+| `--header` | Global flag. Headers are used for the connection test and saved to the profile. See [Custom HTTP headers](/getting-started/configuration/#custom-http-headers). |
 
 <Aside type="tip">
   Run `redmine auth login` again at any time to add another profile — the wizard never overwrites an existing one without confirmation.

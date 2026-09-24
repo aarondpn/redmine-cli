@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/huh"
@@ -23,7 +24,13 @@ func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
 		Use:   "login",
 		Args:  cobra.NoArgs,
 		Short: "Log in to a Redmine instance",
-		Long:  "Interactive setup to authenticate with a Redmine server and save the profile.",
+		Long: `Interactive setup to authenticate with a Redmine server and save the profile.
+
+Headers passed with the global --header flag are used for the connection test
+and saved to the profile, for servers behind a firewall or proxy that require them.`,
+		Example: `  redmine auth login
+  redmine auth login --name work
+  redmine auth login --header "User-Agent: Mozilla/5.0"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 				return err
@@ -132,6 +139,36 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		return err
 	}
 
+	configPath := config.DefaultConfigPath()
+	if f.ConfigPath != "" {
+		configPath = f.ConfigPath
+	}
+	var existing *config.Config
+	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
+		if p, ok := pc.Profiles[profileName]; ok {
+			existing = &p
+		}
+	}
+
+	printer := f.Printer("")
+
+	// --header values are merged over the profile's existing headers, used for
+	// the connection test and saved, so a server that requires them is
+	// reachable from the very first login. Existing headers may carry secrets
+	// for the old server, so they are only reused while the host is unchanged.
+	var existingHeaders map[string]string
+	if existing != nil && len(existing.Headers) > 0 {
+		if config.SameServerHost(existing.Server, server) {
+			existingHeaders = existing.Headers
+		} else {
+			printer.Warning(fmt.Sprintf("Profile %q pointed at a different server; its custom headers were not carried over", profileName))
+		}
+	}
+	headers, err := config.MergeHeaders(existingHeaders, f.Headers)
+	if err != nil {
+		return err
+	}
+
 	// Step 4: Test connection
 	cfg := &config.Config{
 		Server:     server,
@@ -139,12 +176,12 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		APIKey:     apiKey,
 		Username:   username,
 		Password:   password,
+		Headers:    headers,
 	}
 
-	printer := f.Printer("")
 	stop := printer.Spinner("Testing connection...")
 
-	client, err := api.NewClient(cfg, nil)
+	client, err := api.NewClient(cfg, f.DebugLogger())
 	if err != nil {
 		stop()
 		return fmt.Errorf("failed to create client: %w", err)
@@ -154,6 +191,10 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatError(err))
+		var apiErr *api.APIError
+		if errors.As(err, &apiErr) && apiErr.IsForbidden() {
+			printer.Warning(`If a firewall or proxy in front of Redmine rejects the request, retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`)
+		}
 		return fmt.Errorf("could not connect to Redmine server: %w", err)
 	}
 
@@ -187,18 +228,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	configPath := config.DefaultConfigPath()
-	if f.ConfigPath != "" {
-		configPath = f.ConfigPath
-	}
-
 	// Step 6: Credential storage choice
-	var existing *config.Config
-	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
-		if p, ok := pc.Profiles[profileName]; ok {
-			existing = &p
-		}
-	}
 	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, keyringFlag, keyringFlagSet)
 	if err != nil {
 		return err

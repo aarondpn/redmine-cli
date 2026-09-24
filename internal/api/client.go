@@ -56,13 +56,21 @@ func (c *Client) DebugLog() *debug.Logger {
 	return c.debugLog
 }
 
-// authTransport applies authentication headers to every request.
+// UserAgent is the default User-Agent sent with every request. It is
+// overwritten at startup with the build version; a "User-Agent" entry in the
+// profile's headers takes precedence.
+var UserAgent = "redmine-cli"
+
+// authTransport applies authentication and configured headers to every request.
 type authTransport struct {
 	base       http.RoundTripper
 	authMethod string
 	apiKey     string
 	username   string
 	password   string
+	// headers are the user-configured extra headers. Like credentials they are
+	// only sent to the configured host, since they may carry proxy tokens.
+	headers map[string]string
 	// host is the configured server host (host[:port]). Credentials are only
 	// attached when the request targets this host, so a redirect off-site
 	// (e.g. an attachment content_url that 302s to external object storage)
@@ -82,12 +90,22 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// API key (and basic-auth) from leaking to a third party if the server, or
 	// an attachment's content_url, redirects to an off-site host.
 	if t.host == "" || strings.EqualFold(req.URL.Host, t.host) {
+		// Headers already set on the request win over configured ones;
+		// authentication below wins over both.
+		for name, value := range t.headers {
+			if req.Header.Get(name) == "" {
+				req.Header.Set(name, value)
+			}
+		}
 		switch t.authMethod {
 		case "basic":
 			req.SetBasicAuth(t.username, t.password)
 		default:
 			req.Header.Set("X-Redmine-API-Key", t.apiKey)
 		}
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", UserAgent)
 	}
 
 	base := t.base
@@ -116,6 +134,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 		apiKey:     cfg.APIKey,
 		username:   cfg.Username,
 		password:   cfg.Password,
+		headers:    cfg.Headers,
 		host:       host,
 	}
 

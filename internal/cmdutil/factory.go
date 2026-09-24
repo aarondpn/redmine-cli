@@ -34,6 +34,11 @@ type Factory struct {
 	// both REDMINE_READ_ONLY and the per-profile config (highest precedence).
 	ReadOnly *bool
 
+	// Headers holds the repeatable --header flag values ("Name: value"). They
+	// are merged over the profile's configured headers, replacing any entry
+	// with the same name.
+	Headers []string
+
 	// OutputFormat is set by the root persistent --output/-o flag and used
 	// as the default format when commands call Printer("").
 	OutputFormat string
@@ -98,6 +103,9 @@ func (f *Factory) Config() (*config.Config, error) {
 	}
 	if f.ReadOnly != nil {
 		cfg.ReadOnly = *f.ReadOnly
+	}
+	if cfg.Headers, err = config.MergeHeaders(cfg.Headers, f.Headers); err != nil {
+		return nil, err
 	}
 
 	f.config = cfg
