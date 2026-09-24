@@ -375,3 +375,37 @@ func TestFactoryReadOnlyEnvWhenNoFlag(t *testing.T) {
 		t.Fatal("REDMINE_READ_ONLY=true must apply when --read-only is not set")
 	}
 }
+
+func TestFactoryHeaderFlagMergesOverProfileHeaders(t *testing.T) {
+	cfgPath := writeConfigFile(t, "active_profile: default\nprofiles:\n  default:\n    server: https://x\n    api_key: k\n    headers:\n      User-Agent: from-config\n      X-Team: core\n")
+
+	f := NewFactory()
+	f.ConfigPath = cfgPath
+	f.Headers = []string{"user-agent: Mozilla/5.0"}
+
+	cfg, err := f.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"user-agent": "Mozilla/5.0", "X-Team": "core"}
+	if len(cfg.Headers) != len(want) {
+		t.Fatalf("Headers = %v, want %v", cfg.Headers, want)
+	}
+	for k, v := range want {
+		if cfg.Headers[k] != v {
+			t.Fatalf("Headers = %v, want %v", cfg.Headers, want)
+		}
+	}
+}
+
+func TestFactoryHeaderFlagRejectsMalformedValue(t *testing.T) {
+	cfgPath := writeConfigFile(t, "server: https://x\napi_key: k\n")
+
+	f := NewFactory()
+	f.ConfigPath = cfgPath
+	f.Headers = []string{"Mozilla/5.0"}
+
+	if _, err := f.Config(); err == nil {
+		t.Fatal("expected an error for a header without a colon")
+	}
+}

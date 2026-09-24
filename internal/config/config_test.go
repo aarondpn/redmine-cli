@@ -199,6 +199,32 @@ func TestSaveProfileReloginPreservesReadOnly(t *testing.T) {
 	}
 }
 
+func TestSaveProfileReloginPreservesHeaders(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	first := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "k",
+		Headers:    map[string]string{"User-Agent": "Mozilla/5.0"},
+	}
+	if err := SaveProfile("test", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	relogin := &Config{Server: "https://redmine.example.com", AuthMethod: "apikey", APIKey: "k2"}
+	if err := SaveProfile("test", relogin, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := pc.Profiles["test"].Headers["User-Agent"]; got != "Mozilla/5.0" {
+		t.Fatalf("User-Agent header = %q after re-login, want preserved", got)
+	}
+}
+
 func TestDeleteProfile(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: a

@@ -132,6 +132,29 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		return err
 	}
 
+	configPath := config.DefaultConfigPath()
+	if f.ConfigPath != "" {
+		configPath = f.ConfigPath
+	}
+	var existing *config.Config
+	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
+		if p, ok := pc.Profiles[profileName]; ok {
+			existing = &p
+		}
+	}
+
+	// --header values are merged over the profile's existing headers, used for
+	// the connection test and saved, so a server that requires them is
+	// reachable from the very first login.
+	var existingHeaders map[string]string
+	if existing != nil {
+		existingHeaders = existing.Headers
+	}
+	headers, err := config.MergeHeaders(existingHeaders, f.Headers)
+	if err != nil {
+		return err
+	}
+
 	// Step 4: Test connection
 	cfg := &config.Config{
 		Server:     server,
@@ -139,6 +162,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		APIKey:     apiKey,
 		Username:   username,
 		Password:   password,
+		Headers:    headers,
 	}
 
 	printer := f.Printer("")
@@ -187,18 +211,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
-	configPath := config.DefaultConfigPath()
-	if f.ConfigPath != "" {
-		configPath = f.ConfigPath
-	}
-
 	// Step 6: Credential storage choice
-	var existing *config.Config
-	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
-		if p, ok := pc.Profiles[profileName]; ok {
-			existing = &p
-		}
-	}
 	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, keyringFlag, keyringFlagSet)
 	if err != nil {
 		return err

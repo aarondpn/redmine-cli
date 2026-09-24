@@ -442,6 +442,9 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
+	if entry.Headers == nil {
+		entry.Headers = old.Headers
+	}
 	if entry.CredentialStore == CredentialStoreKeyring && entry.KeyringID == "" && old.KeyringID != "" {
 		entry.KeyringID = old.KeyringID
 	}

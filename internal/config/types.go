@@ -14,12 +14,15 @@ type Config struct {
 	// KeyringID is the opaque account under which this profile's secrets are
 	// stored in the OS keyring. It is generated on first keyring save and keeps
 	// entries unique across config files and stable across profile renames.
-	KeyringID      string    `mapstructure:"keyring_id" yaml:"keyring_id,omitempty"`
-	DefaultProject string    `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat   string    `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
-	NoColor        bool      `mapstructure:"no_color" yaml:"no_color,omitempty"`
-	ReadOnly       bool      `mapstructure:"read_only" yaml:"read_only,omitempty"`
-	MCP            MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
+	KeyringID      string `mapstructure:"keyring_id" yaml:"keyring_id,omitempty"`
+	DefaultProject string `mapstructure:"default_project" yaml:"default_project,omitempty"`
+	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
+	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
+	ReadOnly       bool   `mapstructure:"read_only" yaml:"read_only,omitempty"`
+	// Headers are extra HTTP headers sent with every request to the configured
+	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
+	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`
+	MCP     MCPConfig         `mapstructure:"mcp" yaml:"mcp,omitempty"`
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.
