@@ -44,6 +44,14 @@ type MCPConfig struct {
 	// the MCP HTTP transport. Bearer tokens supplied here are used as the
 	// shared secret clients must present in the Authorization header.
 	AuthToken string `mapstructure:"auth_token" yaml:"auth_token,omitempty"`
+	// HTTP, when non-empty, becomes the default for `--http`: the server
+	// listens on this address with the streamable HTTP transport instead of
+	// stdio.
+	HTTP string `mapstructure:"http" yaml:"http,omitempty"`
+	// NoAuth, when true, becomes the default for `--no-auth`: a non-loopback
+	// HTTP bind without an auth token is served unauthenticated instead of
+	// getting a generated token.
+	NoAuth bool `mapstructure:"no_auth" yaml:"no_auth,omitempty"`
 }
 
 // ProfileConfig holds the top-level configuration with multiple profiles.

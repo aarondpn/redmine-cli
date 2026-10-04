@@ -107,6 +107,7 @@ redmine-cli ships an [Agent Skill](https://agentskills.io) (the open `SKILL.md` 
 |---|---|
 | **Any agent (skill)** | `npx skills add aarondpn/redmine-cli` |
 | **Any MCP host** | `redmine mcp serve` (then add to host config) |
+| **Docker (MCP only)** | `docker run -i --rm -e REDMINE_SERVER -e REDMINE_API_KEY ghcr.io/aarondpn/redmine-mcp` |
 | **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli` then `/plugin install redmine` |
 | **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli` then `/plugins` (install **Redmine** from the added marketplace) |
 | **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |

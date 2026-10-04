@@ -107,6 +107,7 @@ redmine-cli は [Agent Skill](https://agentskills.io)（35 以上のエージェ
 |---|---|
 | **任意のエージェント（skill）** | `npx skills add aarondpn/redmine-cli` |
 | **任意の MCP ホスト** | `redmine mcp serve`（ホスト設定に追加） |
+| **Docker（MCP のみ）** | `docker run -i --rm -e REDMINE_SERVER -e REDMINE_API_KEY ghcr.io/aarondpn/redmine-mcp` |
 | **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli` のあと `/plugin install redmine` |
 | **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli` のあと `/plugins`（追加した marketplace から **Redmine** をインストール） |
 | **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |

@@ -217,3 +217,114 @@ func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
 		t.Fatalf("help output missing normal StringSlice placeholder:\n%s", help)
 	}
 }
+
+func newHTTPAuthCmd() (*cobra.Command, *bytes.Buffer) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("http", "", "")
+	cmd.Flags().String("auth-token", "", "")
+	cmd.Flags().Bool("no-auth", false, "")
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	return cmd, &stderr
+}
+
+func TestResolveHTTPAddr(t *testing.T) {
+	cfg := &config.Config{MCP: config.MCPConfig{HTTP: "0.0.0.0:8080"}}
+
+	cmd, _ := newHTTPAuthCmd()
+	if got := resolveHTTPAddr(cmd, "", cfg); got != "0.0.0.0:8080" {
+		t.Errorf("config address should win when flag is unset, got %q", got)
+	}
+	if got := resolveHTTPAddr(cmd, "", nil); got != "" {
+		t.Errorf("no flag and no config should mean stdio, got %q", got)
+	}
+
+	if err := cmd.Flags().Set("http", ":9090"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if got := resolveHTTPAddr(cmd, ":9090", cfg); got != ":9090" {
+		t.Errorf("explicit flag should override config, got %q", got)
+	}
+}
+
+func TestResolveHTTPAuth_LoopbackWithoutTokenStaysOpen(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+
+	token, err := resolveHTTPAuth(cmd, nil, true, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if token != "" {
+		t.Errorf("loopback bind should not get a generated token, got %q", token)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("unexpected stderr output: %q", stderr.String())
+	}
+}
+
+func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+
+	token, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if len(token) != 64 {
+		t.Fatalf("generated token = %q, want 64 hex chars", token)
+	}
+	if !strings.Contains(stderr.String(), token) {
+		t.Errorf("generated token should be printed to stderr, got %q", stderr.String())
+	}
+
+	again, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if again == token {
+		t.Error("generated tokens should differ between runs")
+	}
+}
+
+func TestResolveHTTPAuth_ConfiguredTokenIsKept(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
+
+	token, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if token != "from-config" {
+		t.Errorf("token = %q, want from-config", token)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("configured token should not be echoed, got %q", stderr.String())
+	}
+}
+
+func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
+
+	token, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if token != "" {
+		t.Errorf("--no-auth should leave the server unauthenticated, got token %q", token)
+	}
+	if !strings.Contains(stderr.String(), "without authentication") {
+		t.Errorf("expected a warning on stderr, got %q", stderr.String())
+	}
+}
+
+func TestResolveHTTPAuth_NoAuthConflictsWithToken(t *testing.T) {
+	cmd, _ := newHTTPAuthCmd()
+	if err := cmd.Flags().Set("no-auth", "true"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
+
+	if _, err := resolveHTTPAuth(cmd, cfg, false, "", true); err == nil {
+		t.Fatal("--no-auth combined with a token should be rejected")
+	}
+}

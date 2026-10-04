@@ -619,6 +619,16 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		cfg.MCP.AuthToken = val
 		log.Printf("Config: env override REDMINE_MCP_AUTH_TOKEN is set")
 	}
+
+	if val := os.Getenv("REDMINE_MCP_HTTP"); val != "" {
+		cfg.MCP.HTTP = val
+		log.Printf("Config: env override REDMINE_MCP_HTTP is set")
+	}
+
+	if val := os.Getenv("REDMINE_MCP_NO_AUTH"); val != "" {
+		cfg.MCP.NoAuth = parseBoolEnv(val)
+		log.Printf("Config: env override REDMINE_MCP_NO_AUTH is set")
+	}
 }
 
 // splitCSV trims, splits on commas, and drops empty entries.

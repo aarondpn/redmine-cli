@@ -9,6 +9,7 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  packages: write
 
 jobs:
   release:
@@ -46,6 +47,18 @@ jobs:
             exit 1
           fi
 
+      # The MCP image Dockerfile only copies prebuilt binaries (no RUN steps),
+      # so buildx can assemble the arm64 image without QEMU.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
         with:
@@ -71,3 +84,58 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-checksums: ${{ steps.checksums.outputs.path }}
+
+      - name: Locate MCP image digest
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest=$(jq -r '[.[] | select(.type == "Docker Image" and (.name | startswith("ghcr.io/aarondpn/redmine-mcp:"))) | .extra.Digest] | unique | .[]' dist/artifacts.json)
+          if [ "$(printf '%s\n' "$digest" | grep -c '^sha256:')" -ne 1 ]; then
+            echo "::error::expected exactly one MCP image digest, got: ${digest:-<none>}"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest MCP image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/aarondpn/redmine-mcp
+          subject-digest: ${{ steps.image.outputs.digest }}
+
+  # Publishes server.json to the official MCP Registry so registry-aware hosts
+  # can install the Docker image. Stable releases only: the registry entry
+  # points at the exact version tag, which prereleases also push, but `latest`
+  # in the registry should not move to a prerelease.
+  mcp-registry:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set server.json version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          jq --arg v "$version" \
+            '.version = $v | .packages[0].identifier = "ghcr.io/aarondpn/redmine-mcp:\($v)"' \
+            server.json > server.tmp
+          mv server.tmp server.json
+          cat server.json
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to MCP Registry
+        run: |
+          set -euo pipefail
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

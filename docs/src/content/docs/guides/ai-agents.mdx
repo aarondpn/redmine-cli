@@ -20,9 +20,10 @@ For most hosts you want both. Several major hosts (Claude Code, Codex CLI, Gemin
 - **Any agent** uses the [skills.sh](https://skills.sh) installer (`npx skills add`), which detects your agent and writes `SKILL.md` to the right location (`.claude/skills/`, `.codex/skills/`, `.gemini/skills/`, or the cross-vendor `.agents/skills/` fallback). The bundled wrapper is `redmine install-skill [--global]`.
 - **Claude Code / Codex CLI / Gemini CLI** bundle the skill and MCP server in a single plugin install. After installing, run `/reload-plugins` (Claude) or restart the CLI to activate.
 - **MCP host** is the manual route for Cursor, VS Code, Zed, Claude Desktop, and other MCP-aware hosts. Add `redmine mcp serve` (with optional `--profile`, `--enable-writes`, `--enable-groups`, ...) to your host's MCP config; see your host's MCP setup docs for the exact file path and JSON shape.
+- **Docker** runs the MCP server from the `ghcr.io/aarondpn/redmine-mcp` image without installing `redmine` at all. See [Run with Docker](#run-with-docker).
 
 <Aside type="note">
-  Prerequisite for all paths: `redmine` must be on the host's `PATH` and you must have logged in once via `redmine auth login`. The skill-only path additionally needs Node.js for `npx skills add`.
+  Prerequisite for the non-Docker paths: `redmine` must be on the host's `PATH` and you must have logged in once via `redmine auth login`. The skill-only path additionally needs Node.js for `npx skills add`.
 </Aside>
 
 ## Agent Skill
@@ -46,6 +47,96 @@ The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarond
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
 </Aside>
 
+### Run with Docker
+
+The `ghcr.io/aarondpn/redmine-mcp` image (linux/amd64 and linux/arm64) runs `redmine mcp serve` directly. You don't need a local install, a profile, or a keyring. Pass the server URL and API key as environment variables instead. Every `REDMINE_*` variable and every `redmine mcp serve` flag works the same way inside the container. Flags go after the image name.
+
+| Tag | Tracks |
+|---|---|
+| `latest` | Newest stable release |
+| `2`, `2.12`, `2.12.0` | Major, minor, or exact release |
+
+#### Local: stdio
+
+The MCP host starts a fresh container per session and talks to it over stdin/stdout. `-i` is required; `--rm` cleans up afterwards. The `-e NAME` form (without `=value`) forwards the variable from the host's environment, so the key never lands in the args list.
+
+**Claude Code:**
+
+```bash
+claude mcp add redmine \
+  -e REDMINE_SERVER=https://redmine.example.com \
+  -e REDMINE_API_KEY=your-api-key \
+  -- docker run -i --rm -e REDMINE_SERVER -e REDMINE_API_KEY ghcr.io/aarondpn/redmine-mcp
+```
+
+**Claude Desktop, Cursor, Windsurf, and other hosts using the `mcpServers` JSON shape:**
+
+```json
+{
+  "mcpServers": {
+    "redmine": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "REDMINE_SERVER", "-e", "REDMINE_API_KEY", "ghcr.io/aarondpn/redmine-mcp"],
+      "env": {
+        "REDMINE_SERVER": "https://redmine.example.com",
+        "REDMINE_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+**One-click install:**
+
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=redmine&inputs=%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22redmine_server%22%2C%22description%22%3A%22Redmine%20URL%2C%20e.g.%20https%3A%2F%2Fredmine.example.com%22%7D%2C%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22redmine_api_key%22%2C%22description%22%3A%22Redmine%20API%20key%20%28My%20account%20-%3E%20API%20access%20key%29%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22REDMINE_SERVER%22%2C%22-e%22%2C%22REDMINE_API_KEY%22%2C%22ghcr.io%2Faarondpn%2Fredmine-mcp%22%5D%2C%22env%22%3A%7B%22REDMINE_SERVER%22%3A%22%24%7Binput%3Aredmine_server%7D%22%2C%22REDMINE_API_KEY%22%3A%22%24%7Binput%3Aredmine_api_key%7D%22%7D%7D) [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=redmine&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItaSIsIi0tcm0iLCItZSIsIlJFRE1JTkVfU0VSVkVSIiwiLWUiLCJSRURNSU5FX0FQSV9LRVkiLCJnaGNyLmlvL2Fhcm9uZHBuL3JlZG1pbmUtbWNwIl0sImVudiI6eyJSRURNSU5FX1NFUlZFUiI6Imh0dHBzOi8vcmVkbWluZS5leGFtcGxlLmNvbSIsIlJFRE1JTkVfQVBJX0tFWSI6InlvdXItYXBpLWtleSJ9fQ==)
+
+VS Code prompts for the URL and API key and stores the key as a secret. Cursor installs placeholder values: open the server in Cursor's MCP settings and replace `REDMINE_SERVER` and `REDMINE_API_KEY` afterwards.
+
+To enable writes or narrow the tool surface, add flags after the image name (`... ghcr.io/aarondpn/redmine-mcp --enable-writes --enable-groups issues,time`) or forward the matching `REDMINE_MCP_*` variable.
+
+Already have a `~/.redmine-cli.yaml` with profiles? Mount it read-only and pick a profile. `--user` keeps the file readable even though `redmine auth login` writes it with mode `0600`. Profiles that store their secret in the system keyring can't be read inside the container; supply `REDMINE_API_KEY` for those.
+
+```bash
+docker run -i --rm --user "$(id -u):$(id -g)" \
+  -v "$HOME/.redmine-cli.yaml:/config.yaml:ro" \
+  ghcr.io/aarondpn/redmine-mcp --config /config.yaml --profile work
+```
+
+#### Shared: HTTP server with Docker Compose
+
+To run one server for a whole team, use the HTTP transport. The repository ships a ready-made [`compose.yaml`](https://github.com/aarondpn/redmine-cli/blob/main/docker/compose.yaml) and [`.env.example`](https://github.com/aarondpn/redmine-cli/blob/main/docker/.env.example):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/aarondpn/redmine-cli/main/docker/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/docker/.env.example -o .env
+# set REDMINE_SERVER, REDMINE_API_KEY and REDMINE_MCP_AUTH_TOKEN (openssl rand -hex 32) in .env
+docker compose up -d
+```
+
+Then point clients at the server with the token:
+
+```bash
+claude mcp add --transport http redmine http://localhost:8080/ \
+  --header "Authorization: Bearer $REDMINE_MCP_AUTH_TOKEN"
+```
+
+The compose file only publishes the port on `127.0.0.1`. Set `REDMINE_MCP_PUBLISH=0.0.0.0:8080` in `.env` to reach it from other machines, and put a TLS-terminating reverse proxy in front so the bearer token isn't sent in clear text.
+
+Without Compose, the same server is a single command. `REDMINE_MCP_HTTP` replaces the `--http` flag:
+
+```bash
+docker run -d --name redmine-mcp -p 127.0.0.1:8080:8080 \
+  -e REDMINE_SERVER -e REDMINE_API_KEY -e REDMINE_MCP_AUTH_TOKEN \
+  -e REDMINE_MCP_HTTP=0.0.0.0:8080 \
+  ghcr.io/aarondpn/redmine-mcp
+```
+
+If you leave out `REDMINE_MCP_AUTH_TOKEN`, the server generates a token at startup and prints it to the container log (`docker logs redmine-mcp`). That token changes on every restart, so set your own for anything long-lived.
+
+<Aside type="caution">
+  The HTTP server authenticates to Redmine with a single API key, so every client acts as that Redmine user. Use a dedicated account whose project permissions match what the agents should be able to do.
+</Aside>
+
 ### HTTP transport
 
 Pass `--http <addr>` to expose the server over streamable HTTP instead of stdio. The address shorthand `:8080` (no host) is rewritten to `127.0.0.1:8080` so the server is never accidentally reachable from other machines. Pass an explicit host to listen elsewhere:
@@ -61,7 +152,7 @@ redmine mcp serve --http 127.0.0.1:8080
 redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
 ```
 
-When a non-loopback bind is detected without `--auth-token`, the CLI prints a warning to stderr but still starts. The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
+When a non-loopback bind is detected without `--auth-token`, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token. The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
 
 The HTTP transport is stateless, so it speaks MCP revision `2026-07-28` (sessionless, `server/discover` instead of the `initialize` handshake). Every tool call is a self-contained Redmine API request, so there is no session to keep. Practical consequences: only `POST` is served (`GET` and `DELETE` answer `405`), and stream resumption via `Last-Event-ID` is not available. Older clients negotiate down to `2025-11-25` and keep working unchanged.
 
@@ -73,7 +164,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`. Flags override both.
+The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`, and the listen address in `mcp.http` or `REDMINE_MCP_HTTP`. Flags override both.
 
 <Aside type="danger">
   The bearer token is the only thing standing between any HTTP-reachable client and your Redmine instance through this server. Generate it with a CSPRNG, never reuse it across deployments, and prefer terminating TLS in front of the server (reverse proxy) when binding outside loopback.
@@ -106,11 +197,11 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`, `REDMINE_MCP_AUTH_TOKEN`) override the config block.
+Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`, `REDMINE_MCP_AUTH_TOKEN`, `REDMINE_MCP_HTTP`, `REDMINE_MCP_NO_AUTH`) override the config block.
 
 ### Prerequisite
 
-`redmine` must be on the host's `PATH` and a profile must already be logged in (`redmine auth login`). No Node.js required.
+`redmine` must be on the host's `PATH` and a profile must already be logged in (`redmine auth login`). No Node.js required. With [Docker](#run-with-docker), you only need Docker and an API key.
 
 ### Troubleshooting
 
