@@ -16,6 +16,11 @@ before:
 builds:
   - binary: redmine
     main: ./cmd/redmine
+    # Fully static binaries. Without this, the native linux/amd64 build on the
+    # Ubuntu runner links against glibc, which breaks on musl distros and in
+    # the distroless MCP image. Nothing in the dependency tree needs cgo.
+    env:
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:
@@ -45,6 +50,34 @@ archives:
 # Syft version before running GoReleaser.
 sboms:
   - artifacts: archive
+
+# MCP server image: ghcr.io/aarondpn/redmine-mcp. Prereleases only get the
+# exact version tag so `latest` and the major/minor tags stay on stable
+# releases. The io.modelcontextprotocol.server.name label lets the MCP
+# Registry verify that server.json and the image belong together.
+dockers_v2:
+  - id: redmine-mcp
+    dockerfile: docker/Dockerfile
+    images:
+      - ghcr.io/aarondpn/redmine-mcp
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: redmine-mcp
+      org.opencontainers.image.description: MCP server for Redmine, from redmine-cli
+      org.opencontainers.image.source: https://github.com/aarondpn/redmine-cli
+      org.opencontainers.image.url: https://redmine-cli.dev/guides/ai-agents/
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: MIT
+      io.modelcontextprotocol.server.name: io.github.aarondpn/redmine-mcp
 
 changelog:
   use: github

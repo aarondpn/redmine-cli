@@ -107,6 +107,7 @@ redmine-cli 同时附带 [Agent Skill](https://agentskills.io)（35 多个代理
 |---|---|
 | **任意代理（skill）** | `npx skills add aarondpn/redmine-cli` |
 | **任意 MCP 宿主** | `redmine mcp serve`（在宿主配置中添加） |
+| **Docker（仅 MCP）** | `docker run -i --rm -e REDMINE_SERVER -e REDMINE_API_KEY ghcr.io/aarondpn/redmine-mcp` |
 | **Claude Code** | `/plugin marketplace add aarondpn/redmine-cli`，然后 `/plugin install redmine` |
 | **Codex CLI** | `codex plugin marketplace add aarondpn/redmine-cli`，然后运行 `/plugins`（从新增的 marketplace 安装 **Redmine**） |
 | **Gemini CLI** | `gemini extensions install https://github.com/aarondpn/redmine-cli` |

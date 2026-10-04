@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aarondpn/redmine-mcp",
+  "title": "Redmine",
+  "description": "Work with Redmine issues, projects, time entries, wiki pages and more. Read-only by default.",
+  "websiteUrl": "https://redmine-cli.dev/guides/ai-agents/",
+  "repository": {
+    "url": "https://github.com/aarondpn/redmine-cli",
+    "source": "github",
+    "id": "1181746694"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/aarondpn/redmine-mcp:0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "REDMINE_SERVER",
+          "description": "Base URL of your Redmine instance, e.g. https://redmine.example.com",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "REDMINE_API_KEY",
+          "description": "Your Redmine API key (My account -> API access key)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "REDMINE_MCP_ENABLE_WRITES",
+          "description": "Set to true to also register create/update/delete tools",
+          "isRequired": false,
+          "format": "boolean",
+          "default": "false"
+        }
+      ]
+    }
+  ]
+}

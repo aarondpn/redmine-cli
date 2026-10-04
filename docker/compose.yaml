@@ -1,0 +1,24 @@
+# Shared Redmine MCP server over streamable HTTP.
+#
+#   curl -fsSLO https://raw.githubusercontent.com/aarondpn/redmine-cli/main/docker/compose.yaml
+#   curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/docker/.env.example -o .env
+#   # fill in .env, then:
+#   docker compose up -d
+#
+# Clients connect to http://<host>:8080/ with "Authorization: Bearer <REDMINE_MCP_AUTH_TOKEN>".
+services:
+  redmine-mcp:
+    image: ghcr.io/aarondpn/redmine-mcp:${REDMINE_MCP_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      REDMINE_SERVER: ${REDMINE_SERVER:?set REDMINE_SERVER in .env}
+      REDMINE_API_KEY: ${REDMINE_API_KEY:?set REDMINE_API_KEY in .env}
+      REDMINE_MCP_AUTH_TOKEN: ${REDMINE_MCP_AUTH_TOKEN:?set REDMINE_MCP_AUTH_TOKEN in .env (e.g. openssl rand -hex 32)}
+      REDMINE_MCP_ENABLE_WRITES: ${REDMINE_MCP_ENABLE_WRITES:-false}
+      REDMINE_MCP_ENABLE_GROUPS: ${REDMINE_MCP_ENABLE_GROUPS:-}
+      REDMINE_MCP_DISABLE_TOOLS: ${REDMINE_MCP_DISABLE_TOOLS:-}
+      # Listen on all interfaces inside the container; the ports mapping below
+      # decides what is reachable from outside.
+      REDMINE_MCP_HTTP: 0.0.0.0:8080
+    ports:
+      - "${REDMINE_MCP_PUBLISH:-127.0.0.1:8080}:8080"

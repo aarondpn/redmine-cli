@@ -56,3 +56,37 @@ jobs:
         with:
           go-version-input: "1.26"
           go-package: ./...
+
+  # Builds the release archives and the MCP Docker image without publishing,
+  # so a broken .goreleaser.yaml or docker/Dockerfile fails here instead of on
+  # the next tag.
+  release-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sbom,homebrew
+
+      - name: Smoke-test MCP image
+        run: |
+          set -euo pipefail
+          image=$(docker images --filter 'reference=ghcr.io/aarondpn/redmine-mcp:*-amd64' --format '{{.Repository}}:{{.Tag}}' | head -n1)
+          test -n "$image"
+          # MCP 2026-07-28 handshake: a single sessionless server/discover call.
+          request='{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"ci","version":"1"}}}}'
+          response=$( (echo "$request"; sleep 2) | docker run -i --rm -e REDMINE_SERVER=https://redmine.invalid -e REDMINE_API_KEY=ci "$image")
+          echo "$response"
+          echo "$response" | jq -e '.result._meta["io.modelcontextprotocol/serverInfo"].name == "redmine-cli" and (.result.supportedVersions | index("2026-07-28"))'

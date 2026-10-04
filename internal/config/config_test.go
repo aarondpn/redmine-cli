@@ -630,6 +630,27 @@ func TestApplyEnvOverrides_MCPAuthToken(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverrides_MCPHTTPAndNoAuth(t *testing.T) {
+	t.Setenv("REDMINE_MCP_HTTP", "0.0.0.0:8080")
+	t.Setenv("REDMINE_MCP_NO_AUTH", "1")
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("server: https://example.com\napi_key: k\nmcp:\n  http: \":9090\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MCP.HTTP != "0.0.0.0:8080" {
+		t.Errorf("HTTP = %q, want 0.0.0.0:8080 (env should override file)", cfg.MCP.HTTP)
+	}
+	if !cfg.MCP.NoAuth {
+		t.Error("NoAuth should be true from REDMINE_MCP_NO_AUTH")
+	}
+}
+
 func fileMode(t *testing.T, path string) os.FileMode {
 	t.Helper()
 	info, err := os.Stat(path)
