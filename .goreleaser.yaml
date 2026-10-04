@@ -16,6 +16,11 @@ before:
 builds:
   - binary: redmine
     main: ./cmd/redmine
+    # Fully static binaries. Without this, the native linux/amd64 build on the
+    # Ubuntu runner links against glibc, which breaks on musl distros and in
+    # the distroless MCP image. Nothing in the dependency tree needs cgo.
+    env:
+      - CGO_ENABLED=0
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:
