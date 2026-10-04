@@ -85,7 +85,8 @@ jobs:
           set -euo pipefail
           image=$(docker images --filter 'reference=ghcr.io/aarondpn/redmine-mcp:*-amd64' --format '{{.Repository}}:{{.Tag}}' | head -n1)
           test -n "$image"
-          request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}'
+          # MCP 2026-07-28 handshake: a single sessionless server/discover call.
+          request='{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"ci","version":"1"}}}}'
           response=$( (echo "$request"; sleep 2) | docker run -i --rm -e REDMINE_SERVER=https://redmine.invalid -e REDMINE_API_KEY=ci "$image")
           echo "$response"
-          echo "$response" | jq -e '.result.serverInfo.name == "redmine-cli"'
+          echo "$response" | jq -e '.result._meta["io.modelcontextprotocol/serverInfo"].name == "redmine-cli" and (.result.supportedVersions | index("2026-07-28"))'
