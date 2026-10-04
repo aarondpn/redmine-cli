@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"net"
 	"reflect"
 	"sort"
 	"strings"
@@ -250,11 +251,11 @@ func TestResolveHTTPAddr(t *testing.T) {
 func TestResolveHTTPAuth_LoopbackWithoutTokenStaysOpen(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 
-	token, err := resolveHTTPAuth(cmd, nil, true, "", false)
+	token, generated, err := resolveHTTPAuth(cmd, nil, true, "", false)
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
-	if token != "" {
+	if token != "" || generated {
 		t.Errorf("loopback bind should not get a generated token, got %q", token)
 	}
 	if stderr.Len() != 0 {
@@ -265,18 +266,24 @@ func TestResolveHTTPAuth_LoopbackWithoutTokenStaysOpen(t *testing.T) {
 func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 
-	token, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	token, generated, err := resolveHTTPAuth(cmd, nil, false, "", false)
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
-	if len(token) != 64 {
-		t.Fatalf("generated token = %q, want 64 hex chars", token)
+	if !generated || len(token) != 64 {
+		t.Fatalf("generated token = %q (generated=%v), want 64 hex chars", token, generated)
 	}
-	if !strings.Contains(stderr.String(), token) {
-		t.Errorf("generated token should be printed to stderr, got %q", stderr.String())
+	if stderr.Len() != 0 {
+		t.Errorf("token must only be printed after the listener is up, got %q", stderr.String())
 	}
 
-	again, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	var out bytes.Buffer
+	printGeneratedToken(&out, token)
+	if !strings.Contains(out.String(), token) {
+		t.Errorf("printGeneratedToken output misses the token: %q", out.String())
+	}
+
+	again, _, err := resolveHTTPAuth(cmd, nil, false, "", false)
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -289,11 +296,11 @@ func TestResolveHTTPAuth_ConfiguredTokenIsKept(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
 
-	token, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	token, generated, err := resolveHTTPAuth(cmd, cfg, false, "", false)
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
-	if token != "from-config" {
+	if token != "from-config" || generated {
 		t.Errorf("token = %q, want from-config", token)
 	}
 	if stderr.Len() != 0 {
@@ -305,7 +312,7 @@ func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
 
-	token, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	token, _, err := resolveHTTPAuth(cmd, cfg, false, "", false)
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -324,7 +331,45 @@ func TestResolveHTTPAuth_NoAuthConflictsWithToken(t *testing.T) {
 	}
 	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
 
-	if _, err := resolveHTTPAuth(cmd, cfg, false, "", true); err == nil {
+	if _, _, err := resolveHTTPAuth(cmd, cfg, false, "", true); err == nil {
 		t.Fatal("--no-auth combined with a token should be rejected")
+	}
+}
+
+func TestResolveHTTPAuth_ExplicitNoAuthFalseBeatsConfig(t *testing.T) {
+	cmd, _ := newHTTPAuthCmd()
+	if err := cmd.Flags().Set("no-auth", "false"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
+
+	token, generated, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if !generated || token == "" {
+		t.Error("--no-auth=false should override mcp.no_auth and generate a token")
+	}
+}
+
+func TestResolveHTTPAddr_ExplicitEmptyFlagMeansStdio(t *testing.T) {
+	cmd, _ := newHTTPAuthCmd()
+	if err := cmd.Flags().Set("http", ""); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	cfg := &config.Config{MCP: config.MCPConfig{HTTP: "0.0.0.0:8080"}}
+
+	if got := resolveHTTPAddr(cmd, "", cfg); got != "" {
+		t.Errorf("explicit --http \"\" should force stdio, got %q", got)
+	}
+}
+
+func TestListenAddr(t *testing.T) {
+	bound := &net.TCPAddr{IP: net.IPv6unspecified, Port: 41234}
+	if got := listenAddr("0.0.0.0:0", bound); got != "0.0.0.0:41234" {
+		t.Errorf("listenAddr = %q, want 0.0.0.0:41234", got)
+	}
+	if got := listenAddr("127.0.0.1:8080", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 8080}); got != "127.0.0.1:8080" {
+		t.Errorf("listenAddr = %q, want 127.0.0.1:8080", got)
 	}
 }

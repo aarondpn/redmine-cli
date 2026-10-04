@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -83,7 +84,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
 			if httpAddr != "" {
 				normalized, isLoopback := mcpserver.NormalizeBindAddr(httpAddr)
-				token, err := resolveHTTPAuth(cmd, cfg, isLoopback, authToken, noAuth)
+				token, generated, err := resolveHTTPAuth(cmd, cfg, isLoopback, authToken, noAuth)
 				if err != nil {
 					return err
 				}
@@ -100,7 +101,12 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 					<-ctx.Done()
 					_ = server.Close()
 				}()
-				fmt.Fprintf(cmd.ErrOrStderr(), "MCP server listening on http://%s\n", normalized)
+				// Only announce a generated token once the bind succeeded, so a
+				// bad address doesn't print a token that is never used.
+				if generated {
+					printGeneratedToken(cmd.ErrOrStderr(), token)
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "MCP server listening on http://%s\n", listenAddr(normalized, ln.Addr()))
 				err = server.Serve(ln)
 				if errors.Is(err, http.ErrServerClosed) {
 					return nil
@@ -228,36 +234,53 @@ func resolveNoAuth(cmd *cobra.Command, flagVal bool, cfg *config.Config) bool {
 
 // resolveHTTPAuth decides which bearer token guards the HTTP transport.
 // Loopback binds keep the configured token (possibly none). Non-loopback
-// binds without a token get a freshly generated one, printed to stderr so the
-// operator can hand it to clients, unless --no-auth opts out explicitly.
-func resolveHTTPAuth(cmd *cobra.Command, cfg *config.Config, isLoopback bool, authTokenFlag string, noAuthFlag bool) (string, error) {
-	token := resolveAuthToken(cmd, authTokenFlag, cfg)
+// binds without a token get a freshly generated one (generated=true) that the
+// caller prints once the listener is up, unless --no-auth opts out explicitly.
+func resolveHTTPAuth(cmd *cobra.Command, cfg *config.Config, isLoopback bool, authTokenFlag string, noAuthFlag bool) (token string, generated bool, err error) {
+	token = resolveAuthToken(cmd, authTokenFlag, cfg)
 	noAuth := resolveNoAuth(cmd, noAuthFlag, cfg)
-	stderr := cmd.ErrOrStderr()
 
 	if noAuth {
 		if token != "" {
-			return "", errors.New("--no-auth cannot be combined with an auth token (--auth-token, mcp.auth_token, or REDMINE_MCP_AUTH_TOKEN)")
+			return "", false, errors.New("--no-auth cannot be combined with an auth token (--auth-token, mcp.auth_token, or REDMINE_MCP_AUTH_TOKEN)")
 		}
 		if !isLoopback {
-			fmt.Fprintln(stderr, "warning: serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server")
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning: serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server")
 		}
-		return "", nil
+		return "", false, nil
 	}
 	if token != "" || isLoopback {
-		return token, nil
+		return token, false, nil
 	}
 
-	token, err := generateAuthToken()
+	token, err = generateAuthToken()
 	if err != nil {
-		return "", fmt.Errorf("generating MCP auth token: %w", err)
+		return "", false, fmt.Errorf("generating MCP auth token: %w", err)
 	}
-	fmt.Fprintf(stderr,
+	return token, true, nil
+}
+
+// printGeneratedToken tells the operator which token clients must present.
+func printGeneratedToken(w io.Writer, token string) {
+	fmt.Fprintf(w,
 		"No auth token configured for a non-loopback bind; generated one for this run:\n\n"+
 			"    %s\n\n"+
 			"Clients must send \"Authorization: Bearer <token>\". Set --auth-token or REDMINE_MCP_AUTH_TOKEN to keep a stable token across restarts.\n",
 		token)
-	return token, nil
+}
+
+// listenAddr reports the configured host with the port actually bound, so
+// "0.0.0.0:0" is shown as e.g. "0.0.0.0:41234" rather than "[::]:41234".
+func listenAddr(configured string, bound net.Addr) string {
+	host, _, err := net.SplitHostPort(configured)
+	if err != nil {
+		return bound.String()
+	}
+	_, port, err := net.SplitHostPort(bound.String())
+	if err != nil {
+		return bound.String()
+	}
+	return net.JoinHostPort(host, port)
 }
 
 // generateAuthToken returns 32 random bytes, hex-encoded.

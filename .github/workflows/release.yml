@@ -119,6 +119,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # The registry pulls the image anonymously to verify its
+      # io.modelcontextprotocol.server.name label. New GHCR packages start out
+      # private and visibility can only be changed in the package settings,
+      # so fail early with instructions instead of an opaque publish error.
+      - name: Check MCP image is publicly pullable
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:aarondpn/redmine-mcp:pull" | jq -r '.token // empty' || true)
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json" \
+            "https://ghcr.io/v2/aarondpn/redmine-mcp/manifests/${version}")
+          if [ "$status" != "200" ]; then
+            echo "::error::ghcr.io/aarondpn/redmine-mcp:${version} is not publicly pullable (HTTP ${status}). Set the package visibility to Public at https://github.com/users/aarondpn/packages/container/redmine-mcp/settings, then re-run this job."
+            exit 1
+          fi
+
       - name: Set server.json version
         run: |
           set -euo pipefail
