@@ -10,7 +10,7 @@ type Role struct {
 	IssuesVisibility      string   `json:"issues_visibility,omitempty"`
 	TimeEntriesVisibility string   `json:"time_entries_visibility,omitempty"`
 	UsersVisibility       string   `json:"users_visibility,omitempty"`
-	Permissions           []string `json:"permissions,omitempty"`
+	Permissions           []string `json:"permissions,omitzero"`
 }
 
 // IsBuiltIn reports whether the role is one of Redmine's built-in roles.

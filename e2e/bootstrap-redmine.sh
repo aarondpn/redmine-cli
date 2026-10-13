@@ -25,6 +25,9 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
   "$container_service" \
   bundle exec rails runner '
     Setting.rest_api_enabled = "1"
+    # Lets the assignee e2e suite assign issues to groups. Off by default in
+    # Redmine and not exposed over REST, so the bootstrap has to set it.
+    Setting.issue_group_assignment = "1"
     admin = User.find_by(login: "admin")
     abort("admin user not found") unless admin
     if ENV["REDMINE_E2E_PASSWORD"].to_s != ""
@@ -99,6 +102,7 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
 
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
+      issue_group_assignment: Setting.issue_group_assignment?,
       admin_api_key_present: admin.api_key.to_s != "",
       admin_password_set: ENV["REDMINE_E2E_PASSWORD"].to_s != "",
       trackers: Tracker.count,

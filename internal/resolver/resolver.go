@@ -26,6 +26,7 @@ const (
 
 type suggestion struct {
 	name     string
+	label    string
 	id       int
 	distance int
 }
@@ -51,10 +52,17 @@ func IsNameResolutionPermissionError(err error) bool {
 // For small lists (<=10 items) it shows all options. For larger lists it uses
 // Levenshtein distance to suggest close matches.
 func buildSuggestions(input string, names []string, ids []int, resourceType string) string {
+	return buildLabeledSuggestions(input, names, names, ids, resourceType)
+}
+
+// buildLabeledSuggestions is buildSuggestions with separate display labels:
+// names drive the fuzzy matching while labels are what the user sees (for
+// example a name decorated with its kind). labels must align with names.
+func buildLabeledSuggestions(input string, names, labels []string, ids []int, resourceType string) string {
 	if len(names) <= smallListThreshold {
 		lines := make([]string, len(names))
 		for i := range names {
-			lines[i] = fmt.Sprintf("  - %s (ID: %d)", names[i], ids[i])
+			lines[i] = fmt.Sprintf("  - %s (ID: %d)", labels[i], ids[i])
 		}
 		return fmt.Sprintf("no match found for %q. Available %ss:\n%s", input, resourceType, strings.Join(lines, "\n"))
 	}
@@ -69,7 +77,7 @@ func buildSuggestions(input string, names []string, ids []int, resourceType stri
 	for i, name := range names {
 		dist := lfuzzy.LevenshteinDistance(lowerInput, strings.ToLower(name))
 		if dist <= threshold {
-			suggestions = append(suggestions, suggestion{name: name, id: ids[i], distance: dist})
+			suggestions = append(suggestions, suggestion{name: name, label: labels[i], id: ids[i], distance: dist})
 		}
 	}
 
@@ -91,7 +99,7 @@ func buildSuggestions(input string, names []string, ids []int, resourceType stri
 	}
 	lines := make([]string, len(suggestions))
 	for i, s := range suggestions {
-		lines[i] = fmt.Sprintf("  - %s (ID: %d)", s.name, s.id)
+		lines[i] = fmt.Sprintf("  - %s (ID: %d)", s.label, s.id)
 	}
 	return fmt.Sprintf("no match found for %q. Did you mean:\n%s", input, strings.Join(lines, "\n"))
 }
@@ -604,80 +612,6 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 			lines[i] = fmt.Sprintf("  - %s (ID: %d)", v.Name, v.ID)
 		}
 		return 0, fmt.Errorf("multiple versions match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
-	}
-}
-
-// ResolveUser resolves a user by "me", login/name, or numeric ID.
-func ResolveUser(ctx context.Context, client *api.Client, input string) (int, error) {
-	return resolveUser(ctx, client, input, "user")
-}
-
-// ResolveAssignee resolves an assignee by "me", login/name, or numeric ID.
-func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int, error) {
-	return resolveUser(ctx, client, input, "assignee")
-}
-
-func resolveUser(ctx context.Context, client *api.Client, input string, label string) (int, error) {
-	if strings.ToLower(input) == "me" {
-		client.DebugLog().Printf("Resolver: resolving %s \"me\" via current user", label)
-		user, err := client.Users.Current(ctx, nil)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get current user: %w", err)
-		}
-		client.DebugLog().Printf("Resolver: \"me\" -> ID %d (%s %s)", user.ID, user.FirstName, user.LastName)
-		return user.ID, nil
-	}
-
-	if id, err := strconv.Atoi(input); err == nil {
-		client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", label, input, id)
-		return id, nil
-	}
-
-	client.DebugLog().Printf("Resolver: looking up %s %q", label, input)
-
-	users, _, err := client.Users.List(ctx, models.UserFilter{Name: input})
-	if err != nil {
-		if isForbiddenErr(err) {
-			return 0, &NameResolutionPermissionError{
-				message: fmt.Sprintf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", label),
-			}
-		}
-		return 0, fmt.Errorf("failed to search users: %w", err)
-	}
-
-	client.DebugLog().Printf("Resolver: searching %d user results", len(users))
-
-	needle := strings.ToLower(input)
-	var matches []models.User
-	for _, u := range users {
-		fullName := strings.ToLower(u.FirstName + " " + u.LastName)
-		login := strings.ToLower(u.Login)
-		if fullName == needle || login == needle {
-			matches = append(matches, u)
-		}
-	}
-
-	switch len(matches) {
-	case 0:
-		names := make([]string, len(users))
-		ids := make([]int, len(users))
-		for i, u := range users {
-			names[i] = fmt.Sprintf("%s %s / %s", u.FirstName, u.LastName, u.Login)
-			ids[i] = u.ID
-		}
-		if len(names) > 0 {
-			return 0, fmt.Errorf("%s", buildSuggestions(input, names, ids, "user"))
-		}
-		return 0, fmt.Errorf("no user found matching %q", input)
-	case 1:
-		client.DebugLog().Printf("Resolver: matched %s %q -> ID %d (%s)", label, input, matches[0].ID, matches[0].Login)
-		return matches[0].ID, nil
-	default:
-		lines := make([]string, len(matches))
-		for i, u := range matches {
-			lines[i] = fmt.Sprintf("  - %s %s / %s (ID: %d)", u.FirstName, u.LastName, u.Login, u.ID)
-		}
-		return 0, fmt.Errorf("multiple users match %q, please use the numeric ID:\n%s", input, strings.Join(lines, "\n"))
 	}
 }
 

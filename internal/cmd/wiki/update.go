@@ -43,6 +43,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Example: `  # Update page content
   redmine wiki update MyPage --project myproject --text "Updated content"
 
+  # Replace the page content with a file (or stdin with "-")
+  redmine wiki update MyPage --project myproject --text-file page.textile
+
   # Update with a change comment (text is preserved when omitted)
   redmine wiki update MyPage --project myproject --comments "Fixed typo"
 
@@ -72,6 +75,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
+			textSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text)
+			if err != nil {
+				return err
+			}
+
 			if cmd.Flags().Changed("expect-version") && ensureCurrent {
 				return fmt.Errorf("--expect-version and --ensure-current are mutually exclusive")
 			}
@@ -84,8 +92,8 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			// A section edit replaces the targeted section with --text. Without
 			// --text the command would resend the whole current page body as
 			// the section content, silently collapsing the page. Require it.
-			if cmd.Flags().Changed("section") && !cmd.Flags().Changed("text") {
-				return fmt.Errorf("--section requires --text")
+			if cmd.Flags().Changed("section") && !textSet {
+				return fmt.Errorf("--section requires --text or --text-file")
 			}
 			if cmd.Flags().Changed("section-hash") && !cmd.Flags().Changed("section") {
 				return fmt.Errorf("--section-hash requires --section")
@@ -110,7 +118,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			// Fetch the current page when we either need its text (because
 			// --text was omitted) or its version (because --ensure-current
 			// was passed). One fetch covers both cases.
-			needText := !cmd.Flags().Changed("text")
+			needText := !textSet
 			var current *models.WikiPage
 			if needText || ensureCurrent {
 				current, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
@@ -122,7 +130,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			if cmd.Flags().Changed("text") {
+			if textSet {
 				input.Text = &text
 			} else {
 				// Redmine requires the text field on every PUT.
@@ -185,6 +193,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown")
+	cmdutil.AddTextFileFlag(cmd, "text", "text-file", "F")
 	cmd.Flags().StringVar(&title, "title", "", "Display title")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")

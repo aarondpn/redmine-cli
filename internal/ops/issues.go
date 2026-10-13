@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
@@ -13,7 +14,7 @@ type ListIssuesInput struct {
 	SubprojectID   string            `json:"subproject_id,omitempty" jsonschema:"Subproject filter: numeric ID to restrict to one subproject, '!*' to exclude subprojects entirely."`
 	TrackerID      int               `json:"tracker_id,omitempty" jsonschema:"Tracker ID (use list_trackers to discover)."`
 	StatusID       string            `json:"status_id,omitempty" jsonschema:"Status filter: 'open', 'closed', '*', or a numeric status ID."`
-	AssignedToID   string            `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user ID or 'me'."`
+	AssignedToID   string            `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user or group ID, 'me', or 'none' for unassigned issues."`
 	AuthorID       string            `json:"author_id,omitempty" jsonschema:"Author: numeric user ID or 'me'."`
 	PriorityID     string            `json:"priority_id,omitempty" jsonschema:"Priority: numeric ID (use list_priorities to discover)."`
 	CategoryID     int               `json:"category_id,omitempty" jsonschema:"Issue category ID (use list_categories to discover)."`
@@ -22,7 +23,7 @@ type ListIssuesInput struct {
 	IsPrivate      *bool             `json:"is_private,omitempty" jsonschema:"Filter by privacy: true returns only private issues, false returns only public ones."`
 	QueryID        int               `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
 	Sort           string            `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
-	Includes       []string          `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations, children, watchers."`
+	Includes       []string          `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations."`
 	ExtraParams    map[string]string `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters (escape hatch). Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
 	Limit          int               `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset         int               `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
@@ -46,7 +47,7 @@ type CreateIssueInput struct {
 	TrackerID         int               `json:"tracker_id,omitempty" jsonschema:"Tracker ID (Bug, Feature, ...). Use list_trackers to discover."`
 	StatusID          int               `json:"status_id,omitempty" jsonschema:"Initial status ID. Use list_statuses to discover."`
 	PriorityID        int               `json:"priority_id,omitempty" jsonschema:"Priority ID."`
-	AssignedToID      int               `json:"assigned_to_id,omitempty" jsonschema:"User ID of the assignee."`
+	AssignedToID      int               `json:"assigned_to_id,omitempty" jsonschema:"User or group ID of the assignee (groups require Redmine's 'Allow issue assignment to groups' setting). Omit to leave unassigned."`
 	CategoryID        int               `json:"category_id,omitempty" jsonschema:"Issue category ID. Use list_categories to discover."`
 	FixedVersionID    int               `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
 	ParentIssueID     int               `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks."`
@@ -66,7 +67,7 @@ type UpdateIssueInput struct {
 	TrackerID         *int              `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
 	StatusID          *int              `json:"status_id,omitempty" jsonschema:"New status ID."`
 	PriorityID        *int              `json:"priority_id,omitempty" jsonschema:"New priority ID."`
-	AssignedToID      *int              `json:"assigned_to_id,omitempty" jsonschema:"Positive user ID to assign the issue to."`
+	AssignedToID      *int              `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the issue to. Set to 0 to unassign."`
 	CategoryID        *int              `json:"category_id,omitempty" jsonschema:"Issue category ID."`
 	FixedVersionID    *int              `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
 	ParentIssueID     *int              `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
@@ -93,7 +94,7 @@ type AddIssueCommentInput struct {
 
 type AssignIssueInput struct {
 	ID         int `json:"id" jsonschema:"Issue ID to assign."`
-	AssigneeID int `json:"assignee_id" jsonschema:"User ID to assign. Must be > 0 (use update_issue to unassign)."`
+	AssigneeID int `json:"assignee_id" jsonschema:"User or group ID to assign. Must be > 0 (use update_issue with assigned_to_id 0 to unassign)."`
 }
 
 type CloseIssueInput struct {
@@ -115,7 +116,7 @@ func ListIssues(ctx context.Context, client *api.Client, input ListIssuesInput) 
 		SubprojectID:   input.SubprojectID,
 		TrackerID:      input.TrackerID,
 		StatusID:       input.StatusID,
-		AssignedToID:   input.AssignedToID,
+		AssignedToID:   assigneeFilterValue(input.AssignedToID),
 		AuthorID:       input.AuthorID,
 		PriorityID:     input.PriorityID,
 		CategoryID:     input.CategoryID,
@@ -133,6 +134,15 @@ func ListIssues(ctx context.Context, client *api.Client, input ListIssuesInput) 
 		return IssuesListResult{}, err
 	}
 	return IssuesListResult{Issues: issues, Count: len(issues), TotalCount: total}, nil
+}
+
+// assigneeFilterValue maps the "none" keyword onto Redmine's "no assignee"
+// filter operator (assigned_to_id=!*). Other values pass through unchanged.
+func assigneeFilterValue(v string) string {
+	if strings.EqualFold(strings.TrimSpace(v), "none") {
+		return "!*"
+	}
+	return v
 }
 
 //mcpgen:tool get_issue
@@ -169,11 +179,11 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 }
 
 //mcpgen:tool update_issue
-//mcpgen:description Update fields on an existing Redmine issue. Requires --enable-writes.
+//mcpgen:description Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput) (MessageResult, error) {
-	err := client.Issues.Update(ctx, input.ID, models.IssueUpdate{
+	upd := models.IssueUpdate{
 		Subject:           input.Subject,
 		Description:       input.Description,
 		TrackerID:         input.TrackerID,
@@ -192,11 +202,24 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 		IsPrivate:         input.IsPrivate,
 		CustomFieldValues: input.CustomFieldValues,
 		Uploads:           input.Uploads,
-	})
-	if err != nil {
+	}
+	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
 		return MessageResult{}, err
 	}
-	return MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}, nil
+	result := MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}
+	if input.StatusID != nil {
+		warning, err := verifyStatusApplied(ctx, client, input.ID, statusCheck{
+			requested:    models.IDName{ID: *input.StatusID},
+			otherChanges: hasNonStatusChanges(upd),
+		})
+		if err != nil {
+			return MessageResult{}, err
+		}
+		if warning != "" {
+			result.Warnings = append(result.Warnings, warning)
+		}
+	}
+	return result, nil
 }
 
 //mcpgen:tool delete_issue
@@ -229,7 +252,7 @@ func AddIssueComment(ctx context.Context, client *api.Client, input AddIssueComm
 
 func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput) (MessageResult, error) {
 	if input.AssigneeID <= 0 {
-		return MessageResult{}, fmt.Errorf("assignee_id must be a positive user ID; use update_issue to unassign")
+		return MessageResult{}, fmt.Errorf("assignee_id must be a positive user or group ID; use update_issue with assigned_to_id 0 to unassign")
 	}
 	id := input.AssigneeID
 	if err := client.Issues.Update(ctx, input.ID, models.IssueUpdate{AssignedToID: &id}); err != nil {
@@ -239,43 +262,53 @@ func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput
 }
 
 //mcpgen:tool close_issue
-//mcpgen:description Close an issue by setting its status to the first closed status. Requires --enable-writes.
+//mcpgen:description Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func CloseIssue(ctx context.Context, client *api.Client, input CloseIssueInput) (MessageResult, error) {
-	statusID, err := firstStatusID(ctx, client, true)
-	if err != nil {
-		return MessageResult{}, err
-	}
-	upd := models.IssueUpdate{StatusID: &statusID}
-	if input.Notes != "" {
-		notes := input.Notes
-		upd.Notes = &notes
-	}
-	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
-		return MessageResult{}, err
-	}
-	return MessageResult{Message: fmt.Sprintf("Closed issue #%d", input.ID)}, nil
+	return setIssueStatus(ctx, client, input.ID, true, input.Notes, "Closed")
 }
 
 //mcpgen:tool reopen_issue
-//mcpgen:description Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.
+//mcpgen:description Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func ReopenIssue(ctx context.Context, client *api.Client, input ReopenIssueInput) (MessageResult, error) {
-	statusID, err := firstStatusID(ctx, client, false)
+	return setIssueStatus(ctx, client, input.ID, false, input.Notes, "Reopened")
+}
+
+// setIssueStatus moves an issue to the first closed (or open) status, then
+// reads it back to make sure Redmine actually applied the transition.
+func setIssueStatus(ctx context.Context, client *api.Client, id int, closed bool, notes, verb string) (MessageResult, error) {
+	statuses, err := client.Statuses.List(ctx)
 	if err != nil {
 		return MessageResult{}, err
 	}
-	upd := models.IssueUpdate{StatusID: &statusID}
-	if input.Notes != "" {
-		notes := input.Notes
-		upd.Notes = &notes
-	}
-	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
+	status, err := firstStatus(statuses, closed)
+	if err != nil {
 		return MessageResult{}, err
 	}
-	return MessageResult{Message: fmt.Sprintf("Reopened issue #%d", input.ID)}, nil
+	upd := models.IssueUpdate{StatusID: &status.ID}
+	if notes != "" {
+		upd.Notes = &notes
+	}
+	if err := client.Issues.Update(ctx, id, upd); err != nil {
+		return MessageResult{}, err
+	}
+	result := MessageResult{Message: fmt.Sprintf("%s issue #%d", verb, id)}
+	warning, err := verifyStatusApplied(ctx, client, id, statusCheck{
+		requested:    models.IDName{ID: status.ID, Name: status.Name},
+		otherChanges: hasNonStatusChanges(upd),
+		wantClosed:   &closed,
+		statuses:     statuses,
+	})
+	if err != nil {
+		return MessageResult{}, err
+	}
+	if warning != "" {
+		result.Warnings = append(result.Warnings, warning)
+	}
+	return result, nil
 }
 
 func GetIssueForResource(ctx context.Context, client *api.Client, id int) (*models.Issue, error) {
@@ -340,18 +373,14 @@ func RemoveIssueWatcher(ctx context.Context, client *api.Client, input RemoveIss
 	return MessageResult{Message: fmt.Sprintf("Removed user %d as watcher of issue #%d", input.UserID, input.ID)}, nil
 }
 
-func firstStatusID(ctx context.Context, client *api.Client, closed bool) (int, error) {
-	statuses, err := client.Statuses.List(ctx)
-	if err != nil {
-		return 0, err
-	}
+func firstStatus(statuses []models.IssueStatus, closed bool) (models.IssueStatus, error) {
 	for _, status := range statuses {
 		if status.IsClosed == closed {
-			return status.ID, nil
+			return status, nil
 		}
 	}
 	if closed {
-		return 0, fmt.Errorf("no closed issue status is configured in Redmine")
+		return models.IssueStatus{}, fmt.Errorf("no closed issue status is configured in Redmine")
 	}
-	return 0, fmt.Errorf("no open issue status is configured in Redmine")
+	return models.IssueStatus{}, fmt.Errorf("no open issue status is configured in Redmine")
 }

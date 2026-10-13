@@ -39,7 +39,14 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
 
-	return FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
+	users, total, err := FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range users {
+		users[i].NormalizeCollections()
+	}
+	return users, total, nil
 }
 
 // Get retrieves a single user by ID. Optional includes can request
@@ -55,6 +62,7 @@ func (s *UserService) Get(ctx context.Context, id int, includes []string) (*mode
 	if err := s.client.Get(ctx, fmt.Sprintf("/users/%d.json", id), params, &resp); err != nil {
 		return nil, err
 	}
+	resp.User.NormalizeCollections()
 	return &resp.User, nil
 }
 
@@ -71,6 +79,7 @@ func (s *UserService) Current(ctx context.Context, includes []string) (*models.U
 	if err := s.client.Get(ctx, "/users/current.json", params, &resp); err != nil {
 		return nil, err
 	}
+	resp.User.NormalizeCollections()
 	return &resp.User, nil
 }
 
@@ -88,6 +97,7 @@ func (s *UserService) Create(ctx context.Context, user models.UserCreate, sendIn
 	if err := s.client.Post(ctx, "/users.json", body, &resp); err != nil {
 		return nil, err
 	}
+	resp.User.NormalizeCollections()
 	return &resp.User, nil
 }
 
@@ -118,6 +128,7 @@ func (s *MyAccountService) Get(ctx context.Context) (*models.User, error) {
 	if err := s.client.Get(ctx, "/my/account.json", nil, &resp); err != nil {
 		return nil, err
 	}
+	resp.User.NormalizeCollections()
 	return &resp.User, nil
 }
 

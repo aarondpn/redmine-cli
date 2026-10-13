@@ -135,9 +135,13 @@ func issueIDArg(id int) string { return strconv.Itoa(id) }
 // userFixture is an ephemeral test user. Cleanup deletes the user via the
 // CLI, so tests never share user state.
 type userFixture struct {
-	ID    int
-	Login string
-	Mail  string
+	ID       int
+	Login    string
+	Mail     string
+	Password string
+	// Name is the display name ("Firstname Lastname") Redmine reports for
+	// the user under the default user display format.
+	Name string
 }
 
 // createTestUser creates a uniquely-named user and registers cleanup. The
@@ -172,7 +176,7 @@ func createTestUser(t *testing.T, r *cliRunner) *userFixture {
 		}
 	})
 
-	return &userFixture{ID: created.ID, Login: created.Login, Mail: created.Mail}
+	return &userFixture{ID: created.ID, Login: created.Login, Mail: created.Mail, Password: password, Name: "E2E User-" + suffix}
 }
 
 // groupFixture is an ephemeral test group. Cleanup deletes the group via the

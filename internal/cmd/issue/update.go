@@ -40,15 +40,29 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Use:     "update <id>",
 		Aliases: []string{"edit"},
 		Short:   "Update an issue",
-		Long:    "Update fields on an existing issue.",
+		Long: "Update fields on an existing issue.\n\n" +
+			"When --status is given, the issue is read back after the update. Redmine " +
+			"silently ignores status transitions its workflow does not allow for your " +
+			"role and the issue's tracker (and refuses to close issues with open subtasks " +
+			"or open blocking issues), so if the status did not change the command fails " +
+			"with error code status_not_applied, listing the allowed statuses (Redmine " +
+			"5.0+). Other changes in the same request may already have been applied.",
 		Example: `  # Update status and priority by name
   redmine issues update 123 --status Closed --priority Low
 
   # Reassign to yourself with a note
   redmine issues update 123 --assignee me --note "Taking over this issue"
 
+  # Assign to a group (or user) by name, or clear the assignee
+  redmine issues update 123 --assignee "Backend Team"
+  redmine issues update 123 --assignee none
+
   # Add a private note (only visible to staff)
   redmine issues update 123 --note "Internal context" --private-notes
+
+  # Read a long description or note from a file, or from stdin with "-"
+  redmine issues update 123 --description-file description.textile
+  generate-report | redmine issues update 123 --note-file -
 
   # Change category
   redmine issues update 123 --category "Development"
@@ -76,21 +90,33 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			ctx := context.Background()
 			update := ops.UpdateIssueInput{ID: id}
 
+			if err := cmdutil.RejectMultipleStdinFlags(cmd, "description-file", "note-file"); err != nil {
+				return err
+			}
+			descriptionSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description)
+			if err != nil {
+				return err
+			}
+			noteSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "note", "note-file", &note)
+			if err != nil {
+				return err
+			}
+
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject
 			}
-			if cmd.Flags().Changed("description") {
+			if descriptionSet {
 				update.Description = &description
 			}
 			if cmd.Flags().Changed("done-ratio") {
 				update.DoneRatio = &doneRatio
 			}
-			if cmd.Flags().Changed("note") {
+			if noteSet {
 				update.Notes = &note
 			}
 			if cmd.Flags().Changed("private-notes") {
-				if !cmd.Flags().Changed("note") {
-					return fmt.Errorf("--private-notes requires --note")
+				if !noteSet {
+					return fmt.Errorf("--private-notes requires --note or --note-file")
 				}
 				update.PrivateNotes = &privateNotes
 			}
@@ -131,15 +157,12 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				}
 				update.PriorityID = &pid
 			}
-			if cmd.Flags().Changed("assignee") {
-				aid, err := resolver.ResolveAssignee(ctx, client, assignee)
-				if err != nil {
-					return fmt.Errorf("resolving assignee: %w", err)
-				}
-				update.AssignedToID = &aid
-			}
+			// Assignee names are matched against the issue's project
+			// memberships, so a name (not an ID, "me" or "none") also needs
+			// the project.
 			needsProject := (cmd.Flags().Changed("category") && func() bool { _, err := strconv.Atoi(category); return err != nil }()) ||
-				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }())
+				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }()) ||
+				(cmd.Flags().Changed("assignee") && resolver.NeedsPrincipalLookup(assignee))
 
 			var projectIdentifier string
 			if needsProject {
@@ -151,6 +174,15 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				// an identifier, so the issue's project ID is enough to feed the
 				// downstream category/version list endpoints — no separate fetch.
 				projectIdentifier = strconv.Itoa(issue.Project.ID)
+			}
+
+			if cmd.Flags().Changed("assignee") {
+				// "none" resolves to 0, which clears the assignee.
+				aid, err := resolveAssigneeValue(resolver.NewPrincipalResolver(ctx, client, projectIdentifier), assignee)
+				if err != nil {
+					return fmt.Errorf("resolving assignee: %w", err)
+				}
+				update.AssignedToID = &aid
 			}
 
 			if cmd.Flags().Changed("category") {
@@ -186,12 +218,16 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
-			_, err = ops.UpdateIssue(ctx, client, update)
+			result, err := ops.UpdateIssue(ctx, client, update)
 			stop()
 			if err != nil {
+				if coded := statusNotAppliedError(err); coded != nil {
+					return coded
+				}
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
+			printWarnings(printer, result.Warnings)
 			printer.Action(output.ActionUpdated, "issue", id, fmt.Sprintf("Updated issue #%d", id))
 			return nil
 		},
@@ -199,10 +235,11 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to unassign")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID (0 clears the parent)")
@@ -212,14 +249,15 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
-	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note as private (requires --note)")
+	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
+	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note or --note-file as private")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
 
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))
 

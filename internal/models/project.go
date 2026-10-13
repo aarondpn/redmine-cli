@@ -15,12 +15,12 @@ type Project struct {
 	UpdatedOn           string             `json:"updated_on"`
 	DefaultAssignedTo   *IDName            `json:"default_assigned_to,omitempty"`
 	DefaultVersion      *IDName            `json:"default_version,omitempty"`
-	Trackers            []IDName           `json:"trackers,omitempty"`
-	IssueCategories     []IDName           `json:"issue_categories,omitempty"`
-	EnabledModules      []IDName           `json:"enabled_modules,omitempty"`
-	TimeEntryActivities []Enumeration      `json:"time_entry_activities,omitempty"`
-	IssueCustomFields   []IDName           `json:"issue_custom_fields,omitempty"`
-	CustomFields        []CustomFieldValue `json:"custom_fields,omitempty"`
+	Trackers            []IDName           `json:"trackers,omitzero"`
+	IssueCategories     []IDName           `json:"issue_categories,omitzero"`
+	EnabledModules      []IDName           `json:"enabled_modules,omitzero"`
+	TimeEntryActivities []Enumeration      `json:"time_entry_activities,omitzero"`
+	IssueCustomFields   []IDName           `json:"issue_custom_fields,omitzero"`
+	CustomFields        []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
 // ProjectCreate defines fields for creating a project.

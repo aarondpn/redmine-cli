@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -53,6 +54,18 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
     --assignee "John Smith" --category "Development" --version "v2.0" \
     --start-date 2026-05-01 --due-date 2026-05-15 --estimated-hours 8 --private
 
+  # Create a child issue under an epic, with a category
+  redmine issues create --project myproject --parent 1234 --tracker Task \
+    --category "Backend" --subject "Implement API endpoint"
+
+  # Attach a screenshot and embed it inline in a Textile description (!filename!);
+  # on servers using Markdown/CommonMark formatting write ![](screenshot.png) instead
+  redmine issues create --project myproject --subject "Broken layout" \
+    --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
+
+  # Read a long description from a file (or from stdin with "-")
+  redmine issues create --project myproject --subject "Spec" --description-file spec.textile
+
   # Set custom field values (by name or numeric ID, repeatable)
   redmine issues create --project myproject --subject "Bug" \
     --custom-field Severity=High --custom-field 7=urgent
@@ -64,6 +77,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
+				return err
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -107,8 +124,13 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.PriorityID = id
 			}
 
-			if assignee != "" {
-				id, err := resolver.ResolveAssignee(ctx, client, assignee)
+			// Assignee and watchers share one project membership lookup.
+			principals := resolver.NewPrincipalResolver(ctx, client, projectIdentifier)
+
+			// "none" sets no assignee (Redmine may still apply a category or
+			// project default assignee).
+			if assignee != "" && !resolver.IsNone(assignee) {
+				id, err := resolveAssigneeValue(principals, assignee)
 				if err != nil {
 					return fmt.Errorf("resolving assignee: %w", err)
 				}
@@ -144,7 +166,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(watchers) > 0 {
-				ids, err := resolveUserList(ctx, client, watchers, "watcher")
+				ids, err := principals.Principals(watchers, "watcher")
 				if err != nil {
 					return err
 				}
@@ -174,6 +196,15 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create issue: %w", err)
 			}
+			if create.StatusID != 0 && issue.Status.ID != create.StatusID {
+				// The issue exists, so this is a warning rather than a failure:
+				// a non-zero exit would invite a retry that duplicates it.
+				requested := fmt.Sprintf("%q (ID %d)", status, create.StatusID)
+				if _, err := strconv.Atoi(status); err == nil {
+					requested = fmt.Sprintf("ID %d", create.StatusID)
+				}
+				printer.Warning(fmt.Sprintf("Issue #%d was created with status %q instead of the requested status %s: Redmine's workflow does not allow new issues of this tracker to start in that status for your role.", issue.ID, issue.Status.Name, requested))
+			}
 
 			if printer.Format() == output.FormatJSON {
 				printer.JSON(issue)
@@ -200,8 +231,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to set no assignee (Redmine may still apply the category/project default assignee)")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
@@ -221,7 +253,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 	_ = cmd.RegisterFlagCompletionFunc("watcher", cmdutil.CompleteUsers(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))

@@ -62,7 +62,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 			userID := user
 			if user != "" && user != "me" {
 				if _, err := strconv.Atoi(user); err != nil {
-					resolved, err := resolver.ResolveUser(context.Background(), client, user)
+					resolved, err := resolver.ResolveUserInProject(context.Background(), client, user, project)
 					if err != nil {
 						return fmt.Errorf("resolving user: %w", err)
 					}

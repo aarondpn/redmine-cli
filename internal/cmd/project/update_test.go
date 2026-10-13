@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
@@ -40,6 +42,33 @@ func TestCmdProjectUpdate_OnlySetFlagsAreSent(t *testing.T) {
 		if _, ok := proj[k]; ok {
 			t.Errorf("body unexpectedly contained %q", k)
 		}
+	}
+}
+
+func TestCmdProjectUpdate_DescriptionFile(t *testing.T) {
+	const description = "h2. About\n\nMulti-line \"Textile\" with ümlauts ✓\n"
+	var putBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &putBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	path := filepath.Join(t.TempDir(), "description.textile")
+	if err := os.WriteFile(path, []byte(description), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{"demo", "--description-file", path})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	proj := putBody["project"].(map[string]any)
+	if proj["description"] != description {
+		t.Errorf("description = %q, want %q", proj["description"], description)
 	}
 }
 

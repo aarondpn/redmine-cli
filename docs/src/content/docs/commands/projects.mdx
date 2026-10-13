@@ -59,6 +59,7 @@ redmine projects create [flags]
 | `--name`               | Project name — <Badge text="required" variant="danger" /> |
 | `--identifier`         | URL-friendly identifier — <Badge text="required" variant="danger" /> |
 | `--description`        | Project description |
+| `--description-file`   | Read the description from a file (`-` reads standard input); mutually exclusive with `--description` |
 | `--homepage`           | Project homepage URL |
 | `--public`             | Make the project public |
 | `--parent`             | Parent project identifier, name, or numeric ID |
@@ -89,11 +90,12 @@ Every flag is optional; omitted flags leave the corresponding field untouched.
 |------|-------------|
 | `--name`               | New project name |
 | `--description`        | New description |
+| `--description-file`   | Read the new description from a file (`-` reads standard input); mutually exclusive with `--description` |
 | `--homepage`           | New homepage URL |
 | `--public`             | Set public visibility |
 | `--parent`             | New parent (identifier, name, or numeric ID). Pass empty to detach from the current parent. |
 | `--inherit-members`    | Toggle inheriting members from the parent project |
-| `--default-assignee`   | Default assignee (login, name, or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
+| `--default-assignee`   | Default assignee (login, user or group name, or numeric ID; names are matched against the project's members first). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
 | `--default-version`    | Default version (name or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
 | `--tracker`            | Replace the enabled tracker set |
 | `--enable-module`      | Replace the enabled module set |

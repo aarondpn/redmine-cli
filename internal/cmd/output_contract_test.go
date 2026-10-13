@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 type outputContract string
@@ -209,4 +211,19 @@ func TestDirectStdoutWritesAreAllowlisted(t *testing.T) {
 		slices.Sort(offenders)
 		t.Fatalf("direct stdout/stderr writes found outside the allowlist:\n%s", strings.Join(offenders, "\n"))
 	}
+}
+
+// TestRawPassthroughCommandsRejectJQ ensures every command whose stdout is not
+// JSON is marked so --jq fails loudly instead of being silently ignored.
+func TestRawPassthroughCommandsRejectJQ(t *testing.T) {
+	root := NewRootCmd("test")
+	walk(root, func(c *cobra.Command) {
+		contract, ok := commandOutputContracts[c.CommandPath()]
+		if !ok || contract.Mode != outputContractRawPassthrough {
+			return
+		}
+		if !cmdutil.HasNoJSONOutput(c) {
+			t.Errorf("%s is %s but not marked with cmdutil.MarkNoJSONOutput", c.CommandPath(), contract.Mode)
+		}
+	})
 }

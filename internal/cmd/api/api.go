@@ -205,10 +205,17 @@ func renderAPIJSON(printer output.Printer, resp *redmineapi.RawResponse, include
 	printer.JSON(body)
 }
 
+// decodeAPIJSONBody decodes a response body for JSON output. Numbers are kept
+// as json.Number so large integers survive -o json and --jq unchanged.
 func decodeAPIJSONBody(body []byte) any {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
 	var value any
-	if err := json.Unmarshal(body, &value); err == nil {
-		return value
+	if err := dec.Decode(&value); err == nil {
+		// Reject trailing data, as json.Unmarshal would.
+		if _, err := dec.Token(); err == io.EOF {
+			return value
+		}
 	}
 	return map[string]any{"body": string(body)}
 }

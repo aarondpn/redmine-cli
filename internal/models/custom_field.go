@@ -42,8 +42,8 @@ type CustomField struct {
 	Visible          bool                       `json:"visible"`
 	Editable         *bool                      `json:"editable,omitempty"`
 	IsForAll         *bool                      `json:"is_for_all,omitempty"`
-	PossibleValues   []CustomFieldPossibleValue `json:"possible_values,omitempty"`
-	Projects         []IDName                   `json:"projects,omitempty"`
-	Trackers         []IDName                   `json:"trackers,omitempty"`
-	Roles            []IDName                   `json:"roles,omitempty"`
+	PossibleValues   []CustomFieldPossibleValue `json:"possible_values,omitzero"`
+	Projects         []IDName                   `json:"projects,omitzero"`
+	Trackers         []IDName                   `json:"trackers,omitzero"`
+	Roles            []IDName                   `json:"roles,omitzero"`
 }

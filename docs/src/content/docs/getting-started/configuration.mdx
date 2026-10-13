@@ -137,6 +137,8 @@ Flags take precedence over config values and environment variables.
 | `-k, --api-key` | API key for authentication |
 | `--profile`     | Use a specific auth profile |
 | `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
+| `-o, --output`  | Output format: `table`, `json`, `csv` (see [Output formats](/guides/output-formats/)) |
+| `-q, --jq`      | Filter JSON output with a jq expression; implies `-o json` (see [Filtering with --jq](/guides/output-formats/#filtering-with---jq)) |
 | `--no-color`    | Disable colored output |
 | `--read-only`   | Refuse all requests that modify data on the server |
 | `--header`      | Extra HTTP header as `"Name: value"` (repeatable) |

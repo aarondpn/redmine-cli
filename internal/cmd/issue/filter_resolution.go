@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
-	"github.com/aarondpn/redmine-cli/v2/internal/output"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
@@ -62,49 +62,71 @@ func resolveIssuePriorityFilter(ctx context.Context, client *api.Client, priorit
 	return strconv.Itoa(id), nil
 }
 
-// resolveIssueUserFilter accepts "me", a numeric ID, or a name/login. When
-// user lookup is forbidden (non-admin user trying to resolve a name) we warn
-// via the printer and drop the filter rather than abort — same behavior for
-// --assignee and --author. flagName is used in the warning text.
-func resolveIssueUserFilter(ctx context.Context, client *api.Client, input string, printer output.Printer, flagName string) (string, error) {
+// resolveIssueUserFilter accepts "me", a numeric ID, or a name/login. Names
+// are matched against the memberships of project (when set) before the
+// admin-only users endpoint. A name that cannot be resolved is an error for
+// both --assignee and --author: silently dropping the filter would return
+// unfiltered issues that look like filtered ones. flagName is used in the
+// error text.
+func resolveIssueUserFilter(ctx context.Context, client *api.Client, input, project, flagName string, allowGroups bool) (string, error) {
 	if input == "" || input == "me" {
 		return input, nil
 	}
 	if _, err := strconv.Atoi(input); err == nil {
 		return input, nil
 	}
-	id, err := resolver.ResolveAssignee(ctx, client, input)
+	resolve := resolver.ResolveUserInProject
+	if allowGroups {
+		resolve = resolver.ResolveAssigneeInProject
+	}
+	id, err := resolve(ctx, client, input, project)
 	if err != nil {
-		if resolver.IsNameResolutionPermissionError(err) {
-			printer.Warning(fmt.Sprintf("Could not resolve --%s by name because user lookup requires admin privileges; ignoring the %s filter. Use a numeric user ID or 'me' instead.", flagName, flagName))
-			return "", nil
+		if resolver.IsNameResolutionPermissionError(err) && project == "" {
+			return "", fmt.Errorf("resolving %s: %w. Pass --project to match project members by name", flagName, err)
 		}
 		return "", fmt.Errorf("resolving %s: %w", flagName, err)
 	}
 	return strconv.Itoa(id), nil
 }
 
-func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee string, printer output.Printer) (string, error) {
-	return resolveIssueUserFilter(ctx, client, assignee, printer, "assignee")
-}
-
-func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author string, printer output.Printer) (string, error) {
-	return resolveIssueUserFilter(ctx, client, author, printer, "author")
-}
-
-// resolveUserList resolves each input (name, login, ID, or 'me') to a numeric
-// user ID. Used by flags that accept multiple users like --watcher.
-func resolveUserList(ctx context.Context, client *api.Client, inputs []string, label string) ([]int, error) {
-	ids := make([]int, 0, len(inputs))
-	for _, raw := range inputs {
-		if raw == "" {
-			continue
-		}
-		id, err := resolver.ResolveAssignee(ctx, client, raw)
-		if err != nil {
-			return nil, fmt.Errorf("resolving --%s %q: %w", label, raw, err)
-		}
-		ids = append(ids, id)
+// resolveIssueAssigneeFilter resolves --assignee for issue listings. Besides
+// the user forms it accepts group names and "none", which maps to Redmine's
+// "no assignee" operator (assigned_to_id=!*).
+func resolveIssueAssigneeFilter(ctx context.Context, client *api.Client, assignee, project string) (string, error) {
+	if resolver.IsNone(assignee) {
+		return resolver.UnassignedFilter, nil
 	}
-	return ids, nil
+	return resolveIssueUserFilter(ctx, client, assignee, project, "assignee", true)
+}
+
+func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author, project string) (string, error) {
+	return resolveIssueUserFilter(ctx, client, author, project, "author", false)
+}
+
+// resolveAssigneeValue resolves an --assignee value for commands that set
+// the assignee. "none" yields 0, which the update path sends as an empty
+// assigned_to_id to clear the assignee. Names are matched against the
+// project memberships principals is bound to (users and groups) before the
+// users endpoint.
+func resolveAssigneeValue(principals *resolver.PrincipalResolver, input string) (int, error) {
+	if resolver.IsNone(input) {
+		return 0, nil
+	}
+	return principals.Assignee(input)
+}
+
+// resolveIssuePrincipal resolves a user or group in the context of an
+// existing issue. Names are matched against the issue's project memberships,
+// so the issue is fetched only when a name lookup is actually needed (never
+// for numeric IDs or "me").
+func resolveIssuePrincipal(ctx context.Context, client *api.Client, issueID int, input string) (int, error) {
+	var project string
+	if resolver.NeedsPrincipalLookup(input) {
+		issue, err := ops.GetIssue(ctx, client, ops.GetIssueInput{ID: issueID})
+		if err != nil {
+			return 0, fmt.Errorf("failed to fetch issue for name resolution: %w", err)
+		}
+		project = strconv.Itoa(issue.Project.ID)
+	}
+	return resolver.ResolveAssigneeInProject(ctx, client, input, project)
 }
