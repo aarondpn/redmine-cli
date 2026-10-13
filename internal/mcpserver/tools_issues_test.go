@@ -159,3 +159,103 @@ func TestUpdateIssue_RoutesAssignedToID(t *testing.T) {
 		t.Errorf("assigned_to_id = %v, want 123", got)
 	}
 }
+
+// TestListIssues_EmptyResultIsArray pins that an empty list encodes as
+// "issues":[] rather than null, matching `redmine issues list -o json`.
+func TestListIssues_EmptyResultIsArray(t *testing.T) {
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0,"offset":0,"limit":50}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_issues"})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %+v", res.Content)
+	}
+	text := asText(t, res.Content[0])
+	if !containsText(text, `"issues":[]`) {
+		t.Errorf("empty list must encode as []: %s", text)
+	}
+	structured, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal structured content: %v", err)
+	}
+	if !containsText(string(structured), `"issues":[]`) {
+		t.Errorf("structured content must encode empty list as []: %s", structured)
+	}
+}
+
+// TestGetIssue_EmptyIncludedCollectionsAreArrays pins the JSON contract shared
+// with `redmine issues get -o json`: collections that were requested but are
+// empty encode as [], while unrequested ones stay absent.
+func TestGetIssue_EmptyIncludedCollectionsAreArrays(t *testing.T) {
+	var gotInclude string
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotInclude = r.URL.Query().Get("include")
+		w.Header().Set("Content-Type", "application/json")
+		// Mirrors Redmine: journals is sent as [] while children (leaf issue)
+		// and relations (none) are dropped even though they were requested.
+		_, _ = w.Write([]byte(`{"issue":{"id":7,"subject":"Leaf","journals":[]}}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_issue",
+		Arguments: map[string]any{"id": 7, "includes": []string{"journals", "children", "relations"}},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %+v", res.Content)
+	}
+	if gotInclude != "journals,children,relations" {
+		t.Errorf("include = %q, want journals,children,relations", gotInclude)
+	}
+	text := asText(t, res.Content[0])
+	if !containsText(text, `"journals":[]`, `"children":[]`, `"relations":[]`, `"custom_fields":[]`) {
+		t.Errorf("requested empty collections must encode as []: %s", text)
+	}
+	for _, key := range []string{`"attachments"`, `"watchers"`} {
+		if containsText(text, key) {
+			t.Errorf("unrequested collection %s must be absent: %s", key, text)
+		}
+	}
+}
+
+// TestListIssueWatchers_NotVisible pins that a missing watchers key (no View
+// watchers permission) surfaces as a tool error instead of "watchers": [].
+func TestListIssueWatchers_NotVisible(t *testing.T) {
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":7,"subject":"s"}}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_issue_watchers",
+		Arguments: map[string]any{"id": 7},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("want tool error, got %+v", res.Content)
+	}
+	if text := asText(t, res.Content[0]); !containsText(text, "View watchers permission") {
+		t.Errorf("error text = %q, want permission hint", text)
+	}
+}

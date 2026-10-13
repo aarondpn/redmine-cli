@@ -23,7 +23,14 @@ func (s *ProjectService) List(ctx context.Context, includes []string, limit, off
 	if offset > 0 {
 		params.Set("offset", strconv.Itoa(offset))
 	}
-	return FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", limit)
+	projects, total, err := FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range projects {
+		projects[i].NormalizeCollections()
+	}
+	return projects, total, nil
 }
 
 // Get retrieves a single project by identifier.
@@ -38,6 +45,7 @@ func (s *ProjectService) Get(ctx context.Context, identifier string, includes []
 	if err := s.client.Get(ctx, fmt.Sprintf("/projects/%s.json", identifier), params, &resp); err != nil {
 		return nil, err
 	}
+	resp.Project.NormalizeCollections()
 	return &resp.Project, nil
 }
 
@@ -50,6 +58,7 @@ func (s *ProjectService) Create(ctx context.Context, project models.ProjectCreat
 	if err := s.client.Post(ctx, "/projects.json", body, &resp); err != nil {
 		return nil, err
 	}
+	resp.Project.NormalizeCollections()
 	return &resp.Project, nil
 }
 

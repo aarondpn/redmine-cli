@@ -142,6 +142,11 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 			env.Error.Code = output.ErrCodeServerError
 		}
 	}
+	// Redmine answers 200 but withholds the data; treat it as a permission
+	// failure so callers can branch on the code.
+	if errors.Is(err, api.ErrWatchersNotVisible) {
+		env.Error.Code = output.ErrCodeForbidden
+	}
 
 	return env
 }

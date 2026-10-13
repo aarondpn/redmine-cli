@@ -31,6 +31,18 @@ func TestBuildErrorEnvelope_Forbidden(t *testing.T) {
 	}
 }
 
+func TestBuildErrorEnvelope_WatchersNotVisibleIsForbidden(t *testing.T) {
+	// Commands wrap the error with context; the code must survive wrapping.
+	err := fmt.Errorf("failed to list watchers for issue #1: %w", api.ErrWatchersNotVisible)
+	env := BuildErrorEnvelope(err)
+	if env.Error.Code != output.ErrCodeForbidden {
+		t.Errorf("code = %q, want %q", env.Error.Code, output.ErrCodeForbidden)
+	}
+	if !strings.Contains(env.Error.Message, "View watchers permission") {
+		t.Errorf("message = %q, want permission hint", env.Error.Message)
+	}
+}
+
 func TestBuildErrorEnvelope_ValidationIncludesDetails(t *testing.T) {
 	apiErr := &api.APIError{StatusCode: 422, Errors: []string{"name is required", "email is invalid"}}
 	env := BuildErrorEnvelope(apiErr)

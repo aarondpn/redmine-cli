@@ -26,7 +26,7 @@ type Journal struct {
 	Notes        string          `json:"notes"`
 	PrivateNotes bool            `json:"private_notes,omitempty"`
 	CreatedOn    string          `json:"created_on"`
-	Details      []JournalDetail `json:"details,omitempty"`
+	Details      []JournalDetail `json:"details,omitzero"`
 }
 
 // JournalDetail represents a single change in a journal entry.
