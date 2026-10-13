@@ -93,9 +93,15 @@ redmine issues view 123
 
 # Log time
 redmine time log
+
+# Script it: JSON output filtered with the built-in --jq
+redmine issues list --project myproject --jq '.[].id'
+redmine issues get 123 --jq '.status.name'
 ```
 
 Run `redmine --help` to see all available commands.
+
+`-o json` prints machine-readable JSON, and `-q/--jq <expression>` filters it like `gh --jq` (strings are printed raw, everything else as JSON). Errors always go to stderr; in JSON mode they are a `{"error": {...}}` envelope, stdout stays empty and the exit code is non-zero. See [Output formats](https://redmine-cli.dev/guides/output-formats/).
 
 <a name="ai-agents"></a>
 

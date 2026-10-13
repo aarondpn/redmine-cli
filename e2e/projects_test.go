@@ -175,7 +175,7 @@ func TestProjects_ArchiveLifecycle(t *testing.T) {
 
 	stdout, stderr, err := r.runRaw("projects", "archive", proj.Identifier, "--force")
 	if err != nil {
-		if isProbablyUnsupportedArchive(stdout) {
+		if isProbablyUnsupportedArchive(stderr) {
 			t.Skipf("server rejected archive request (likely Redmine <5.0); stdout=%s stderr=%s", stdout, stderr)
 		}
 		t.Fatalf("archive failed: %v", err)
@@ -227,13 +227,13 @@ func skipIfArchiveUnsupported(t *testing.T) {
 	skipBelowRedmine(t, 5, 0, "project archive")
 }
 
-// isProbablyUnsupportedArchive inspects an error envelope on stdout and
+// isProbablyUnsupportedArchive inspects an error envelope on stderr and
 // returns true when the failure looks like the archive route is missing
 // (404 / not_found). Used as a defensive fallback when REDMINE_E2E_VERSION
 // is not set but the live server still refuses the call.
-func isProbablyUnsupportedArchive(stdout []byte) bool {
+func isProbablyUnsupportedArchive(stderr []byte) bool {
 	var env errorEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
+	if err := json.Unmarshal(stderr, &env); err != nil {
 		return false
 	}
 	if env.Error.Code == "not_found" {

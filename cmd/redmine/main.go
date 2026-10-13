@@ -46,16 +46,22 @@ func main() {
 		if errors.As(err, &silent) {
 			os.Exit(silent.Code)
 		}
-		selectedFormat := selectedOutputFormat(rootCmd, factory, os.Args[1:])
-		if selectedFormat == output.FormatJSON {
-			_ = output.RenderErrorJSON(os.Stdout, cmdutil.BuildErrorEnvelope(err))
-		} else {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
-		}
+		renderError(os.Stderr, err, selectedOutputFormat(rootCmd, factory, os.Args[1:]))
 		os.Exit(1)
 	}
 
 	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
+}
+
+// renderError writes a failed command's error to w, which is always stderr so
+// stdout stays empty on failure (as gh does). In JSON mode the error is a
+// structured envelope; it is never filtered by --jq.
+func renderError(w io.Writer, err error, format string) {
+	if format == output.FormatJSON {
+		_ = output.RenderErrorJSON(w, cmdutil.BuildErrorEnvelope(err))
+		return
+	}
+	fmt.Fprintf(w, "Error: %s\n", cmdutil.FormatError(err))
 }
 
 func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan *update.CheckResult, cancel context.CancelFunc, hintDelay, maxWait time.Duration) {
@@ -110,6 +116,11 @@ func selectedOutputFormat(rootCmd *cobra.Command, factory *cmdutil.Factory, args
 		}
 		if of := rootCmd.PersistentFlags().Lookup("output"); of != nil && of.Value.String() != "" {
 			return of.Value.String()
+		}
+		// --jq implies JSON output, also for failures that happen before
+		// PersistentPreRunE records the format on the factory.
+		if jq := rootCmd.PersistentFlags().Lookup("jq"); jq != nil && jq.Value.String() != "" {
+			return output.FormatJSON
 		}
 	}
 

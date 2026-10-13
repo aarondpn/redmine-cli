@@ -21,7 +21,7 @@ type actionEnvelope struct {
 	Message  string `json:"message"`
 }
 
-// errorEnvelope matches the JSON shape written to stdout on failure when
+// errorEnvelope matches the JSON shape written to stderr on failure when
 // --output json is active (see output.ErrorEnvelope).
 type errorEnvelope struct {
 	Error struct {
@@ -122,17 +122,17 @@ func parseRedmineVersion(v string) (major, minor int, ok bool) {
 	return major, minor, true
 }
 
-// requireErrorEnvelopeMessage decodes stdout as an error envelope and requires
+// requireErrorEnvelopeMessage decodes stderr as an error envelope and requires
 // a non-empty message. Returns the decoded envelope so callers can perform
 // additional code-level assertions.
-func requireErrorEnvelopeMessage(t *testing.T, stdout []byte) errorEnvelope {
+func requireErrorEnvelopeMessage(t *testing.T, stderr []byte) errorEnvelope {
 	t.Helper()
 	var env errorEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
-		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
+	if err := json.Unmarshal(stderr, &env); err != nil {
+		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	if strings.TrimSpace(env.Error.Message) == "" {
-		t.Fatalf("error envelope missing message\nstdout:\n%s", stdout)
+		t.Fatalf("error envelope missing message\nstderr:\n%s", stderr)
 	}
 	return env
 }

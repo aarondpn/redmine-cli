@@ -178,12 +178,12 @@ func TestVersions_LockedRejectsAssignment(t *testing.T) {
 		t.Fatalf("update envelope not ok: %+v", updated)
 	}
 
-	stdout, _ := r.runExpectError(t, "issues", "create",
+	stderr := r.runExpectJSONError(t, "issues", "create",
 		"--project", proj.Identifier,
 		"--tracker", firstTrackerName(t, r),
 		"--subject", fmt.Sprintf("issue against locked version %d", time.Now().UnixNano()),
 		"--version", versionName)
-	requireErrorEnvelopeMessage(t, stdout)
+	requireErrorEnvelopeMessage(t, stderr)
 }
 
 // TestVersions_GetNonexistent verifies that fetching a version by an unknown
@@ -196,6 +196,6 @@ func TestVersions_GetNonexistent(t *testing.T) {
 	proj := createTestProject(t, r)
 
 	missing := fmt.Sprintf("nonexistent-version-%d", time.Now().UnixNano())
-	stdout, _ := r.runExpectError(t, "versions", "get", missing, "--project", proj.Identifier)
-	requireErrorEnvelopeMessage(t, stdout)
+	stderr := r.runExpectJSONError(t, "versions", "get", missing, "--project", proj.Identifier)
+	requireErrorEnvelopeMessage(t, stderr)
 }

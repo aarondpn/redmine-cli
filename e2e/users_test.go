@@ -177,20 +177,20 @@ func TestUsers_Delete(t *testing.T) {
 		t.Fatalf("unexpected delete envelope: %+v", deleted)
 	}
 
-	stdout, _ := r.runExpectError(t, "users", "get", strconv.Itoa(created.ID))
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "users", "get", strconv.Itoa(created.ID))
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestUsers_CreateDuplicateLogin attempts to create a user with the admin
 // login (which always exists). Redmine rejects duplicate logins as a
 // validation error; the CLI must surface this as a non-zero exit with a
-// validation error envelope on stdout.
+// validation error envelope on stderr.
 func TestUsers_CreateDuplicateLogin(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
 	suffix := uniqueShortSuffix(t)
-	stdout, _ := r.runExpectError(t, "users", "create",
+	stderr := r.runExpectJSONError(t, "users", "create",
 		"--login", "admin",
 		"--firstname", "Dup",
 		"--lastname", "Admin-"+suffix,
@@ -198,17 +198,17 @@ func TestUsers_CreateDuplicateLogin(t *testing.T) {
 		"--password", "Pass-"+suffix+"-1A")
 
 	var env errorEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
-		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
+	if err := json.Unmarshal(stderr, &env); err != nil {
+		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	switch env.Error.Code {
 	case "validation_error", "validation_failed", "unprocessable_entity":
 	default:
-		t.Fatalf("duplicate-login error code = %q, want validation_error/validation_failed/unprocessable_entity\nstdout:\n%s",
-			env.Error.Code, stdout)
+		t.Fatalf("duplicate-login error code = %q, want validation_error/validation_failed/unprocessable_entity\nstderr:\n%s",
+			env.Error.Code, stderr)
 	}
 	if env.Error.Message == "" {
-		t.Fatalf("duplicate-login error envelope missing message\nstdout:\n%s", stdout)
+		t.Fatalf("duplicate-login error envelope missing message\nstderr:\n%s", stderr)
 	}
 }
 

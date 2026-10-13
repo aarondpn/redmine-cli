@@ -18,6 +18,6 @@ func TestIssues_Delete(t *testing.T) {
 		t.Fatalf("unexpected delete envelope: %+v", deleted)
 	}
 
-	stdout, _ := r.runExpectError(t, "issues", "get", issueIDArg(issue.ID))
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "issues", "get", issueIDArg(issue.ID))
+	assertErrorCode(t, stderr, "not_found")
 }

@@ -87,11 +87,11 @@ func TestIssues_ListFilters(t *testing.T) {
 	})
 
 	t.Run("bogus tracker yields a resolver error", func(t *testing.T) {
-		stdout, _ := r.runExpectError(t, "issues", "list", "--project", proj.Identifier,
+		stderr := r.runExpectJSONError(t, "issues", "list", "--project", proj.Identifier,
 			"--tracker", "this-tracker-does-not-exist")
-		if !strings.Contains(string(stdout), "resolving tracker") &&
-			!strings.Contains(string(stdout), "not found") {
-			t.Fatalf("expected resolver error on unknown tracker; stdout:\n%s", stdout)
+		if !strings.Contains(string(stderr), "resolving tracker") &&
+			!strings.Contains(string(stderr), "not found") {
+			t.Fatalf("expected resolver error on unknown tracker; stderr:\n%s", stderr)
 		}
 	})
 }

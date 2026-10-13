@@ -57,22 +57,53 @@ Every command accepts `-o` / `--output` to control the output format. The flag i
   </TabItem>
 </Tabs>
 
-## Working with JSON
+## Filtering with `--jq`
 
-<Badge text="jq friendly" variant="tip" />
-JSON output pairs well with `jq` for ad-hoc analysis:
+<Badge text="built-in jq" variant="tip" />
+Every command accepts `-q` / `--jq <expression>` to filter its JSON output
+with a [jq](https://jqlang.org/manual/) expression, the same way `gh --jq`
+works. No external `jq` binary is needed.
 
 ```bash
-# IDs of all open bugs
-redmine issues list --tracker Bug -o json | jq '.[].id'
+# IDs of all open bugs, one per line
+redmine issues list --tracker Bug --jq '.[].id'
+
+# A single field of an issue
+redmine issues get 123 --jq '.status.name'
+
+# Capture the ID of a newly created issue
+id=$(redmine issues create --project myproject --tracker Bug \
+  --subject "Crash on save" --jq '.id')
 
 # Count issues by status
-redmine issues list --project myproject -o json \
-  | jq 'group_by(.status.name) | map({status: .[0].status.name, count: length})'
+redmine issues list --project myproject \
+  --jq 'group_by(.status.name) | map({status: .[0].status.name, count: length})'
+
+# Filter a raw API response
+redmine api /users/current.json --jq '.user.login'
 ```
 
+How it behaves:
+
+- `--jq` implies `-o json`. Combining it with an explicit `-o table` or
+  `-o csv` is an error.
+- The expression runs against exactly the JSON the command would print
+  without `--jq`: resource bodies, lists (an empty list is `[]`), action
+  envelopes, and `redmine api` response bodies.
+- String results are printed raw, without quotes. Numbers, booleans, `null`,
+  objects and arrays are printed as JSON. Each result goes on its own line.
+- Objects and arrays are compact (one per line) when `stdout` is piped, and
+  indented when it is a terminal.
+- An invalid expression fails before any request is sent. A runtime error
+  (for example indexing an object as an array) fails with a non-zero exit
+  and nothing on `stdout`.
+- Errors are never filtered: a failed command writes its error envelope to
+  `stderr` as-is.
+
 <Aside type="note">
-  In `-o json` mode the CLI emits JSON only on `stdout`. Human-readable pagination hints are suppressed, so piping to `jq` is safe. Keep `stderr` separate if you want to surface actual errors.
+  Plain `-o json` pairs just as well with an external `jq`. In JSON mode the
+  CLI writes only the result to `stdout`; pagination hints are suppressed and
+  errors go to `stderr`, so piping is safe.
 </Aside>
 
 ## JSON output shapes
@@ -108,8 +139,9 @@ redmine issues list --project myproject -o json \
 
 ## JSON error envelope
 
-When `-o json` is active and a command fails, the CLI writes a structured
-error envelope to `stdout` and exits non-zero:
+When `-o json` (or `--jq`) is active and a command fails, the CLI writes a
+structured error envelope to `stderr`, leaves `stdout` empty, and exits
+non-zero:
 
 ```json
 {
@@ -125,11 +157,31 @@ error envelope to `stdout` and exits non-zero:
 errors include a `details` array with the individual field messages from
 Redmine.
 
+This mirrors `gh`: a pipeline such as
+`redmine issues create ... -o json | jq '{id}'` can no longer mistake an error
+for a result, because the failure never reaches `jq`. Check the exit code (or
+`set -o pipefail`) to detect failures, and read `stderr` for the details:
+
+```bash
+if ! id=$(redmine issues create --project myproject --tracker Bug \
+    --subject "Crash on save" --jq '.id' 2>err.json); then
+  jq -r '.error.message' err.json
+fi
+```
+
+<Aside type="caution" title="Changed in this release">
+  Earlier versions wrote the JSON error envelope to `stdout`. Scripts that
+  parsed errors from `stdout` must read `stderr` instead (for example
+  `2>&1 >/dev/null`, or redirect `stderr` to a file).
+</Aside>
+
 ## stdout vs stderr
 
 - Machine-readable output (JSON, CSV, table rows) always goes to `stdout`.
 - Human-oriented messages (success confirmations in non-JSON mode,
   warnings, progress spinners, update-check hints) always go to `stderr`.
+- Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
+  JSON error envelope. On failure `stdout` is empty.
 
 This split is stable — scripts can safely redirect `stdout` to a file or
 pipe it into `jq` without worrying about interleaved status noise.
@@ -142,7 +194,8 @@ Set a default in your config file:
 output_format: table
 ```
 
-The `-o` flag always overrides the default for a single command.
+The `-o` flag always overrides the default for a single command, and `--jq`
+always selects JSON.
 
 ## Related
 

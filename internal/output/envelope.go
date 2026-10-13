@@ -15,7 +15,8 @@ type ActionEnvelope struct {
 	Message  string `json:"message,omitempty"`
 }
 
-// ErrorEnvelope is the JSON shape emitted for command failures in JSON mode.
+// ErrorEnvelope is the JSON shape written to stderr for command failures in
+// JSON mode. It is never filtered by --jq.
 type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }

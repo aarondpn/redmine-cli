@@ -157,8 +157,8 @@ func TestFiles_UploadMissingFile(t *testing.T) {
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 
-	stdout, _ := r.runExpectError(t, "files", "upload",
+	stderr := r.runExpectJSONError(t, "files", "upload",
 		filepath.Join(t.TempDir(), "does-not-exist.bin"),
 		"--project", proj.Identifier)
-	requireErrorEnvelopeMessage(t, stdout)
+	requireErrorEnvelopeMessage(t, stderr)
 }
