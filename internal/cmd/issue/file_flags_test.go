@@ -195,20 +195,85 @@ func TestCmdIssueCloseReopen_EmptyNoteFileRejected(t *testing.T) {
 	}
 }
 
-// An empty --description-file stays valid: it clears the description, the
-// same as --description "".
-func TestCmdIssueUpdate_EmptyDescriptionFileClears(t *testing.T) {
+// An empty or whitespace-only --description-file is rejected: a failed
+// redirect must not silently wipe the description. The hint points to the
+// explicit way to clear it.
+func TestCmdIssueUpdate_EmptyDescriptionFileRejected(t *testing.T) {
+	for name, content := range map[string]string{"empty": "", "lone newline": "\n", "whitespace": " \t\r\n"} {
+		t.Run(name, func(t *testing.T) {
+			fake := &issueStatusServer{}
+			srv := fake.start(t)
+
+			f := testutil.NewFactory(t, srv.URL)
+			cmd := quiet(NewCmdUpdate(f))
+			cmd.SetArgs([]string{"7", "--description-file", writeTempFile(t, content)})
+			err := cmd.Execute()
+			if err == nil || err.Error() != "--description-file is empty" {
+				t.Fatalf("err = %v, want '--description-file is empty'", err)
+			}
+			if hint := cmdutil.ErrorHint(err); !strings.Contains(hint, `--description ""`) {
+				t.Errorf("hint = %q, want it to point to --description \"\"", hint)
+			}
+			if len(fake.puts) != 0 {
+				t.Errorf("no update should be sent, got %v", fake.puts)
+			}
+		})
+	}
+}
+
+// Clearing the description explicitly still works.
+func TestCmdIssueUpdate_EmptyDescriptionFlagClears(t *testing.T) {
 	fake := &issueStatusServer{}
 	srv := fake.start(t)
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := quiet(NewCmdUpdate(f))
-	cmd.SetArgs([]string{"7", "--description-file", writeTempFile(t, "")})
+	cmd.SetArgs([]string{"7", "--description", ""})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 	if got, ok := fake.lastIssue(t)["description"]; !ok || got != "" {
 		t.Errorf("description = %#v (present=%v), want empty string", got, ok)
+	}
+}
+
+// Whitespace-only note files count as empty; surrounding whitespace in real
+// content is still sent unchanged.
+func TestCmdIssueUpdate_NoteFileWhitespace(t *testing.T) {
+	fake := &issueStatusServer{}
+	srv := fake.start(t)
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := quiet(NewCmdUpdate(f))
+	cmd.SetArgs([]string{"7", "--note-file", writeTempFile(t, "\n")})
+	if err := cmd.Execute(); err == nil || err.Error() != "--note-file is empty" {
+		t.Fatalf("err = %v, want '--note-file is empty'", err)
+	}
+
+	cmd = quiet(NewCmdUpdate(f))
+	cmd.SetArgs([]string{"7", "--note-file", writeTempFile(t, "  note\n")})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if got := fake.lastIssue(t)["notes"]; got != "  note\n" {
+		t.Errorf("notes = %q, want content kept as is", got)
+	}
+}
+
+func TestCmdIssueCreate_EmptyDescriptionFileRejected(t *testing.T) {
+	var posted map[string]any
+	srv := newCreateIssueServer(t, &posted)
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := quiet(NewCmdCreate(f))
+	cmd.SetArgs([]string{"--project", "17", "--subject", "test", "--description-file", writeTempFile(t, "\n")})
+	err := cmd.Execute()
+	if err == nil || err.Error() != "--description-file is empty" {
+		t.Fatalf("err = %v, want '--description-file is empty'", err)
+	}
+	if posted != nil {
+		t.Errorf("no issue should be created, got %v", posted)
 	}
 }
 

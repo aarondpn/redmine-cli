@@ -38,7 +38,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "message", "message-file", &message); err != nil {
 				return err
 			}
-			if err := cmdutil.RejectEmptyTextFile(cmd, "message-file", message); err != nil {
+			if err := cmdutil.RejectEmptyTextFile(cmd, "message-file", message, ""); err != nil {
 				return err
 			}
 			if message == "" {

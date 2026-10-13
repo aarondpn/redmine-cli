@@ -166,7 +166,7 @@ redmine issues create [flags]
 | `--priority`        | Priority (name or ID) |
 | `--assignee`        | Assignee: `me`, user or group name, login, or ID. `none` clears the assignee on `update`; on `create` it sets no assignee, though Redmine may still apply the category or project default assignee. See [assignee resolution](#assignee-resolution) |
 | `--description`     | Issue description |
-| `--description-file` | Read the description from a file (`-` reads standard input); mutually exclusive with `--description` |
+| `--description-file` | Read the description from a file (`-` reads standard input); mutually exclusive with `--description`; an empty or whitespace-only file is rejected |
 | `--parent`          | Parent issue ID |
 | `--category`        | Category (name or ID) |
 | `--version`         | Target version (name or ID) |
@@ -229,8 +229,8 @@ Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
 | Flag | Description |
 |------|-------------|
 | `--note`           | Add a journal note |
-| `--note-file`      | Read the journal note from a file (`-` reads standard input); mutually exclusive with `--note` |
-| `--description-file` | Read the new description from a file (`-` reads standard input); mutually exclusive with `--description` |
+| `--note-file`      | Read the journal note from a file (`-` reads standard input); mutually exclusive with `--note`; an empty or whitespace-only file is rejected |
+| `--description-file` | Read the new description from a file (`-` reads standard input); mutually exclusive with `--description`; an empty or whitespace-only file is rejected (pass `--description ""` to clear the description) |
 | `--private-notes`  | Mark the journal note from `--note` / `--note-file` as private |
 | `--done-ratio`     | Completion percentage (0-100) |
 | `--start-date`     | Start date (empty string clears) |
@@ -287,7 +287,7 @@ redmine issues close <id> [flags]
 | Flag | Description |
 |------|-------------|
 | `--note` | Add a closing comment |
-| `--note-file` | Read the closing comment from a file (`-` reads standard input) |
+| `--note-file` | Read the closing comment from a file (`-` reads standard input); an empty or whitespace-only file is rejected |
 
 Sets the first closed status. The result is [verified](#status-changes-are-verified).
 
@@ -300,7 +300,7 @@ redmine issues reopen <id> [flags]
 | Flag | Description |
 |------|-------------|
 | `--note` | Add a comment when reopening |
-| `--note-file` | Read the comment from a file (`-` reads standard input) |
+| `--note-file` | Read the comment from a file (`-` reads standard input); an empty or whitespace-only file is rejected |
 
 Sets the first open status. The result is [verified](#status-changes-are-verified).
 
@@ -363,7 +363,7 @@ redmine issues comment <id> --message "Your comment" [flags]
 | Flag | Description |
 |------|-------------|
 | `-m, --message`      | Comment text |
-| `-F, --message-file` | Read the comment from a file (`-` reads standard input); mutually exclusive with `--message` |
+| `-F, --message-file` | Read the comment from a file (`-` reads standard input); mutually exclusive with `--message`; an empty or whitespace-only file is rejected |
 
 ```bash
 redmine issues comment 123 --message-file notes.textile

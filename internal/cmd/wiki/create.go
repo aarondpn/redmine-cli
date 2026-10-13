@@ -46,6 +46,9 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text); err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "text-file", text, ""); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {

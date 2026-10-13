@@ -79,6 +79,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "text-file", text, ""); err != nil {
+				return err
+			}
 
 			if cmd.Flags().Changed("expect-version") && ensureCurrent {
 				return fmt.Errorf("--expect-version and --ensure-current are mutually exclusive")
