@@ -87,6 +87,34 @@ func (s *IssueService) Get(ctx context.Context, id int, includes []string) (*mod
 	return &resp.Issue, nil
 }
 
+// GetWithAllowedStatuses retrieves a single issue together with the statuses
+// the current user may move it to (include=allowed_statuses). Redmine added
+// that include in 5.0; older servers ignore it, in which case allowed is nil
+// and reported is false. An empty, reported list means Redmine allows no
+// transition at all.
+func (s *IssueService) GetWithAllowedStatuses(ctx context.Context, id int) (issue *models.Issue, allowed []models.IssueStatus, reported bool, err error) {
+	params := url.Values{}
+	params.Set("include", "allowed_statuses")
+
+	var resp struct {
+		Issue struct {
+			models.Issue
+			AllowedStatuses *[]models.IssueStatus `json:"allowed_statuses"`
+		} `json:"issue"`
+	}
+	if err := s.client.Get(ctx, fmt.Sprintf("/issues/%d.json", id), params, &resp); err != nil {
+		return nil, nil, false, err
+	}
+	if resp.Issue.AllowedStatuses != nil {
+		allowed = *resp.Issue.AllowedStatuses
+		if allowed == nil {
+			allowed = []models.IssueStatus{}
+		}
+		reported = true
+	}
+	return &resp.Issue.Issue, allowed, reported, nil
+}
+
 // Create creates a new issue.
 func (s *IssueService) Create(ctx context.Context, issue models.IssueCreate) (*models.Issue, error) {
 	body := map[string]interface{}{"issue": issue}

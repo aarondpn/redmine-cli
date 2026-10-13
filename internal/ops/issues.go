@@ -169,11 +169,11 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 }
 
 //mcpgen:tool update_issue
-//mcpgen:description Update fields on an existing Redmine issue. Requires --enable-writes.
+//mcpgen:description Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput) (MessageResult, error) {
-	err := client.Issues.Update(ctx, input.ID, models.IssueUpdate{
+	upd := models.IssueUpdate{
 		Subject:           input.Subject,
 		Description:       input.Description,
 		TrackerID:         input.TrackerID,
@@ -192,11 +192,21 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 		IsPrivate:         input.IsPrivate,
 		CustomFieldValues: input.CustomFieldValues,
 		Uploads:           input.Uploads,
-	})
-	if err != nil {
+	}
+	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
 		return MessageResult{}, err
 	}
-	return MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}, nil
+	result := MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}
+	if input.StatusID != nil {
+		warning, err := verifyStatusApplied(ctx, client, input.ID, models.IDName{ID: *input.StatusID}, hasNonStatusChanges(upd))
+		if err != nil {
+			return MessageResult{}, err
+		}
+		if warning != "" {
+			result.Warnings = append(result.Warnings, warning)
+		}
+	}
+	return result, nil
 }
 
 //mcpgen:tool delete_issue
@@ -239,43 +249,44 @@ func AssignIssue(ctx context.Context, client *api.Client, input AssignIssueInput
 }
 
 //mcpgen:tool close_issue
-//mcpgen:description Close an issue by setting its status to the first closed status. Requires --enable-writes.
+//mcpgen:description Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func CloseIssue(ctx context.Context, client *api.Client, input CloseIssueInput) (MessageResult, error) {
-	statusID, err := firstStatusID(ctx, client, true)
-	if err != nil {
-		return MessageResult{}, err
-	}
-	upd := models.IssueUpdate{StatusID: &statusID}
-	if input.Notes != "" {
-		notes := input.Notes
-		upd.Notes = &notes
-	}
-	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
-		return MessageResult{}, err
-	}
-	return MessageResult{Message: fmt.Sprintf("Closed issue #%d", input.ID)}, nil
+	return setIssueStatus(ctx, client, input.ID, true, input.Notes, "Closed")
 }
 
 //mcpgen:tool reopen_issue
-//mcpgen:description Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.
+//mcpgen:description Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func ReopenIssue(ctx context.Context, client *api.Client, input ReopenIssueInput) (MessageResult, error) {
-	statusID, err := firstStatusID(ctx, client, false)
+	return setIssueStatus(ctx, client, input.ID, false, input.Notes, "Reopened")
+}
+
+// setIssueStatus moves an issue to the first closed (or open) status, then
+// reads it back to make sure Redmine actually applied the transition.
+func setIssueStatus(ctx context.Context, client *api.Client, id int, closed bool, notes, verb string) (MessageResult, error) {
+	status, err := firstStatus(ctx, client, closed)
 	if err != nil {
 		return MessageResult{}, err
 	}
-	upd := models.IssueUpdate{StatusID: &statusID}
-	if input.Notes != "" {
-		notes := input.Notes
+	upd := models.IssueUpdate{StatusID: &status.ID}
+	if notes != "" {
 		upd.Notes = &notes
 	}
-	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
+	if err := client.Issues.Update(ctx, id, upd); err != nil {
 		return MessageResult{}, err
 	}
-	return MessageResult{Message: fmt.Sprintf("Reopened issue #%d", input.ID)}, nil
+	result := MessageResult{Message: fmt.Sprintf("%s issue #%d", verb, id)}
+	warning, err := verifyStatusApplied(ctx, client, id, models.IDName{ID: status.ID, Name: status.Name}, hasNonStatusChanges(upd))
+	if err != nil {
+		return MessageResult{}, err
+	}
+	if warning != "" {
+		result.Warnings = append(result.Warnings, warning)
+	}
+	return result, nil
 }
 
 func GetIssueForResource(ctx context.Context, client *api.Client, id int) (*models.Issue, error) {
@@ -340,18 +351,18 @@ func RemoveIssueWatcher(ctx context.Context, client *api.Client, input RemoveIss
 	return MessageResult{Message: fmt.Sprintf("Removed user %d as watcher of issue #%d", input.UserID, input.ID)}, nil
 }
 
-func firstStatusID(ctx context.Context, client *api.Client, closed bool) (int, error) {
+func firstStatus(ctx context.Context, client *api.Client, closed bool) (models.IssueStatus, error) {
 	statuses, err := client.Statuses.List(ctx)
 	if err != nil {
-		return 0, err
+		return models.IssueStatus{}, err
 	}
 	for _, status := range statuses {
 		if status.IsClosed == closed {
-			return status.ID, nil
+			return status, nil
 		}
 	}
 	if closed {
-		return 0, fmt.Errorf("no closed issue status is configured in Redmine")
+		return models.IssueStatus{}, fmt.Errorf("no closed issue status is configured in Redmine")
 	}
-	return 0, fmt.Errorf("no open issue status is configured in Redmine")
+	return models.IssueStatus{}, fmt.Errorf("no open issue status is configured in Redmine")
 }

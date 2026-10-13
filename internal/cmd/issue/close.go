@@ -19,8 +19,13 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "close <id>",
 		Short: "Close an issue",
-		Long:  "Close an issue by setting its status to the first closed status.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Close an issue by setting its status to the first closed status.\n\n" +
+			"The issue is read back afterwards. If Redmine silently ignored the " +
+			"transition (its workflow does not allow it for your role and the issue's " +
+			"tracker, or the issue has open subtasks or open blocking issues), the " +
+			"command warns on stderr, reports ok:false in JSON output, lists the allowed " +
+			"statuses (Redmine 5.0+), and exits with status 1.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -34,15 +39,19 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Closing issue...")
-			_, err = ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
+			result, err := ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
 				ID:    id,
 				Notes: note,
 			})
 			stop()
 			if err != nil {
+				if silent := reportStatusNotApplied(printer, output.ActionClosed, id, err); silent != nil {
+					return silent
+				}
 				return fmt.Errorf("failed to close issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
+			printWarnings(printer, result.Warnings)
 			printer.Action(output.ActionClosed, "issue", id, fmt.Sprintf("Closed issue #%d", id))
 			return nil
 		},

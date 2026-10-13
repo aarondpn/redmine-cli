@@ -40,7 +40,14 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Use:     "update <id>",
 		Aliases: []string{"edit"},
 		Short:   "Update an issue",
-		Long:    "Update fields on an existing issue.",
+		Long: "Update fields on an existing issue.\n\n" +
+			"When --status is given, the issue is read back after the update. Redmine " +
+			"silently ignores status transitions its workflow does not allow for your " +
+			"role and the issue's tracker (and refuses to close issues with open subtasks " +
+			"or open blocking issues), so if the status did not change the command warns " +
+			"on stderr, reports ok:false in JSON output, lists the allowed statuses " +
+			"(Redmine 5.0+), and exits with status 1. Other changes in the same request " +
+			"may still have been applied.",
 		Example: `  # Update status and priority by name
   redmine issues update 123 --status Closed --priority Low
 
@@ -186,12 +193,16 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
-			_, err = ops.UpdateIssue(ctx, client, update)
+			result, err := ops.UpdateIssue(ctx, client, update)
 			stop()
 			if err != nil {
+				if silent := reportStatusNotApplied(printer, output.ActionUpdated, id, err); silent != nil {
+					return silent
+				}
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
+			printWarnings(printer, result.Warnings)
 			printer.Action(output.ActionUpdated, "issue", id, fmt.Sprintf("Updated issue #%d", id))
 			return nil
 		},

@@ -174,6 +174,11 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create issue: %w", err)
 			}
+			if create.StatusID != 0 && issue.Status.ID != create.StatusID {
+				// The issue exists, so this is a warning rather than a failure:
+				// a non-zero exit would invite a retry that duplicates it.
+				printer.Warning(fmt.Sprintf("Issue #%d was created with status %q instead of the requested status (ID %d): Redmine's workflow does not allow new issues of this tracker to start in that status for your role.", issue.ID, issue.Status.Name, create.StatusID))
+			}
 
 			if printer.Format() == output.FormatJSON {
 				printer.JSON(issue)
