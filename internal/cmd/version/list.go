@@ -102,7 +102,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				)
 				stop()
 				if err != nil {
-					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
+					return fmt.Errorf("failed to list versions: %w", err)
 				}
 				versions = matched
 				hasMore = more
@@ -121,7 +121,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				})
 				stop()
 				if err != nil {
-					return fmt.Errorf("failed to list versions: %s", cmdutil.FormatError(err))
+					return fmt.Errorf("failed to list versions: %w", err)
 				}
 				versions, total = result.Versions, result.TotalCount
 			}

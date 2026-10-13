@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -61,12 +62,24 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 		outputFormat string
 		readOnly     bool
 		headers      []string
+		jqExpr       string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "redmine",
 		Short: "CLI tool for the Redmine project management API",
 		Long:  "A command-line interface for interacting with Redmine's REST API.",
+		Example: `  # List open issues in a project
+  redmine issues list --project myproject
+
+  # Print the IDs of matching issues, one per line
+  redmine issues list --project myproject --jq '.[].id'
+
+  # Print a single field of an issue
+  redmine issues get 123 --jq '.status.name'
+
+  # Capture the ID of a newly created issue
+  redmine issues create --project myproject --tracker Bug --subject "Crash on save" --jq '.id'`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			f.ConfigPath = cfgFile
 			f.ProfileOverride = profile
@@ -88,7 +101,12 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 				}
 			}
 			f.Headers = headers
-			return nil
+			return applyJQFlag(cmd, f, jqExpr, cmd.Flags().Changed("jq"))
+		},
+		// Printer methods have no error return, so a --jq runtime failure
+		// is recorded on the factory and surfaced once the command is done.
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			return f.JQError()
 		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -104,7 +122,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
 	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all requests that modify data on the server")
 	cmd.PersistentFlags().StringArrayVar(&headers, "header", nil, `Extra HTTP header sent to the server, as "Name: value" (repeatable)`)
+	cmd.PersistentFlags().StringVarP(&jqExpr, "jq", "q", "", "Filter JSON output using a jq expression (implies --output json)")
 	_ = cmd.RegisterFlagCompletionFunc("output", cmdutil.CompleteOutputFormat)
+	_ = cmd.RegisterFlagCompletionFunc("jq", cobra.NoFileCompletions)
 
 	// Version
 	cmd.Version = version
@@ -138,6 +158,30 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(newCmdConfig(f))
 
 	return cmd, f
+}
+
+// applyJQFlag validates --jq and switches the command to JSON output. The
+// expression is compiled here so a typo fails before any API request.
+func applyJQFlag(cmd *cobra.Command, f *cmdutil.Factory, expr string, set bool) error {
+	if !set {
+		return nil
+	}
+	if cmdutil.HasNoJSONOutput(cmd) {
+		return fmt.Errorf("--jq is not supported for %s: it does not print JSON", cmd.CommandPath())
+	}
+	// cmd.Flags() also sees a leaf command's local --output, which shadows
+	// the persistent one.
+	if of := cmd.Flags().Lookup("output"); of != nil && of.Changed && of.Value.String() != output.FormatJSON {
+		f.OutputFormat = of.Value.String()
+		return fmt.Errorf("--jq requires JSON output and cannot be combined with --output %s", of.Value.String())
+	}
+	f.OutputFormat = output.FormatJSON
+	q, err := output.CompileJQ(expr)
+	if err != nil {
+		return err
+	}
+	f.JQ = q
+	return nil
 }
 
 func newCmdConfig(f *cmdutil.Factory) *cobra.Command {

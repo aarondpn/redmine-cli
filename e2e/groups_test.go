@@ -98,8 +98,8 @@ func TestGroups_DeleteExplicit(t *testing.T) {
 		t.Fatalf("delete envelope id = %v, want %d", deleted.ID, created.ID)
 	}
 
-	stdout, _ := r.runExpectError(t, "groups", "get", strconv.Itoa(created.ID))
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "groups", "get", strconv.Itoa(created.ID))
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestGroups_AddRemoveUser verifies that add-user/remove-user mutate the

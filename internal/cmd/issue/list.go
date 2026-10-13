@@ -58,6 +58,13 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
   # Filter by parent issue and category
   redmine issues list --project myproject --parent 1234 --category "Backend"
 
+  # All children of an epic, open and closed, in one call
+  # (without --project, a configured default project narrows the results)
+  redmine issues list --parent 1234 --status "*"
+
+  # Issues I created most recently (in the default project, if one is configured)
+  redmine issues list --author me --sort created_on:desc --limit 5
+
   # Exclude subprojects
   redmine issues list --project myproject --subproject "!*"
 
@@ -72,6 +79,9 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
   redmine issues list --project myproject --filter created_on='>=2025-01-01'
   redmine issues list --project myproject --filter cf_5='Critical'
   redmine issues list --project myproject --filter subject='~login'
+
+  # Find similar tickets by subject text (~ means "contains")
+  redmine issues list --status "*" --filter subject='~[QA]'
 
   # Run a saved query by name or ID
   redmine issues list --query "My open issues"

@@ -23,7 +23,7 @@ type ListIssuesInput struct {
 	IsPrivate      *bool             `json:"is_private,omitempty" jsonschema:"Filter by privacy: true returns only private issues, false returns only public ones."`
 	QueryID        int               `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
 	Sort           string            `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
-	Includes       []string          `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations, children, watchers."`
+	Includes       []string          `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations."`
 	ExtraParams    map[string]string `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters (escape hatch). Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
 	Limit          int               `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset         int               `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`

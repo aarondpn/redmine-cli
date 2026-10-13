@@ -9,15 +9,16 @@ import (
 )
 
 // PrepareInteractiveCommand opts a command out of structured output modes.
-// It rejects an explicitly requested --output flag and otherwise forces the
-// command to render using the default interactive/table path, ignoring any
-// configured output_format.
+// It rejects an explicitly requested --output or --jq flag and otherwise
+// forces the command to render using the default interactive/table path,
+// ignoring any configured output_format.
 func PrepareInteractiveCommand(cmd *cobra.Command, f *Factory) error {
-	if flag := cmd.Flags().Lookup("output"); flag != nil && flag.Changed {
-		f.OutputFormat = output.FormatTable
-		return fmt.Errorf("--output is not supported for %s", cmd.CommandPath())
-	}
-
 	f.OutputFormat = output.FormatTable
+	f.JQ = nil
+	for _, name := range []string{"output", "jq"} {
+		if flag := cmd.Flags().Lookup(name); flag != nil && flag.Changed {
+			return fmt.Errorf("--%s is not supported for %s", name, cmd.CommandPath())
+		}
+	}
 	return nil
 }

@@ -59,7 +59,7 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
+	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, bookmarks, subprojects")
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)

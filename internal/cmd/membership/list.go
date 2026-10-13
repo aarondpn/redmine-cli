@@ -54,7 +54,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 			})
 			stop()
 			if err != nil {
-				return fmt.Errorf("failed to list memberships: %s", cmdutil.FormatError(err))
+				return fmt.Errorf("failed to list memberships: %w", err)
 			}
 			memberships, total := result.Memberships, result.TotalCount
 

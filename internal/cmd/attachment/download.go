@@ -62,6 +62,9 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid attachment ID: %s", args[0])
 			}
+			if path == "-" && f.JQ != nil {
+				return fmt.Errorf("--jq is not supported with --path -: the attachment bytes are written to stdout")
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {

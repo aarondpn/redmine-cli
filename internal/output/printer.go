@@ -42,6 +42,10 @@ type StdPrinter struct {
 	isTTY   bool
 	noColor bool
 	format  string
+
+	// jq, when set, filters every JSON document before it reaches out.
+	jq        *JQFilter
+	onJQError func(error)
 }
 
 // NewStdPrinter creates a new StdPrinter.
@@ -64,6 +68,25 @@ func NewStdPrinter(out, errOut io.Writer, isTTY, noColor bool, format string) *S
 
 func (p *StdPrinter) Format() string {
 	return p.format
+}
+
+// SetJQ routes every JSON document this printer emits (resource bodies,
+// lists, and action envelopes) through q. Printer methods have no error
+// return, so runtime filter errors are handed to onErr instead.
+func (p *StdPrinter) SetJQ(q *JQFilter, onErr func(error)) {
+	p.jq = q
+	p.onJQError = onErr
+}
+
+// writeJSON is the single point where JSON output reaches stdout.
+func (p *StdPrinter) writeJSON(v any) {
+	if p.jq == nil {
+		_ = RenderJSON(p.out, v)
+		return
+	}
+	if err := p.jq.Evaluate(p.out, v, p.isTTY); err != nil && p.onJQError != nil {
+		p.onJQError(err)
+	}
 }
 
 func (p *StdPrinter) Table(headers []string, rows [][]string) {
@@ -90,7 +113,7 @@ func (p *StdPrinter) Detail(pairs []KeyValue) {
 }
 
 func (p *StdPrinter) JSON(v interface{}) {
-	RenderJSON(p.out, v)
+	p.writeJSON(v)
 }
 
 func (p *StdPrinter) CSV(headers []string, rows [][]string) {
@@ -123,7 +146,7 @@ func (p *StdPrinter) Warning(msg string) {
 
 func (p *StdPrinter) Outcome(ok bool, action, resource string, id any, humanMsg string) {
 	if p.format == FormatJSON {
-		_ = RenderActionJSON(p.out, ActionEnvelope{
+		p.writeJSON(ActionEnvelope{
 			Ok:       ok,
 			Action:   action,
 			Resource: resource,

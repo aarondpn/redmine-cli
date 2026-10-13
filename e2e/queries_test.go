@@ -71,8 +71,8 @@ func TestIssues_ListByUnknownQueryID(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
-	stdout, _ := r.runExpectError(t, "issues", "list", "--query-id", "2147483600")
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "issues", "list", "--query-id", "2147483600")
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestQueries_GetRoundTrip exercises `queries get` against the seeded fixture

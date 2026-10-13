@@ -53,6 +53,15 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
     --assignee "John Smith" --category "Development" --version "v2.0" \
     --start-date 2026-05-01 --due-date 2026-05-15 --estimated-hours 8 --private
 
+  # Create a child issue under an epic, with a category
+  redmine issues create --project myproject --parent 1234 --tracker Task \
+    --category "Backend" --subject "Implement API endpoint"
+
+  # Attach a screenshot and embed it inline in a Textile description (!filename!);
+  # on servers using Markdown/CommonMark formatting write ![](screenshot.png) instead
+  redmine issues create --project myproject --subject "Broken layout" \
+    --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
+
   # Set custom field values (by name or numeric ID, repeatable)
   redmine issues create --project myproject --subject "Bug" \
     --custom-field Severity=High --custom-field 7=urgent

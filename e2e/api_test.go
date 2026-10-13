@@ -112,8 +112,8 @@ func TestAPI_NotFoundResponse(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
-	stdout, _ := r.runExpectError(t, "api", "/issues/2147483600.json")
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "api", "/issues/2147483600.json")
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestAPI_Delete creates an issue via the typed CLI and removes it via the
@@ -127,8 +127,8 @@ func TestAPI_Delete(t *testing.T) {
 
 	r.run(t, "api", fmt.Sprintf("/issues/%d.json", issue.ID), "-X", "DELETE")
 
-	stdout, _ := r.runExpectError(t, "issues", "get", strconv.Itoa(issue.ID))
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "issues", "get", strconv.Itoa(issue.ID))
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestAPI_FormFlag exercises -f as query parameters on a GET endpoint by

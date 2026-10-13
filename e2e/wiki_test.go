@@ -130,11 +130,11 @@ func TestWiki_Lifecycle(t *testing.T) {
 
 	// Stored version is now 3. Asserting --expect-version 2 must fail with a
 	// conflict envelope, proving optimistic locking is wired end-to-end.
-	staleStdout, _ := r.runExpectError(t, "wiki", "update", page,
+	staleStderr := r.runExpectJSONError(t, "wiki", "update", page,
 		"--project", proj.Identifier,
 		"--text", "should not land",
 		"--expect-version", "2")
-	assertErrorCode(t, staleStdout, "conflict")
+	assertErrorCode(t, staleStderr, "conflict")
 
 	// --ensure-current refetches before sending, so even though we don't know
 	// the current version it should resolve to 3 and succeed.
@@ -155,8 +155,8 @@ func TestWiki_Lifecycle(t *testing.T) {
 		t.Fatalf("unexpected delete envelope: %+v", deleted)
 	}
 
-	stdout, _ := r.runExpectError(t, "wiki", "get", page, "--project", proj.Identifier)
-	assertErrorCode(t, stdout, "not_found")
+	stderr := r.runExpectJSONError(t, "wiki", "get", page, "--project", proj.Identifier)
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestWiki_Attachment verifies that --attach uploads a file with the wiki
@@ -220,9 +220,9 @@ func TestWiki_GetMissing(t *testing.T) {
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 
-	stdout, _ := r.runExpectError(t, "wiki", "get", "Nonexistent-"+wikiPageName(t),
+	stderr := r.runExpectJSONError(t, "wiki", "get", "Nonexistent-"+wikiPageName(t),
 		"--project", proj.Identifier)
-	assertErrorCode(t, stdout, "not_found")
+	assertErrorCode(t, stderr, "not_found")
 }
 
 // TestWiki_SectionUpdate verifies the --section flag end-to-end: only the
@@ -307,7 +307,7 @@ func TestWiki_SectionUpdate_InvalidSection(t *testing.T) {
 		"--project", proj.Identifier,
 		"--text", "x",
 		"--section", "0")
-	// The CLI emits a JSON error envelope on stdout; ">" is escaped as >
+	// The CLI emits a JSON error envelope on stderr; ">" is escaped as >
 	// there, so match on the unescaped prefix of the message instead.
 	combined := string(stdout) + string(stderr)
 	if !strings.Contains(combined, "section must be") {
@@ -331,12 +331,12 @@ func TestWiki_SectionUpdate_StaleHashConflict(t *testing.T) {
 		"--project", proj.Identifier,
 		"--text", initial)
 
-	stdout, _ := r.runExpectError(t, "wiki", "update", page,
+	stderr := r.runExpectJSONError(t, "wiki", "update", page,
 		"--project", proj.Identifier,
 		"--section", "2",
 		"--section-hash", "deadbeefdeadbeefdeadbeefdeadbeef",
 		"--text", wikiSection(style, "Bravo", "should not land"))
-	assertErrorCode(t, stdout, "conflict")
+	assertErrorCode(t, stderr, "conflict")
 }
 
 // TestWiki_ProjectInResponse covers the project node Redmine 7.0 added to the

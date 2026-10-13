@@ -43,6 +43,13 @@ Make authenticated requests to any Redmine REST API endpoint.
     redmine api /issues.json --input body.json
     ```
   </TabItem>
+  <TabItem label="Filter with --jq">
+    ```bash
+    # --jq runs against the response body
+    redmine api /issues.json -f project_id=myproject --jq '.issues[].subject'
+    redmine api /users/current.json --jq '.user.login'
+    ```
+  </TabItem>
   <TabItem label="Explicit method">
     ```bash
     redmine api -X DELETE /issues/123.json
@@ -61,7 +68,7 @@ Make authenticated requests to any Redmine REST API endpoint.
 | `--silent`        | Suppress response output |
 
 <Aside type="tip">
-  JSON responses are pretty-printed when stdout is a terminal. Non-2xx responses still print the body but exit with code `1`.
+  JSON responses are pretty-printed when stdout is a terminal. Non-2xx responses still print the body but exit with code `1`. In JSON mode (`-o json` or `--jq`) without `-i`, a non-2xx response is reported as the JSON error envelope on `stderr` instead, and `stdout` stays empty.
 </Aside>
 
 ## categories

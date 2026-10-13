@@ -43,6 +43,11 @@ type Factory struct {
 	// as the default format when commands call Printer("").
 	OutputFormat string
 
+	// JQ is the compiled root --jq expression. When set, every JSON
+	// document a Printer emits is filtered through it.
+	JQ *output.JQFilter
+
+	jqErr     error
 	config    *config.Config
 	client    *api.Client
 	debugLog  *debug.Logger
@@ -153,5 +158,21 @@ func (f *Factory) Printer(format string) output.Printer {
 	if noColor {
 		os.Setenv("NO_COLOR", "1")
 	}
-	return output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
+	p := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
+	if f.JQ != nil && p.Format() == output.FormatJSON {
+		p.SetJQ(f.JQ, f.recordJQError)
+	}
+	return p
+}
+
+// JQError returns the first runtime error raised while applying --jq to a
+// command's output, or nil.
+func (f *Factory) JQError() error {
+	return f.jqErr
+}
+
+func (f *Factory) recordJQError(err error) {
+	if f.jqErr == nil {
+		f.jqErr = err
+	}
 }
