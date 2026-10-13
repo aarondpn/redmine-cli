@@ -21,8 +21,8 @@ redmine search <query> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--project`     | Limit to a project identifier |
-| `--scope`       | Search scope: `all`, `my_projects`, `subprojects` |
+| `--project`     | Limit to a project (defaults to the configured default project) |
+| `--scope`       | Search scope: `all`, `my_projects`, `subprojects` (`all` ignores the default project) |
 | `--all-words`   | Match all query words |
 | `--titles-only` | Search titles only |
 | `--open-issues` | Only return open issues |
@@ -38,10 +38,35 @@ redmine search <query> [flags]
 | `--offset`      | Result offset |
 | `-o, --output`  | Output format |
 
+<Aside type="caution" title="Default project">
+  If the active profile has a default project and you don't pass `--project`,
+  search is limited to that project (plus its subprojects with
+  `--scope subprojects`). After a successful search the CLI prints a one-line
+  notice to `stderr` when this happens. It is printed in JSON mode too, since
+  stdout stays clean for `-o json`:
+
+  ```text
+  Searching project "myproject" (default project). Use --scope all to search all projects.
+  ```
+
+  Use `--scope all` to search every project you can see, or pass `--project`
+  explicitly to pick one (which also silences the notice). The notice is not
+  shown for `--scope all`, `--scope my_projects`, `--scope bookmarks` (Redmine
+  ignores the project for these), or the interactive `browse`.
+</Aside>
+
+Without type flags, Redmine searches every resource type, including
+changesets. Add `--issues`, `--wiki-pages`, etc. to cut the noise.
+
 <Tabs syncKey="search-examples">
   <TabItem label="Everything">
     ```bash
     redmine search "login bug"
+    ```
+  </TabItem>
+  <TabItem label="All projects">
+    ```bash
+    redmine search "login bug" --scope all --issues
     ```
   </TabItem>
   <TabItem label="Project-scoped">

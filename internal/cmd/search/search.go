@@ -14,6 +14,59 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
+// Help text shared by every search command that accepts --project.
+const (
+	defaultProjectHelp = "If a default project is configured and --project is not given, the search is\n" +
+		"limited to the default project and a notice is printed to stderr. Use --scope all\n" +
+		"to search all projects, or --project to pick one explicitly."
+	projectFlagUsage = "Limit search to a project name, identifier, or ID (defaults to the configured default project)"
+	scopeFlagUsage   = "Search scope: all, my_projects, subprojects (all ignores the default project)"
+)
+
+// resolveSearchProject applies the default-project fallback shared by the
+// search commands and resolves it to the canonical identifier. Searching is
+// commonly expected to be global, so when the default project is applied
+// implicitly it also returns a one-line notice for printDefaultProjectNotice.
+// There is no notice when --project was given explicitly or when --scope makes
+// Redmine ignore the project (all, my_projects, bookmarks).
+func resolveSearchProject(ctx context.Context, f *cmdutil.Factory, project, scope string) (identifier, notice string, err error) {
+	identifier, err = cmdutil.DefaultProjectIdentifier(ctx, f, project)
+	if err != nil {
+		return "", "", err
+	}
+	if project == "" && identifier != "" {
+		notice = defaultProjectNotice(identifier, scope)
+	}
+	return identifier, notice, nil
+}
+
+// defaultProjectNotice returns the notice for an implicitly applied default
+// project, or "" when the scope makes Redmine ignore the project. Any other
+// scope value (including unknown ones, for which Redmine falls back to the
+// project) keeps the default project in effect.
+func defaultProjectNotice(identifier, scope string) string {
+	switch scope {
+	case "all", "my_projects", "bookmarks":
+		return ""
+	case "subprojects":
+		return fmt.Sprintf("Searching project %q and its subprojects (default project). Use --scope all to search all projects.", identifier)
+	default:
+		return fmt.Sprintf("Searching project %q (default project). Use --scope all to search all projects.", identifier)
+	}
+}
+
+// printDefaultProjectNotice emits the default-project notice after a
+// successful search, so a failed search reports only its error.
+//
+// Unlike most warnings it is not gated on output.SupportsWarnings: it goes
+// to stderr, so JSON on stdout stays clean, and JSON callers (mostly agents)
+// are exactly the audience that otherwise misses the narrowed scope.
+func printDefaultProjectNotice(printer output.Printer, notice string) {
+	if notice != "" {
+		printer.Warning(notice)
+	}
+}
+
 // NewCmdSearch creates the parent search command with general search functionality.
 func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 	var (
@@ -38,8 +91,19 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search across Redmine resources",
-		Long:  "Search for issues, news, documents, wiki pages, messages, and projects in Redmine.",
-		Args:  cobra.MinimumNArgs(1),
+		Long: "Search for issues, news, documents, wiki pages, messages, and projects in Redmine.\n\n" +
+			defaultProjectHelp + "\n\n" +
+			"Without type flags, Redmine searches every resource type (including changesets);\n" +
+			"pass --issues, --wiki-pages, etc. to narrow the results.",
+		Example: `  # Search issue titles only (in the default project, if one is configured)
+  redmine search "login timeout" --issues --titles-only
+
+  # Search every project you can see, not just the default project
+  redmine search "login timeout" --scope all --issues
+
+  # Search a specific project
+  redmine search "deploy checklist" --project myproject --wiki-pages`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 			client, err := f.ApiClient()
@@ -47,7 +111,8 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			var notice string
+			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -78,6 +143,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
+			printDefaultProjectNotice(printer, notice)
 
 			if cmdutil.HandleEmpty(printer, results, "results") {
 				return nil
@@ -88,8 +154,8 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
-	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
+	cmd.Flags().StringVar(&project, "project", "", projectFlagUsage)
+	cmd.Flags().StringVar(&scope, "scope", "", scopeFlagUsage)
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmd.Flags().BoolVar(&openIssues, "open-issues", false, "Only return open issues")
