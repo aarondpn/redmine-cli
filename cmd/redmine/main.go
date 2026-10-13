@@ -54,11 +54,16 @@ func main() {
 }
 
 // renderError writes a failed command's error to w, which is always stderr so
-// stdout stays empty on failure (as gh does). In JSON mode the error is a
+// stdout stays empty on failure. In JSON mode the error is a single-line
 // structured envelope; it is never filtered by --jq.
 func renderError(w io.Writer, err error, format string) {
 	if format == output.FormatJSON {
-		_ = output.RenderErrorJSON(w, cmdutil.BuildErrorEnvelope(err))
+		env := cmdutil.BuildErrorEnvelope(err)
+		var jqErr *output.JQRuntimeError
+		if errors.As(err, &jqErr) {
+			env.Error.Code = output.ErrCodeJQFailed
+		}
+		_ = output.RenderErrorJSON(w, env)
 		return
 	}
 	fmt.Fprintf(w, "Error: %s\n", cmdutil.FormatError(err))

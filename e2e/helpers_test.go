@@ -31,6 +31,13 @@ type errorEnvelope struct {
 	} `json:"error"`
 }
 
+// lastLine returns the last non-empty line of b. The JSON error envelope is
+// a single line and always the last line of stderr.
+func lastLine(b []byte) []byte {
+	lines := bytes.Split(bytes.TrimRight(b, "\n"), []byte("\n"))
+	return lines[len(lines)-1]
+}
+
 // envelopeIntID coerces the envelope ID (which JSON decodes as float64) to an
 // int for comparisons.
 func envelopeIntID(v any) int {
@@ -128,7 +135,7 @@ func parseRedmineVersion(v string) (major, minor int, ok bool) {
 func requireErrorEnvelopeMessage(t *testing.T, stderr []byte) errorEnvelope {
 	t.Helper()
 	var env errorEnvelope
-	if err := json.Unmarshal(stderr, &env); err != nil {
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
 		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	if strings.TrimSpace(env.Error.Message) == "" {

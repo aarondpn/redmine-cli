@@ -60,9 +60,9 @@ Every command accepts `-o` / `--output` to control the output format. The flag i
 ## Filtering with `--jq`
 
 <Badge text="built-in jq" variant="tip" />
-Every command accepts `-q` / `--jq <expression>` to filter its JSON output
-with a [jq](https://jqlang.org/manual/) expression, the same way `gh --jq`
-works. No external `jq` binary is needed.
+Every command that prints JSON accepts `-q` / `--jq <expression>` to filter
+its output with a [jq](https://jqlang.org/manual/) expression. No external
+`jq` binary is needed.
 
 ```bash
 # IDs of all open bugs, one per line
@@ -87,6 +87,10 @@ How it behaves:
 
 - `--jq` implies `-o json`. Combining it with an explicit `-o table` or
   `-o csv` is an error.
+- Commands that never print JSON reject `--jq`: `completion`, `mcp serve`,
+  `mcp tools`, `attachments download --path -` (raw file bytes) and the
+  interactive commands (`auth login`, `auth logout`, `auth switch` without a
+  profile name, `issues browse`, `search browse`).
 - The expression runs against exactly the JSON the command would print
   without `--jq`: resource bodies, lists (an empty list is `[]`), action
   envelopes, and `redmine api` response bodies.
@@ -94,9 +98,17 @@ How it behaves:
   objects and arrays are printed as JSON. Each result goes on its own line.
 - Objects and arrays are compact (one per line) when `stdout` is piped, and
   indented when it is a terminal.
-- An invalid expression fails before any request is sent. A runtime error
-  (for example indexing an object as an array) fails with a non-zero exit
-  and nothing on `stdout`.
+- An invalid expression fails before any request is sent.
+- A runtime error (for example indexing an object as an array) exits
+  non-zero with error code `jq_failed` and the message
+  `command succeeded, but --jq failed: ...`. The command itself **did**
+  run: a create, update or delete has already happened, so do not retry it.
+  Fix the expression, or fetch the resource again.
+- Output is held back until the expression finishes, so a runtime error
+  normally leaves `stdout` empty. Once filtered output exceeds 1 MiB it is
+  streamed instead, to keep memory bounded (e.g. `--jq 'repeat(1)' | head`);
+  in that rare case a later runtime error can leave partial output on
+  `stdout`.
 - Errors are never filtered: a failed command writes its error envelope to
   `stderr` as-is.
 
@@ -141,31 +153,29 @@ How it behaves:
 
 When `-o json` (or `--jq`) is active and a command fails, the CLI writes a
 structured error envelope to `stderr`, leaves `stdout` empty, and exits
-non-zero:
+non-zero. The envelope is a single line of compact JSON and always the
+**last line** of `stderr`, even when warnings or `--verbose` debug output
+come before it:
 
 ```json
-{
-  "error": {
-    "message": "Resource not found.",
-    "code": "not_found"
-  }
-}
+{"error":{"message":"Resource not found.","code":"not_found"}}
 ```
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
-`forbidden`, `validation_failed`, `server_error`, `unknown`. Validation
-errors include a `details` array with the individual field messages from
-Redmine.
+`forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_failed`,
+`unknown`. Validation and conflict errors include a `details` array with the
+individual messages from Redmine. `jq_failed` means the command succeeded
+but the `--jq` expression failed on its output (see above).
 
-This mirrors `gh`: a pipeline such as
+Because the failure never reaches `stdout`, a pipeline such as
 `redmine issues create ... -o json | jq '{id}'` can no longer mistake an error
-for a result, because the failure never reaches `jq`. Check the exit code (or
-`set -o pipefail`) to detect failures, and read `stderr` for the details:
+for a result. Check the exit code (or `set -o pipefail`) to detect failures,
+and read the last line of `stderr` for the details:
 
 ```bash
 if ! id=$(redmine issues create --project myproject --tracker Bug \
-    --subject "Crash on save" --jq '.id' 2>err.json); then
-  jq -r '.error.message' err.json
+    --subject "Crash on save" --jq '.id' 2>err.log); then
+  tail -n1 err.log | jq -r '.error.code + ": " + .error.message'
 fi
 ```
 

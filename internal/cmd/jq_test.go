@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // jqTestServer serves a tiny fixed Redmine API and counts the requests it
@@ -28,6 +30,8 @@ func jqTestServer(t *testing.T, issuesBody string) (*httptest.Server, *atomic.In
 			_, _ = w.Write([]byte(issuesBody))
 		case r.Method == http.MethodGet && r.URL.Path == "/issues/1.json":
 			_, _ = w.Write([]byte(`{"issue":{"id":1,"subject":"First","status":{"id":1,"name":"New"}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/big.json":
+			_, _ = w.Write([]byte(`{"id":9007199254740993}`))
 		case r.Method == http.MethodDelete && r.URL.Path == "/issues/1.json":
 			w.WriteHeader(http.StatusNoContent)
 		default:
@@ -44,10 +48,24 @@ const twoIssues = `{"issues":[` +
 	`{"id":2,"subject":"Second","status":{"id":5,"name":"Closed"}}` +
 	`],"total_count":2,"offset":0,"limit":100}`
 
+// clearRedmineEnv unsets every REDMINE_* variable for the duration of the
+// test so a developer's environment can never point a test at a real server.
+func clearRedmineEnv(t *testing.T) {
+	t.Helper()
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(key, "REDMINE_") {
+			t.Setenv(key, "") // restores the original value on cleanup
+			_ = os.Unsetenv(key)
+		}
+	}
+}
+
 // runRootWithJQ executes the full root command against serverURL with a
 // throwaway config and returns stdout, stderr, and the execution error.
 func runRootWithJQ(t *testing.T, serverURL string, args ...string) (string, string, error) {
 	t.Helper()
+	clearRedmineEnv(t)
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := "server: " + serverURL + "\napi_key: test\nauth_method: apikey\n"
 	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
@@ -77,6 +95,8 @@ func TestJQ_AppliesToJSONOutputPaths(t *testing.T) {
 		{"resource body", twoIssues, []string{"issues", "get", "1", "--jq", ".status.name"}, "New\n"},
 		{"action envelope", twoIssues, []string{"issues", "delete", "1", "--force", "--jq", "{ok, action, id}"}, `{"action":"deleted","id":1,"ok":true}` + "\n"},
 		{"api response body", twoIssues, []string{"api", "/issues.json", "--jq", ".issues[1].subject"}, "Second\n"},
+		{"api keeps large integers", twoIssues, []string{"api", "/big.json", "--jq", ".id"}, "9007199254740993\n"},
+		{"api -o json keeps large integers", twoIssues, []string{"api", "/big.json", "-o", "json"}, "{\n  \"id\": 9007199254740993\n}\n"},
 		{"explicit json output", twoIssues, []string{"issues", "list", "-o", "json", "--jq", "length"}, "2\n"},
 		{"config", twoIssues, []string{"config", "--jq", ".auth_method"}, "apikey\n"},
 	}
@@ -117,7 +137,11 @@ func TestJQ_RuntimeErrorFailsWithEmptyStdout(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected jq runtime error")
 	}
-	if !strings.HasPrefix(err.Error(), "--jq: ") {
+	var jqErr *output.JQRuntimeError
+	if !errors.As(err, &jqErr) {
+		t.Fatalf("expected *output.JQRuntimeError, got %T: %v", err, err)
+	}
+	if !strings.HasPrefix(err.Error(), "command succeeded, but --jq failed: ") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if stdout != "" {
@@ -154,7 +178,7 @@ func TestJQ_ErrorsAreNotFiltered(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected not-found error")
 	}
-	if strings.HasPrefix(err.Error(), "--jq") {
+	if strings.Contains(err.Error(), "--jq") {
 		t.Fatalf("API error must surface unfiltered, got %v", err)
 	}
 	if stdout != "" {
@@ -162,7 +186,34 @@ func TestJQ_ErrorsAreNotFiltered(t *testing.T) {
 	}
 }
 
+func TestJQ_RejectedForCommandsWithoutJSONOutput(t *testing.T) {
+	srv, hits := jqTestServer(t, twoIssues)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"completion", "bash", "--jq", "."}, "--jq is not supported for redmine completion"},
+		{[]string{"mcp", "serve", "--jq", "."}, "--jq is not supported for redmine mcp serve"},
+		{[]string{"mcp", "tools", "--jq", "."}, "--jq is not supported for redmine mcp tools"},
+		{[]string{"attachments", "download", "1", "--path", "-", "--jq", "."}, "--jq is not supported with --path -"},
+	} {
+		t.Run(strings.Join(tc.args, "_"), func(t *testing.T) {
+			stdout, _, err := runRootWithJQ(t, srv.URL, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q error, got %v", tc.want, err)
+			}
+			if stdout != "" {
+				t.Fatalf("expected empty stdout, got %q", stdout)
+			}
+		})
+	}
+	if n := hits.Load(); n != 0 {
+		t.Fatalf("expected no API requests, got %d", n)
+	}
+}
+
 func TestRootCmd_InteractiveCommandsRejectJQFlag(t *testing.T) {
+	clearRedmineEnv(t)
 	for _, args := range [][]string{
 		{"auth", "login", "--jq", "."},
 		{"auth", "logout", "--jq", "."},

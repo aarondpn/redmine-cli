@@ -198,7 +198,7 @@ func TestUsers_CreateDuplicateLogin(t *testing.T) {
 		"--password", "Pass-"+suffix+"-1A")
 
 	var env errorEnvelope
-	if err := json.Unmarshal(stderr, &env); err != nil {
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
 		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	switch env.Error.Code {

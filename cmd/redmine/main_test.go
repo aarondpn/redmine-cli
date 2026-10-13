@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -200,7 +201,9 @@ func TestMain(m *testing.M) {
 }
 
 // runCLI executes the CLI in a subprocess with a throwaway config and
-// returns stdout, stderr, and the exit code.
+// returns stdout, stderr, and the exit code. REDMINE_* variables from the
+// developer's environment are dropped so the CLI can never reach a real
+// server.
 func runCLI(t *testing.T, serverURL string, args ...string) (string, string, int) {
 	t.Helper()
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
@@ -210,7 +213,13 @@ func runCLI(t *testing.T, serverURL string, args ...string) (string, string, int
 	}
 
 	cmd := exec.Command(os.Args[0], append([]string{"--config", cfgPath}, args...)...)
-	cmd.Env = append(os.Environ(), "REDMINE_MAIN_HELPER=1", "REDMINE_NO_UPDATE_CHECK=1")
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "REDMINE_") {
+			env = append(env, kv)
+		}
+	}
+	cmd.Env = append(env, "REDMINE_MAIN_HELPER=1", "REDMINE_NO_UPDATE_CHECK=1")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -237,12 +246,21 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 		name     string
 		args     []string
 		wantJSON bool
+		wantCode string
 		wantMsg  string
 	}{
 		{
 			name:     "failed write in JSON mode",
 			args:     []string{"api", "/issues.json", "-F", "issue[subject]=", "-o", "json"},
 			wantJSON: true,
+			wantCode: output.ErrCodeValidationFailed,
+			wantMsg:  "Subject cannot be blank",
+		},
+		{
+			name:     "envelope is the last stderr line after --verbose output",
+			args:     []string{"api", "/issues.json", "-F", "issue[subject]=", "-o", "json", "--verbose"},
+			wantJSON: true,
+			wantCode: output.ErrCodeValidationFailed,
 			wantMsg:  "Subject cannot be blank",
 		},
 		{
@@ -273,7 +291,8 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			name:     "--jq runtime error",
 			args:     []string{"config", "--jq", ".[0]"},
 			wantJSON: true,
-			wantMsg:  "--jq: ",
+			wantCode: output.ErrCodeJQFailed,
+			wantMsg:  "command succeeded, but --jq failed: ",
 		},
 		{
 			name:    "table mode",
@@ -296,12 +315,21 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			if !tt.wantJSON {
 				return
 			}
+			// The envelope is one compact line and always the last line of
+			// stderr, whatever was logged before it.
+			lines := strings.Split(strings.TrimRight(stderr, "\n"), "\n")
+			if slices.Contains(tt.args, "--verbose") && len(lines) < 2 {
+				t.Fatalf("expected debug output before the envelope:\n%s", stderr)
+			}
 			var env output.ErrorEnvelope
-			if err := json.Unmarshal([]byte(stderr), &env); err != nil {
-				t.Fatalf("stderr is not an error envelope: %v\n%s", err, stderr)
+			if err := json.Unmarshal([]byte(lines[len(lines)-1]), &env); err != nil {
+				t.Fatalf("last stderr line is not an error envelope: %v\n%s", err, stderr)
 			}
 			if env.Error.Message == "" {
 				t.Fatalf("error envelope missing message:\n%s", stderr)
+			}
+			if tt.wantCode != "" && env.Error.Code != tt.wantCode {
+				t.Fatalf("error code = %q, want %q", env.Error.Code, tt.wantCode)
 			}
 		})
 	}

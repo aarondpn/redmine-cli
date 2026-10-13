@@ -73,3 +73,30 @@ func TestJQ_RejectsTableOutput(t *testing.T) {
 		t.Fatalf("unexpected stderr:\n%s", stderr)
 	}
 }
+
+// TestJQ_RuntimeErrorAfterWriteIsJQFailed verifies that a --jq failure on the
+// output of a successful create is reported as jq_failed, so callers do not
+// mistake it for a failed write and retry (creating a duplicate).
+func TestJQ_RuntimeErrorAfterWriteIsJQFailed(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	stderr := r.runExpectJSONError(t, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", firstTrackerName(t, r),
+		"--subject", "jq runtime failure "+uniqueShortSuffix(t),
+		"--jq", ".[0]")
+	env := requireErrorEnvelopeMessage(t, stderr)
+	if env.Error.Code != "jq_failed" {
+		t.Fatalf("error code = %q, want jq_failed\nstderr:\n%s", env.Error.Code, stderr)
+	}
+	if !strings.HasPrefix(env.Error.Message, "command succeeded, but --jq failed: ") {
+		t.Fatalf("unexpected message %q", env.Error.Message)
+	}
+
+	count := string(r.run(t, "issues", "list", "--project", proj.Identifier, "--jq", "length"))
+	if count != "1\n" {
+		t.Fatalf("expected the issue to have been created once, list length = %q", count)
+	}
+}

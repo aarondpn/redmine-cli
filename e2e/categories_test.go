@@ -48,7 +48,7 @@ func TestCategories_List_UnknownProject(t *testing.T) {
 	stderr := r.runExpectJSONError(t, "categories", "list", "--project", missing)
 
 	var env errorEnvelope
-	if err := json.Unmarshal(stderr, &env); err != nil {
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
 		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	if env.Error.Message == "" {

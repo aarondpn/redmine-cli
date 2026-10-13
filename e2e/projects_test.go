@@ -233,7 +233,7 @@ func skipIfArchiveUnsupported(t *testing.T) {
 // is not set but the live server still refuses the call.
 func isProbablyUnsupportedArchive(stderr []byte) bool {
 	var env errorEnvelope
-	if err := json.Unmarshal(stderr, &env); err != nil {
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
 		return false
 	}
 	if env.Error.Code == "not_found" {

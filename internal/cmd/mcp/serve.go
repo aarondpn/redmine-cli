@@ -129,6 +129,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&enableTools, "enable-tools", nil, "Allow-list of tool names. Tools outside the list are hidden.")
 	cmd.Flags().StringSliceVar(&disableTools, "disable-tools", nil, "Deny-list of tool names. Applied after --enable-tools.")
 
+	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
 }
 

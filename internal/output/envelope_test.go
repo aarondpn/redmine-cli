@@ -52,6 +52,10 @@ func TestRenderErrorJSON(t *testing.T) {
 		t.Fatalf("RenderErrorJSON: %v", err)
 	}
 
+	if strings.Count(buf.String(), "\n") != 1 || !strings.HasSuffix(buf.String(), "\n") {
+		t.Fatalf("expected a single line, got %q", buf.String())
+	}
+
 	var got ErrorEnvelope
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON emitted: %v\n%s", err, buf.String())

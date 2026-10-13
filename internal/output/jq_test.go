@@ -2,6 +2,8 @@ package output
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -103,14 +105,56 @@ func TestJQFilter_RuntimeErrorWritesNothing(t *testing.T) {
 	// The first result is valid; the error on the second must still leave
 	// the writer untouched so stdout stays empty on failure.
 	got, err := evalJQ(t, ".id, .[0]", jqTestIssue{ID: 7}, false)
-	if err == nil {
-		t.Fatal("expected runtime error")
+	var jqErr *JQRuntimeError
+	if !errors.As(err, &jqErr) {
+		t.Fatalf("expected *JQRuntimeError, got %T: %v", err, err)
 	}
-	if !strings.HasPrefix(err.Error(), "--jq: ") {
+	if !strings.HasPrefix(err.Error(), "command succeeded, but --jq failed: ") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got != "" {
 		t.Fatalf("expected no output on runtime error, got %q", got)
+	}
+}
+
+func TestJQFilter_LargeOutputIsStreamed(t *testing.T) {
+	// Past jqBufferLimit the output is flushed, so a later runtime error
+	// leaves partial output behind instead of holding everything in memory.
+	q, err := CompileJQ(`(range(0; 400000) | "line"), error("late failure")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	err = q.Evaluate(&buf, map[string]any{}, false)
+	if err == nil || !strings.Contains(err.Error(), "late failure") {
+		t.Fatalf("expected late runtime error, got %v", err)
+	}
+	if buf.Len() <= jqBufferLimit {
+		t.Fatalf("expected streamed partial output above %d bytes, got %d", jqBufferLimit, buf.Len())
+	}
+}
+
+// limitedWriter accepts n bytes and then fails, like a closed pipe.
+type limitedWriter struct{ n int }
+
+func (w *limitedWriter) Write(p []byte) (int, error) {
+	if len(p) > w.n {
+		return 0, io.ErrClosedPipe
+	}
+	w.n -= len(p)
+	return len(p), nil
+}
+
+func TestJQFilter_InfiniteOutputStopsOnWriteError(t *testing.T) {
+	// `--jq 'repeat(1)' | head` must terminate with bounded memory once the
+	// reader goes away rather than buffering forever.
+	q, err := CompileJQ("repeat(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = q.Evaluate(&limitedWriter{n: 4 * jqBufferLimit}, map[string]any{}, false)
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("expected write error, got %v", err)
 	}
 }
 

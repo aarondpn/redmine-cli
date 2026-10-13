@@ -166,6 +166,9 @@ func applyJQFlag(cmd *cobra.Command, f *cmdutil.Factory, expr string) error {
 	if expr == "" {
 		return nil
 	}
+	if cmdutil.HasNoJSONOutput(cmd) {
+		return fmt.Errorf("--jq is not supported for %s: it does not print JSON", cmd.CommandPath())
+	}
 	// cmd.Flags() also sees a leaf command's local --output, which shadows
 	// the persistent one.
 	if of := cmd.Flags().Lookup("output"); of != nil && of.Changed && of.Value.String() != output.FormatJSON {

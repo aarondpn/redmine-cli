@@ -39,7 +39,7 @@ func TestErrors_AuthFailed(t *testing.T) {
 func assertErrorCode(t *testing.T, stderr []byte, want string) {
 	t.Helper()
 	var env errorEnvelope
-	if err := json.Unmarshal(stderr, &env); err != nil {
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
 		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	if env.Error.Code != want {

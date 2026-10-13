@@ -11,13 +11,33 @@ import (
 	"github.com/itchyny/gojq"
 )
 
+// jqBufferLimit is how much filtered output Evaluate holds back before it
+// starts streaming. Below the limit a runtime error leaves stdout empty;
+// above it, memory stays bounded (e.g. `--jq 'repeat(1)' | head`) at the
+// cost of partial output when a later result fails.
+const jqBufferLimit = 1 << 20
+
 // JQFilter is a compiled --jq expression that is applied to every JSON
-// document a command would otherwise print. The semantics follow gh's --jq:
-// string results are printed raw (without quotes), every other value is
-// printed as JSON, and each result goes on its own line.
+// document a command would otherwise print. String results are printed raw
+// (without quotes), every other value is printed as JSON, and each result
+// goes on its own line.
 type JQFilter struct {
 	code *gojq.Code
 }
+
+// JQRuntimeError reports that a --jq expression failed while filtering the
+// output of a command that itself completed successfully. Callers must not
+// treat it as a failure of the underlying operation (e.g. a create that
+// already happened).
+type JQRuntimeError struct {
+	Err error
+}
+
+func (e *JQRuntimeError) Error() string {
+	return "command succeeded, but --jq failed: " + e.Err.Error()
+}
+
+func (e *JQRuntimeError) Unwrap() error { return e.Err }
 
 // CompileJQ parses and compiles a jq expression. Compiling up front lets
 // callers reject a malformed expression before any API request is made.
@@ -39,20 +59,22 @@ func CompileJQ(expr string) (*JQFilter, error) {
 //
 // When indent is true, object and array results are pretty-printed;
 // otherwise they are written compactly, one per line. Results are buffered
-// so a runtime error leaves w untouched.
+// so a runtime error leaves w untouched, unless the output grows past
+// jqBufferLimit, in which case it is streamed. Filter failures are returned
+// as *JQRuntimeError.
 func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 	data, err := json.Marshal(normalizeJSONValue(v))
 	if err != nil {
-		return err
+		return &JQRuntimeError{Err: err}
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	var input any
 	if err := dec.Decode(&input); err != nil {
-		return err
+		return &JQRuntimeError{Err: err}
 	}
 
-	var buf bytes.Buffer
+	out := &jqWriter{w: w}
 	iter := q.code.Run(input)
 	for {
 		result, ok := iter.Next()
@@ -64,37 +86,59 @@ func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 			if errors.As(err, &halt) && halt.Value() == nil {
 				break
 			}
-			return fmt.Errorf("--jq: %w", err)
+			return &JQRuntimeError{Err: err}
 		}
-		if err := writeJQResult(&buf, result, indent); err != nil {
+		if err := out.writeResult(result, indent); err != nil {
 			return err
 		}
 	}
-	_, err = buf.WriteTo(w)
-	return err
+	return out.flush()
 }
 
-func writeJQResult(buf *bytes.Buffer, v any, indent bool) error {
+// jqWriter buffers filter results up to jqBufferLimit and streams them once
+// the limit is exceeded.
+type jqWriter struct {
+	w         io.Writer
+	buf       bytes.Buffer
+	streaming bool
+}
+
+func (o *jqWriter) writeResult(v any, indent bool) error {
 	if s, ok := v.(string); ok {
-		buf.WriteString(s)
-		buf.WriteByte('\n')
-		return nil
+		o.buf.WriteString(s)
+		o.buf.WriteByte('\n')
+		return o.maybeStream()
 	}
 	data, err := gojq.Marshal(v)
 	if err != nil {
-		return err
+		return &JQRuntimeError{Err: err}
 	}
+	wrote := false
 	if indent {
 		switch v.(type) {
 		case map[string]any, []any:
-			if err := json.Indent(buf, data, "", "  "); err != nil {
-				return err
+			if err := json.Indent(&o.buf, data, "", "  "); err != nil {
+				return &JQRuntimeError{Err: err}
 			}
-			buf.WriteByte('\n')
-			return nil
+			wrote = true
 		}
 	}
-	buf.Write(data)
-	buf.WriteByte('\n')
-	return nil
+	if !wrote {
+		o.buf.Write(data)
+	}
+	o.buf.WriteByte('\n')
+	return o.maybeStream()
+}
+
+func (o *jqWriter) maybeStream() error {
+	if !o.streaming && o.buf.Len() <= jqBufferLimit {
+		return nil
+	}
+	o.streaming = true
+	return o.flush()
+}
+
+func (o *jqWriter) flush() error {
+	_, err := o.buf.WriteTo(o.w)
+	return err
 }
