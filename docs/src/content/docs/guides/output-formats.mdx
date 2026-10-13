@@ -104,7 +104,9 @@ How it behaves:
   non-zero with error code `jq_failed` and the message
   `command succeeded, but --jq failed: ...`. The command itself **did**
   run: a create, update or delete has already happened, so do not retry it.
-  Fix the expression, or fetch the resource again.
+  Fix the expression, or fetch the resource again. The exception is
+  `redmine api -i` on a failed (4xx/5xx) response: the message is then
+  `--jq failed on the error response: ...` and the request itself failed.
 - Output is held back until the expression finishes, so a runtime error
   normally leaves `stdout` empty. Once filtered output exceeds 1 MiB it is
   streamed instead, to keep memory bounded (e.g. `--jq 'repeat(1)' | head`);
@@ -180,8 +182,9 @@ come before it:
 `jq_failed`, `status_not_applied`, `unknown`. Validation and conflict errors include a `details`
 array with the individual messages from Redmine. `jq_invalid` means the
 `--jq` expression is empty or malformed and the command did not run;
-`jq_failed` means the command succeeded but the `--jq` expression failed on
-its output (see above).
+`jq_failed` means the `--jq` expression failed on the command's output; the
+command itself succeeded unless the message says the output was an error
+response (see above).
 
 `status_not_applied` means Redmine accepted an issue update but silently kept
 the old status (see
