@@ -31,9 +31,11 @@ func ListLimit(requested int) int {
 // MessageResult is a simple acknowledgement payload for mutating operations.
 type MessageResult struct {
 	Message string `json:"message"`
-	// Warnings carries non-fatal problems noticed after the mutation itself
-	// succeeded (for example a failed read-back). The CLI prints them on
-	// stderr; the MCP wrapper appends them to the message text.
+	// Warnings carries non-fatal notes gathered after the mutation itself
+	// succeeded (for example a failed read-back, or an issue that was already
+	// closed). The CLI prints them on stderr. They are deliberately not
+	// serialized: MCP clients see them only in the tool's text content, via
+	// MCPMessage, and not in the structured result.
 	Warnings []string `json:"-"`
 }
 

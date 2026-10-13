@@ -35,27 +35,39 @@ type StatusNotAppliedError struct {
 }
 
 func (e *StatusNotAppliedError) Error() string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Issue #%d: status was not changed to %s; it is still %s. "+
+	return e.Summary() + " " + strings.Join(e.Details(), " ")
+}
+
+// Summary is the one-paragraph explanation of what happened, without the
+// follow-up facts returned by Details.
+func (e *StatusNotAppliedError) Summary() string {
+	return fmt.Sprintf("Issue #%d: status was not changed to %s; it is now %s. "+
 		"Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, "+
 		"and refuses to close issues that have open subtasks or are blocked by open issues.",
 		e.IssueID, describeStatus(e.Requested), describeStatus(e.Current))
-	if e.OtherChanges {
-		b.WriteString(" The other changes in this request (fields, notes, attachments) may have been applied; do not resend them blindly.")
-	}
+}
+
+// Details lists the follow-up facts a caller needs to recover: the statuses
+// the issue may move to and, when relevant, that the rest of the request may
+// already have been applied.
+func (e *StatusNotAppliedError) Details() []string {
+	var details []string
 	switch {
 	case !e.AllowedReported:
-		b.WriteString(" This Redmine server does not report allowed transitions (requires Redmine 5.0+); check the workflow configuration or ask an administrator.")
+		details = append(details, "This Redmine server does not report allowed transitions (requires Redmine 5.0+); check the workflow configuration or ask an administrator.")
 	case len(e.Allowed) == 0:
-		b.WriteString(" Redmine reports no allowed status transitions for this issue.")
+		details = append(details, "Redmine reports no allowed status transitions for this issue.")
 	default:
 		names := make([]string, 0, len(e.Allowed))
 		for _, s := range e.Allowed {
 			names = append(names, fmt.Sprintf("%s (%d)", s.Name, s.ID))
 		}
-		fmt.Fprintf(&b, " Allowed statuses: %s.", strings.Join(names, ", "))
+		details = append(details, fmt.Sprintf("Allowed statuses: %s.", strings.Join(names, ", ")))
 	}
-	return b.String()
+	if e.OtherChanges {
+		details = append(details, "The other changes in this request (fields, notes, attachments) may already have been applied; do not resend them blindly.")
+	}
+	return details
 }
 
 func describeStatus(s models.IDName) string {
@@ -65,20 +77,47 @@ func describeStatus(s models.IDName) string {
 	return fmt.Sprintf("%q (ID %d)", s.Name, s.ID)
 }
 
+// statusCheck describes the status change verifyStatusApplied looks for.
+type statusCheck struct {
+	requested    models.IDName
+	otherChanges bool
+	// wantClosed, when set, accepts any status whose is_closed flag matches
+	// (close/reopen): an issue that is already "Rejected" counts as closed
+	// even though close asked for the first closed status.
+	wantClosed *bool
+	// statuses is the already-fetched status list, used to look up is_closed
+	// and names without another request. May be nil.
+	statuses []models.IssueStatus
+}
+
 // verifyStatusApplied reads the issue back after an update that requested a
 // status change. It returns *StatusNotAppliedError when Redmine left the
 // status untouched. When the read-back itself fails the update has still
-// been applied, so the failure is reported as a warning rather than an error.
-func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, requested models.IDName, otherChanges bool) (warning string, err error) {
+// been applied, so the failure is reported as a note rather than an error; an
+// issue that already had a status of the wanted open/closed kind also yields
+// an informational note.
+func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, check statusCheck) (note string, err error) {
 	issue, allowed, reported, err := client.Issues.GetWithAllowedStatuses(ctx, issueID)
 	if err != nil {
 		return fmt.Sprintf("could not verify that issue #%d's status was changed: %v", issueID, err), nil
 	}
+	requested := check.requested
 	if issue.Status.ID == requested.ID {
 		return "", nil
 	}
+	if check.wantClosed != nil {
+		for _, s := range check.statuses {
+			if s.ID == issue.Status.ID && s.IsClosed == *check.wantClosed {
+				state := "open"
+				if s.IsClosed {
+					state = "closed"
+				}
+				return fmt.Sprintf("Issue #%d is already %s with status %q; its status was left unchanged.", issueID, state, s.Name), nil
+			}
+		}
+	}
 	if requested.Name == "" {
-		requested.Name = lookupStatusName(ctx, client, requested.ID, allowed)
+		requested.Name = lookupStatusName(ctx, client, requested.ID, append(append([]models.IssueStatus(nil), allowed...), check.statuses...))
 	}
 	return "", &StatusNotAppliedError{
 		IssueID:         issueID,
@@ -86,7 +125,7 @@ func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, r
 		Current:         issue.Status,
 		Allowed:         allowed,
 		AllowedReported: reported,
-		OtherChanges:    otherChanges,
+		OtherChanges:    check.otherChanges,
 	}
 }
 

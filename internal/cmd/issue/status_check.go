@@ -8,30 +8,26 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
-// reportStatusNotApplied renders an update whose status change Redmine
-// silently ignored. It returns nil when err is not an
-// *ops.StatusNotAppliedError so callers can fall through to their usual error
-// handling.
-//
-// The explanation always reaches stderr, JSON callers additionally get an
-// ok:false action envelope on stdout, and the returned SilentError makes the
-// command exit non-zero without main.go printing the problem a second time.
-func reportStatusNotApplied(printer output.Printer, action string, id int, err error) error {
+// statusNotAppliedError converts an *ops.StatusNotAppliedError into a coded
+// command error, so the standard error path reports it: the explanation as
+// the message, the allowed statuses and the "other changes may already have
+// been applied" note as details, code status_not_applied, exit status 1. It
+// returns nil when err is not a StatusNotAppliedError so callers can fall
+// through to their usual error handling.
+func statusNotAppliedError(err error) error {
 	var notApplied *ops.StatusNotAppliedError
 	if !errors.As(err, &notApplied) {
 		return nil
 	}
-	msg := notApplied.Error()
-	if printer.Format() == output.FormatJSON {
-		// Outcome only writes the envelope in JSON mode; in the other modes
-		// it already prints msg as a warning on stderr.
-		printer.Warning(msg)
+	return &cmdutil.CodedError{
+		Code:    output.ErrCodeStatusNotApplied,
+		Message: notApplied.Summary(),
+		Details: notApplied.Details(),
+		Err:     err,
 	}
-	printer.Outcome(false, action, "issue", id, msg)
-	return &cmdutil.SilentError{Code: 1}
 }
 
-// printWarnings writes non-fatal follow-up warnings from an ops result to
+// printWarnings writes non-fatal follow-up notes from an ops result to
 // stderr.
 func printWarnings(printer output.Printer, warnings []string) {
 	for _, w := range warnings {

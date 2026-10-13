@@ -13,7 +13,7 @@ import (
 // TestIssues_StatusNotAppliedIsReported closes a parent issue that still has
 // an open subtask. Redmine refuses that transition silently (it answers the
 // PUT with 204 and keeps the old status), so the CLI must read the issue
-// back, report ok:false, explain on stderr and exit non-zero. This is the
+// back and fail with the status_not_applied error code. This is the
 // same code path as a workflow-forbidden transition, but reproducible as the
 // admin user, who is otherwise allowed every workflow transition.
 func TestIssues_StatusNotAppliedIsReported(t *testing.T) {
@@ -42,30 +42,29 @@ func TestIssues_StatusNotAppliedIsReported(t *testing.T) {
 		t.Fatalf("expected exit code 1, got err=%v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 
-	var env actionEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
-		t.Fatalf("stdout is not an action envelope: %v\n%s", err, stdout)
+	env := findErrorEnvelope(t, stdout, stderr)
+	if env.Error.Code != "status_not_applied" {
+		t.Fatalf("error code = %q, want status_not_applied\nstdout:\n%s\nstderr:\n%s", env.Error.Code, stdout, stderr)
 	}
-	if env.Ok || env.Action != "closed" || env.Resource != "issue" || envelopeIntID(env.ID) != parent.ID {
-		t.Fatalf("unexpected envelope: %+v", env)
+	if !strings.Contains(env.Error.Message, "status was not changed") || !strings.Contains(env.Error.Message, "open subtasks") {
+		t.Errorf("error message = %q", env.Error.Message)
 	}
-	if !strings.Contains(env.Message, "status was not changed") {
-		t.Errorf("envelope message = %q", env.Message)
-	}
-
-	errText := string(stderr)
-	if !strings.Contains(errText, "status was not changed") || !strings.Contains(errText, "may have been applied") {
-		t.Errorf("stderr missing the explanation:\n%s", errText)
+	details := strings.Join(env.Error.Details, "\n")
+	if !strings.Contains(details, "may already have been applied") {
+		t.Errorf("details should warn that the note may already be applied: %q", env.Error.Details)
 	}
 	switch {
 	case redmineAtLeast(5, 0):
-		if !strings.Contains(errText, "Allowed statuses:") {
-			t.Errorf("Redmine %s supports include=allowed_statuses; stderr should list them:\n%s", e2eVersion(), errText)
+		if !strings.Contains(details, "Allowed statuses:") {
+			t.Errorf("Redmine %s supports include=allowed_statuses; details should list them: %q", e2eVersion(), env.Error.Details)
 		}
 	case e2eVersion() != "":
-		if !strings.Contains(errText, "Redmine 5.0+") {
-			t.Errorf("older Redmine should get the graceful fallback hint:\n%s", errText)
+		if !strings.Contains(details, "Redmine 5.0+") {
+			t.Errorf("older Redmine should get the graceful fallback hint: %q", env.Error.Details)
 		}
+	}
+	if strings.Contains(string(stdout), `"ok"`) {
+		t.Errorf("no success/action envelope may be printed on failure:\n%s", stdout)
 	}
 
 	if after := getIssueStatus(t, r, parent.ID); after != before {
@@ -112,4 +111,22 @@ func issueHasNote(t *testing.T, r *cliRunner, id int, notes string) bool {
 // to CRLF line endings, so tests can compare against what the CLI sent.
 func normalizeNewlines(s string) string {
 	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
+// findErrorEnvelope returns the JSON error envelope of a failed command. It
+// accepts the envelope on stdout (the current error path) or as the last
+// non-empty stderr line, so the test does not depend on which stream the
+// error path writes to.
+func findErrorEnvelope(t *testing.T, stdout, stderr []byte) errorEnvelope {
+	t.Helper()
+	var env errorEnvelope
+	if err := json.Unmarshal(stdout, &env); err == nil && env.Error.Code != "" {
+		return env
+	}
+	lines := strings.Split(strings.TrimSpace(string(stderr)), "\n")
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &env); err == nil && env.Error.Code != "" {
+		return env
+	}
+	t.Fatalf("no JSON error envelope found\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	return env
 }

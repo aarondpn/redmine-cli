@@ -80,15 +80,25 @@ func quiet(cmd *cobra.Command) *cobra.Command {
 	return cmd
 }
 
-func requireSilentExit1(t *testing.T, err error) {
+// requireStatusNotApplied asserts the command failed with the coded error the
+// standard error path renders as a status_not_applied error envelope, and
+// that nothing was printed by the command itself: main.go owns the output.
+func requireStatusNotApplied(t *testing.T, f *cmdutil.Factory, err error) *cmdutil.CodedError {
 	t.Helper()
-	var silent *cmdutil.SilentError
-	if !errors.As(err, &silent) {
-		t.Fatalf("err = %v, want *cmdutil.SilentError (non-zero exit without a second error message)", err)
+	var coded *cmdutil.CodedError
+	if !errors.As(err, &coded) {
+		t.Fatalf("err = %v, want *cmdutil.CodedError", err)
 	}
-	if silent.Code != 1 {
-		t.Errorf("exit code = %d, want 1", silent.Code)
+	if coded.Code != output.ErrCodeStatusNotApplied {
+		t.Errorf("code = %q, want %q", coded.Code, output.ErrCodeStatusNotApplied)
 	}
+	if out := testutil.Stdout(f); out != "" {
+		t.Errorf("stdout = %q, want empty (no success envelope on failure)", out)
+	}
+	if stderr := testutil.Stderr(f); stderr != "" {
+		t.Errorf("stderr = %q, want empty (the error path prints the message once)", stderr)
+	}
+	return coded
 }
 
 func decodeEnvelope(t *testing.T, stdout string) output.ActionEnvelope {
@@ -100,7 +110,7 @@ func decodeEnvelope(t *testing.T, stdout string) output.ActionEnvelope {
 	return env
 }
 
-func TestCmdIssueUpdate_StatusNotApplied_JSON(t *testing.T) {
+func TestCmdIssueUpdate_StatusNotApplied(t *testing.T) {
 	fake := &issueStatusServer{issueBody: issue7StillNew}
 	srv := fake.start(t)
 
@@ -109,51 +119,29 @@ func TestCmdIssueUpdate_StatusNotApplied_JSON(t *testing.T) {
 	cmd.SetArgs([]string{"7", "--status", "6", "--note", "closing as wontfix"})
 	f.OutputFormat = output.FormatJSON
 
-	requireSilentExit1(t, cmd.Execute())
+	err := cmd.Execute()
+	requireStatusNotApplied(t, f, err)
 
-	env := decodeEnvelope(t, testutil.Stdout(f))
-	if env.Ok {
-		t.Errorf("envelope ok = true, want false: %+v", env)
+	env := cmdutil.BuildErrorEnvelope(err)
+	if env.Error.Code != "status_not_applied" {
+		t.Errorf("envelope code = %q", env.Error.Code)
 	}
-	if env.Action != output.ActionUpdated || env.Resource != "issue" {
-		t.Errorf("unexpected envelope: %+v", env)
+	if !strings.Contains(env.Error.Message, `Issue #7: status was not changed to "Wontfix" (ID 6); it is now "New" (ID 1)`) ||
+		!strings.Contains(env.Error.Message, "workflow") {
+		t.Errorf("envelope message = %q", env.Error.Message)
 	}
-	if !strings.Contains(env.Message, `not changed to "Wontfix"`) {
-		t.Errorf("envelope message = %q", env.Message)
-	}
-
-	stderr := testutil.Stderr(f)
-	for _, want := range []string{
-		"WARNING: Issue #7: status was not changed",
-		"workflow",
-		"may have been applied",
+	wantDetails := []string{
 		"Allowed statuses: New (1), Closed (5).",
-	} {
-		if !strings.Contains(stderr, want) {
-			t.Errorf("stderr missing %q:\n%s", want, stderr)
-		}
+		"The other changes in this request (fields, notes, attachments) may already have been applied; do not resend them blindly.",
 	}
-}
-
-func TestCmdIssueUpdate_StatusNotApplied_Table(t *testing.T) {
-	fake := &issueStatusServer{issueBody: issue7StillNew}
-	srv := fake.start(t)
-
-	f := testutil.NewFactory(t, srv.URL)
-	cmd := quiet(NewCmdUpdate(f))
-	cmd.SetArgs([]string{"7", "--status", "6"})
-
-	requireSilentExit1(t, cmd.Execute())
-
-	if out := testutil.Stdout(f); out != "" {
-		t.Errorf("stdout = %q, want empty", out)
+	if strings.Join(env.Error.Details, "|") != strings.Join(wantDetails, "|") {
+		t.Errorf("envelope details = %q, want %q", env.Error.Details, wantDetails)
 	}
-	stderr := testutil.Stderr(f)
-	if strings.Count(stderr, "status was not changed") != 1 {
-		t.Errorf("warning should be printed exactly once:\n%s", stderr)
-	}
-	if strings.Contains(stderr, "OK:") {
-		t.Errorf("stderr must not report success:\n%s", stderr)
+
+	// Text mode prints FormatError(err) once: the message plus the details.
+	text := cmdutil.FormatError(err)
+	if !strings.HasPrefix(text, "Issue #7: status was not changed") || !strings.Contains(text, "\n  - Allowed statuses: New (1), Closed (5).") {
+		t.Errorf("text error = %q", text)
 	}
 }
 
@@ -204,16 +192,14 @@ func TestCmdIssueClose_StatusNotApplied(t *testing.T) {
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := quiet(NewCmdClose(f))
 	cmd.SetArgs([]string{"7"})
-	f.OutputFormat = output.FormatJSON
 
-	requireSilentExit1(t, cmd.Execute())
-
-	env := decodeEnvelope(t, testutil.Stdout(f))
-	if env.Ok || env.Action != output.ActionClosed {
-		t.Errorf("unexpected envelope: %+v", env)
+	coded := requireStatusNotApplied(t, f, cmd.Execute())
+	if !strings.Contains(coded.Message, "open subtasks") {
+		t.Errorf("message should mention the subtask/blocker case: %q", coded.Message)
 	}
-	if !strings.Contains(testutil.Stderr(f), "open subtasks") {
-		t.Errorf("stderr should mention the subtask/blocker case:\n%s", testutil.Stderr(f))
+	// A status-only request has no other changes to warn about.
+	if len(coded.Details) != 1 {
+		t.Errorf("details = %q, want only the allowed statuses", coded.Details)
 	}
 }
 
@@ -234,6 +220,28 @@ func TestCmdIssueClose_StatusApplied(t *testing.T) {
 	}
 }
 
+// TestCmdIssueClose_AlreadyClosedOtherStatus pins that closing an issue that
+// is already in another closed status succeeds, with a note on stderr.
+func TestCmdIssueClose_AlreadyClosedOtherStatus(t *testing.T) {
+	fake := &issueStatusServer{issueBody: issue7Wontfix}
+	srv := fake.start(t)
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := quiet(NewCmdClose(f))
+	cmd.SetArgs([]string{"7"})
+	f.OutputFormat = output.FormatJSON
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v (an issue that is already closed must not fail)", err)
+	}
+	if env := decodeEnvelope(t, testutil.Stdout(f)); !env.Ok || env.Action != output.ActionClosed {
+		t.Errorf("unexpected envelope: %+v", env)
+	}
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, `Issue #7 is already closed with status "Wontfix"`) {
+		t.Errorf("stderr missing already-closed note:\n%s", stderr)
+	}
+}
+
 func TestCmdIssueReopen_StatusNotApplied(t *testing.T) {
 	fake := &issueStatusServer{issueBody: issue7Closed}
 	srv := fake.start(t)
@@ -241,13 +249,8 @@ func TestCmdIssueReopen_StatusNotApplied(t *testing.T) {
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := quiet(NewCmdReopen(f))
 	cmd.SetArgs([]string{"7"})
-	f.OutputFormat = output.FormatJSON
 
-	requireSilentExit1(t, cmd.Execute())
-
-	if env := decodeEnvelope(t, testutil.Stdout(f)); env.Ok || env.Action != output.ActionReopened {
-		t.Errorf("unexpected envelope: %+v", env)
-	}
+	requireStatusNotApplied(t, f, cmd.Execute())
 }
 
 // TestCmdIssueCreate_StatusIgnoredWarns pins that a create whose requested
@@ -265,7 +268,7 @@ func TestCmdIssueCreate_StatusIgnoredWarns(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if stderr := testutil.Stderr(f); !strings.Contains(stderr, `was created with status "New" instead of the requested status (ID 3)`) {
+	if stderr := testutil.Stderr(f); !strings.Contains(stderr, `was created with status "New" instead of the requested status ID 3:`) {
 		t.Errorf("stderr missing status warning:\n%s", stderr)
 	}
 }

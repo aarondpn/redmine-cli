@@ -20,10 +20,11 @@ func NewCmdReopen(f *cmdutil.Factory) *cobra.Command {
 		Use:   "reopen <id>",
 		Short: "Reopen a closed issue",
 		Long: "Reopen a closed issue by setting its status to the first non-closed status.\n\n" +
-			"The issue is read back afterwards. If Redmine silently ignored the " +
+			"The issue is read back afterwards. An issue that is already open (in any " +
+			"open status) counts as reopened. If Redmine silently ignored the " +
 			"transition (its workflow does not allow it for your role and the issue's " +
-			"tracker), the command warns on stderr, reports ok:false in JSON output, " +
-			"lists the allowed statuses (Redmine 5.0+), and exits with status 1.",
+			"tracker), the command fails with error code status_not_applied, listing " +
+			"the allowed statuses (Redmine 5.0+).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
@@ -48,8 +49,8 @@ func NewCmdReopen(f *cmdutil.Factory) *cobra.Command {
 			})
 			stop()
 			if err != nil {
-				if silent := reportStatusNotApplied(printer, output.ActionReopened, id, err); silent != nil {
-					return silent
+				if coded := statusNotAppliedError(err); coded != nil {
+					return coded
 				}
 				return fmt.Errorf("failed to reopen issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}

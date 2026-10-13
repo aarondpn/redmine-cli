@@ -198,7 +198,10 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 	}
 	result := MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}
 	if input.StatusID != nil {
-		warning, err := verifyStatusApplied(ctx, client, input.ID, models.IDName{ID: *input.StatusID}, hasNonStatusChanges(upd))
+		warning, err := verifyStatusApplied(ctx, client, input.ID, statusCheck{
+			requested:    models.IDName{ID: *input.StatusID},
+			otherChanges: hasNonStatusChanges(upd),
+		})
 		if err != nil {
 			return MessageResult{}, err
 		}
@@ -267,7 +270,11 @@ func ReopenIssue(ctx context.Context, client *api.Client, input ReopenIssueInput
 // setIssueStatus moves an issue to the first closed (or open) status, then
 // reads it back to make sure Redmine actually applied the transition.
 func setIssueStatus(ctx context.Context, client *api.Client, id int, closed bool, notes, verb string) (MessageResult, error) {
-	status, err := firstStatus(ctx, client, closed)
+	statuses, err := client.Statuses.List(ctx)
+	if err != nil {
+		return MessageResult{}, err
+	}
+	status, err := firstStatus(statuses, closed)
 	if err != nil {
 		return MessageResult{}, err
 	}
@@ -279,7 +286,12 @@ func setIssueStatus(ctx context.Context, client *api.Client, id int, closed bool
 		return MessageResult{}, err
 	}
 	result := MessageResult{Message: fmt.Sprintf("%s issue #%d", verb, id)}
-	warning, err := verifyStatusApplied(ctx, client, id, models.IDName{ID: status.ID, Name: status.Name}, hasNonStatusChanges(upd))
+	warning, err := verifyStatusApplied(ctx, client, id, statusCheck{
+		requested:    models.IDName{ID: status.ID, Name: status.Name},
+		otherChanges: hasNonStatusChanges(upd),
+		wantClosed:   &closed,
+		statuses:     statuses,
+	})
 	if err != nil {
 		return MessageResult{}, err
 	}
@@ -351,11 +363,7 @@ func RemoveIssueWatcher(ctx context.Context, client *api.Client, input RemoveIss
 	return MessageResult{Message: fmt.Sprintf("Removed user %d as watcher of issue #%d", input.UserID, input.ID)}, nil
 }
 
-func firstStatus(ctx context.Context, client *api.Client, closed bool) (models.IssueStatus, error) {
-	statuses, err := client.Statuses.List(ctx)
-	if err != nil {
-		return models.IssueStatus{}, err
-	}
+func firstStatus(statuses []models.IssueStatus, closed bool) (models.IssueStatus, error) {
 	for _, status := range statuses {
 		if status.IsClosed == closed {
 			return status, nil

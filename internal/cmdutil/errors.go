@@ -56,6 +56,15 @@ func FormatError(err error) string {
 // rendering. It reuses FormatError for the human-readable message and derives
 // a stable code from the underlying api.APIError classification.
 func BuildErrorEnvelope(err error) output.ErrorEnvelope {
+	var coded *CodedError
+	if errors.As(err, &coded) {
+		return output.ErrorEnvelope{Error: output.ErrorDetail{
+			Message: coded.Message,
+			Code:    coded.Code,
+			Details: append([]string(nil), coded.Details...),
+		}}
+	}
+
 	env := output.ErrorEnvelope{
 		Error: output.ErrorDetail{
 			Message: FormatError(err),

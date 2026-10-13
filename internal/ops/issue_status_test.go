@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 // statusServer is a fake Redmine that accepts issue PUTs with 204 (like the
@@ -107,9 +109,9 @@ func TestUpdateIssue_StatusNotApplied(t *testing.T) {
 	}
 	msg := err.Error()
 	for _, want := range []string{
-		`Issue #42: status was not changed to "Rejected" (ID 6); it is still "New" (ID 1)`,
+		`Issue #42: status was not changed to "Rejected" (ID 6); it is now "New" (ID 1)`,
 		"workflow",
-		"may have been applied",
+		"may already have been applied",
 		"Allowed statuses: New (1), In Progress (2).",
 	} {
 		if !strings.Contains(msg, want) {
@@ -140,7 +142,7 @@ func TestUpdateIssue_StatusNotApplied_OldServer(t *testing.T) {
 	if !strings.Contains(msg, "Redmine 5.0+") {
 		t.Errorf("message should explain allowed statuses need Redmine 5.0+:\n%s", msg)
 	}
-	if strings.Contains(msg, "may have been applied") {
+	if strings.Contains(msg, "may already have been applied") {
 		t.Errorf("status-only update should not mention other changes:\n%s", msg)
 	}
 }
@@ -222,5 +224,71 @@ func TestReopenIssue_StatusNotApplied(t *testing.T) {
 	}
 	if notApplied.Requested.ID != 1 || notApplied.Current.ID != 5 {
 		t.Errorf("unexpected error fields: %+v", notApplied)
+	}
+}
+
+// TestCloseIssue_AlreadyClosedOtherStatus pins that close succeeds when the
+// issue already sits in a different closed status: Redmine keeps "Rejected"
+// instead of moving it to the first closed status, which is fine for close.
+func TestCloseIssue_AlreadyClosedOtherStatus(t *testing.T) {
+	srv := &statusServer{issueGet: `{"issue":{"id":42,"status":{"id":6,"name":"Rejected"}}}`}
+	client, closeTS := newTestAPIClient(t, srv)
+	defer closeTS()
+
+	res, err := CloseIssue(context.Background(), client, CloseIssueInput{ID: 42})
+	if err != nil {
+		t.Fatalf("CloseIssue: %v (an already-closed issue must not fail)", err)
+	}
+	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], `already closed with status "Rejected"`) {
+		t.Errorf("Warnings = %v, want an already-closed note", res.Warnings)
+	}
+}
+
+// TestReopenIssue_AlreadyOpenOtherStatus is the reopen counterpart: an issue
+// that is already "In Progress" counts as open.
+func TestReopenIssue_AlreadyOpenOtherStatus(t *testing.T) {
+	srv := &statusServer{issueGet: `{"issue":{"id":42,"status":{"id":2,"name":"In Progress"}}}`}
+	client, closeTS := newTestAPIClient(t, srv)
+	defer closeTS()
+
+	res, err := ReopenIssue(context.Background(), client, ReopenIssueInput{ID: 42})
+	if err != nil {
+		t.Fatalf("ReopenIssue: %v (an already-open issue must not fail)", err)
+	}
+	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], `already open with status "In Progress"`) {
+		t.Errorf("Warnings = %v, want an already-open note", res.Warnings)
+	}
+}
+
+// TestUpdateIssue_OtherClosedStatusStillFails pins that the open/closed
+// leniency is limited to close/reopen: update --status asks for one exact
+// status.
+func TestUpdateIssue_OtherClosedStatusStillFails(t *testing.T) {
+	srv := &statusServer{issueGet: `{"issue":{"id":42,"status":{"id":6,"name":"Rejected"}}}`}
+	client, closeTS := newTestAPIClient(t, srv)
+	defer closeTS()
+
+	status := 5
+	_, err := UpdateIssue(context.Background(), client, UpdateIssueInput{ID: 42, StatusID: &status})
+	var notApplied *StatusNotAppliedError
+	if !errors.As(err, &notApplied) {
+		t.Fatalf("err = %v, want *StatusNotAppliedError", err)
+	}
+}
+
+func TestStatusNotAppliedError_SummaryAndDetails(t *testing.T) {
+	e := &StatusNotAppliedError{
+		IssueID:         1,
+		Requested:       models.IDName{ID: 5, Name: "Closed"},
+		Current:         models.IDName{ID: 1, Name: "New"},
+		AllowedReported: true,
+		OtherChanges:    true,
+	}
+	if strings.Contains(e.Summary(), "Allowed") || strings.Contains(e.Summary(), "already have been applied") {
+		t.Errorf("Summary should not carry the details: %q", e.Summary())
+	}
+	details := e.Details()
+	if len(details) != 2 || !strings.Contains(details[0], "no allowed status transitions") || !strings.Contains(details[1], "may already have been applied") {
+		t.Errorf("Details = %q", details)
 	}
 }

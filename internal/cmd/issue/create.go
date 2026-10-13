@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -184,7 +185,11 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if create.StatusID != 0 && issue.Status.ID != create.StatusID {
 				// The issue exists, so this is a warning rather than a failure:
 				// a non-zero exit would invite a retry that duplicates it.
-				printer.Warning(fmt.Sprintf("Issue #%d was created with status %q instead of the requested status (ID %d): Redmine's workflow does not allow new issues of this tracker to start in that status for your role.", issue.ID, issue.Status.Name, create.StatusID))
+				requested := fmt.Sprintf("%q (ID %d)", status, create.StatusID)
+				if _, err := strconv.Atoi(status); err == nil {
+					requested = fmt.Sprintf("ID %d", create.StatusID)
+				}
+				printer.Warning(fmt.Sprintf("Issue #%d was created with status %q instead of the requested status %s: Redmine's workflow does not allow new issues of this tracker to start in that status for your role.", issue.ID, issue.Status.Name, requested))
 			}
 
 			if printer.Format() == output.FormatJSON {
