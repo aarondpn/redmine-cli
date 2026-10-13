@@ -45,6 +45,19 @@ func ReadTextFileFlag(cmd *cobra.Command, stdin io.Reader, inlineFlag, fileFlag 
 	return true, nil
 }
 
+// RejectEmptyTextFile returns an error when fileFlag was given but its file
+// (or stdin) was empty. Use it for text that means nothing when empty, such
+// as notes and comments: an empty file there is almost always a mistake (a
+// failed redirect, the wrong path) and would otherwise be a silent no-op.
+// Fields where an empty value clears the field (descriptions) should accept
+// empty files instead.
+func RejectEmptyTextFile(cmd *cobra.Command, fileFlag, content string) error {
+	if cmd.Flags().Changed(fileFlag) && content == "" {
+		return fmt.Errorf("--%s is empty", fileFlag)
+	}
+	return nil
+}
+
 // utf8BOM is the byte-order mark some editors (notably on Windows) prepend to
 // UTF-8 files. It is not content and would show up as a stray character at
 // the start of the Redmine text.

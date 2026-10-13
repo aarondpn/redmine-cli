@@ -36,6 +36,9 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "note", "note-file", &note); err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "note-file", note); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {

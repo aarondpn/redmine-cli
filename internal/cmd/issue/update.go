@@ -101,6 +101,12 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// An empty note file is rejected like `comment -F`; an empty
+			// --description-file stays valid because it clears the
+			// description.
+			if err := cmdutil.RejectEmptyTextFile(cmd, "note-file", note); err != nil {
+				return err
+			}
 
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject

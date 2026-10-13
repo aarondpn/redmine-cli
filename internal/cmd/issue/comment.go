@@ -38,10 +38,10 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "message", "message-file", &message); err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "message-file", message); err != nil {
+				return err
+			}
 			if message == "" {
-				if cmd.Flags().Changed("message-file") {
-					return fmt.Errorf("--message-file is empty")
-				}
 				return fmt.Errorf("--message or --message-file is required")
 			}
 
