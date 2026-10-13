@@ -98,8 +98,10 @@ func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 			break
 		}
 		if err, isErr := result.(error); isErr {
+			// halt and halt_error(0) stop successfully; any other exit code
+			// is a failure, regardless of the halt value.
 			var halt *gojq.HaltError
-			if errors.As(err, &halt) && halt.Value() == nil {
+			if errors.As(err, &halt) && halt.ExitCode() == 0 {
 				break
 			}
 			return &JQRuntimeError{Err: err}

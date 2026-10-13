@@ -305,6 +305,13 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			wantMsg:  "command succeeded, but --jq failed: ",
 		},
 		{
+			name:     "--jq halt_error with a non-zero exit code",
+			args:     []string{"config", "--jq", "null | halt_error(5)"},
+			wantJSON: true,
+			wantCode: output.ErrCodeJQFailed,
+			wantMsg:  "command succeeded, but --jq failed: ",
+		},
+		{
 			name:     "--jq runtime error",
 			args:     []string{"config", "--jq", ".[0]"},
 			wantJSON: true,
