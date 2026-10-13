@@ -45,6 +45,23 @@ func ReadTextFileFlag(cmd *cobra.Command, stdin io.Reader, inlineFlag, fileFlag 
 	return true, nil
 }
 
+// RejectEmptyTextFile returns an error when fileFlag was given but its file
+// (or stdin) was empty or held only whitespace. An empty file is almost
+// always a mistake (a failed redirect, the wrong path): for notes and
+// comments it would be a silent no-op, for descriptions it would silently
+// wipe the existing text. Clearing a field stays possible through the inline
+// flag (for example --description ""). hint, when not empty, is attached as
+// the error's recovery hint. The check never alters content.
+func RejectEmptyTextFile(cmd *cobra.Command, fileFlag, content, hint string) error {
+	if cmd.Flags().Changed(fileFlag) && strings.TrimSpace(content) == "" {
+		return WithHint(fmt.Errorf("--%s is empty", fileFlag), hint)
+	}
+	return nil
+}
+
+// ClearDescriptionHint is the RejectEmptyTextFile hint for --description-file.
+const ClearDescriptionHint = `To clear the description, pass --description "" explicitly.`
+
 // utf8BOM is the byte-order mark some editors (notably on Windows) prepend to
 // UTF-8 files. It is not content and would show up as a stray character at
 // the start of the Redmine text.

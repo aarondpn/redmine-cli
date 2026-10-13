@@ -79,6 +79,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "text-file", text, ""); err != nil {
+				return err
+			}
 
 			if cmd.Flags().Changed("expect-version") && ensureCurrent {
 				return fmt.Errorf("--expect-version and --ensure-current are mutually exclusive")
@@ -199,7 +202,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmd.Flags().IntVar(&expectVersion, "expect-version", 0, "Expected current page version. Server returns 409 Conflict if the page has moved on.")
 	cmd.Flags().BoolVar(&ensureCurrent, "ensure-current", false, "Refetch the page first and assert its current version on update. Mutually exclusive with --expect-version.")
-	cmd.Flags().IntVar(&section, "section", 0, "Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires --text.")
+	cmd.Flags().IntVar(&section, "section", 0, "Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires --text or --text-file.")
 	cmd.Flags().StringVar(&sectionHash, "section-hash", "", "Hash of the original section content, used by Redmine for conflict detection on section edits. Only meaningful with --section.")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))

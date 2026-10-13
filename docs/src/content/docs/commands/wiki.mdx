@@ -89,7 +89,7 @@ Aliases: `new`. Creates a new wiki page. If a page with the same name already ex
 |------|-------------|
 | `--project`    | Project identifier or numeric ID |
 | `-t, --text`   | Page content in Textile/Markdown. <Badge text="required" variant="danger" /> unless `--text-file` is given |
-| `-F, --text-file` | Read the page content from a file (`-` reads standard input); mutually exclusive with `--text` |
+| `-F, --text-file` | Read the page content from a file (`-` reads standard input); mutually exclusive with `--text`; an empty or whitespace-only file is rejected |
 | `--title`      | Display title (defaults to the page name) |
 | `--comments`   | Change comment recorded in the page history |
 | `--attach`     | Path to a file to attach (repeatable) |
@@ -121,7 +121,7 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 |------|-------------|
 | `--project`        | Project identifier or numeric ID |
 | `-t, --text`       | New page content. If omitted, the current text is preserved. |
-| `-F, --text-file`  | Read the new page content from a file (`-` reads standard input); mutually exclusive with `--text` |
+| `-F, --text-file`  | Read the new page content from a file (`-` reads standard input); mutually exclusive with `--text`; an empty or whitespace-only file is rejected |
 | `--title`          | New display title |
 | `--comments`       | Change comment recorded in the page history |
 | `--attach`         | Path to a file to attach (repeatable) |

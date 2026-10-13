@@ -183,3 +183,36 @@ func TestCmdProjectUpdate_DefaultAssigneeEmptyClears(t *testing.T) {
 		t.Errorf("default_assigned_to_id = %v, want 0 (clear)", proj["default_assigned_to_id"])
 	}
 }
+
+// An empty or whitespace-only --description-file must not silently wipe the
+// project description (create and update share the check).
+func TestCmdProject_EmptyDescriptionFileRejected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	path := filepath.Join(t.TempDir(), "empty.textile")
+	if err := os.WriteFile(path, []byte("\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, args := range map[string][]string{
+		"update": {"demo", "--description-file", path},
+		"create": {"--name", "Demo", "--identifier", "demo", "--description-file", path},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := testutil.NewFactory(t, srv.URL)
+			cmd := newCmdUpdate(f)
+			if name == "create" {
+				cmd = newCmdCreate(f)
+			}
+			cmd.SilenceUsage, cmd.SilenceErrors = true, true
+			cmd.SetArgs(args)
+			err := cmd.Execute()
+			if err == nil || err.Error() != "--description-file is empty" {
+				t.Fatalf("err = %v, want '--description-file is empty'", err)
+			}
+		})
+	}
+}

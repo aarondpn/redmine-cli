@@ -175,7 +175,9 @@ active_profile: a
 	}
 }
 
-func TestSelectedOutputFormat_UsesClearedFactoryFormatForInteractiveRejection(t *testing.T) {
+// TestSelectedOutputFormat_PrefersFactoryFormat pins that the format a
+// command recorded on the factory wins over the raw flag value.
+func TestSelectedOutputFormat_PrefersFactoryFormat(t *testing.T) {
 	root, factory := cmd.NewRootCmdWithFactory("test")
 	factory.OutputFormat = output.FormatTable
 
@@ -183,7 +185,7 @@ func TestSelectedOutputFormat_UsesClearedFactoryFormatForInteractiveRejection(t 
 		t.Fatal(err)
 	}
 
-	got := selectedOutputFormat(root, factory, []string{"issues", "browse", "--output", "json"})
+	got := selectedOutputFormat(root, factory, []string{"versions", "list", "--output", "json"})
 	if got != output.FormatTable {
 		t.Fatalf("selectedOutputFormat() = %q, want %q", got, output.FormatTable)
 	}
@@ -248,6 +250,7 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 		wantJSON bool
 		wantCode string
 		wantMsg  string
+		notMsg   string
 	}{
 		{
 			name:     "failed write in JSON mode",
@@ -302,7 +305,8 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			args:     []string{"api", "/issues.json", "-i", "--jq", ".[0]"},
 			wantJSON: true,
 			wantCode: output.ErrCodeJQFailed,
-			wantMsg:  "command succeeded, but --jq failed: ",
+			wantMsg:  `{"error":{"message":"--jq failed on the error response: `,
+			notMsg:   "command succeeded",
 		},
 		{
 			name:     "--jq halt_error with a non-zero exit code",
@@ -323,6 +327,25 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			args:    []string{"issues", "get", "-o", "table"},
 			wantMsg: "Error: accepts 1 arg(s)",
 		},
+		{
+			// Interactive commands reject structured output, but the
+			// rejection itself must still honour the requested format.
+			name:     "interactive command rejects --jq as an envelope",
+			args:     []string{"issues", "browse", "--jq", "."},
+			wantJSON: true,
+			wantMsg:  `{"error":{"message":"--jq is not supported for redmine issues browse"`,
+		},
+		{
+			name:     "interactive command rejects -o json as an envelope",
+			args:     []string{"issues", "browse", "-o", "json"},
+			wantJSON: true,
+			wantMsg:  `{"error":{"message":"--output is not supported for redmine issues browse"`,
+		},
+		{
+			name:    "interactive command rejects -o table as text",
+			args:    []string{"auth", "logout", "-o", "table"},
+			wantMsg: "Error: --output is not supported for redmine auth logout",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -335,6 +358,9 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			}
 			if !strings.Contains(stderr, tt.wantMsg) {
 				t.Fatalf("stderr missing %q:\n%s", tt.wantMsg, stderr)
+			}
+			if tt.notMsg != "" && strings.Contains(stderr, tt.notMsg) {
+				t.Fatalf("stderr must not contain %q:\n%s", tt.notMsg, stderr)
 			}
 			if !tt.wantJSON {
 				return

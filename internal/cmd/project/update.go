@@ -46,6 +46,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "description-file", description, cmdutil.ClearDescriptionHint); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {

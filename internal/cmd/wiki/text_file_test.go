@@ -110,6 +110,38 @@ func TestUpdate_TextFileFromStdinWithSection(t *testing.T) {
 	}
 }
 
+// An empty or whitespace-only --text-file is rejected before any request,
+// on create and on (section) updates alike.
+func TestTextFile_EmptyRejected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.textile")
+	if err := os.WriteFile(path, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, args := range map[string][]string{
+		"create":         {"MyPage", "--project", "proj", "--text-file", path},
+		"update":         {"MyPage", "--project", "proj", "--text-file", path},
+		"update section": {"MyPage", "--project", "proj", "--text-file", path, "--section", "2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv, puts := newWikiPutServer(t)
+			f := testutil.NewFactory(t, srv.URL)
+			cmd := newCmdUpdate(f)
+			if name == "create" {
+				cmd = newCmdCreate(f)
+			}
+			cmd.SilenceUsage, cmd.SilenceErrors = true, true
+			cmd.SetArgs(args)
+			err := cmd.Execute()
+			if err == nil || err.Error() != "--text-file is empty" {
+				t.Fatalf("err = %v, want '--text-file is empty'", err)
+			}
+			if len(puts()) != 0 {
+				t.Error("no page should be written")
+			}
+		})
+	}
+}
+
 func TestUpdate_TextAndTextFileMutuallyExclusive(t *testing.T) {
 	srv, puts := newWikiPutServer(t)
 

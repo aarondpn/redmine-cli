@@ -107,7 +107,7 @@ redmine issues list --project myproject -o json \
 {"error":{"message":"Resource not found.","code":"not_found"}}
 ```
 
-`code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`conflict`、`server_error`、`jq_invalid`、`jq_failed`、`status_not_applied`、`unknown`。校验错误和冲突错误还会包含 `details` 数组，其中列出 Redmine 返回的各项错误信息。`jq_invalid` 表示 `--jq` 表达式为空或格式错误，命令未执行；`jq_failed` 表示命令本身已成功（写操作已经发生，请勿重试），只是 `--jq` 表达式在处理其输出时失败。`status_not_applied` 表示 Redmine 接受了工单更新，却静默保留了原状态（参见英文文档 [Status changes are verified](/commands/issues/#status-changes-are-verified)）。其 `details` 列出允许的状态；如果请求还包含其他变更，还会提示这些变更可能已经生效。
+`code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`conflict`、`server_error`、`jq_invalid`、`jq_failed`、`status_not_applied`、`unknown`。校验错误和冲突错误还会包含 `details` 数组，其中列出 Redmine 返回的各项错误信息。`jq_invalid` 表示 `--jq` 表达式为空或格式错误，命令未执行；`jq_failed` 表示命令本身已成功（写操作已经发生，请勿重试），只是 `--jq` 表达式在处理其输出时失败；例外是 `redmine api -i` 收到失败响应（4xx/5xx）时，消息为 `--jq failed on the error response: ...`，此时请求本身已失败。`status_not_applied` 表示 Redmine 接受了工单更新，却静默保留了原状态（参见英文文档 [Status changes are verified](/commands/issues/#status-changes-are-verified)）。其 `details` 列出允许的状态；如果请求还包含其他变更，还会提示这些变更可能已经生效。
 
 <Aside type="caution" title="v2.14.0 变更">
   早期版本将 JSON 错误信封写到 `stdout`。从 `stdout` 解析错误的脚本需要改为读取 `stderr`。

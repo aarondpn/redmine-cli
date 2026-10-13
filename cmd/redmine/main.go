@@ -48,7 +48,7 @@ func main() {
 			// --jq failure on output printed before a SilentError (e.g.
 			// `api -i` on a 4xx) would otherwise be lost.
 			if jqErr := factory.JQError(); jqErr != nil {
-				renderError(os.Stderr, jqErr, output.FormatJSON)
+				renderError(os.Stderr, errorResponseJQError(jqErr), output.FormatJSON)
 			}
 			os.Exit(silent.Code)
 		}
@@ -57,6 +57,30 @@ func main() {
 	}
 
 	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
+}
+
+// failedResponseJQError reports a --jq runtime failure on output that was
+// printed by a command that then failed (e.g. `api -i` on a 4xx response).
+// The default JQRuntimeError message says the command succeeded, which is
+// wrong here. It unwraps to the runtime error, so the code stays jq_failed.
+type failedResponseJQError struct {
+	err *output.JQRuntimeError
+}
+
+func (e *failedResponseJQError) Error() string {
+	return "--jq failed on the error response: " + e.err.Err.Error()
+}
+
+func (e *failedResponseJQError) Unwrap() error { return e.err }
+
+// errorResponseJQError rewords a --jq runtime error recorded before a silent
+// command failure; other errors are returned unchanged.
+func errorResponseJQError(err error) error {
+	var rt *output.JQRuntimeError
+	if errors.As(err, &rt) {
+		return &failedResponseJQError{err: rt}
+	}
+	return err
 }
 
 // renderError writes a failed command's error to w, which is always stderr so

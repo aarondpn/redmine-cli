@@ -60,9 +60,12 @@ Redmine's "Allow issue assignment to groups" setting.`,
 				return nil
 			}
 
+			if err := checkAssigneeID(args[1], fmt.Sprintf("use 'redmine issues assign %d none' to unassign", id)); err != nil {
+				return err
+			}
 			userID, err := resolveIssuePrincipal(ctx, client, id, args[1])
 			if err != nil {
-				return fmt.Errorf("resolving user: %w", err)
+				return fmt.Errorf("resolving assignee: %w", err)
 			}
 
 			stop := printer.Spinner("Assigning issue...")

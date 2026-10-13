@@ -278,3 +278,115 @@ func TestCmdIssueCreate_WatcherAndAssigneeNamesResolveViaMemberships(t *testing.
 		t.Fatalf("memberships fetched %d times, want 1 shared lookup: %v", fetches, s.requests)
 	}
 }
+
+// A literal 0 must not silently clear the assignee: "none" is the documented
+// way to unassign, and Redmine has no principal with ID 0.
+func TestCmdIssueUpdate_AssigneeZeroOrNegativeRejected(t *testing.T) {
+	for _, val := range []string{"0", "-3"} {
+		t.Run(val, func(t *testing.T) {
+			s := &assigneeServer{t: t}
+			f := testutil.NewFactory(t, s.start())
+
+			cmd := NewCmdUpdate(f)
+			cmd.SetArgs([]string{"5", "--assignee", val})
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			want := "invalid assignee ID " + val + ": must be a positive user or group ID; use 'none' to unassign"
+			if err.Error() != want {
+				t.Errorf("error = %q, want %q", err, want)
+			}
+			if len(s.requests) != 0 {
+				t.Fatalf("requests = %v, want none", s.requests)
+			}
+		})
+	}
+}
+
+func TestCmdIssueCreate_AssigneeZeroRejected(t *testing.T) {
+	s := &assigneeServer{t: t}
+	f := testutil.NewFactory(t, s.start())
+
+	cmd := NewCmdCreate(f)
+	cmd.SetArgs([]string{"--project", "7", "--subject", "s", "--assignee", "0", "--output", "json"})
+	err := cmd.Execute()
+	if err == nil || err.Error() != "invalid assignee ID 0: must be a positive user or group ID; use 'none' to unassign" {
+		t.Fatalf("err = %v, want rejection with hint to use 'none'", err)
+	}
+	if len(s.requests) != 0 {
+		t.Fatalf("requests = %v, want none", s.requests)
+	}
+	if s.postBody != nil {
+		t.Fatalf("no issue should be created: %v", s.postBody)
+	}
+}
+
+func TestCmdIssueAssign_ZeroPointsToNone(t *testing.T) {
+	s := &assigneeServer{t: t}
+	f := testutil.NewFactory(t, s.start())
+
+	cmd := NewCmdAssign(f)
+	cmd.SetArgs([]string{"5", "0"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "redmine issues assign 5 none") {
+		t.Errorf("error = %q, want CLI hint 'redmine issues assign 5 none'", err)
+	}
+	if strings.Contains(err.Error(), "update_issue") {
+		t.Errorf("error = %q, must not point CLI users at the MCP tool", err)
+	}
+	if len(s.requests) != 0 {
+		t.Fatalf("requests = %v, want none", s.requests)
+	}
+}
+
+func TestCmdIssueAssign_UnknownNameSaysAssignee(t *testing.T) {
+	s := &assigneeServer{t: t}
+	f := testutil.NewFactory(t, s.start())
+
+	cmd := NewCmdAssign(f)
+	cmd.SetArgs([]string{"5", "Nobody Here"})
+	err := cmd.Execute()
+	if err == nil || !strings.HasPrefix(err.Error(), "resolving assignee: ") {
+		t.Fatalf("err = %v, want 'resolving assignee:' prefix", err)
+	}
+}
+
+func TestCmdWatchers_UnknownNameSaysWatcher(t *testing.T) {
+	for _, sub := range []string{"add", "remove"} {
+		t.Run(sub, func(t *testing.T) {
+			s := &assigneeServer{t: t}
+			f := testutil.NewFactory(t, s.start())
+
+			cmd := NewCmdWatchers(f)
+			cmd.SetArgs([]string{sub, "5", "Nobody Here"})
+			err := cmd.Execute()
+			if err == nil || !strings.HasPrefix(err.Error(), "resolving watcher: ") {
+				t.Fatalf("err = %v, want 'resolving watcher:' prefix", err)
+			}
+		})
+	}
+}
+
+func TestCmdIssueList_AuthorGroupNameExplainsGroupsCannotAuthor(t *testing.T) {
+	s := &assigneeServer{t: t}
+	f := testutil.NewFactory(t, s.start())
+
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--project", "demo", "--author", "Backend Team", "--output", "json"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	for _, want := range []string{"resolving author", `"Backend Team" is a group (ID: 12)`, "cannot be issue authors"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
+	}
+	if s.hit("GET /issues.json") {
+		t.Fatalf("issues must not be listed with an unresolved author: %v", s.requests)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
@@ -105,14 +106,32 @@ func resolveIssueAuthorFilter(ctx context.Context, client *api.Client, author, p
 
 // resolveAssigneeValue resolves an --assignee value for commands that set
 // the assignee. "none" yields 0, which the update path sends as an empty
-// assigned_to_id to clear the assignee. Names are matched against the
-// project memberships principals is bound to (users and groups) before the
-// users endpoint.
+// assigned_to_id to clear the assignee. Callers validate the input with
+// checkAssigneeFlag first, so a literal 0 never reaches this point. Names
+// are matched against the project memberships principals is bound to
+// (users and groups) before the users endpoint.
 func resolveAssigneeValue(principals *resolver.PrincipalResolver, input string) (int, error) {
 	if resolver.IsNone(input) {
 		return 0, nil
 	}
 	return principals.Assignee(input)
+}
+
+// checkAssigneeFlag validates --assignee before any request is sent.
+func checkAssigneeFlag(input string) error {
+	return checkAssigneeID(input, "use 'none' to unassign")
+}
+
+// checkAssigneeID rejects a numeric assignee that is not a positive ID.
+// Redmine has no principal 0, and since 0 is how "none" travels internally,
+// accepting it would silently clear the assignee instead of failing. hint
+// tells the user how to unassign with the command at hand.
+func checkAssigneeID(input, hint string) error {
+	id, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil || id > 0 {
+		return nil
+	}
+	return fmt.Errorf("invalid assignee ID %d: must be a positive user or group ID; %s", id, hint)
 }
 
 // resolveIssuePrincipal resolves a user or group in the context of an

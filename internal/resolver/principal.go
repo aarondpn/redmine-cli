@@ -237,6 +237,9 @@ func (r *PrincipalResolver) resolve(input, label string, allowGroups bool) (int,
 		}
 		if isForbiddenErr(err) {
 			if membersOK {
+				if groupErr := r.groupNotAllowed(in, allowGroups); groupErr != nil {
+					return 0, groupErr
+				}
 				return 0, fmt.Errorf("%s\n%s", r.memberSuggestions(in, allowGroups), "Logins and users outside the project can only be resolved with admin privileges; use the member's name as listed, a numeric ID, or \"me\".")
 			}
 			return 0, &NameResolutionPermissionError{
@@ -270,6 +273,11 @@ func (r *PrincipalResolver) resolve(input, label string, allowGroups bool) (int,
 
 	switch len(matches) {
 	case 0:
+		if membersOK {
+			if groupErr := r.groupNotAllowed(in, allowGroups); groupErr != nil {
+				return 0, groupErr
+			}
+		}
 		if membersOK && len(r.candidates(allowGroups)) > 0 {
 			return 0, fmt.Errorf("%s", r.memberSuggestions(in, allowGroups))
 		}
@@ -293,6 +301,22 @@ func (r *PrincipalResolver) resolve(input, label string, allowGroups bool) (int,
 		}
 		return 0, fmt.Errorf("multiple users match %q, please use the numeric ID:\n%s", in, strings.Join(lines, "\n"))
 	}
+}
+
+// groupNotAllowed explains a user-only lookup that failed because input
+// names a group of the project. Without it the caller would get a "no similar
+// members" list that leaves out the very group they typed. It returns nil
+// when groups are allowed or no group matches.
+func (r *PrincipalResolver) groupNotAllowed(in string, allowGroups bool) error {
+	if allowGroups {
+		return nil
+	}
+	for _, p := range matchPrincipals(r.members, in) {
+		if p.Group {
+			return fmt.Errorf("%q is a group (ID: %d), but only users are accepted here: groups cannot be issue authors or own time entries", p.Name, p.ID)
+		}
+	}
+	return nil
 }
 
 // memberResult turns display-name matches into an ID, or an ambiguity error

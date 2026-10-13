@@ -101,6 +101,20 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Empty files are rejected: an empty note would be a silent
+			// no-op and an empty description would silently wipe the
+			// existing one. --description "" still clears it explicitly.
+			if err := cmdutil.RejectEmptyTextFile(cmd, "description-file", description, cmdutil.ClearDescriptionHint); err != nil {
+				return err
+			}
+			if err := cmdutil.RejectEmptyTextFile(cmd, "note-file", note, ""); err != nil {
+				return err
+			}
+			if cmd.Flags().Changed("assignee") {
+				if err := checkAssigneeFlag(assignee); err != nil {
+					return err
+				}
+			}
 
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject
