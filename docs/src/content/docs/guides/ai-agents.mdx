@@ -28,7 +28,7 @@ For most hosts you want both. Several major hosts (Claude Code, Codex CLI, Gemin
 
 ## Agent Skill
 
-The skill teaches the agent what `--help` cannot: output formats, pagination, filtering, name resolution, and common workflows. After installing it the agent knows to use `-o json`, resolve ambiguous values by querying first, and pick the right flags without guessing.
+The skill teaches the agent what `--help` cannot: output formats, pagination, filtering, name resolution, and common workflows. After installing it the agent knows to extract fields with `--jq`, check exit codes instead of parsing errors from stdout, inspect attachments, and fall back to `--help` instead of guessing flags.
 
 The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md). Copy directly into your agent's instructions if you prefer not to run an installer.
 
