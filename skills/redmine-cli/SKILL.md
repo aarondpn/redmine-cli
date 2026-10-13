@@ -91,7 +91,7 @@ images, which frequently hold the actual error, mockup, or detail the ticket is
 about.
 
 1. **Discover attachment IDs**: `redmine issues get <id> --attachments` lists each
-   attachment's `id`, `filename`, `size`, and `content_type` (JSON: `.attachments[]`).
+   attachment's `id`, `filename`, `filesize`, and `content_type` (JSON: `.attachments[]`).
    Without `--attachments` the issue output doesn't show them.
 2. **Download one file**: `redmine attachments download <att-id> -d <dir>` saves it
    under its real filename (or `--path <file>` for an exact path, `--path -` to
@@ -105,7 +105,7 @@ After downloading an image, open/read it and use what it shows.
 
 ## Non-Obvious Behaviors
 
-- `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`, `--attachments`.
+- `redmine issues get <id> --journals` includes comments/history.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - Projects can accumulate hundreds of versions, most of them closed or locked. When you need a version for a new issue, time entry, or similar workflow, always start from `redmine versions list --open` so the shortlist stays small and you don't pick a version that can no longer accept work.
