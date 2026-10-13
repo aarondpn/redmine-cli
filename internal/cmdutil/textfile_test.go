@@ -33,6 +33,25 @@ func TestReadTextFile_PreservesContent(t *testing.T) {
 	}
 }
 
+func TestReadTextFile_StripsLeadingBOM(t *testing.T) {
+	got, err := ReadTextFile("-", strings.NewReader("\xEF\xBB\xBFh1. Title\r\n\r\nbody\r\n"))
+	if err != nil {
+		t.Fatalf("ReadTextFile: %v", err)
+	}
+	if want := "h1. Title\r\n\r\nbody\r\n"; got != want {
+		t.Errorf("got %q, want %q (BOM dropped, CRLF kept)", got, want)
+	}
+
+	// Only a leading BOM is a byte-order mark; one in the middle is content.
+	got, err = ReadTextFile("-", strings.NewReader("a\xEF\xBB\xBFb"))
+	if err != nil {
+		t.Fatalf("ReadTextFile: %v", err)
+	}
+	if got != "a\xEF\xBB\xBFb" {
+		t.Errorf("got %q, want the inner BOM preserved", got)
+	}
+}
+
 func TestReadTextFile_Errors(t *testing.T) {
 	if _, err := ReadTextFile("", nil); err == nil {
 		t.Error("expected an error for an empty path")

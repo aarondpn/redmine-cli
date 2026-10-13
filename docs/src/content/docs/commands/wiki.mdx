@@ -106,7 +106,7 @@ redmine wiki create MyPage --project myproject \
 ```
 
 <Aside type="tip">
-  Read long content from a file instead of quoting it on the command line: `redmine wiki create Notes --project myproject --text-file notes.md`, or pipe it in with `--text-file -`. The file is sent exactly as read (UTF-8, no trimming).
+  Read long content from a file instead of quoting it on the command line: `redmine wiki create Notes --project myproject --text-file notes.md`, or pipe it in with `--text-file -`. The file is sent as read (UTF-8, no trimming; only a leading byte-order mark is dropped).
 </Aside>
 
 ## update

@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -25,8 +26,8 @@ func AddTextFileFlag(cmd *cobra.Command, inlineFlag, fileFlag, shorthand string)
 
 // ReadTextFileFlag resolves a long-text flag pair registered with
 // AddTextFileFlag. When fileFlag was given, the file (or stdin for "-") is
-// read and stored in *dst verbatim — no trimming, so trailing newlines and
-// whitespace survive. It reports whether either flag was set, which is what
+// read and stored in *dst without trimming, so trailing newlines and
+// whitespace survive (see ReadTextFile). It reports whether either flag was set, which is what
 // callers should use instead of cmd.Flags().Changed(inlineFlag).
 func ReadTextFileFlag(cmd *cobra.Command, stdin io.Reader, inlineFlag, fileFlag string, dst *string) (bool, error) {
 	if !cmd.Flags().Changed(fileFlag) {
@@ -44,8 +45,15 @@ func ReadTextFileFlag(cmd *cobra.Command, stdin io.Reader, inlineFlag, fileFlag 
 	return true, nil
 }
 
+// utf8BOM is the byte-order mark some editors (notably on Windows) prepend to
+// UTF-8 files. It is not content and would show up as a stray character at
+// the start of the Redmine text.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
 // ReadTextFile reads a UTF-8 text file, or standard input when path is "-".
-// The content is returned exactly as read.
+// The content is returned as read, except that a leading UTF-8 byte-order
+// mark is dropped. Line endings (including CRLF) and surrounding whitespace
+// are preserved.
 func ReadTextFile(path string, stdin io.Reader) (string, error) {
 	var (
 		data []byte
@@ -74,7 +82,7 @@ func ReadTextFile(path string, stdin io.Reader) (string, error) {
 		}
 		return "", fmt.Errorf("%s is not valid UTF-8 text", path)
 	}
-	return string(data), nil
+	return string(bytes.TrimPrefix(data, utf8BOM)), nil
 }
 
 // RejectMultipleStdinFlags returns an error when more than one of the given
