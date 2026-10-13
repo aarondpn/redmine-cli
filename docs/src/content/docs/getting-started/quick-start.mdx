@@ -104,6 +104,8 @@ redmine issues list --assignee me
   `me` always resolves to the current user of the active profile — handy in scripts that run under different accounts.
 </Aside>
 
+User and group names given to `--assignee` are matched against the project's members first, so they resolve without admin rights. Use `--assignee none` to unassign an issue or to list unassigned issues. See [assignee resolution](/commands/issues/#assignee-resolution).
+
 ## Output formats
 
 ```bash

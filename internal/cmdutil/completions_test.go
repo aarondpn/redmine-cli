@@ -27,3 +27,69 @@ func TestCompleteRoles_FiltersBuiltInAndUnassignable(t *testing.T) {
 		t.Fatalf("completions = %v, want [Manager\\tID 1]", got)
 	}
 }
+
+func TestCompleteAssignees_ProjectMembersIncludeGroups(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/demo/memberships.json" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"memberships":[{"id":1,"project":{"id":7,"name":"Demo"},"user":{"id":3,"name":"Alice Smith"},"roles":[]},{"id":2,"project":{"id":7,"name":"Demo"},"group":{"id":12,"name":"Backend Team"},"roles":[]}],"total_count":2}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := &cobra.Command{}
+	cmd.Flags().String("project", "", "")
+	_ = cmd.Flags().Set("project", "demo")
+
+	got, _ := cmdutil.CompleteAssignees(f)(cmd, nil, "")
+	want := []string{"me\tCurrent user", "none\tNo assignee", "Alice Smith\tuser, ID 3", "Backend Team\tgroup, ID 12"}
+	if len(got) != len(want) {
+		t.Fatalf("completions = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("completions = %q, want %q", got, want)
+		}
+	}
+}
+
+// Commands without --project (issues update / assign) use the project of
+// the issue in the first positional argument.
+func TestCompleteAssignees_UsesIssueProject(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/issues/5.json":
+			_, _ = w.Write([]byte(`{"issue":{"id":5,"project":{"id":7,"name":"Demo"}}}`))
+		case "/projects/7/memberships.json":
+			_, _ = w.Write([]byte(`{"memberships":[{"id":2,"project":{"id":7,"name":"Demo"},"group":{"id":12,"name":"Backend Team"},"roles":[]}],"total_count":1}`))
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	got, _ := cmdutil.CompleteAssignees(f)(&cobra.Command{}, []string{"5"}, "Back")
+	if len(got) != 1 || got[0] != "Backend Team\tgroup, ID 12" {
+		t.Fatalf("completions = %q, want [Backend Team]", got)
+	}
+}
+
+func TestCompleteAssignees_WithoutProjectOffersNoneAndMe(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	got, _ := cmdutil.CompleteAssignees(f)(&cobra.Command{}, nil, "")
+	if len(got) != 2 || got[0] != "none\tNo assignee" || got[1] != "me\tCurrent user" {
+		t.Fatalf("completions = %q, want [none me]", got)
+	}
+}

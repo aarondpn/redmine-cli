@@ -57,6 +57,7 @@ const (
 	ActionClosed      = "closed"
 	ActionReopened    = "reopened"
 	ActionAssigned    = "assigned"
+	ActionUnassigned  = "unassigned"
 	ActionCommented   = "commented"
 	ActionLogged      = "logged"
 	ActionUserAdded   = "user_added"

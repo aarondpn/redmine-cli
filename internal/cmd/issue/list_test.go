@@ -391,8 +391,10 @@ func TestCmdIssueList_ExcludeSubprojects(t *testing.T) {
 	}
 }
 
-func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
-	var issuesQuery string
+// An assignee name that cannot be resolved (non-admin, no --project) must
+// fail instead of silently listing unfiltered issues.
+func TestCmdIssueList_FailsOnAssigneeNameWhenUserLookupForbidden(t *testing.T) {
+	issuesRequested := false
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -402,7 +404,7 @@ func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"errors":["Forbidden"]}`))
 		case "/issues.json":
-			issuesQuery = r.URL.RawQuery
+			issuesRequested = true
 			_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -414,14 +416,14 @@ func TestCmdIssueList_IgnoresAssigneeNameWhenUserLookupForbidden(t *testing.T) {
 	cmd := NewCmdList(f)
 	cmd.SetArgs([]string{"--assignee", "John Doe", "--output", "json"})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unresolvable --assignee")
 	}
-
-	if strings.Contains(issuesQuery, "assigned_to_id=") {
-		t.Fatalf("issues query = %q, did not expect assigned_to_id filter", issuesQuery)
+	if !strings.Contains(err.Error(), "resolving assignee") || !strings.Contains(err.Error(), "--project") {
+		t.Fatalf("error = %q, want resolution error with --project hint", err)
 	}
-	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "ignoring the assignee filter") {
-		t.Fatalf("stderr = %q, want assignee fallback warning", stderr)
+	if issuesRequested {
+		t.Fatal("issues must not be listed when the assignee filter cannot be resolved")
 	}
 }

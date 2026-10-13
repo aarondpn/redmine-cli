@@ -48,7 +48,7 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, printer)
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project)
 			if err != nil {
 				return err
 			}
@@ -73,11 +73,11 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project name, identifier, or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Filter by status: open, closed, *, status name, or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee: me, name, login, or ID")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Filter by assignee: me, none, user or group name, login, or ID")
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 
 	return cmd
 }

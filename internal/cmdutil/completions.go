@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -289,6 +290,74 @@ func CompleteUsers(f *Factory) func(cmd *cobra.Command, args []string, toComplet
 		}
 		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// CompleteAssignees returns a completion function for --assignee flags.
+// "me" and "none" are always offered. When the project is known (--project,
+// the default project, or the issue in the first positional argument) the
+// candidates are all of the project's members, users and groups alike, from
+// the memberships endpoint, which non-admins can read. Otherwise it falls
+// back to CompleteUsers.
+func CompleteAssignees(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	completeUsers := CompleteUsers(f)
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		none := "none\tNo assignee"
+
+		if items, ok := completeProjectMembers(f, cmd, args); ok {
+			items = append([]string{"me\tCurrent user", none}, items...)
+			return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+		}
+
+		items, directive := completeUsers(cmd, args, toComplete)
+		return append(filterCompletions([]string{none}, toComplete), items...), directive
+	}
+}
+
+// completeProjectMembers lists every user and group that is a member of the
+// command's project as completion candidates. The project comes from
+// --project (or the default project) on commands with that flag, and from
+// the issue named by the first positional argument otherwise (issues update
+// / assign). ok is false when no project is known or a request fails.
+func completeProjectMembers(f *Factory, cmd *cobra.Command, args []string) ([]string, bool) {
+	var project string
+	issueID := 0
+	if cmd.Flags().Lookup("project") != nil {
+		project = resolveProjectForCompletion(f, cmd)
+	} else if len(args) > 0 {
+		issueID, _ = strconv.Atoi(args[0])
+	}
+	if project == "" && issueID <= 0 {
+		return nil, false
+	}
+
+	client, ctx, cancel := completionClient(f)
+	if client == nil {
+		return nil, false
+	}
+	defer cancel()
+
+	if project == "" {
+		issue, err := client.Issues.Get(ctx, issueID, nil)
+		if err != nil {
+			return nil, false
+		}
+		project = strconv.Itoa(issue.Project.ID)
+	}
+
+	memberships, _, err := client.Memberships.List(ctx, project, 0, 0)
+	if err != nil {
+		return nil, false
+	}
+	items := make([]string, 0, len(memberships))
+	for _, m := range memberships {
+		switch {
+		case m.User != nil:
+			items = append(items, fmt.Sprintf("%s\tuser, ID %d", m.User.Name, m.User.ID))
+		case m.Group != nil:
+			items = append(items, fmt.Sprintf("%s\tgroup, ID %d", m.Group.Name, m.Group.ID))
+		}
+	}
+	return items, true
 }
 
 // CompleteGroups returns a completion function for the --group flag.
