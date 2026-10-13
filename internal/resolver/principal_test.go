@@ -123,6 +123,33 @@ func TestResolveUserInProject_IgnoresGroups(t *testing.T) {
 	}
 }
 
+// A user-only lookup that names a group must say so instead of listing
+// "similar members" that leave out the group the caller typed.
+func TestResolveUserInProject_GroupNameExplainsGroupsNotAllowed(t *testing.T) {
+	for name, srv := range map[string]*principalServer{
+		"non-admin": {usersCode: http.StatusForbidden},
+		"admin":     {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := newPrincipalServer(t, srv)
+
+			_, err := ResolveUserInProject(context.Background(), client, "backend team", "demo")
+			if err == nil {
+				t.Fatal("expected error: groups are not users")
+			}
+			msg := err.Error()
+			for _, want := range []string{`"Backend Team" is a group (ID: 12)`, "only users are accepted"} {
+				if !strings.Contains(msg, want) {
+					t.Errorf("error %q missing %q", msg, want)
+				}
+			}
+			if strings.Contains(msg, "similar") || strings.Contains(msg, "Available project members") {
+				t.Errorf("error should not fall back to member suggestions: %q", msg)
+			}
+		})
+	}
+}
+
 func TestResolveAssigneeInProject_NonAdminNoMatchListsMembers(t *testing.T) {
 	srv := &principalServer{usersCode: http.StatusForbidden}
 	client := newPrincipalServer(t, srv)

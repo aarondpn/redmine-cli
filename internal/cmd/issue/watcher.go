@@ -86,7 +86,7 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 			ctx := context.Background()
 			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
-				return fmt.Errorf("resolving user: %w", err)
+				return fmt.Errorf("resolving watcher: %w", err)
 			}
 			printer := f.Printer("")
 			stop := printer.Spinner("Adding watcher...")
@@ -123,7 +123,7 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 			ctx := context.Background()
 			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
-				return fmt.Errorf("resolving user: %w", err)
+				return fmt.Errorf("resolving watcher: %w", err)
 			}
 			printer := f.Printer("")
 			stop := printer.Spinner("Removing watcher...")
