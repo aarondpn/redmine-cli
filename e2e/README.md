@@ -67,6 +67,7 @@ Redmine instance. The suite is split into topical files:
 | `projects_test.go`       | project create / get / list / delete |
 | `issues_test.go`         | issue lifecycle (create/list/close/reopen), update, comment, assign, attachment upload |
 | `issues_list_test.go`    | list filter round-trips (`--status`, `--assignee me`, `--tracker`, bogus tracker error) |
+| `assignee_test.go`       | group assignment by name, `--assignee none` (unassign + list filter), MCP unassign, non-admin name resolution via project memberships |
 | `time_entries_test.go`   | time log / list / update / delete with activity resolution |
 | `search_test.go`         | `search --issues` and `search --projects` scope |
 | `auth_test.go`           | basic-auth profile against `/users/current.json` (needs `REDMINE_E2E_PASSWORD`) |
