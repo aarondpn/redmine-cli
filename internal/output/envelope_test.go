@@ -121,3 +121,21 @@ func TestStdPrinter_Outcome_JSONMode_WritesFalseOkEnvelope(t *testing.T) {
 		t.Errorf("envelope: %+v", env)
 	}
 }
+
+func TestRenderErrorJSON_HintOmittedWhenEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	if err := RenderErrorJSON(&buf, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeUnknown}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "hint") {
+		t.Errorf("empty hint should be omitted: %s", buf.String())
+	}
+
+	buf.Reset()
+	if err := RenderErrorJSON(&buf, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeForbidden, Hint: "ask an admin"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `"hint": "ask an admin"`) {
+		t.Errorf("hint missing from JSON: %s", buf.String())
+	}
+}

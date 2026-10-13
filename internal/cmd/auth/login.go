@@ -190,7 +190,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	user, err := client.Users.Current(context.Background(), nil)
 	stop()
 	if err != nil {
-		printer.Error("Connection failed: " + cmdutil.FormatError(err))
+		printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
 		var apiErr *api.APIError
 		if errors.As(err, &apiErr) && apiErr.IsForbidden() {
 			printer.Warning(`If a firewall or proxy in front of Redmine rejects the request, retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`)
