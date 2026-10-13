@@ -20,7 +20,7 @@ const (
 		"limited to the default project and a notice is printed to stderr. Use --scope all\n" +
 		"to search all projects, or --project to pick one explicitly."
 	projectFlagUsage = "Limit search to a project name, identifier, or ID (defaults to the configured default project)"
-	scopeFlagUsage   = "Search scope: all, my_projects, subprojects (all ignores the default project)"
+	scopeFlagUsage   = "Search scope: all, my_projects, bookmarks, subprojects (all, my_projects and bookmarks ignore the default project)"
 )
 
 // resolveSearchProject applies the default-project fallback shared by the
