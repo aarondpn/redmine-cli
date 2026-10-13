@@ -165,9 +165,10 @@ How it behaves:
    `ok: false` and a descriptive `message`.
 
    The `action` vocabulary is small and intentional: `created`, `updated`,
-   `deleted`, `closed`, `reopened`, `assigned`, `commented`, `logged`,
-   `user_added`, `user_removed`, `logged_in`, `logged_out`, `switched`,
-   `installed`, `opened`.
+   `deleted`, `closed`, `reopened`, `assigned`, `unassigned`, `commented`,
+   `logged`, `user_added`, `user_removed`, `logged_in`, `logged_out`,
+   `switched`, `installed`, `opened`, `uploaded`, `archived`, `unarchived`,
+   `watched`, `unwatched`, `related`, `unrelated`.
 
 ## JSON error envelope
 
@@ -208,7 +209,7 @@ if ! id=$(redmine issues create --project myproject --tracker Bug \
 fi
 ```
 
-<Aside type="caution" title="Changed in this release">
+<Aside type="caution" title="Changed in v2.14.0">
   Earlier versions wrote the JSON error envelope to `stdout`. Scripts that
   parsed errors from `stdout` must read `stderr` instead (for example
   `2>&1 >/dev/null`, or redirect `stderr` to a file).
@@ -219,14 +220,7 @@ typically a command to run. It is omitted when there is nothing useful to
 add; in non-JSON mode the same text is printed on a `Hint:` line.
 
 ```json
-{
-  "error": {
-    "message": "Validation error:\n  - Category cannot be blank",
-    "code": "validation_failed",
-    "details": ["Category cannot be blank"],
-    "hint": "Required fields and allowed values depend on the project and tracker. Look them up with `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`, `redmine versions list --project myproject --open`, and `redmine memberships list --project myproject` (assignable users)."
-  }
-}
+{"error":{"message":"Validation error:\n  - Category cannot be blank","code":"validation_failed","details":["Category cannot be blank"],"hint":"Required fields and allowed values depend on the project and tracker. Look them up with `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`, `redmine versions list --project myproject --open`, and `redmine memberships list --project myproject` (assignable users)."}}
 ```
 
 Hints are currently emitted for:
@@ -248,6 +242,11 @@ Redmine's messages are localized; branch on `code`, not on `message`.
   warnings, progress spinners, update-check hints) always go to `stderr`.
 - Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
   JSON error envelope. On failure `stdout` is empty.
+- One exception: `redmine api` prints the response of a non-2xx request to
+  `stdout` (the body, and with `-i` the status and headers) and exits `1`;
+  with `--silent` it prints nothing and still exits `1`. Only in JSON mode
+  without `-i` or `--silent` is the failure reported as the error envelope
+  on `stderr` instead (see [api](/commands/other/#api)).
 
 This split is stable — scripts can safely redirect `stdout` to a file or
 pipe it into `jq` without worrying about interleaved status noise.
