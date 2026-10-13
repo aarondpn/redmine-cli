@@ -103,12 +103,12 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project, printer)
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project)
 			if err != nil {
 				return err
 			}
 
-			resolvedAuthor, err := resolveIssueAuthorFilter(ctx, client, author, project, printer)
+			resolvedAuthor, err := resolveIssueAuthorFilter(ctx, client, author, project)
 			if err != nil {
 				return err
 			}

@@ -96,7 +96,7 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to add watcher: %w", err)
 			}
 			printer.Action(output.ActionWatched, "issue", issueID,
-				fmt.Sprintf("Added user %d as watcher of issue #%d", userID, issueID))
+				fmt.Sprintf("Added watcher %d to issue #%d", userID, issueID))
 			return nil
 		},
 	}
@@ -133,7 +133,7 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to remove watcher: %w", err)
 			}
 			printer.Action(output.ActionUnwatched, "issue", issueID,
-				fmt.Sprintf("Removed user %d as watcher of issue #%d", userID, issueID))
+				fmt.Sprintf("Removed watcher %d from issue #%d", userID, issueID))
 			return nil
 		},
 	}

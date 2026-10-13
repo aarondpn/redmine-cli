@@ -156,7 +156,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			if cmd.Flags().Changed("assignee") {
 				// "none" resolves to 0, which clears the assignee.
-				aid, err := resolveAssigneeValue(ctx, client, assignee, projectIdentifier)
+				aid, err := resolveAssigneeValue(resolver.NewPrincipalResolver(ctx, client, projectIdentifier), assignee)
 				if err != nil {
 					return fmt.Errorf("resolving assignee: %w", err)
 				}

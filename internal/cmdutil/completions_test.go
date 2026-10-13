@@ -57,6 +57,30 @@ func TestCompleteAssignees_ProjectMembersIncludeGroups(t *testing.T) {
 	}
 }
 
+// Commands without --project (issues update / assign) use the project of
+// the issue in the first positional argument.
+func TestCompleteAssignees_UsesIssueProject(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/issues/5.json":
+			_, _ = w.Write([]byte(`{"issue":{"id":5,"project":{"id":7,"name":"Demo"}}}`))
+		case "/projects/7/memberships.json":
+			_, _ = w.Write([]byte(`{"memberships":[{"id":2,"project":{"id":7,"name":"Demo"},"group":{"id":12,"name":"Backend Team"},"roles":[]}],"total_count":1}`))
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	got, _ := cmdutil.CompleteAssignees(f)(&cobra.Command{}, []string{"5"}, "Back")
+	if len(got) != 1 || got[0] != "Backend Team\tgroup, ID 12" {
+		t.Fatalf("completions = %q, want [Backend Team]", got)
+	}
+}
+
 func TestCompleteAssignees_WithoutProjectOffersNoneAndMe(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)

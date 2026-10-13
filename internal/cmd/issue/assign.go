@@ -75,7 +75,7 @@ Redmine's "Allow issue assignment to groups" setting.`,
 				return fmt.Errorf("failed to assign issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
-			printer.Action(output.ActionAssigned, "issue", id, fmt.Sprintf("Assigned issue #%d to user %d", id, userID))
+			printer.Action(output.ActionAssigned, "issue", id, fmt.Sprintf("Assigned issue #%d to assignee %d", id, userID))
 			return nil
 		},
 	}

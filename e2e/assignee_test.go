@@ -44,6 +44,26 @@ func requireUnassigned(t *testing.T, r *cliRunner, issueID int) {
 	}
 }
 
+// roleIDByName returns the ID of the role with the given name from the
+// default Redmine data set, skipping the test when the server lacks it.
+func roleIDByName(t *testing.T, r *cliRunner, name string) int {
+	t.Helper()
+	var resp struct {
+		Roles []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"roles"`
+	}
+	r.runJSON(t, &resp, "api", "/roles.json")
+	for _, role := range resp.Roles {
+		if role.Name == name {
+			return role.ID
+		}
+	}
+	t.Skipf("role %q not found on server (non-default data set)", name)
+	return 0
+}
+
 func addProjectMember(t *testing.T, r *cliRunner, project, flag string, principalID, roleID int) {
 	t.Helper()
 	var created struct {
@@ -213,7 +233,10 @@ func TestAssignee_NonAdminResolvesProjectMembers(t *testing.T) {
 	member := createTestUser(t, admin)
 	colleague := createTestUser(t, admin)
 	grp := createTestGroup(t, admin)
-	roleID := firstRoleID(t, admin)
+	// Developer can edit and assign issues but not manage members, which is
+	// the realistic non-admin case (Manager could do more than needed,
+	// Reporter cannot edit issues).
+	roleID := roleIDByName(t, admin, "Developer")
 	addProjectMember(t, admin, proj.Identifier, "--user-id", member.ID, roleID)
 	addProjectMember(t, admin, proj.Identifier, "--user-id", colleague.ID, roleID)
 	addProjectMember(t, admin, proj.Identifier, "--group-id", grp.ID, roleID)
@@ -236,6 +259,15 @@ func TestAssignee_NonAdminResolvesProjectMembers(t *testing.T) {
 	ids := listIssueIDs(t, r, "--project", proj.Identifier, "--assignee", colleague.Name, "--limit", "100")
 	if !containsInt(ids, issue.ID) {
 		t.Fatalf("non-admin --assignee %q should include issue %d; got %v", colleague.Name, issue.ID, ids)
+	}
+
+	// Without --project there are no members to match and /users.json is
+	// forbidden: the listing must fail rather than drop the filter.
+	for _, flag := range []string{"--assignee", "--author"} {
+		stdout, stderr := r.runExpectError(t, "issues", "list", flag, colleague.Name)
+		if combined := string(stdout) + string(stderr); !strings.Contains(combined, "--project") {
+			t.Errorf("issues list %s without --project: want error hinting at --project\nstdout:\n%s\nstderr:\n%s", flag, stdout, stderr)
+		}
 	}
 
 	r.runJSON(t, &env, "issues", "assign", issueIDArg(issue.ID), grp.Name)

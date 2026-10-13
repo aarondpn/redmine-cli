@@ -268,4 +268,13 @@ func TestCmdIssueCreate_WatcherAndAssigneeNamesResolveViaMemberships(t *testing.
 	if len(watchers) != 1 || watchers[0] != float64(12) {
 		t.Fatalf("watcher_user_ids = %#v, want [12]", issue["watcher_user_ids"])
 	}
+	fetches := 0
+	for _, r := range s.requests {
+		if strings.HasSuffix(r, "/memberships.json") {
+			fetches++
+		}
+	}
+	if fetches != 1 {
+		t.Fatalf("memberships fetched %d times, want 1 shared lookup: %v", fetches, s.requests)
+	}
 }

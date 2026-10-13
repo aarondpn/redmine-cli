@@ -48,7 +48,7 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project, printer)
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project)
 			if err != nil {
 				return err
 			}

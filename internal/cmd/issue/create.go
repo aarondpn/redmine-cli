@@ -107,10 +107,13 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.PriorityID = id
 			}
 
-			// "none" leaves the issue unassigned (Redmine may still apply a
-			// category or project default assignee).
+			// Assignee and watchers share one project membership lookup.
+			principals := resolver.NewPrincipalResolver(ctx, client, projectIdentifier)
+
+			// "none" sets no assignee (Redmine may still apply a category or
+			// project default assignee).
 			if assignee != "" && !resolver.IsNone(assignee) {
-				id, err := resolveAssigneeValue(ctx, client, assignee, projectIdentifier)
+				id, err := resolveAssigneeValue(principals, assignee)
 				if err != nil {
 					return fmt.Errorf("resolving assignee: %w", err)
 				}
@@ -146,7 +149,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(watchers) > 0 {
-				ids, err := resolveUserList(ctx, client, watchers, projectIdentifier, "watcher")
+				ids, err := principals.Principals(watchers, "watcher")
 				if err != nil {
 					return err
 				}
@@ -203,7 +206,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to leave unassigned")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to set no assignee (Redmine may still apply the category/project default assignee)")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")

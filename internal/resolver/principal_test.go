@@ -217,8 +217,115 @@ func TestResolveAssigneeInProject_AmbiguousUserAndGroup(t *testing.T) {
 			t.Errorf("error %q missing %q", msg, want)
 		}
 	}
+	if n := srv.count("/users.json"); n != 1 {
+		t.Fatalf("ambiguity should consult the users endpoint for a login once, got %d hits", n)
+	}
+}
+
+// Members displayed by first name only (user display format "firstname").
+const firstNameMemberships = `{"memberships":[
+	{"id":1,"project":{"id":7,"name":"Demo"},"user":{"id":5,"name":"Max"},"roles":[]},
+	{"id":2,"project":{"id":7,"name":"Demo"},"user":{"id":6,"name":"Max"},"roles":[]},
+	{"id":3,"project":{"id":7,"name":"Demo"},"user":{"id":8,"name":"Sam"},"roles":[]}
+],"total_count":3}`
+
+// A login that equals another member's display name must resolve to the
+// login's owner, not to the member displayed as "Max".
+func TestResolveAssigneeInProject_LoginBeatsDisplayName(t *testing.T) {
+	srv := &principalServer{
+		memberships: `{"memberships":[
+			{"id":1,"project":{"id":7,"name":"Demo"},"user":{"id":5,"name":"Max"},"roles":[]},
+			{"id":3,"project":{"id":7,"name":"Demo"},"user":{"id":8,"name":"Sam"},"roles":[]}
+		],"total_count":2}`,
+		users: `{"users":[{"id":8,"login":"max","firstname":"Sam","lastname":"Example"}],"total_count":1}`,
+	}
+	client := newPrincipalServer(t, srv)
+
+	id, err := ResolveAssigneeInProject(context.Background(), client, "max", "demo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 8 {
+		t.Fatalf("id = %d, want 8 (login max), not 5 (display name Max)", id)
+	}
+}
+
+// Several members share a display name; an exact login match picks one.
+func TestResolveAssigneeInProject_AmbiguousMembersResolvedByLogin(t *testing.T) {
+	srv := &principalServer{
+		memberships: firstNameMemberships,
+		users:       `{"users":[{"id":6,"login":"max","firstname":"Max","lastname":"Two"}],"total_count":1}`,
+	}
+	client := newPrincipalServer(t, srv)
+
+	id, err := ResolveAssigneeInProject(context.Background(), client, "max", "demo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 6 {
+		t.Fatalf("id = %d, want 6", id)
+	}
+}
+
+// Without admin rights the login cannot be checked: the ambiguity error with
+// the member list stands.
+func TestResolveAssigneeInProject_AmbiguousMembersNonAdmin(t *testing.T) {
+	srv := &principalServer{memberships: firstNameMemberships, usersCode: http.StatusForbidden}
+	client := newPrincipalServer(t, srv)
+
+	_, err := ResolveAssigneeInProject(context.Background(), client, "max", "demo")
+	if err == nil {
+		t.Fatal("expected ambiguity error")
+	}
+	for _, want := range []string{"multiple project members match", "Max (user, ID: 5)", "Max (user, ID: 6)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
+	}
+}
+
+// A single-token unique member match survives a forbidden users endpoint.
+func TestResolveAssigneeInProject_SingleTokenMemberNonAdmin(t *testing.T) {
+	srv := &principalServer{memberships: firstNameMemberships, usersCode: http.StatusForbidden}
+	client := newPrincipalServer(t, srv)
+
+	id, err := ResolveAssigneeInProject(context.Background(), client, "sam", "demo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 8 {
+		t.Fatalf("id = %d, want 8", id)
+	}
+}
+
+// Names with whitespace cannot be logins: a unique member match costs a
+// single membership request even for admins.
+func TestResolveAssigneeInProject_NameWithSpaceSkipsUsersEndpoint(t *testing.T) {
+	srv := &principalServer{users: `{"users":[{"id":99,"login":"x","firstname":"Alice","lastname":"Smith"}],"total_count":1}`}
+	client := newPrincipalServer(t, srv)
+
+	id, err := ResolveAssigneeInProject(context.Background(), client, "Alice Smith", "demo")
+	if err != nil || id != 5 {
+		t.Fatalf("id=%d err=%v, want 5", id, err)
+	}
 	if n := srv.count("/users.json"); n != 0 {
-		t.Fatalf("ambiguity must not fall through to users endpoint, got %d hits", n)
+		t.Fatalf("users endpoint hit %d times, want 0", n)
+	}
+}
+
+func TestPrincipalResolver_SharesMembershipLookup(t *testing.T) {
+	srv := &principalServer{usersCode: http.StatusForbidden}
+	client := newPrincipalServer(t, srv)
+
+	r := NewPrincipalResolver(context.Background(), client, "demo")
+	if id, err := r.Assignee("Alice Smith"); err != nil || id != 5 {
+		t.Fatalf("assignee: id=%d err=%v", id, err)
+	}
+	if ids, err := r.Principals([]string{"Backend Team", "Bob Jones"}, "watcher"); err != nil || len(ids) != 2 {
+		t.Fatalf("watchers: ids=%v err=%v", ids, err)
+	}
+	if n := srv.count("/projects/demo/memberships.json"); n != 1 {
+		t.Fatalf("memberships fetched %d times, want 1", n)
 	}
 }
 

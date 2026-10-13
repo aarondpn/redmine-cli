@@ -50,40 +50,24 @@ func ResolveAssignee(ctx context.Context, client *api.Client, input string) (int
 }
 
 // ResolveAssigneeInProject resolves an assignee ("me", numeric ID, display
-// name, or login) in the context of a project. Names are first matched
-// against the project's memberships, which list both users and groups and
-// are readable by anyone who can see the project, so non-admins can resolve
-// names and groups can be assigned. Logins and principals outside the
-// project fall back to the admin-only users endpoint. An empty project skips
-// the membership lookup.
+// name, or login) in the context of a project. See PrincipalResolver for the
+// lookup order. An empty project skips the membership lookup.
 func ResolveAssigneeInProject(ctx context.Context, client *api.Client, input, project string) (int, error) {
-	return newPrincipalLookup(ctx, client, project, "assignee", true).resolve(input)
+	return NewPrincipalResolver(ctx, client, project).Assignee(input)
 }
 
 // ResolveUserInProject is ResolveAssigneeInProject restricted to users:
 // group memberships are ignored. Use it where Redmine only accepts users,
 // such as time entry ownership.
 func ResolveUserInProject(ctx context.Context, client *api.Client, input, project string) (int, error) {
-	return newPrincipalLookup(ctx, client, project, "user", false).resolve(input)
+	return NewPrincipalResolver(ctx, client, project).User(input)
 }
 
 // ResolveAssigneesInProject resolves a batch of principals (users or groups)
 // against the same project, fetching the membership list at most once.
 // Empty inputs are skipped. label names the inputs in error messages.
 func ResolveAssigneesInProject(ctx context.Context, client *api.Client, inputs []string, project, label string) ([]int, error) {
-	lookup := newPrincipalLookup(ctx, client, project, label, true)
-	ids := make([]int, 0, len(inputs))
-	for _, raw := range inputs {
-		if strings.TrimSpace(raw) == "" {
-			continue
-		}
-		id, err := lookup.resolve(raw)
-		if err != nil {
-			return nil, fmt.Errorf("resolving --%s %q: %w", label, raw, err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
+	return NewPrincipalResolver(ctx, client, project).Principals(inputs, label)
 }
 
 // principal is a user or group that can hold an assignment.
@@ -100,43 +84,77 @@ func (p principal) kind() string {
 	return "user"
 }
 
-// principalLookup resolves user/group names, caching the project membership
-// list for its own lifetime so batch resolution costs one request.
-type principalLookup struct {
-	ctx         context.Context
-	client      *api.Client
-	project     string
-	label       string
-	allowGroups bool
+// PrincipalResolver resolves user and group names in the context of one
+// project. The project's membership list is fetched at most once and shared
+// by every call, so resolving an assignee and several watchers costs a single
+// membership request.
+//
+// Lookup order for a name:
+//  1. "me" and numeric IDs never list anything.
+//  2. Display names are matched against the project's memberships (users and
+//     groups), which any project member can read.
+//  3. The admin-only /users.json endpoint is consulted when the input could
+//     be a login (no whitespace), when several members share the name, or
+//     when no member matched. An exact login match wins over display names,
+//     so "max" resolves to the user whose login is max even when another
+//     member is displayed as "Max". When the endpoint is forbidden the
+//     membership result stands.
+type PrincipalResolver struct {
+	ctx     context.Context
+	client  *api.Client
+	project string
 
 	membersLoaded bool
 	membersOK     bool
 	members       []principal
 }
 
-func newPrincipalLookup(ctx context.Context, client *api.Client, project, label string, allowGroups bool) *principalLookup {
-	return &principalLookup{
-		ctx:         ctx,
-		client:      client,
-		project:     strings.TrimSpace(project),
-		label:       label,
-		allowGroups: allowGroups,
+// NewPrincipalResolver returns a resolver bound to project (identifier or
+// numeric ID). An empty project disables the membership lookup.
+func NewPrincipalResolver(ctx context.Context, client *api.Client, project string) *PrincipalResolver {
+	return &PrincipalResolver{ctx: ctx, client: client, project: strings.TrimSpace(project)}
+}
+
+// Assignee resolves a user or group that can be assigned an issue.
+func (r *PrincipalResolver) Assignee(input string) (int, error) {
+	return r.resolve(input, "assignee", true)
+}
+
+// User resolves a user; group memberships are ignored.
+func (r *PrincipalResolver) User(input string) (int, error) {
+	return r.resolve(input, "user", false)
+}
+
+// Principals resolves a batch of users or groups (for example watchers).
+// Empty inputs are skipped; errors name the offending --label value.
+func (r *PrincipalResolver) Principals(inputs []string, label string) ([]int, error) {
+	ids := make([]int, 0, len(inputs))
+	for _, raw := range inputs {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		id, err := r.resolve(raw, label, true)
+		if err != nil {
+			return nil, fmt.Errorf("resolving --%s %q: %w", label, raw, err)
+		}
+		ids = append(ids, id)
 	}
+	return ids, nil
 }
 
 // loadMembers fetches the project's memberships once. Failures (no project
 // access, module disabled, ...) are not fatal: they are logged and reported
 // as ok=false so the caller falls back to the users endpoint.
-func (l *principalLookup) loadMembers() ([]principal, bool) {
-	if l.membersLoaded {
-		return l.members, l.membersOK
+func (r *PrincipalResolver) loadMembers() bool {
+	if r.membersLoaded {
+		return r.membersOK
 	}
-	l.membersLoaded = true
+	r.membersLoaded = true
 
-	memberships, _, err := l.client.Memberships.List(l.ctx, l.project, 0, 0)
+	memberships, _, err := r.client.Memberships.List(r.ctx, r.project, 0, 0)
 	if err != nil {
-		l.client.DebugLog().Printf("Resolver: listing memberships of project %q failed (%v); falling back to users endpoint", l.project, err)
-		return nil, false
+		r.client.DebugLog().Printf("Resolver: listing memberships of project %q failed (%v); falling back to users endpoint", r.project, err)
+		return false
 	}
 
 	seen := make(map[principal]bool, len(memberships))
@@ -145,7 +163,7 @@ func (l *principalLookup) loadMembers() ([]principal, bool) {
 		switch {
 		case m.User != nil:
 			p = principal{ID: m.User.ID, Name: m.User.Name}
-		case m.Group != nil && l.allowGroups:
+		case m.Group != nil:
 			p = principal{ID: m.Group.ID, Name: m.Group.Name, Group: true}
 		default:
 			continue
@@ -154,90 +172,106 @@ func (l *principalLookup) loadMembers() ([]principal, bool) {
 			continue
 		}
 		seen[p] = true
-		l.members = append(l.members, p)
+		r.members = append(r.members, p)
 	}
-	l.membersOK = true
-	l.client.DebugLog().Printf("Resolver: loaded %d principals from project %q memberships", len(l.members), l.project)
-	return l.members, true
+	r.membersOK = true
+	r.client.DebugLog().Printf("Resolver: loaded %d principals from project %q memberships", len(r.members), r.project)
+	return true
 }
 
-func (l *principalLookup) resolve(input string) (int, error) {
+// candidates returns the loaded members, without groups unless allowed.
+func (r *PrincipalResolver) candidates(allowGroups bool) []principal {
+	if allowGroups {
+		return r.members
+	}
+	users := make([]principal, 0, len(r.members))
+	for _, p := range r.members {
+		if !p.Group {
+			users = append(users, p)
+		}
+	}
+	return users
+}
+
+func (r *PrincipalResolver) resolve(input, label string, allowGroups bool) (int, error) {
 	in := strings.TrimSpace(input)
 
 	if strings.EqualFold(in, "me") {
-		l.client.DebugLog().Printf("Resolver: resolving %s \"me\" via current user", l.label)
-		user, err := l.client.Users.Current(l.ctx, nil)
+		r.client.DebugLog().Printf("Resolver: resolving %s \"me\" via current user", label)
+		user, err := r.client.Users.Current(r.ctx, nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get current user: %w", err)
 		}
-		l.client.DebugLog().Printf("Resolver: \"me\" -> ID %d (%s %s)", user.ID, user.FirstName, user.LastName)
+		r.client.DebugLog().Printf("Resolver: \"me\" -> ID %d (%s %s)", user.ID, user.FirstName, user.LastName)
 		return user.ID, nil
 	}
 
 	if id, err := strconv.Atoi(in); err == nil {
-		l.client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", l.label, in, id)
+		r.client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", label, in, id)
 		return id, nil
 	}
 
-	if l.project != "" {
-		l.client.DebugLog().Printf("Resolver: looking up %s %q in project %q memberships", l.label, in, l.project)
-		if members, ok := l.loadMembers(); ok {
-			matches := matchPrincipals(members, in)
-			switch len(matches) {
-			case 1:
-				l.client.DebugLog().Printf("Resolver: matched %s %q -> %s ID %d", l.label, in, matches[0].kind(), matches[0].ID)
-				return matches[0].ID, nil
-			case 0:
-				// Not a member by display name; the input may be a login or a
-				// user outside the project, which only the users endpoint knows.
-			default:
-				lines := make([]string, len(matches))
-				for i, p := range matches {
-					lines[i] = fmt.Sprintf("  - %s (%s, ID: %d)", p.Name, p.kind(), p.ID)
-				}
-				return 0, fmt.Errorf("multiple project members match %q, please use the numeric ID:\n%s", in, strings.Join(lines, "\n"))
-			}
+	var memberMatches []principal
+	membersOK := false
+	if r.project != "" {
+		r.client.DebugLog().Printf("Resolver: looking up %s %q in project %q memberships", label, in, r.project)
+		if r.loadMembers() {
+			membersOK = true
+			memberMatches = matchPrincipals(r.candidates(allowGroups), in)
 		}
 	}
 
-	return l.resolveViaUsers(in)
-}
+	// A unique display-name match is final unless the input could also be a
+	// login, which only the users endpoint can confirm.
+	if len(memberMatches) == 1 && !looksLikeLogin(in) {
+		r.client.DebugLog().Printf("Resolver: matched %s %q -> %s ID %d", label, in, memberMatches[0].kind(), memberMatches[0].ID)
+		return memberMatches[0].ID, nil
+	}
 
-// resolveViaUsers searches the admin-only /users.json endpoint by login or
-// full name. When a membership list is available it is used for the error
-// suggestions, since project members are the meaningful candidates.
-func (l *principalLookup) resolveViaUsers(in string) (int, error) {
-	l.client.DebugLog().Printf("Resolver: looking up %s %q via users endpoint", l.label, in)
-
-	users, _, err := l.client.Users.List(l.ctx, models.UserFilter{Name: in})
+	r.client.DebugLog().Printf("Resolver: looking up %s %q via users endpoint", label, in)
+	users, _, err := r.client.Users.List(r.ctx, models.UserFilter{Name: in})
 	if err != nil {
+		if len(memberMatches) > 0 {
+			r.client.DebugLog().Printf("Resolver: users endpoint unavailable (%v); using membership match", err)
+			return memberResult(in, memberMatches)
+		}
 		if isForbiddenErr(err) {
-			if l.membersOK {
-				return 0, fmt.Errorf("%s\n%s", l.memberSuggestions(in), "Logins and users outside the project can only be resolved with admin privileges; use the member's name as listed, a numeric ID, or \"me\".")
+			if membersOK {
+				return 0, fmt.Errorf("%s\n%s", r.memberSuggestions(in, allowGroups), "Logins and users outside the project can only be resolved with admin privileges; use the member's name as listed, a numeric ID, or \"me\".")
 			}
 			return 0, &NameResolutionPermissionError{
-				message: fmt.Sprintf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", l.label),
+				message: fmt.Sprintf("cannot resolve %s by name (listing users requires admin privileges). Use a numeric user ID instead, or \"me\" for yourself", label),
 			}
 		}
 		return 0, fmt.Errorf("failed to search users: %w", err)
 	}
 
-	l.client.DebugLog().Printf("Resolver: searching %d user results", len(users))
+	r.client.DebugLog().Printf("Resolver: searching %d user results", len(users))
+
+	// An exact login match wins over display names.
+	for _, u := range users {
+		if strings.EqualFold(u.Login, in) {
+			r.client.DebugLog().Printf("Resolver: matched %s %q -> login %s ID %d", label, in, u.Login, u.ID)
+			return u.ID, nil
+		}
+	}
+
+	if len(memberMatches) > 0 {
+		return memberResult(in, memberMatches)
+	}
 
 	needle := strings.ToLower(in)
 	var matches []models.User
 	for _, u := range users {
-		fullName := strings.ToLower(u.FirstName + " " + u.LastName)
-		login := strings.ToLower(u.Login)
-		if fullName == needle || login == needle {
+		if strings.ToLower(u.FirstName+" "+u.LastName) == needle {
 			matches = append(matches, u)
 		}
 	}
 
 	switch len(matches) {
 	case 0:
-		if l.membersOK && len(l.members) > 0 {
-			return 0, fmt.Errorf("%s", l.memberSuggestions(in))
+		if membersOK && len(r.candidates(allowGroups)) > 0 {
+			return 0, fmt.Errorf("%s", r.memberSuggestions(in, allowGroups))
 		}
 		names := make([]string, len(users))
 		ids := make([]int, len(users))
@@ -250,7 +284,7 @@ func (l *principalLookup) resolveViaUsers(in string) (int, error) {
 		}
 		return 0, fmt.Errorf("no user found matching %q", in)
 	case 1:
-		l.client.DebugLog().Printf("Resolver: matched %s %q -> ID %d (%s)", l.label, in, matches[0].ID, matches[0].Login)
+		r.client.DebugLog().Printf("Resolver: matched %s %q -> ID %d (%s)", label, in, matches[0].ID, matches[0].Login)
 		return matches[0].ID, nil
 	default:
 		lines := make([]string, len(matches))
@@ -261,21 +295,41 @@ func (l *principalLookup) resolveViaUsers(in string) (int, error) {
 	}
 }
 
+// memberResult turns display-name matches into an ID, or an ambiguity error
+// that lists every matching member when more than one shares the name.
+func memberResult(in string, matches []principal) (int, error) {
+	if len(matches) == 1 {
+		return matches[0].ID, nil
+	}
+	lines := make([]string, len(matches))
+	for i, p := range matches {
+		lines[i] = fmt.Sprintf("  - %s (%s, ID: %d)", p.Name, p.kind(), p.ID)
+	}
+	return 0, fmt.Errorf("multiple project members match %q, please use the numeric ID:\n%s", in, strings.Join(lines, "\n"))
+}
+
 // memberSuggestions renders the "no match" message against the project's
 // membership list, labelling each candidate as user or group.
-func (l *principalLookup) memberSuggestions(in string) string {
-	if len(l.members) == 0 {
-		return fmt.Sprintf("no match found for %q: project %q has no members", in, l.project)
+func (r *PrincipalResolver) memberSuggestions(in string, allowGroups bool) string {
+	members := r.candidates(allowGroups)
+	if len(members) == 0 {
+		return fmt.Sprintf("no match found for %q: project %q has no members", in, r.project)
 	}
-	names := make([]string, len(l.members))
-	labels := make([]string, len(l.members))
-	ids := make([]int, len(l.members))
-	for i, p := range l.members {
+	names := make([]string, len(members))
+	labels := make([]string, len(members))
+	ids := make([]int, len(members))
+	for i, p := range members {
 		names[i] = p.Name
 		labels[i] = fmt.Sprintf("%s [%s]", p.Name, p.kind())
 		ids[i] = p.ID
 	}
 	return buildLabeledSuggestions(in, names, labels, ids, "project member")
+}
+
+// looksLikeLogin reports whether input could be a Redmine login. Logins
+// cannot contain whitespace, so "Jane Doe" is only ever a display name.
+func looksLikeLogin(input string) bool {
+	return !strings.ContainsAny(input, " \t")
 }
 
 // matchPrincipals returns the principals whose display name equals input,

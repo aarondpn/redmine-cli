@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -292,22 +293,19 @@ func CompleteUsers(f *Factory) func(cmd *cobra.Command, args []string, toComplet
 }
 
 // CompleteAssignees returns a completion function for --assignee flags.
-// "me" and "none" are always offered. When the command has a --project flag
-// (or a default project is configured) the candidates are the project's
-// members, users and groups alike, from the memberships endpoint, which
-// non-admins can read. Otherwise it falls back to CompleteUsers.
+// "me" and "none" are always offered. When the project is known (--project,
+// the default project, or the issue in the first positional argument) the
+// candidates are all of the project's members, users and groups alike, from
+// the memberships endpoint, which non-admins can read. Otherwise it falls
+// back to CompleteUsers.
 func CompleteAssignees(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	completeUsers := CompleteUsers(f)
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		none := "none\tNo assignee"
 
-		if cmd.Flags().Lookup("project") != nil {
-			if project := resolveProjectForCompletion(f, cmd); project != "" {
-				if items, ok := completeProjectMembers(f, project); ok {
-					items = append([]string{"me\tCurrent user", none}, items...)
-					return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
-				}
-			}
+		if items, ok := completeProjectMembers(f, cmd, args); ok {
+			items = append([]string{"me\tCurrent user", none}, items...)
+			return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
 		}
 
 		items, directive := completeUsers(cmd, args, toComplete)
@@ -315,17 +313,38 @@ func CompleteAssignees(f *Factory) func(cmd *cobra.Command, args []string, toCom
 	}
 }
 
-// completeProjectMembers lists the users and groups that are members of
-// project as completion candidates. ok is false when the list could not be
-// fetched.
-func completeProjectMembers(f *Factory, project string) ([]string, bool) {
+// completeProjectMembers lists every user and group that is a member of the
+// command's project as completion candidates. The project comes from
+// --project (or the default project) on commands with that flag, and from
+// the issue named by the first positional argument otherwise (issues update
+// / assign). ok is false when no project is known or a request fails.
+func completeProjectMembers(f *Factory, cmd *cobra.Command, args []string) ([]string, bool) {
+	var project string
+	issueID := 0
+	if cmd.Flags().Lookup("project") != nil {
+		project = resolveProjectForCompletion(f, cmd)
+	} else if len(args) > 0 {
+		issueID, _ = strconv.Atoi(args[0])
+	}
+	if project == "" && issueID <= 0 {
+		return nil, false
+	}
+
 	client, ctx, cancel := completionClient(f)
 	if client == nil {
 		return nil, false
 	}
 	defer cancel()
 
-	memberships, _, err := client.Memberships.List(ctx, project, 100, 0)
+	if project == "" {
+		issue, err := client.Issues.Get(ctx, issueID, nil)
+		if err != nil {
+			return nil, false
+		}
+		project = strconv.Itoa(issue.Project.ID)
+	}
+
+	memberships, _, err := client.Memberships.List(ctx, project, 0, 0)
 	if err != nil {
 		return nil, false
 	}
