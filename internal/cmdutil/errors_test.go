@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -27,6 +28,18 @@ func TestBuildErrorEnvelope_Forbidden(t *testing.T) {
 	env := BuildErrorEnvelope(&api.APIError{StatusCode: 403})
 	if env.Error.Code != output.ErrCodeForbidden {
 		t.Errorf("code = %q, want %q", env.Error.Code, output.ErrCodeForbidden)
+	}
+}
+
+func TestBuildErrorEnvelope_WatchersNotVisibleIsForbidden(t *testing.T) {
+	// Commands wrap the error with context; the code must survive wrapping.
+	err := fmt.Errorf("failed to list watchers for issue #1: %w", api.ErrWatchersNotVisible)
+	env := BuildErrorEnvelope(err)
+	if env.Error.Code != output.ErrCodeForbidden {
+		t.Errorf("code = %q, want %q", env.Error.Code, output.ErrCodeForbidden)
+	}
+	if !strings.Contains(env.Error.Message, "View watchers permission") {
+		t.Errorf("message = %q, want permission hint", env.Error.Message)
 	}
 }
 
