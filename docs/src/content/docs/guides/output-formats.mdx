@@ -98,7 +98,8 @@ How it behaves:
   objects and arrays are printed as JSON. Each result goes on its own line.
 - Objects and arrays are compact (one per line) when `stdout` is piped, and
   indented when it is a terminal.
-- An invalid expression fails before any request is sent.
+- An empty or invalid expression fails with error code `jq_invalid` before
+  any request is sent.
 - A runtime error (for example indexing an object as an array) exits
   non-zero with error code `jq_failed` and the message
   `command succeeded, but --jq failed: ...`. The command itself **did**
@@ -162,10 +163,12 @@ come before it:
 ```
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
-`forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_failed`,
-`unknown`. Validation and conflict errors include a `details` array with the
-individual messages from Redmine. `jq_failed` means the command succeeded
-but the `--jq` expression failed on its output (see above).
+`forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
+`jq_failed`, `unknown`. Validation and conflict errors include a `details`
+array with the individual messages from Redmine. `jq_invalid` means the
+`--jq` expression is empty or malformed and the command did not run;
+`jq_failed` means the command succeeded but the `--jq` expression failed on
+its output (see above).
 
 Because the failure never reaches `stdout`, a pipeline such as
 `redmine issues create ... -o json | jq '{id}'` can no longer mistake an error

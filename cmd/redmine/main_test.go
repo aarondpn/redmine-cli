@@ -285,7 +285,24 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			name:     "invalid --jq expression",
 			args:     []string{"config", "--jq", ".["},
 			wantJSON: true,
+			wantCode: output.ErrCodeJQInvalid,
 			wantMsg:  "invalid --jq expression",
+		},
+		{
+			name:     "explicitly empty --jq expression",
+			args:     []string{"config", "--jq", ""},
+			wantJSON: true,
+			wantCode: output.ErrCodeJQInvalid,
+			wantMsg:  "invalid --jq expression: expression is empty",
+		},
+		{
+			// The command ends with a SilentError (non-2xx with -i), which
+			// skips PersistentPostRunE; the jq failure must still surface.
+			name:     "--jq runtime error before a silent failure",
+			args:     []string{"api", "/issues.json", "-i", "--jq", ".[0]"},
+			wantJSON: true,
+			wantCode: output.ErrCodeJQFailed,
+			wantMsg:  "command succeeded, but --jq failed: ",
 		},
 		{
 			name:     "--jq runtime error",

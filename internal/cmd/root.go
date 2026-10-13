@@ -101,7 +101,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 				}
 			}
 			f.Headers = headers
-			return applyJQFlag(cmd, f, jqExpr)
+			return applyJQFlag(cmd, f, jqExpr, cmd.Flags().Changed("jq"))
 		},
 		// Printer methods have no error return, so a --jq runtime failure
 		// is recorded on the factory and surfaced once the command is done.
@@ -162,8 +162,8 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 
 // applyJQFlag validates --jq and switches the command to JSON output. The
 // expression is compiled here so a typo fails before any API request.
-func applyJQFlag(cmd *cobra.Command, f *cmdutil.Factory, expr string) error {
-	if expr == "" {
+func applyJQFlag(cmd *cobra.Command, f *cmdutil.Factory, expr string, set bool) error {
+	if !set {
 		return nil
 	}
 	if cmdutil.HasNoJSONOutput(cmd) {

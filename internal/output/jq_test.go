@@ -88,11 +88,12 @@ func TestJQFilter_IndentPrettyPrintsContainersOnly(t *testing.T) {
 }
 
 func TestCompileJQ_InvalidExpression(t *testing.T) {
-	for _, expr := range []string{".[", "foo(", ".a | undefined_function_xyz"} {
+	for _, expr := range []string{".[", "foo(", ".a | undefined_function_xyz", "", "  "} {
 		t.Run(expr, func(t *testing.T) {
 			_, err := CompileJQ(expr)
-			if err == nil {
-				t.Fatalf("CompileJQ(%q) succeeded, want error", expr)
+			var compileErr *JQCompileError
+			if !errors.As(err, &compileErr) {
+				t.Fatalf("CompileJQ(%q) = %v, want *JQCompileError", expr, err)
 			}
 			if !strings.Contains(err.Error(), "invalid --jq expression") {
 				t.Fatalf("unexpected error: %v", err)

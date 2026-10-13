@@ -131,6 +131,21 @@ func TestJQ_InvalidExpressionFailsBeforeAnyRequest(t *testing.T) {
 	}
 }
 
+func TestJQ_EmptyExpressionIsRejected(t *testing.T) {
+	srv, hits := jqTestServer(t, twoIssues)
+	stdout, _, err := runRootWithJQ(t, srv.URL, "issues", "list", "--jq", "")
+	var compileErr *output.JQCompileError
+	if !errors.As(err, &compileErr) {
+		t.Fatalf("expected *output.JQCompileError, got %v", err)
+	}
+	if stdout != "" {
+		t.Fatalf("expected empty stdout, got %q", stdout)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Fatalf("expected no API requests, got %d", n)
+	}
+}
+
 func TestJQ_RuntimeErrorFailsWithEmptyStdout(t *testing.T) {
 	srv, _ := jqTestServer(t, twoIssues)
 	stdout, _, err := runRootWithJQ(t, srv.URL, "issues", "get", "1", "--jq", ".[0]")

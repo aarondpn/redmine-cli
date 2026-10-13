@@ -40,7 +40,10 @@ const (
 	// ErrCodeJQFailed means the command itself succeeded (any write already
 	// happened) but the --jq expression failed on its output.
 	ErrCodeJQFailed = "jq_failed"
-	ErrCodeUnknown  = "unknown"
+	// ErrCodeJQInvalid means the --jq expression is empty or malformed; the
+	// command did not run.
+	ErrCodeJQInvalid = "jq_invalid"
+	ErrCodeUnknown   = "unknown"
 )
 
 // Action actions exposed by no-body mutators. Keep the vocabulary small.

@@ -44,6 +44,12 @@ func main() {
 		}
 		var silent *cmdutil.SilentError
 		if errors.As(err, &silent) {
+			// Cobra skips PersistentPostRunE when a command fails, so a
+			// --jq failure on output printed before a SilentError (e.g.
+			// `api -i` on a 4xx) would otherwise be lost.
+			if jqErr := factory.JQError(); jqErr != nil {
+				renderError(os.Stderr, jqErr, output.FormatJSON)
+			}
 			os.Exit(silent.Code)
 		}
 		renderError(os.Stderr, err, selectedOutputFormat(rootCmd, factory, os.Args[1:]))
@@ -59,9 +65,15 @@ func main() {
 func renderError(w io.Writer, err error, format string) {
 	if format == output.FormatJSON {
 		env := cmdutil.BuildErrorEnvelope(err)
-		var jqErr *output.JQRuntimeError
-		if errors.As(err, &jqErr) {
+		var (
+			jqErr      *output.JQRuntimeError
+			jqCompiled *output.JQCompileError
+		)
+		switch {
+		case errors.As(err, &jqErr):
 			env.Error.Code = output.ErrCodeJQFailed
+		case errors.As(err, &jqCompiled):
+			env.Error.Code = output.ErrCodeJQInvalid
 		}
 		_ = output.RenderErrorJSON(w, env)
 		return
@@ -124,7 +136,7 @@ func selectedOutputFormat(rootCmd *cobra.Command, factory *cmdutil.Factory, args
 		}
 		// --jq implies JSON output, also for failures that happen before
 		// PersistentPreRunE records the format on the factory.
-		if jq := rootCmd.PersistentFlags().Lookup("jq"); jq != nil && jq.Value.String() != "" {
+		if jq := rootCmd.PersistentFlags().Lookup("jq"); jq != nil && (jq.Changed || jq.Value.String() != "") {
 			return output.FormatJSON
 		}
 	}

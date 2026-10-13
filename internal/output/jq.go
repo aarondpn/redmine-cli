@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/itchyny/gojq"
 )
@@ -39,16 +39,32 @@ func (e *JQRuntimeError) Error() string {
 
 func (e *JQRuntimeError) Unwrap() error { return e.Err }
 
+// JQCompileError reports a --jq expression that is empty or does not parse
+// or compile. It is raised before the command runs.
+type JQCompileError struct {
+	Err error
+}
+
+func (e *JQCompileError) Error() string {
+	return "invalid --jq expression: " + e.Err.Error()
+}
+
+func (e *JQCompileError) Unwrap() error { return e.Err }
+
 // CompileJQ parses and compiles a jq expression. Compiling up front lets
 // callers reject a malformed expression before any API request is made.
+// Failures are returned as *JQCompileError.
 func CompileJQ(expr string) (*JQFilter, error) {
+	if strings.TrimSpace(expr) == "" {
+		return nil, &JQCompileError{Err: errors.New("expression is empty")}
+	}
 	query, err := gojq.Parse(expr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid --jq expression: %w", err)
+		return nil, &JQCompileError{Err: err}
 	}
 	code, err := gojq.Compile(query, gojq.WithEnvironLoader(os.Environ))
 	if err != nil {
-		return nil, fmt.Errorf("invalid --jq expression: %w", err)
+		return nil, &JQCompileError{Err: err}
 	}
 	return &JQFilter{code: code}, nil
 }
