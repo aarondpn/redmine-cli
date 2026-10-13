@@ -14,7 +14,7 @@ The `issues` command (alias `i`) manages Redmine issues end-to-end.
   <LinkCard title="update"    href="#update"    description="Change fields, add notes, attach files." />
   <LinkCard title="close"     href="#close"     description="Close an issue with an optional comment." />
   <LinkCard title="reopen"    href="#reopen"    description="Reopen a previously closed issue." />
-  <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user." />
+  <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user or group, or unassign it." />
   <LinkCard title="comment"   href="#comment"   description="Add a comment without other changes." />
   <LinkCard title="watchers"  href="#watchers"  description="List, add, or remove watchers." />
   <LinkCard title="relations" href="#relations" description="Link or unlink issues to each other." />
@@ -34,7 +34,7 @@ redmine issues list [flags]
 | `--project`              | Filter by project (name, identifier, or ID) |
 | `--tracker`              | Filter by tracker (name or ID) |
 | `--status`               | Filter by status: `open`, `closed`, `*`, name, or ID |
-| `--assignee`             | Filter by assignee: `me`, name, login, or ID |
+| `--assignee`             | Filter by assignee: `me`, `none` (unassigned), user or group name, login, or ID. See [assignee resolution](#assignee-resolution) |
 | `--author`               | Filter by author: `me`, name, login, or ID |
 | `--priority`             | Filter by priority (name or ID) |
 | `--category`             | Filter by issue category (name or ID) |
@@ -72,6 +72,11 @@ redmine issues list [flags]
   <TabItem label="Project bugs">
     ```bash
     redmine issues list --project myproject --tracker Bug
+    ```
+  </TabItem>
+  <TabItem label="Unassigned">
+    ```bash
+    redmine issues list --project myproject --assignee none
     ```
   </TabItem>
   <TabItem label="Recently closed">
@@ -133,7 +138,7 @@ redmine issues create [flags]
 | `--tracker`         | Tracker (name or ID) |
 | `--status`          | Status (name or ID) |
 | `--priority`        | Priority (name or ID) |
-| `--assignee`        | Assignee: `me`, name, or ID |
+| `--assignee`        | Assignee: `me`, user or group name, login, or ID. `none` leaves the issue unassigned on `create` and clears the assignee on `update`. See [assignee resolution](#assignee-resolution) |
 | `--description`     | Issue description |
 | `--parent`          | Parent issue ID |
 | `--category`        | Category (name or ID) |
@@ -187,6 +192,10 @@ redmine issues update 123 --note "Internal context" --private-notes
 
 # Update custom field by name
 redmine issues update 123 --custom-field Severity=Critical
+
+# Assign to a group by name, or clear the assignee
+redmine issues update 123 --assignee "Backend Team"
+redmine issues update 123 --assignee none
 ```
 
 ## close
@@ -208,10 +217,39 @@ redmine issues reopen <id> [flags]
 ## assign
 
 ```bash
-redmine issues assign <id> <user-id-or-name> [flags]
+redmine issues assign <id> <assignee> [flags]
 ```
 
-The user argument accepts a numeric ID, login, full name, or `me`.
+The assignee argument accepts a numeric ID, `me`, a user or group name, a login, or `none` to clear the assignee.
+
+```bash
+redmine issues assign 123 me
+redmine issues assign 123 "Backend Team"   # a group that is a project member
+redmine issues assign 123 none             # unassign
+```
+
+### Assignee resolution
+
+`--assignee` (and the `assign` / `watchers` user argument) resolves names like this:
+
+1. Numeric IDs, `me`, and `none` are used directly, with no name lookup.
+2. With project context, names are matched (case-insensitively) against the
+   project's members, users and groups alike. The context is `--project` (or the
+   default project) for `list` and `create`, and the issue's own project for
+   `update`, `assign`, and `watchers`. Project memberships are readable by any
+   project member, so this works without admin rights.
+3. Logins and users who are not project members fall back to the users list,
+   which Redmine only exposes to administrators.
+
+When nothing matches, the error lists the project's members (marked `[user]`
+or `[group]`) so you can pick the right name or ID. When two members share a
+name, the CLI asks for the numeric ID instead of picking one.
+
+<Aside type="note">
+  Assigning an issue to a group requires the Redmine setting **Allow issue
+  assignment to groups** (Administration → Settings → Issue tracking), and the
+  group must have an assignable role in the project.
+</Aside>
 
 ## comment
 
@@ -227,7 +265,7 @@ redmine issues watchers add <id> <user>
 redmine issues watchers remove <id> <user>
 ```
 
-`<user>` accepts a numeric ID, login, full name, or `me`.
+`<user>` accepts a numeric ID, login, full name, or `me`. Names are matched against the issue's project members first (see [assignee resolution](#assignee-resolution)).
 
 ```bash
 redmine issues watchers add 123 me
