@@ -61,7 +61,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			userID := user
 			if user != "" && user != "me" {
 				if _, err := strconv.Atoi(user); err != nil {
-					resolved, err := resolver.ResolveUser(ctx, client, user)
+					resolved, err := resolver.ResolveUserInProject(ctx, client, user, project)
 					if err != nil {
 						return fmt.Errorf("resolving user: %w", err)
 					}

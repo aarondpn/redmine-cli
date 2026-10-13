@@ -53,6 +53,10 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   # Reassign to yourself with a note
   redmine issues update 123 --assignee me --note "Taking over this issue"
 
+  # Assign to a group (or user) by name, or clear the assignee
+  redmine issues update 123 --assignee "Backend Team"
+  redmine issues update 123 --assignee none
+
   # Add a private note (only visible to staff)
   redmine issues update 123 --note "Internal context" --private-notes
 
@@ -153,15 +157,12 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				}
 				update.PriorityID = &pid
 			}
-			if cmd.Flags().Changed("assignee") {
-				aid, err := resolver.ResolveAssignee(ctx, client, assignee)
-				if err != nil {
-					return fmt.Errorf("resolving assignee: %w", err)
-				}
-				update.AssignedToID = &aid
-			}
+			// Assignee names are matched against the issue's project
+			// memberships, so a name (not an ID, "me" or "none") also needs
+			// the project.
 			needsProject := (cmd.Flags().Changed("category") && func() bool { _, err := strconv.Atoi(category); return err != nil }()) ||
-				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }())
+				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }()) ||
+				(cmd.Flags().Changed("assignee") && resolver.NeedsPrincipalLookup(assignee))
 
 			var projectIdentifier string
 			if needsProject {
@@ -173,6 +174,15 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				// an identifier, so the issue's project ID is enough to feed the
 				// downstream category/version list endpoints — no separate fetch.
 				projectIdentifier = strconv.Itoa(issue.Project.ID)
+			}
+
+			if cmd.Flags().Changed("assignee") {
+				// "none" resolves to 0, which clears the assignee.
+				aid, err := resolveAssigneeValue(resolver.NewPrincipalResolver(ctx, client, projectIdentifier), assignee)
+				if err != nil {
+					return fmt.Errorf("resolving assignee: %w", err)
+				}
+				update.AssignedToID = &aid
 			}
 
 			if cmd.Flags().Changed("category") {
@@ -229,7 +239,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to unassign")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
 	cmd.Flags().IntVar(&parent, "parent", 0, "Parent issue ID (0 clears the parent)")
@@ -247,7 +257,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))
 

@@ -24,6 +24,7 @@ func newCmdTools(_ *cmdutil.Factory) *cobra.Command {
 			return printToolCatalog(cmd.OutOrStdout())
 		},
 	}
+	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
 }
 

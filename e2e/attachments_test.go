@@ -164,6 +164,6 @@ func TestAttachments_GetMissing(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
-	stdout, _ := r.runExpectError(t, "attachments", "get", "999999999")
-	requireErrorEnvelopeMessage(t, stdout)
+	stderr := r.runExpectJSONError(t, "attachments", "get", "999999999")
+	requireErrorEnvelopeMessage(t, stderr)
 }

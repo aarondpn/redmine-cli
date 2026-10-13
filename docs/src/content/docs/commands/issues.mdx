@@ -14,7 +14,7 @@ The `issues` command (alias `i`) manages Redmine issues end-to-end.
   <LinkCard title="update"    href="#update"    description="Change fields, add notes, attach files." />
   <LinkCard title="close"     href="#close"     description="Close an issue with an optional comment." />
   <LinkCard title="reopen"    href="#reopen"    description="Reopen a previously closed issue." />
-  <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user." />
+  <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user or group, or unassign it." />
   <LinkCard title="comment"   href="#comment"   description="Add a comment without other changes." />
   <LinkCard title="watchers"  href="#watchers"  description="List, add, or remove watchers." />
   <LinkCard title="relations" href="#relations" description="Link or unlink issues to each other." />
@@ -34,8 +34,8 @@ redmine issues list [flags]
 | `--project`              | Filter by project (name, identifier, or ID) |
 | `--tracker`              | Filter by tracker (name or ID) |
 | `--status`               | Filter by status: `open`, `closed`, `*`, name, or ID |
-| `--assignee`             | Filter by assignee: `me`, name, login, or ID |
-| `--author`               | Filter by author: `me`, name, login, or ID |
+| `--assignee`             | Filter by assignee: `me`, `none` (unassigned), user or group name, login, or ID. See [assignee resolution](#assignee-resolution) |
+| `--author`               | Filter by author: `me`, name, login, or ID. An unresolvable name is an error, see [assignee resolution](#assignee-resolution) |
 | `--priority`             | Filter by priority (name or ID) |
 | `--category`             | Filter by issue category (name or ID) |
 | `--version`              | Filter by target version (name or ID) |
@@ -74,9 +74,33 @@ redmine issues list [flags]
     redmine issues list --project myproject --tracker Bug
     ```
   </TabItem>
+  <TabItem label="Unassigned">
+    ```bash
+    redmine issues list --project myproject --assignee none
+    ```
+  </TabItem>
   <TabItem label="Recently closed">
     ```bash
     redmine issues list --status closed --sort updated_on:desc
+    ```
+  </TabItem>
+  <TabItem label="Epic children">
+    ```bash
+    # Every child of #1234, open and closed, in one call
+    # (without --project, a configured default project narrows the results)
+    redmine issues list --parent 1234 --status "*"
+    ```
+  </TabItem>
+  <TabItem label="Similar subjects">
+    ```bash
+    # Subject contains "[QA]" (~ means "contains")
+    redmine issues list --status "*" --filter subject='~[QA]'
+    ```
+  </TabItem>
+  <TabItem label="Created by me">
+    ```bash
+    # Most recent first (in the default project, if one is configured)
+    redmine issues list --author me --sort created_on:desc --limit 5
     ```
   </TabItem>
 </Tabs>
@@ -112,6 +136,13 @@ Aliases: `show`, `view`.
     redmine issues get 123 --download-attachments ./issue-123
     ```
   </TabItem>
+  <TabItem label="Read fully">
+    ```bash
+    # History, files, children, and relations before investigating
+    redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
+    redmine issues get 123 --include journals,attachments,children,relations -o json
+    ```
+  </TabItem>
 </Tabs>
 
 <Aside type="tip">
@@ -133,7 +164,7 @@ redmine issues create [flags]
 | `--tracker`         | Tracker (name or ID) |
 | `--status`          | Status (name or ID) |
 | `--priority`        | Priority (name or ID) |
-| `--assignee`        | Assignee: `me`, name, or ID |
+| `--assignee`        | Assignee: `me`, user or group name, login, or ID. `none` clears the assignee on `update`; on `create` it sets no assignee, though Redmine may still apply the category or project default assignee. See [assignee resolution](#assignee-resolution) |
 | `--description`     | Issue description |
 | `--description-file` | Read the description from a file (`-` reads standard input); mutually exclusive with `--description` |
 | `--parent`          | Parent issue ID |
@@ -161,11 +192,31 @@ redmine issues create --project myproject --subject "Bug" \
   --custom-field "2=Value for field 2" \
   --custom-field "61=Value for 61"
 
+# Child issue under an epic, with a category
+redmine issues create --project myproject --parent 1234 --tracker Task \
+  --category "Backend" --subject "Implement API endpoint"
+
+# Attach a screenshot and embed it inline in a Textile description (!filename!);
+# on servers using Markdown/CommonMark formatting write ![](screenshot.png) instead
+redmine issues create --project myproject --subject "Broken layout" \
+  --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
+
 # Long Textile/Markdown description from a file, no shell quoting needed
 redmine issues create --project myproject --subject "Spec" --description-file spec.textile
 ```
 
 If Redmine starts the new issue in a different status than `--status` asked for (its workflow does not allow new issues of that tracker to start there for your role), the command prints a warning on stderr. It still exits `0`, because the issue was created and a retry would duplicate it.
+
+<Aside type="tip" title="Validation errors">
+  Projects and trackers can make fields such as category, version, or custom
+  fields required. When Redmine rejects a create or update with
+  `validation_failed`, the error carries a hint (and a `hint` field in JSON
+  mode) pointing at the commands that list valid values, for example
+  `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`,
+  `redmine versions list --project myproject --open`, and
+  `redmine memberships list --project myproject` (assignable users). Redmine's
+  own messages are localized, so rely on the error `code`, not the message text.
+</Aside>
 
 ## update
 
@@ -195,6 +246,10 @@ redmine issues update 123 --note "Internal context" --private-notes
 
 # Update custom field by name
 redmine issues update 123 --custom-field Severity=Critical
+
+# Assign to a group by name, or clear the assignee
+redmine issues update 123 --assignee "Backend Team"
+redmine issues update 123 --assignee none
 
 # Long description from a file, note piped in on stdin
 redmine issues update 123 --description-file description.textile
@@ -257,10 +312,52 @@ Sets the first open status. The result is [verified](#status-changes-are-verifie
 ## assign
 
 ```bash
-redmine issues assign <id> <user-id-or-name> [flags]
+redmine issues assign <id> <assignee> [flags]
 ```
 
-The user argument accepts a numeric ID, login, full name, or `me`.
+The assignee argument accepts a numeric ID, `me`, a user or group name, a login, or `none` to clear the assignee.
+
+```bash
+redmine issues assign 123 me
+redmine issues assign 123 "Backend Team"   # a group that is a project member
+redmine issues assign 123 none             # unassign
+```
+
+### Assignee resolution
+
+`--assignee` (and the `assign` / `watchers` user argument) resolves names like this:
+
+1. Numeric IDs, `me`, and `none` are used directly, with no name lookup.
+2. With project context, names are matched (case-insensitively) against the
+   project's members, users and groups alike. The context is `--project` (or the
+   default project) for `list` and `create`, and the issue's own project for
+   `update`, `assign`, and `watchers`. Project memberships are readable by any
+   project member, so this works without admin rights.
+3. The users list, which Redmine only exposes to administrators, is checked
+   when the input could be a login (no spaces), when several members share the
+   name, or when no member matched. An exact login match wins over display
+   names, so `--assignee max` picks the user whose login is `max` even if
+   another member is displayed as "Max". Without admin rights the membership
+   match stands.
+
+When nothing matches, the error lists the project's members (marked `[user]`
+or `[group]`) so you can pick the right name or ID. When two members share a
+name and no login settles it, the CLI asks for the numeric ID instead of
+picking one.
+
+<Aside type="caution" title="Unresolvable list filters fail">
+  `issues list` / `browse` stop with an error when an `--assignee` or
+  `--author` name cannot be resolved, with or without `--project`. Earlier
+  versions printed a warning and listed issues without the filter. Without
+  admin rights, pass `--project` so names can be matched against its members,
+  or use a numeric ID or `me`.
+</Aside>
+
+<Aside type="note">
+  Assigning an issue to a group requires the Redmine setting **Allow issue
+  assignment to groups** (Administration → Settings → Issue tracking), and the
+  group must have an assignable role in the project.
+</Aside>
 
 ## comment
 
@@ -288,7 +385,7 @@ redmine issues watchers add <id> <user>
 redmine issues watchers remove <id> <user>
 ```
 
-`<user>` accepts a numeric ID, login, full name, or `me`.
+`<user>` accepts a numeric ID, login, full name, or `me`. Names are matched against the issue's project members first (see [assignee resolution](#assignee-resolution)).
 
 ```bash
 redmine issues watchers add 123 me

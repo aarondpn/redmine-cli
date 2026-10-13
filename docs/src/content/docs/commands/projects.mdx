@@ -95,7 +95,7 @@ Every flag is optional; omitted flags leave the corresponding field untouched.
 | `--public`             | Set public visibility |
 | `--parent`             | New parent (identifier, name, or numeric ID). Pass empty to detach from the current parent. |
 | `--inherit-members`    | Toggle inheriting members from the parent project |
-| `--default-assignee`   | Default assignee (login, name, or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
+| `--default-assignee`   | Default assignee (login, user or group name, or numeric ID; names are matched against the project's members first). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
 | `--default-version`    | Default version (name or numeric ID). Pass empty to attempt to clear (some Redmine versions ignore the clear). |
 | `--tracker`            | Replace the enabled tracker set |
 | `--enable-module`      | Replace the enabled module set |

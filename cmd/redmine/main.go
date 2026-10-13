@@ -44,18 +44,41 @@ func main() {
 		}
 		var silent *cmdutil.SilentError
 		if errors.As(err, &silent) {
+			// Cobra skips PersistentPostRunE when a command fails, so a
+			// --jq failure on output printed before a SilentError (e.g.
+			// `api -i` on a 4xx) would otherwise be lost.
+			if jqErr := factory.JQError(); jqErr != nil {
+				renderError(os.Stderr, jqErr, output.FormatJSON)
+			}
 			os.Exit(silent.Code)
 		}
-		selectedFormat := selectedOutputFormat(rootCmd, factory, os.Args[1:])
-		if selectedFormat == output.FormatJSON {
-			_ = output.RenderErrorJSON(os.Stdout, cmdutil.BuildErrorEnvelope(err))
-		} else {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", cmdutil.FormatError(err))
-		}
+		renderError(os.Stderr, err, selectedOutputFormat(rootCmd, factory, os.Args[1:]))
 		os.Exit(1)
 	}
 
 	waitForStartupUpdate(os.Stderr, version, updateDone, cancelUpdateCheck, updateCheckHintDelay, updateCheckMaxWait)
+}
+
+// renderError writes a failed command's error to w, which is always stderr so
+// stdout stays empty on failure. In JSON mode the error is a single-line
+// structured envelope; it is never filtered by --jq.
+func renderError(w io.Writer, err error, format string) {
+	if format == output.FormatJSON {
+		env := cmdutil.BuildErrorEnvelope(err)
+		var (
+			jqErr      *output.JQRuntimeError
+			jqCompiled *output.JQCompileError
+		)
+		switch {
+		case errors.As(err, &jqErr):
+			env.Error.Code = output.ErrCodeJQFailed
+		case errors.As(err, &jqCompiled):
+			env.Error.Code = output.ErrCodeJQInvalid
+		}
+		_ = output.RenderErrorJSON(w, env)
+		return
+	}
+	fmt.Fprintf(w, "Error: %s\n", cmdutil.FormatError(err))
 }
 
 func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan *update.CheckResult, cancel context.CancelFunc, hintDelay, maxWait time.Duration) {
@@ -110,6 +133,11 @@ func selectedOutputFormat(rootCmd *cobra.Command, factory *cmdutil.Factory, args
 		}
 		if of := rootCmd.PersistentFlags().Lookup("output"); of != nil && of.Value.String() != "" {
 			return of.Value.String()
+		}
+		// --jq implies JSON output, also for failures that happen before
+		// PersistentPreRunE records the format on the factory.
+		if jq := rootCmd.PersistentFlags().Lookup("jq"); jq != nil && (jq.Changed || jq.Value.String() != "") {
+			return output.FormatJSON
 		}
 	}
 

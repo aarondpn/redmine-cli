@@ -226,23 +226,23 @@ func TestIssuesCreate_ResolverFailure(t *testing.T) {
 
 // TestIssuesCreate_EmptySubjectValidationError verifies that the server-side
 // validation failure for an empty subject is surfaced as a non-zero exit and
-// a populated error envelope on stdout.
+// a populated error envelope on stderr.
 func TestIssuesCreate_EmptySubjectValidationError(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 	tracker := firstTrackerName(t, r)
 
-	stdout, _ := r.runExpectError(t, "issues", "create",
+	stderr := r.runExpectJSONError(t, "issues", "create",
 		"--project", proj.Identifier,
 		"--tracker", tracker,
 		"--subject", "")
 
-	env := requireErrorEnvelopeMessage(t, stdout)
+	env := requireErrorEnvelopeMessage(t, stderr)
 	// Verified across Redmine 4.2/5.1/6.1: the 422 from a blank subject is
 	// classified as validation_failed by internal/cmdutil error mapping.
 	if env.Error.Code != "validation_failed" {
-		t.Fatalf("error code = %q, want validation_failed\nstdout:\n%s",
-			env.Error.Code, stdout)
+		t.Fatalf("error code = %q, want validation_failed\nstderr:\n%s",
+			env.Error.Code, stderr)
 	}
 }

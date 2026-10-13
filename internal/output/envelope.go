@@ -15,7 +15,9 @@ type ActionEnvelope struct {
 	Message  string `json:"message,omitempty"`
 }
 
-// ErrorEnvelope is the JSON shape emitted for command failures in JSON mode.
+// ErrorEnvelope is the JSON shape written to stderr for command failures in
+// JSON mode, as a single line that is always the last line of stderr. It is
+// never filtered by --jq.
 type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
@@ -25,6 +27,9 @@ type ErrorDetail struct {
 	Message string   `json:"message"`
 	Code    string   `json:"code,omitempty"`
 	Details []string `json:"details,omitempty"`
+	// Hint is a short, actionable next step (typically a command to run) to
+	// recover from the failure. Omitted when there is nothing useful to add.
+	Hint string `json:"hint,omitempty"`
 }
 
 // Error codes emitted in JSON error envelopes.
@@ -35,7 +40,13 @@ const (
 	ErrCodeValidationFailed = "validation_failed"
 	ErrCodeConflict         = "conflict"
 	ErrCodeServerError      = "server_error"
-	ErrCodeUnknown          = "unknown"
+	// ErrCodeJQFailed means the command itself succeeded (any write already
+	// happened) but the --jq expression failed on its output.
+	ErrCodeJQFailed = "jq_failed"
+	// ErrCodeJQInvalid means the --jq expression is empty or malformed; the
+	// command did not run.
+	ErrCodeJQInvalid = "jq_invalid"
+	ErrCodeUnknown   = "unknown"
 	// ErrCodeStatusNotApplied: Redmine accepted an issue update but silently
 	// kept the old status (workflow, open subtasks, open blockers).
 	ErrCodeStatusNotApplied = "status_not_applied"
@@ -49,6 +60,7 @@ const (
 	ActionClosed      = "closed"
 	ActionReopened    = "reopened"
 	ActionAssigned    = "assigned"
+	ActionUnassigned  = "unassigned"
 	ActionCommented   = "commented"
 	ActionLogged      = "logged"
 	ActionUserAdded   = "user_added"
@@ -72,9 +84,13 @@ func RenderActionJSON(w io.Writer, env ActionEnvelope) error {
 	return renderJSONValue(w, env)
 }
 
-// RenderErrorJSON writes an error envelope as pretty-printed JSON.
+// RenderErrorJSON writes an error envelope as a single line of compact JSON,
+// so it can be picked out of stderr even when warnings or --verbose debug
+// output precede it.
 func RenderErrorJSON(w io.Writer, env ErrorEnvelope) error {
-	return renderJSONValue(w, env)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(env)
 }
 
 func renderJSONValue(w io.Writer, v any) error {

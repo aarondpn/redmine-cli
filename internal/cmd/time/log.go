@@ -67,7 +67,17 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 			var userID int
 			if user != "" {
-				userID, err = resolver.ResolveUser(ctx, client, user)
+				// Names are matched against project members; with only --issue
+				// the project is the issue's, fetched just for a name lookup. A
+				// failed fetch only skips the membership lookup: the time entry
+				// request reports a missing issue on its own.
+				userProject := project
+				if userProject == "" && issue > 0 && resolver.NeedsPrincipalLookup(user) {
+					if iss, err := client.Issues.Get(ctx, issue, nil); err == nil {
+						userProject = strconv.Itoa(iss.Project.ID)
+					}
+				}
+				userID, err = resolver.ResolveUserInProject(ctx, client, user, userProject)
 				if err != nil {
 					return fmt.Errorf("resolving user: %w", err)
 				}

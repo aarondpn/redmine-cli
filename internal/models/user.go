@@ -15,9 +15,9 @@ type User struct {
 	APIKey           string             `json:"api_key,omitempty"`
 	MailNotification string             `json:"mail_notification,omitempty"`
 	MustChangePasswd *bool              `json:"must_change_passwd,omitempty"`
-	Memberships      []UserMembership   `json:"memberships,omitempty"`
-	Groups           []IDName           `json:"groups,omitempty"`
-	CustomFields     []CustomFieldValue `json:"custom_fields,omitempty"`
+	Memberships      []UserMembership   `json:"memberships,omitzero"`
+	Groups           []IDName           `json:"groups,omitzero"`
+	CustomFields     []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
 // UserMembership represents one row of a user's project memberships as
@@ -26,7 +26,7 @@ type User struct {
 type UserMembership struct {
 	ID      int      `json:"id"`
 	Project IDName   `json:"project"`
-	Roles   []IDName `json:"roles,omitempty"`
+	Roles   []IDName `json:"roles,omitzero"`
 }
 
 // UserCreate defines fields for creating a user. The send_information sibling

@@ -521,12 +521,19 @@ func TestTimeLog_OnBehalfOfUser_ResolverFailureWrapped(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Listing users for name resolution returns an empty result, which the
 		// resolver surfaces as "no user found matching ...".
-		if r.URL.Path == "/users.json" {
-			w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users.json":
 			_, _ = w.Write([]byte(`{"users":[],"total_count":0}`))
-			return
+		case "/issues/10.json":
+			// The issue's project scopes the name lookup to its members.
+			_, _ = w.Write([]byte(`{"issue":{"id":10,"project":{"id":7,"name":"Demo"}}}`))
+		case "/projects/7/memberships.json":
+			_, _ = w.Write([]byte(`{"memberships":[],"total_count":0}`))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
 		}
-		t.Fatalf("unexpected path: %s", r.URL.Path)
 	}))
 	defer srv.Close()
 

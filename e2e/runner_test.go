@@ -107,6 +107,19 @@ func (r *cliRunner) runExpectError(t *testing.T, args ...string) (stdout, stderr
 	return stdout, stderr
 }
 
+// runExpectJSONError runs the CLI (in JSON mode unless args say otherwise),
+// requires a non-zero exit and an empty stdout, and returns stderr, which
+// carries the JSON error envelope.
+func (r *cliRunner) runExpectJSONError(t *testing.T, args ...string) []byte {
+	t.Helper()
+	stdout, stderr := r.runExpectError(t, args...)
+	if len(bytes.TrimSpace(stdout)) != 0 {
+		t.Fatalf("expected empty stdout on failure for %q\nstdout:\n%s\nstderr:\n%s",
+			strings.Join(args, " "), stdout, stderr)
+	}
+	return stderr
+}
+
 func (r *cliRunner) runRaw(args ...string) (stdout, stderr []byte, err error) {
 	return r.runRawWithEnv(nil, args...)
 }

@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 // NewCmdCompletion creates the completion command.
@@ -43,5 +45,6 @@ PowerShell:
 			return nil
 		},
 	}
+	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
 }

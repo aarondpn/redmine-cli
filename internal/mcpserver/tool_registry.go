@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -66,7 +67,31 @@ func clampMCPInput[T any](in *T) {
 	}
 }
 
+// emptyNilSlices replaces nil slice fields of a struct result with empty
+// slices, so list tools encode "no results" as [] instead of null. It mirrors
+// output.RenderJSON on the CLI side. Fields tagged omitempty/omitzero are left
+// alone: nil there means "not fetched" and the key is omitted, not null.
+func emptyNilSlices[T any](v *T) {
+	rv := reflect.ValueOf(v).Elem()
+	if rv.Kind() != reflect.Struct {
+		return
+	}
+	rt := rv.Type()
+	for i := 0; i < rv.NumField(); i++ {
+		f := rv.Field(i)
+		if f.Kind() != reflect.Slice || !f.IsNil() || !f.CanSet() {
+			continue
+		}
+		tag := rt.Field(i).Tag.Get("json")
+		if tag == "-" || strings.Contains(tag, ",omitempty") || strings.Contains(tag, ",omitzero") {
+			continue
+		}
+		f.Set(reflect.MakeSlice(f.Type(), 0, 0))
+	}
+}
+
 func toolResult[T any](v T) (*mcp.CallToolResult, T, error) {
+	emptyNilSlices(&v)
 	asMessage, ok := any(v).(messageResult)
 	if ok {
 		return toolOKMsgWithValue(v, asMessage.MCPMessage())

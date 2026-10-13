@@ -58,16 +58,30 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
   # Filter by parent issue and category
   redmine issues list --project myproject --parent 1234 --category "Backend"
 
+  # All children of an epic, open and closed, in one call
+  # (without --project, a configured default project narrows the results)
+  redmine issues list --parent 1234 --status "*"
+
+  # Issues I created most recently (in the default project, if one is configured)
+  redmine issues list --author me --sort created_on:desc --limit 5
+
   # Exclude subprojects
   redmine issues list --project myproject --subproject "!*"
 
   # Closed issues assigned to me, sorted by update date
   redmine issues list --status closed --assignee me --sort updated_on:desc
 
+  # Unassigned issues, or issues assigned to a group (names match project members)
+  redmine issues list --project myproject --assignee none
+  redmine issues list --project myproject --assignee "Backend Team"
+
   # Raw filter escape hatch: date ranges, custom fields, subject text
   redmine issues list --project myproject --filter created_on='>=2025-01-01'
   redmine issues list --project myproject --filter cf_5='Critical'
   redmine issues list --project myproject --filter subject='~login'
+
+  # Find similar tickets by subject text (~ means "contains")
+  redmine issues list --status "*" --filter subject='~[QA]'
 
   # Run a saved query by name or ID
   redmine issues list --query "My open issues"
@@ -99,12 +113,12 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, printer)
+			resolvedAssignee, err := resolveIssueAssigneeFilter(ctx, client, assignee, project)
 			if err != nil {
 				return err
 			}
 
-			resolvedAuthor, err := resolveIssueAuthorFilter(ctx, client, author, printer)
+			resolvedAuthor, err := resolveIssueAuthorFilter(ctx, client, author, project)
 			if err != nil {
 				return err
 			}
@@ -242,7 +256,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "open", "Status filter: open, closed, *, status name, or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee ID, name, login, or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group ID, name, login, 'me', or 'none' for unassigned issues")
 	cmd.Flags().StringVar(&author, "author", "", "Author ID, name, login, or 'me'")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
@@ -266,7 +280,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteIssueListStatus(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 	_ = cmd.RegisterFlagCompletionFunc("author", cmdutil.CompleteUsers(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))

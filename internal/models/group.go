@@ -4,8 +4,8 @@ package models
 type Group struct {
 	ID          int      `json:"id"`
 	Name        string   `json:"name"`
-	Users       []IDName `json:"users,omitempty"`
-	Memberships []IDName `json:"memberships,omitempty"`
+	Users       []IDName `json:"users,omitzero"`
+	Memberships []IDName `json:"memberships,omitzero"`
 }
 
 // GroupCreate defines fields for creating a group.
