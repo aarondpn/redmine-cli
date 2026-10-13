@@ -176,6 +176,7 @@ func TestJQFilter_HaltErrorUsesExitCode(t *testing.T) {
 		{"null value with non-zero exit fails", `null | halt_error(5)`, "", true},
 		{"string value with exit 1 fails", `"x" | halt_error(1)`, "", true},
 		{"exit 0 stops without error", `1, ("stop" | halt_error(0)), 2`, "1\n", false},
+		{"exit 0 with an object value stops without error", `1, ({"a": 1} | halt_error(0)), 2`, "1\n", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -183,7 +184,13 @@ func TestJQFilter_HaltErrorUsesExitCode(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Evaluate error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if !tt.wantErr && got != tt.want {
+			if tt.wantErr {
+				var rtErr *JQRuntimeError
+				if !errors.As(err, &rtErr) {
+					t.Fatalf("expected *JQRuntimeError, got %T", err)
+				}
+			}
+			if got != tt.want {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})

@@ -105,7 +105,8 @@ How it behaves:
   `command succeeded, but --jq failed: ...`. The command itself **did**
   run: a create, update or delete has already happened, so do not retry it.
   Fix the expression, or fetch the resource again.
-- `halt` and `halt_error(0)` stop the filter successfully. `halt_error` with
+- `halt` and `halt_error(0)` stop the filter successfully, keeping any output
+  produced before them; the `halt_error(0)` value is not printed. `halt_error` with
   any other exit code counts as a runtime error (`jq_failed`, exit code 1),
   so it can be used as a validation guard.
 - Output is held back until the expression finishes, so a runtime error
