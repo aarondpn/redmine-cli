@@ -460,6 +460,16 @@ func TestUpdate_SectionRequiresText(t *testing.T) {
 	}
 }
 
+// TestUpdate_SectionHelpMentionsTextFile keeps the --section help in sync
+// with the validation, which also accepts --text-file.
+func TestUpdate_SectionHelpMentionsTextFile(t *testing.T) {
+	cmd := newCmdUpdate(testutil.NewFactory(t, "http://127.0.0.1:0"))
+	usage := cmd.Flags().Lookup("section").Usage
+	if !strings.Contains(usage, "Requires --text or --text-file.") {
+		t.Errorf("--section usage = %q, want it to mention --text-file", usage)
+	}
+}
+
 // TestUpdate_SectionHashRequiresSection rejects --section-hash without
 // --section, which Redmine would silently ignore.
 func TestUpdate_SectionHashRequiresSection(t *testing.T) {
