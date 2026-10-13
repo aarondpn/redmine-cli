@@ -107,6 +107,10 @@ How it behaves:
   Fix the expression, or fetch the resource again. The exception is
   `redmine api -i` on a failed (4xx/5xx) response: the message is then
   `--jq failed on the error response: ...` and the request itself failed.
+- `halt` and `halt_error(0)` stop the filter successfully, keeping any output
+  produced before them; the `halt_error(0)` value is not printed. `halt_error` with
+  any other exit code counts as a runtime error (`jq_failed`, exit code 1),
+  so it can be used as a validation guard.
 - Output is held back until the expression finishes, so a runtime error
   normally leaves `stdout` empty. Once filtered output exceeds 1 MiB it is
   streamed instead, to keep memory bounded (e.g. `--jq 'repeat(1)' | head`);
