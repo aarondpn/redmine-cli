@@ -53,6 +53,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
     --assignee "John Smith" --category "Development" --version "v2.0" \
     --start-date 2026-05-01 --due-date 2026-05-15 --estimated-hours 8 --private
 
+  # Read a long description from a file (or from stdin with "-")
+  redmine issues create --project myproject --subject "Spec" --description-file spec.textile
+
   # Set custom field values (by name or numeric ID, repeatable)
   redmine issues create --project myproject --subject "Bug" \
     --custom-field Severity=High --custom-field 7=urgent
@@ -64,6 +67,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
+				return err
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -205,6 +212,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")

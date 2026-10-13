@@ -57,6 +57,10 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   # Add a private note (only visible to staff)
   redmine issues update 123 --note "Internal context" --private-notes
 
+  # Read a long description or note from a file, or from stdin with "-"
+  redmine issues update 123 --description-file description.textile
+  generate-report | redmine issues update 123 --note-file -
+
   # Change category
   redmine issues update 123 --category "Development"
 
@@ -83,21 +87,33 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			ctx := context.Background()
 			update := ops.UpdateIssueInput{ID: id}
 
+			if err := cmdutil.RejectMultipleStdinFlags(cmd, "description-file", "note-file"); err != nil {
+				return err
+			}
+			descriptionSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description)
+			if err != nil {
+				return err
+			}
+			noteSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "note", "note-file", &note)
+			if err != nil {
+				return err
+			}
+
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject
 			}
-			if cmd.Flags().Changed("description") {
+			if descriptionSet {
 				update.Description = &description
 			}
 			if cmd.Flags().Changed("done-ratio") {
 				update.DoneRatio = &doneRatio
 			}
-			if cmd.Flags().Changed("note") {
+			if noteSet {
 				update.Notes = &note
 			}
 			if cmd.Flags().Changed("private-notes") {
-				if !cmd.Flags().Changed("note") {
-					return fmt.Errorf("--private-notes requires --note")
+				if !noteSet {
+					return fmt.Errorf("--private-notes requires --note or --note-file")
 				}
 				update.PrivateNotes = &privateNotes
 			}
@@ -210,6 +226,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
@@ -223,7 +240,8 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
-	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note as private (requires --note)")
+	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
+	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note or --note-file as private")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
 

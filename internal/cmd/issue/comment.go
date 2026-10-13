@@ -20,15 +20,29 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 		Use:   "comment <id>",
 		Short: "Add a comment to an issue",
 		Long:  "Add a comment (note) to an existing issue.",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Add a short comment
+  redmine issues comment 123 --message "Deployed to staging"
+
+  # Read a long Textile/Markdown comment from a file
+  redmine issues comment 123 --message-file notes.textile
+
+  # Read the comment from standard input
+  git log -1 --format=%B | redmine issues comment 123 -F -`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("invalid issue ID: %s", args[0])
 			}
 
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "message", "message-file", &message); err != nil {
+				return err
+			}
 			if message == "" {
-				return fmt.Errorf("--message is required")
+				if cmd.Flags().Changed("message-file") {
+					return fmt.Errorf("--message-file is empty")
+				}
+				return fmt.Errorf("--message or --message-file is required")
 			}
 
 			client, err := f.ApiClient()
@@ -53,6 +67,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Comment message")
+	cmdutil.AddTextFileFlag(cmd, "message", "message-file", "F")
 
 	return cmd
 }

@@ -32,6 +32,10 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("invalid issue ID: %s", args[0])
 			}
 
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "note", "note-file", &note); err != nil {
+				return err
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -58,6 +62,7 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&note, "note", "", "Add a note when closing")
+	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
 
 	return cmd
 }
