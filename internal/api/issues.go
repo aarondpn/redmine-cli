@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -132,13 +133,23 @@ func (s *IssueService) RemoveWatcher(ctx context.Context, issueID, userID int) e
 	return s.client.Delete(ctx, fmt.Sprintf("/issues/%d/watchers/%d.json", issueID, userID))
 }
 
+// ErrWatchersNotVisible is returned by ListWatchers when Redmine omits the
+// watchers of an issue the caller can see, which it does when the account
+// lacks the View watchers permission. Reporting an empty list instead would
+// wrongly claim the issue has no watchers.
+var ErrWatchersNotVisible = errors.New("watchers not visible (requires the View watchers permission)")
+
 // ListWatchers returns the watchers on the given issue. Redmine has no
 // dedicated list endpoint; the data is fetched via include=watchers on the
-// issue itself.
+// issue itself. The result is non-nil on success (empty when there are no
+// watchers).
 func (s *IssueService) ListWatchers(ctx context.Context, issueID int) ([]models.IDName, error) {
 	issue, err := s.Get(ctx, issueID, []string{"watchers"})
 	if err != nil {
 		return nil, err
+	}
+	if issue.Watchers == nil {
+		return nil, ErrWatchersNotVisible
 	}
 	return issue.Watchers, nil
 }

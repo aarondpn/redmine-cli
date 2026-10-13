@@ -176,6 +176,36 @@ func TestIssueNormalizeCollections_RequestedButOmitted(t *testing.T) {
 	assertAbsent(t, keys, "watchers")
 }
 
+func TestHasInclude(t *testing.T) {
+	tests := []struct {
+		includes []string
+		name     string
+		want     bool
+	}{
+		{[]string{"children"}, "children", true},
+		{[]string{" children "}, "children", true},
+		{[]string{"journals", "children,relations"}, "relations", true},
+		{[]string{"children, relations"}, "relations", true},
+		{[]string{"journals,attachments"}, "children", false},
+		{[]string{"childrens"}, "children", false},
+		{nil, "children", false},
+	}
+	for _, tt := range tests {
+		if got := hasInclude(tt.includes, tt.name); got != tt.want {
+			t.Errorf("hasInclude(%q, %q) = %v, want %v", tt.includes, tt.name, got, tt.want)
+		}
+	}
+}
+
+// MCP clients may send includes as a single comma-joined entry.
+func TestIssueNormalizeCollections_CommaJoinedIncludes(t *testing.T) {
+	var issue Issue
+	issue.NormalizeCollections([]string{"children,relations"})
+	if issue.Children == nil || issue.Relations == nil {
+		t.Fatalf("children/relations = %v/%v, want empty slices", issue.Children, issue.Relations)
+	}
+}
+
 func TestIssueNormalizeCollections_NotRequested(t *testing.T) {
 	issue := Issue{ID: 1}
 	issue.NormalizeCollections(nil)

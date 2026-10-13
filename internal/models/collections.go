@@ -61,10 +61,15 @@ func emptyIfNil[T any](s []T) []T {
 	return s
 }
 
+// hasInclude reports whether name is among includes. Entries may themselves
+// be comma-joined ("children,relations"), as the api layer joins them into a
+// single include= value and Redmine splits and trims that value.
 func hasInclude(includes []string, name string) bool {
 	for _, inc := range includes {
-		if strings.TrimSpace(inc) == name {
-			return true
+		for part := range strings.SplitSeq(inc, ",") {
+			if strings.TrimSpace(part) == name {
+				return true
+			}
 		}
 	}
 	return false

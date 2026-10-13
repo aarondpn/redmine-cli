@@ -93,7 +93,8 @@ redmine issues list --project myproject -o json \
    `custom_fields` on issues, projects, and users, which are always fetched.
    One exception: Redmine leaves out collections the account may not see
    (for example `watchers` without the *View watchers* permission). Those
-   stay absent rather than appearing as `[]`.
+   stay absent rather than appearing as `[]`, and `issues watchers list`
+   fails with a permission hint instead of printing an empty list.
 
 2. **Action envelope** for mutators that have no natural response body
    (`issues close`, `issues delete`, `issues assign`, `wiki delete`,

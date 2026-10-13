@@ -232,3 +232,30 @@ func TestGetIssue_EmptyIncludedCollectionsAreArrays(t *testing.T) {
 		}
 	}
 }
+
+// TestListIssueWatchers_NotVisible pins that a missing watchers key (no View
+// watchers permission) surfaces as a tool error instead of "watchers": [].
+func TestListIssueWatchers_NotVisible(t *testing.T) {
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":7,"subject":"s"}}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_issue_watchers",
+		Arguments: map[string]any{"id": 7},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("want tool error, got %+v", res.Content)
+	}
+	if text := asText(t, res.Content[0]); !containsText(text, "View watchers permission") {
+		t.Errorf("error text = %q, want permission hint", text)
+	}
+}

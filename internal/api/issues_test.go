@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +40,42 @@ func TestIssueService_Get_NormalizesRequestedCollections(t *testing.T) {
 	}
 	if plain.Children != nil || plain.Relations != nil {
 		t.Fatalf("children/relations must stay nil without include: %v/%v", plain.Children, plain.Relations)
+	}
+}
+
+func TestIssueService_ListWatchers(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr error
+		wantLen int
+	}{
+		{name: "watchers", body: `{"issue":{"id":1,"watchers":[{"id":7,"name":"Alice"}]}}`, wantLen: 1},
+		{name: "no watchers", body: `{"issue":{"id":1,"watchers":[]}}`, wantLen: 0},
+		{name: "not visible", body: `{"issue":{"id":1}}`, wantErr: ErrWatchersNotVisible},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer ts.Close()
+
+			c := newTestClient(ts)
+			c.Issues = &IssueService{client: c}
+
+			watchers, err := c.Issues.ListWatchers(context.Background(), 1)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			if watchers == nil || len(watchers) != tt.wantLen {
+				t.Fatalf("watchers = %#v, want non-nil with %d entries", watchers, tt.wantLen)
+			}
+		})
 	}
 }
 
