@@ -240,10 +240,10 @@ Redmine's messages are localized; branch on `code`, not on `message`.
 - Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
   JSON error envelope. On failure `stdout` is empty.
 - One exception: `redmine api` prints the response of a non-2xx request to
-  `stdout` (the body, and with `-i` the status line and headers) and exits
-  `1`, unless `--silent` is set. Only in JSON mode without `-i` is the
-  failure reported as the error envelope on `stderr` instead (see
-  [api](/commands/other/#api)).
+  `stdout` (the body, and with `-i` the status and headers) and exits `1`;
+  with `--silent` it prints nothing and still exits `1`. Only in JSON mode
+  without `-i` or `--silent` is the failure reported as the error envelope
+  on `stderr` instead (see [api](/commands/other/#api)).
 
 This split is stable — scripts can safely redirect `stdout` to a file or
 pipe it into `jq` without worrying about interleaved status noise.
