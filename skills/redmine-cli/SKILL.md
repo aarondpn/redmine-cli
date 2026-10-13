@@ -49,7 +49,7 @@ Then run `redmine auth login` for interactive configuration. Use `redmine config
 ## Critical Rules
 
 - **Use `--jq` (`-q`) to extract fields** — e.g. `redmine issues get 123 --jq '.status.name'`. It is built in (no external `jq` needed) and implies `-o json`. Never parse output with Python, awk, or regex. If the flag is unknown, the CLI is outdated — ask the user to run `redmine update`.
-- **Errors go to stderr with a non-zero exit code**; on failure stdout is empty. Check the exit code — never merge stderr into stdout (`2>&1`) or discard it (`2>/dev/null`). Error code `jq_failed` means the command itself succeeded and only the filter failed — don't re-run writes.
+- **Errors go to stderr with a non-zero exit code**; on failure stdout is empty. Check the exit code — never merge stderr into stdout (`2>&1`) or discard it (`2>/dev/null`). Error code `jq_failed` means the command itself succeeded and only the filter failed — don't re-run writes (except `api -i` on a non-2xx response, where the request failed).
 - **Use `--limit 0`** to fetch ALL results. The default limit is 100.
 - **Inspect attachments**: when reading an issue, add `--attachments` and look at any it has before answering (see below).
 - **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity) resolve human-readable names automatically. Don't look up IDs or option lists first — only when a name fails to resolve, check the valid values (e.g. `redmine projects get <project> --include trackers,issue_categories`) and ask the user if it's still unclear.
