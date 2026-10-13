@@ -122,20 +122,33 @@ func TestStdPrinter_Outcome_JSONMode_WritesFalseOkEnvelope(t *testing.T) {
 	}
 }
 
-func TestRenderErrorJSON_HintOmittedWhenEmpty(t *testing.T) {
+// renderErrorFields renders env and decodes the "error" object, so assertions
+// don't depend on whether the JSON is indented or compact.
+func renderErrorFields(t *testing.T, env ErrorEnvelope) map[string]any {
+	t.Helper()
 	var buf bytes.Buffer
-	if err := RenderErrorJSON(&buf, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeUnknown}}); err != nil {
+	if err := RenderErrorJSON(&buf, env); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(buf.String(), "hint") {
-		t.Errorf("empty hint should be omitted: %s", buf.String())
+	var decoded map[string]map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("invalid JSON emitted: %v\n%s", err, buf.String())
+	}
+	fields, ok := decoded["error"]
+	if !ok {
+		t.Fatalf("missing error object: %s", buf.String())
+	}
+	return fields
+}
+
+func TestRenderErrorJSON_HintOmittedWhenEmpty(t *testing.T) {
+	fields := renderErrorFields(t, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeUnknown}})
+	if _, ok := fields["hint"]; ok {
+		t.Errorf("empty hint should be omitted: %v", fields)
 	}
 
-	buf.Reset()
-	if err := RenderErrorJSON(&buf, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeForbidden, Hint: "ask an admin"}}); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(buf.String(), `"hint": "ask an admin"`) {
-		t.Errorf("hint missing from JSON: %s", buf.String())
+	fields = renderErrorFields(t, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeForbidden, Hint: "ask an admin"}})
+	if got := fields["hint"]; got != "ask an admin" {
+		t.Errorf("hint = %v, want %q", got, "ask an admin")
 	}
 }
