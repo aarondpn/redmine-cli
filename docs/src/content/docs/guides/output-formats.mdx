@@ -127,6 +127,19 @@ How it behaves:
    (`issues list`, `issues get`, `project create`, ...). The payload is the
    resource object (or array of objects) exactly as the API returned it.
 
+   Collections follow one rule: if a collection was fetched, it is always an
+   array, `[]` when empty. If it was not fetched, the key is absent. For
+   example `issues get 42 --journals` always has `journals`, even with no
+   history, so `jq '.journals[]'` is safe. Without `--journals` the key is
+   missing, because an empty array would wrongly say the issue has no
+   history. The same applies to `--include` sections (`children`,
+   `relations`, `attachments`, `trackers`, `memberships`, ...), and to
+   `custom_fields` on issues, projects, and users, which are always fetched.
+   One exception: Redmine leaves out collections the account may not see
+   (for example `watchers` without the *View watchers* permission). Those
+   stay absent rather than appearing as `[]`, and `issues watchers list`
+   fails with a permission hint instead of printing an empty list.
+
 2. **Action envelope** for mutators that have no natural response body
    (`issues close`, `issues delete`, `issues assign`, `wiki delete`,
    `memberships delete`, ...). The envelope is stable and minimal:
@@ -187,6 +200,33 @@ fi
   parsed errors from `stdout` must read `stderr` instead (for example
   `2>&1 >/dev/null`, or redirect `stderr` to a file).
 </Aside>
+
+Some errors also carry an optional `hint` with an actionable next step,
+typically a command to run. It is omitted when there is nothing useful to
+add; in non-JSON mode the same text is printed on a `Hint:` line.
+
+```json
+{
+  "error": {
+    "message": "Validation error:\n  - Category cannot be blank",
+    "code": "validation_failed",
+    "details": ["Category cannot be blank"],
+    "hint": "Required fields and allowed values depend on the project and tracker. Look them up with `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`, `redmine versions list --project myproject --open`, and `redmine memberships list --project myproject` (assignable users)."
+  }
+}
+```
+
+Hints are currently emitted for:
+
+- `forbidden`: access comes from project roles (or admin status for
+  admin-only endpoints), so retrying with other credentials won't help. For a
+  single issue, Redmine answers 403 when the issue exists but is private or in
+  a project the user is not a member of.
+- `not_found` on a single issue: the issue does not exist on the server.
+- `validation_failed` on issue writes (`issues create`, `update`, `assign`,
+  `close`, `reopen`, `comment`): commands that list valid values.
+
+Redmine's messages are localized; branch on `code`, not on `message`.
 
 ## stdout vs stderr
 

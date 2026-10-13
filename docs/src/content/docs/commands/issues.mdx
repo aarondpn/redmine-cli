@@ -79,6 +79,25 @@ redmine issues list [flags]
     redmine issues list --status closed --sort updated_on:desc
     ```
   </TabItem>
+  <TabItem label="Epic children">
+    ```bash
+    # Every child of #1234, open and closed, in one call
+    # (without --project, a configured default project narrows the results)
+    redmine issues list --parent 1234 --status "*"
+    ```
+  </TabItem>
+  <TabItem label="Similar subjects">
+    ```bash
+    # Subject contains "[QA]" (~ means "contains")
+    redmine issues list --status "*" --filter subject='~[QA]'
+    ```
+  </TabItem>
+  <TabItem label="Created by me">
+    ```bash
+    # Most recent first (in the default project, if one is configured)
+    redmine issues list --author me --sort created_on:desc --limit 5
+    ```
+  </TabItem>
 </Tabs>
 
 ## get
@@ -110,6 +129,13 @@ Aliases: `show`, `view`.
     ```bash
     # Pull every attachment into ./issue-123
     redmine issues get 123 --download-attachments ./issue-123
+    ```
+  </TabItem>
+  <TabItem label="Read fully">
+    ```bash
+    # History, files, children, and relations before investigating
+    redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
+    redmine issues get 123 --include journals,attachments,children,relations -o json
     ```
   </TabItem>
 </Tabs>
@@ -159,7 +185,27 @@ redmine issues create --project myproject --subject "Bug report" \
 redmine issues create --project myproject --subject "Bug" \
   --custom-field "2=Value for field 2" \
   --custom-field "61=Value for 61"
+
+# Child issue under an epic, with a category
+redmine issues create --project myproject --parent 1234 --tracker Task \
+  --category "Backend" --subject "Implement API endpoint"
+
+# Attach a screenshot and embed it inline in a Textile description (!filename!);
+# on servers using Markdown/CommonMark formatting write ![](screenshot.png) instead
+redmine issues create --project myproject --subject "Broken layout" \
+  --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
 ```
+
+<Aside type="tip" title="Validation errors">
+  Projects and trackers can make fields such as category, version, or custom
+  fields required. When Redmine rejects a create or update with
+  `validation_failed`, the error carries a hint (and a `hint` field in JSON
+  mode) pointing at the commands that list valid values, for example
+  `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`,
+  `redmine versions list --project myproject --open`, and
+  `redmine memberships list --project myproject` (assignable users). Redmine's
+  own messages are localized, so rely on the error `code`, not the message text.
+</Aside>
 
 ## update
 

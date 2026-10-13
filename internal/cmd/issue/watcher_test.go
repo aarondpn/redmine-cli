@@ -31,6 +31,27 @@ func TestCmdWatchers_List(t *testing.T) {
 	}
 }
 
+// Redmine omits watchers when the account lacks the View watchers permission;
+// the command must say so instead of reporting an empty list.
+func TestCmdWatchers_ListNotVisible(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issue":{"id":1,"subject":"s"}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdWatchers(f)
+	cmd.SetArgs([]string{"list", "1", "--output", "json"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "View watchers permission") {
+		t.Fatalf("err = %v, want watchers-not-visible error", err)
+	}
+	if out := testutil.Stdout(f); strings.Contains(out, "[]") {
+		t.Fatalf("stdout = %q, must not claim an empty watcher list", out)
+	}
+}
+
 func TestCmdWatchers_Add(t *testing.T) {
 	var postPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

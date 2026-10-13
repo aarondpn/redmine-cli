@@ -25,7 +25,7 @@ func newCmdSearchMessages(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "messages <query>",
 		Short: "Search forum messages",
-		Long:  "Search for forum messages in Redmine.",
+		Long:  "Search for forum messages in Redmine.\n\n" + defaultProjectHelp,
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
@@ -34,7 +34,8 @@ func newCmdSearchMessages(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			var notice string
+			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -55,6 +56,7 @@ func newCmdSearchMessages(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
+			printDefaultProjectNotice(printer, notice)
 			results, total := result.Results, result.TotalCount
 
 			if cmdutil.HandleEmpty(printer, results, "messages") {
@@ -66,8 +68,8 @@ func newCmdSearchMessages(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
-	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
+	cmd.Flags().StringVar(&project, "project", "", projectFlagUsage)
+	cmd.Flags().StringVar(&scope, "scope", "", scopeFlagUsage)
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)

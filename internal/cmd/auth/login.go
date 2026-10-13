@@ -190,12 +190,8 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	user, err := client.Users.Current(context.Background(), nil)
 	stop()
 	if err != nil {
-		printer.Error("Connection failed: " + cmdutil.FormatError(err))
-		var apiErr *api.APIError
-		if errors.As(err, &apiErr) && apiErr.IsForbidden() {
-			printer.Warning(`If a firewall or proxy in front of Redmine rejects the request, retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`)
-		}
-		return fmt.Errorf("could not connect to Redmine server: %w", err)
+		printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
+		return loginConnectError(err)
 	}
 
 	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
@@ -293,4 +289,21 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 		return false, err
 	}
 	return confirm, nil
+}
+
+// loginProxyHint replaces the generic forbidden hint for the login probe. A
+// 403 on /users/current.json almost never means missing role permissions
+// (every authenticated user may read it); it typically comes from a firewall
+// or proxy in front of Redmine.
+const loginProxyHint = `A 403 here usually comes from a firewall or proxy in front of Redmine, not from Redmine permissions. Retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`
+
+// loginConnectError wraps a failed connection probe, attaching the proxy hint
+// to 403 responses.
+func loginConnectError(err error) error {
+	wrapped := fmt.Errorf("could not connect to Redmine server: %w", err)
+	var apiErr *api.APIError
+	if errors.As(err, &apiErr) && apiErr.IsForbidden() {
+		return cmdutil.WithHint(wrapped, loginProxyHint)
+	}
+	return wrapped
 }
