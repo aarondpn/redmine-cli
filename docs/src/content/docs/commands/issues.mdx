@@ -35,7 +35,7 @@ redmine issues list [flags]
 | `--tracker`              | Filter by tracker (name or ID) |
 | `--status`               | Filter by status: `open`, `closed`, `*`, name, or ID |
 | `--assignee`             | Filter by assignee: `me`, `none` (unassigned), user or group name, login, or ID. See [assignee resolution](#assignee-resolution) |
-| `--author`               | Filter by author: `me`, name, login, or ID |
+| `--author`               | Filter by author: `me`, name, login, or ID. An unresolvable name is an error, see [assignee resolution](#assignee-resolution) |
 | `--priority`             | Filter by priority (name or ID) |
 | `--category`             | Filter by issue category (name or ID) |
 | `--version`              | Filter by target version (name or ID) |
@@ -138,7 +138,7 @@ redmine issues create [flags]
 | `--tracker`         | Tracker (name or ID) |
 | `--status`          | Status (name or ID) |
 | `--priority`        | Priority (name or ID) |
-| `--assignee`        | Assignee: `me`, user or group name, login, or ID. `none` leaves the issue unassigned on `create` and clears the assignee on `update`. See [assignee resolution](#assignee-resolution) |
+| `--assignee`        | Assignee: `me`, user or group name, login, or ID. `none` clears the assignee on `update`; on `create` it sets no assignee, though Redmine may still apply the category or project default assignee. See [assignee resolution](#assignee-resolution) |
 | `--description`     | Issue description |
 | `--parent`          | Parent issue ID |
 | `--category`        | Category (name or ID) |
@@ -238,12 +238,25 @@ redmine issues assign 123 none             # unassign
    default project) for `list` and `create`, and the issue's own project for
    `update`, `assign`, and `watchers`. Project memberships are readable by any
    project member, so this works without admin rights.
-3. Logins and users who are not project members fall back to the users list,
-   which Redmine only exposes to administrators.
+3. The users list, which Redmine only exposes to administrators, is checked
+   when the input could be a login (no spaces), when several members share the
+   name, or when no member matched. An exact login match wins over display
+   names, so `--assignee max` picks the user whose login is `max` even if
+   another member is displayed as "Max". Without admin rights the membership
+   match stands.
 
 When nothing matches, the error lists the project's members (marked `[user]`
 or `[group]`) so you can pick the right name or ID. When two members share a
-name, the CLI asks for the numeric ID instead of picking one.
+name and no login settles it, the CLI asks for the numeric ID instead of
+picking one.
+
+<Aside type="caution" title="Unresolvable list filters fail">
+  `issues list` / `browse` stop with an error when an `--assignee` or
+  `--author` name cannot be resolved, with or without `--project`. Earlier
+  versions printed a warning and listed issues without the filter. Without
+  admin rights, pass `--project` so names can be matched against its members,
+  or use a numeric ID or `me`.
+</Aside>
 
 <Aside type="note">
   Assigning an issue to a group requires the Redmine setting **Allow issue
