@@ -25,6 +25,9 @@ type ErrorDetail struct {
 	Message string   `json:"message"`
 	Code    string   `json:"code,omitempty"`
 	Details []string `json:"details,omitempty"`
+	// Hint is a short, actionable next step (typically a command to run) to
+	// recover from the failure. Omitted when there is nothing useful to add.
+	Hint string `json:"hint,omitempty"`
 }
 
 // Error codes emitted in JSON error envelopes.

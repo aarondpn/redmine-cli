@@ -121,3 +121,34 @@ func TestStdPrinter_Outcome_JSONMode_WritesFalseOkEnvelope(t *testing.T) {
 		t.Errorf("envelope: %+v", env)
 	}
 }
+
+// renderErrorFields renders env and decodes the "error" object, so assertions
+// don't depend on whether the JSON is indented or compact.
+func renderErrorFields(t *testing.T, env ErrorEnvelope) map[string]any {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := RenderErrorJSON(&buf, env); err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("invalid JSON emitted: %v\n%s", err, buf.String())
+	}
+	fields, ok := decoded["error"]
+	if !ok {
+		t.Fatalf("missing error object: %s", buf.String())
+	}
+	return fields
+}
+
+func TestRenderErrorJSON_HintOmittedWhenEmpty(t *testing.T) {
+	fields := renderErrorFields(t, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeUnknown}})
+	if _, ok := fields["hint"]; ok {
+		t.Errorf("empty hint should be omitted: %v", fields)
+	}
+
+	fields = renderErrorFields(t, ErrorEnvelope{Error: ErrorDetail{Message: "x", Code: ErrCodeForbidden, Hint: "ask an admin"}})
+	if got := fields["hint"]; got != "ask an admin" {
+		t.Errorf("hint = %v, want %q", got, "ask an admin")
+	}
+}

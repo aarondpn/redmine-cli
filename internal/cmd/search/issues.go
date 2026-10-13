@@ -29,8 +29,13 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "issues <query>",
 		Short: "Search issues",
-		Long:  "Search for issues in Redmine.",
-		Args:  cobra.MinimumNArgs(1),
+		Long:  "Search for issues in Redmine.\n\n" + defaultProjectHelp,
+		Example: `  # Search open issues across all projects
+  redmine search issues "login timeout" --scope all --open-issues
+
+  # Match titles only within one project
+  redmine search issues "release checklist" --project myproject --titles-only`,
+		Args: cobra.MinimumNArgs(1),
 		// Stays on direct client.Search.Search: --attachments has no field on
 		// ops.SearchInput, and migrating would silently drop user-visible
 		// functionality. Revisit when the ops layer exposes an Attachments knob.
@@ -41,7 +46,8 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			var notice string
+			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -66,6 +72,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
+			printDefaultProjectNotice(printer, notice)
 
 			if cmdutil.HandleEmpty(printer, results, "issues") {
 				return nil
@@ -89,8 +96,8 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "Limit search to a project name, identifier, or ID")
-	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, subprojects")
+	cmd.Flags().StringVar(&project, "project", "", projectFlagUsage)
+	cmd.Flags().StringVar(&scope, "scope", "", scopeFlagUsage)
 	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmd.Flags().BoolVar(&openIssues, "open-issues", false, "Only return open issues")

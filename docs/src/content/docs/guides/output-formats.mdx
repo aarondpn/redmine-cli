@@ -138,6 +138,33 @@ error envelope to `stdout` and exits non-zero:
 errors include a `details` array with the individual field messages from
 Redmine.
 
+Some errors also carry an optional `hint` with an actionable next step,
+typically a command to run. It is omitted when there is nothing useful to
+add; in non-JSON mode the same text is printed on a `Hint:` line.
+
+```json
+{
+  "error": {
+    "message": "Validation error:\n  - Category cannot be blank",
+    "code": "validation_failed",
+    "details": ["Category cannot be blank"],
+    "hint": "Required fields and allowed values depend on the project and tracker. Look them up with `redmine projects get myproject --include trackers,issue_categories,issue_custom_fields`, `redmine versions list --project myproject --open`, and `redmine memberships list --project myproject` (assignable users)."
+  }
+}
+```
+
+Hints are currently emitted for:
+
+- `forbidden`: access comes from project roles (or admin status for
+  admin-only endpoints), so retrying with other credentials won't help. For a
+  single issue, Redmine answers 403 when the issue exists but is private or in
+  a project the user is not a member of.
+- `not_found` on a single issue: the issue does not exist on the server.
+- `validation_failed` on issue writes (`issues create`, `update`, `assign`,
+  `close`, `reopen`, `comment`): commands that list valid values.
+
+Redmine's messages are localized; branch on `code`, not on `message`.
+
 ## stdout vs stderr
 
 - Machine-readable output (JSON, CSV, table rows) always goes to `stdout`.
