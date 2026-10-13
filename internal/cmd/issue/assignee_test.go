@@ -293,8 +293,9 @@ func TestCmdIssueUpdate_AssigneeZeroOrNegativeRejected(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error")
 			}
-			if !strings.Contains(err.Error(), "use 'none' to unassign") {
-				t.Errorf("error = %q, want hint to use 'none'", err)
+			want := "invalid assignee ID " + val + ": must be a positive user or group ID; use 'none' to unassign"
+			if err.Error() != want {
+				t.Errorf("error = %q, want %q", err, want)
 			}
 			if len(s.requests) != 0 {
 				t.Fatalf("requests = %v, want none", s.requests)
@@ -310,8 +311,11 @@ func TestCmdIssueCreate_AssigneeZeroRejected(t *testing.T) {
 	cmd := NewCmdCreate(f)
 	cmd.SetArgs([]string{"--project", "7", "--subject", "s", "--assignee", "0", "--output", "json"})
 	err := cmd.Execute()
-	if err == nil || !strings.Contains(err.Error(), "use 'none' to unassign") {
+	if err == nil || err.Error() != "invalid assignee ID 0: must be a positive user or group ID; use 'none' to unassign" {
 		t.Fatalf("err = %v, want rejection with hint to use 'none'", err)
+	}
+	if len(s.requests) != 0 {
+		t.Fatalf("requests = %v, want none", s.requests)
 	}
 	if s.postBody != nil {
 		t.Fatalf("no issue should be created: %v", s.postBody)

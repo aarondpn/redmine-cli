@@ -107,6 +107,11 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err := cmdutil.RejectEmptyTextFile(cmd, "note-file", note); err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("assignee") {
+				if err := checkAssigneeFlag(assignee); err != nil {
+					return err
+				}
+			}
 
 			if cmd.Flags().Changed("subject") {
 				update.Subject = &subject

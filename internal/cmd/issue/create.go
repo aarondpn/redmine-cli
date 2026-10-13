@@ -80,6 +80,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
 				return err
 			}
+			if err := checkAssigneeFlag(assignee); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
