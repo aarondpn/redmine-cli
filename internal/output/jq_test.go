@@ -166,6 +166,30 @@ func TestJQFilter_HaltErrorIsAnError(t *testing.T) {
 	}
 }
 
+func TestJQFilter_HaltErrorUsesExitCode(t *testing.T) {
+	tests := []struct {
+		name    string
+		expr    string
+		want    string
+		wantErr bool
+	}{
+		{"null value with non-zero exit fails", `null | halt_error(5)`, "", true},
+		{"string value with exit 1 fails", `"x" | halt_error(1)`, "", true},
+		{"exit 0 stops without error", `1, ("stop" | halt_error(0)), 2`, "1\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := evalJQ(t, tt.expr, map[string]any{}, false)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Evaluate error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStdPrinter_JQFiltersJSONAndEnvelopes(t *testing.T) {
 	q, err := CompileJQ(".id")
 	if err != nil {
