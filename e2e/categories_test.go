@@ -45,18 +45,18 @@ func TestCategories_List_UnknownProject(t *testing.T) {
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
 	const missing = "nonexistent-project-12345"
-	stdout, _ := r.runExpectError(t, "categories", "list", "--project", missing)
+	stderr := r.runExpectJSONError(t, "categories", "list", "--project", missing)
 
 	var env errorEnvelope
-	if err := json.Unmarshal(stdout, &env); err != nil {
-		t.Fatalf("decode error envelope: %v\nstdout:\n%s", err, stdout)
+	if err := json.Unmarshal(lastLine(stderr), &env); err != nil {
+		t.Fatalf("decode error envelope: %v\nstderr:\n%s", err, stderr)
 	}
 	if env.Error.Message == "" {
-		t.Fatalf("error envelope missing message\nstdout:\n%s", stdout)
+		t.Fatalf("error envelope missing message\nstderr:\n%s", stderr)
 	}
 	if !strings.Contains(env.Error.Message, missing) {
-		t.Fatalf("error message %q does not mention %q\nstdout:\n%s",
-			env.Error.Message, missing, stdout)
+		t.Fatalf("error message %q does not mention %q\nstderr:\n%s",
+			env.Error.Message, missing, stderr)
 	}
 }
 

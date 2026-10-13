@@ -27,3 +27,21 @@ func AddOutputFlag(cmd *cobra.Command, format *string) {
 func AddForceFlag(cmd *cobra.Command, force *bool) {
 	cmd.Flags().BoolVarP(force, "force", "f", false, "Skip confirmation prompt")
 }
+
+// annotationNoJSONOutput marks commands whose stdout is never JSON (shell
+// scripts, protocol streams, human catalogs), so --jq can be rejected
+// instead of being silently ignored.
+const annotationNoJSONOutput = "redmine-cli/no-json-output"
+
+// MarkNoJSONOutput declares that cmd never prints JSON to stdout.
+func MarkNoJSONOutput(cmd *cobra.Command) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations[annotationNoJSONOutput] = "true"
+}
+
+// HasNoJSONOutput reports whether cmd was marked with MarkNoJSONOutput.
+func HasNoJSONOutput(cmd *cobra.Command) bool {
+	return cmd.Annotations[annotationNoJSONOutput] == "true"
+}

@@ -15,7 +15,9 @@ type ActionEnvelope struct {
 	Message  string `json:"message,omitempty"`
 }
 
-// ErrorEnvelope is the JSON shape emitted for command failures in JSON mode.
+// ErrorEnvelope is the JSON shape written to stderr for command failures in
+// JSON mode, as a single line that is always the last line of stderr. It is
+// never filtered by --jq.
 type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
@@ -38,7 +40,13 @@ const (
 	ErrCodeValidationFailed = "validation_failed"
 	ErrCodeConflict         = "conflict"
 	ErrCodeServerError      = "server_error"
-	ErrCodeUnknown          = "unknown"
+	// ErrCodeJQFailed means the command itself succeeded (any write already
+	// happened) but the --jq expression failed on its output.
+	ErrCodeJQFailed = "jq_failed"
+	// ErrCodeJQInvalid means the --jq expression is empty or malformed; the
+	// command did not run.
+	ErrCodeJQInvalid = "jq_invalid"
+	ErrCodeUnknown   = "unknown"
 )
 
 // Action actions exposed by no-body mutators. Keep the vocabulary small.
@@ -72,9 +80,13 @@ func RenderActionJSON(w io.Writer, env ActionEnvelope) error {
 	return renderJSONValue(w, env)
 }
 
-// RenderErrorJSON writes an error envelope as pretty-printed JSON.
+// RenderErrorJSON writes an error envelope as a single line of compact JSON,
+// so it can be picked out of stderr even when warnings or --verbose debug
+// output precede it.
 func RenderErrorJSON(w io.Writer, env ErrorEnvelope) error {
-	return renderJSONValue(w, env)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(env)
 }
 
 func renderJSONValue(w io.Writer, v any) error {

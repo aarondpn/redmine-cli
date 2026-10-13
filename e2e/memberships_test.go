@@ -190,7 +190,7 @@ func TestMemberships_RoleNameResolution(t *testing.T) {
 // TestMemberships_CreateRequiresUserOrGroup verifies the mutual-exclusivity
 // validation at internal/cmd/membership/create.go:33: omitting both
 // --user-id and --group-id must exit non-zero with the membership cmd's own
-// message. With --output json, the message lands in the stdout error envelope.
+// message. With --output json, the message lands in the stderr error envelope.
 func TestMemberships_CreateRequiresUserOrGroup(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())

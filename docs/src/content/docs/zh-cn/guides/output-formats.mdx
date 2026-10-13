@@ -101,15 +101,10 @@ redmine issues list --project myproject -o json \
 
 ## JSON 错误信封
 
-启用 `-o json` 后，如果命令执行失败，CLI 会将结构化错误信封写到 `stdout`，并以非零状态码退出：
+启用 `-o json` 后，如果命令执行失败，CLI 会将结构化错误信封以单行 JSON 写到 `stderr`（始终是 `stderr` 的最后一行），`stdout` 保持为空，并以非零状态码退出：
 
 ```json
-{
-  "error": {
-    "message": "Resource not found.",
-    "code": "not_found"
-  }
-}
+{"error":{"message":"Resource not found.","code":"not_found"}}
 ```
 
 `code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`server_error`、`unknown`。校验错误还会包含 `details` 数组，其中列出 Redmine 返回的各项字段错误信息。

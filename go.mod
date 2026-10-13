@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/itchyny/gojq v0.12.19
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pterm/pterm v0.12.83
@@ -46,6 +47,7 @@ require (
 	github.com/gookit/color v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/itchyny/timefmt-go v0.1.8 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
