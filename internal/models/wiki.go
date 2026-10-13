@@ -14,7 +14,7 @@ type WikiPage struct {
 	UpdatedOn   string         `json:"updated_on"`
 	CreatedOn   string         `json:"created_on"`
 	Parent      *WikiPageTitle `json:"parent,omitempty"`
-	Attachments []Attachment   `json:"attachments,omitempty"`
+	Attachments []Attachment   `json:"attachments,omitzero"`
 }
 
 // WikiPageTitle is a minimal reference used for parent pages.

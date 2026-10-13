@@ -83,6 +83,18 @@ redmine issues list --project myproject -o json \
    (`issues list`, `issues get`, `project create`, ...). The payload is the
    resource object (or array of objects) exactly as the API returned it.
 
+   Collections follow one rule: if a collection was fetched, it is always an
+   array, `[]` when empty. If it was not fetched, the key is absent. For
+   example `issues get 42 --journals` always has `journals`, even with no
+   history, so `jq '.journals[]'` is safe. Without `--journals` the key is
+   missing, because an empty array would wrongly say the issue has no
+   history. The same applies to `--include` sections (`children`,
+   `relations`, `attachments`, `trackers`, `memberships`, ...), and to
+   `custom_fields` on issues, projects, and users, which are always fetched.
+   One exception: Redmine leaves out collections the account may not see
+   (for example `watchers` without the *View watchers* permission). Those
+   stay absent rather than appearing as `[]`.
+
 2. **Action envelope** for mutators that have no natural response body
    (`issues close`, `issues delete`, `issues assign`, `wiki delete`,
    `memberships delete`, ...). The envelope is stable and minimal:

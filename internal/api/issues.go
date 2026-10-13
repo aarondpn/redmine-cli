@@ -68,7 +68,16 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 		params.Set(k, v)
 	}
 
-	return FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", filter.Limit)
+	issues, total, err := FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", filter.Limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	// The list endpoint sends included collections as arrays even when empty
+	// and ignores children/watchers, so only always-present fields need help.
+	for i := range issues {
+		issues[i].NormalizeCollections(nil)
+	}
+	return issues, total, nil
 }
 
 // Get retrieves a single issue by ID.
@@ -84,6 +93,7 @@ func (s *IssueService) Get(ctx context.Context, id int, includes []string) (*mod
 	if err := s.client.Get(ctx, fmt.Sprintf("/issues/%d.json", id), params, &resp); err != nil {
 		return nil, err
 	}
+	resp.Issue.NormalizeCollections(includes)
 	return &resp.Issue, nil
 }
 
@@ -96,6 +106,7 @@ func (s *IssueService) Create(ctx context.Context, issue models.IssueCreate) (*m
 	if err := s.client.Post(ctx, "/issues.json", body, &resp); err != nil {
 		return nil, err
 	}
+	resp.Issue.NormalizeCollections(nil)
 	return &resp.Issue, nil
 }
 

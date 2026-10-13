@@ -29,12 +29,12 @@ type Issue struct {
 	StartDate      string             `json:"start_date,omitempty"`
 	DueDate        string             `json:"due_date,omitempty"`
 	EstimatedHours *float64           `json:"estimated_hours,omitempty"`
-	CustomFields   []CustomFieldValue `json:"custom_fields,omitempty"`
-	Journals       []Journal          `json:"journals,omitempty"`
-	Children       []IDRef            `json:"children,omitempty"`
-	Watchers       []IDName           `json:"watchers,omitempty"`
-	Relations      []IssueRelation    `json:"relations,omitempty"`
-	Attachments    []Attachment       `json:"attachments,omitempty"`
+	CustomFields   []CustomFieldValue `json:"custom_fields,omitzero"`
+	Journals       []Journal          `json:"journals,omitzero"`
+	Children       []IDRef            `json:"children,omitzero"`
+	Watchers       []IDName           `json:"watchers,omitzero"`
+	Relations      []IssueRelation    `json:"relations,omitzero"`
+	Attachments    []Attachment       `json:"attachments,omitzero"`
 }
 
 // IssueRelation represents a relation between two issues. Returned both via
