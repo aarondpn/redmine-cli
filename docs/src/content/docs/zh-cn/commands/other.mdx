@@ -61,7 +61,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 | `--silent`        | 抑制响应输出 |
 
 <Aside type="tip">
-  当输出目标为终端时，JSON 响应将以格式化方式输出。非 2xx 响应仍会打印响应体，但以退出码 `1` 退出。
+  当输出目标为终端时，JSON 响应将以格式化方式输出。非 2xx 响应仍会打印响应体，但以退出码 `1` 退出。在 JSON 模式（`-o json` 或 `--jq`）下且未使用 `-i` 时，非 2xx 响应会改为以 JSON 错误信封的形式写入 `stderr`，`stdout` 保持为空。
 </Aside>
 
 ## categories

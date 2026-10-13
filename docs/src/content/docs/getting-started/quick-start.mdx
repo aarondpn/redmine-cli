@@ -111,7 +111,7 @@ User and group names given to `--assignee` are matched against the project's mem
 ```bash
 redmine issues list          # table (default)
 redmine issues list -o json  # machine-readable output
-redmine issues list -o json  # scripting
+redmine issues list --jq '.[].id'  # filter JSON (built-in jq)
 redmine issues list -o csv   # spreadsheets
 ```
 
