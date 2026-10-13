@@ -97,22 +97,28 @@ redmine issues list --project myproject -o json \
 
    `ok` 表示该命令是否实际改变了状态。某些命令即使成功执行，但没有内容需要变更，也可能返回相同结构且 `ok: false`，并附带说明性的 `message`。
 
-   `action` 的取值集合很小且刻意保持稳定：`created`、`updated`、`deleted`、`closed`、`reopened`、`assigned`、`commented`、`logged`、`user_added`、`user_removed`、`logged_in`、`logged_out`、`switched`、`installed`、`opened`。
+   `action` 的取值集合很小且刻意保持稳定：`created`、`updated`、`deleted`、`closed`、`reopened`、`assigned`、`unassigned`、`commented`、`logged`、`user_added`、`user_removed`、`logged_in`、`logged_out`、`switched`、`installed`、`opened`、`uploaded`、`archived`、`unarchived`、`watched`、`unwatched`、`related`、`unrelated`。
 
 ## JSON 错误信封
 
-启用 `-o json` 后，如果命令执行失败，CLI 会将结构化错误信封以单行 JSON 写到 `stderr`（始终是 `stderr` 的最后一行），`stdout` 保持为空，并以非零状态码退出：
+启用 `-o json`（或 `--jq`）后，如果命令执行失败，CLI 会将结构化错误信封以单行 JSON 写到 `stderr`（始终是 `stderr` 的最后一行），`stdout` 保持为空，并以非零状态码退出：
 
 ```json
 {"error":{"message":"Resource not found.","code":"not_found"}}
 ```
 
-`code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`server_error`、`unknown`。校验错误还会包含 `details` 数组，其中列出 Redmine 返回的各项字段错误信息。
+`code` 来自一组稳定且有限的值：`not_found`、`auth_failed`、`forbidden`、`validation_failed`、`conflict`、`server_error`、`jq_invalid`、`jq_failed`、`status_not_applied`、`unknown`。校验错误和冲突错误还会包含 `details` 数组，其中列出 Redmine 返回的各项错误信息。`jq_invalid` 表示 `--jq` 表达式为空或格式错误，命令未执行；`jq_failed` 表示命令本身已成功（写操作已经发生，请勿重试），只是 `--jq` 表达式在处理其输出时失败。`status_not_applied` 表示 Redmine 接受了工单更新，却静默保留了原状态（参见英文文档 [Status changes are verified](/commands/issues/#status-changes-are-verified)）。其 `details` 列出允许的状态；如果请求还包含其他变更，还会提示这些变更可能已经生效。
+
+<Aside type="caution" title="v2.14.0 变更">
+  早期版本将 JSON 错误信封写到 `stdout`。从 `stdout` 解析错误的脚本需要改为读取 `stderr`。
+</Aside>
 
 ## stdout 与 stderr
 
 - 机器可读输出（JSON、CSV、表格行）始终写入 `stdout`。
 - 面向人的信息（非 JSON 模式下的成功确认、警告、进度 spinner、更新检查提示）始终写入 `stderr`。
+- 错误始终写入 `stderr`：普通模式下为 `Error: ...` 文本，JSON 模式下为 JSON 错误信封。失败时 `stdout` 为空。
+- 例外：`redmine api` 遇到非 2xx 响应时，会把响应（响应体，使用 `-i` 时还包括状态和响应头）打印到 `stdout` 并以退出码 `1` 退出；设置 `--silent` 时不输出任何内容，但同样以退出码 `1` 退出。只有在 JSON 模式且未使用 `-i` 或 `--silent` 时，失败才会作为错误信封写入 `stderr`。
 
 这种分离是稳定的。脚本可以安全地把 `stdout` 重定向到文件，或者直接通过管道传给 `jq`，而不必担心状态提示混入输出。
 

@@ -266,19 +266,14 @@ Redmine answers an issue update with success even when it **silently ignores** t
 
 `close` and `reopen` only care about open versus closed: closing an issue that is already in another closed status (say `Rejected`) succeeds with a note on stderr instead of failing. Updates without a status change do not trigger the extra request.
 
+In JSON mode `stdout` stays empty and the envelope is a single line, the last line of `stderr`:
+
 ```bash
-$ redmine issues close 123 -o json
-{
-  "error": {
-    "message": "Issue #123: status was not changed to \"Closed\" (ID 5); it is now \"New\" (ID 1). Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, and refuses to close issues that have open subtasks or are blocked by open issues.",
-    "code": "status_not_applied",
-    "details": [
-      "Allowed statuses: New (1), In Progress (2), Resolved (3), Feedback (4)."
-    ]
-  }
-}
+$ redmine issues close 123 -o json 2>err.log
 $ echo $?
 1
+$ tail -n1 err.log
+{"error":{"message":"Issue #123: status was not changed to \"Closed\" (ID 5); it is now \"New\" (ID 1). Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, and refuses to close issues that have open subtasks or are blocked by open issues.","code":"status_not_applied","details":["Allowed statuses: New (1), In Progress (2), Resolved (3), Feedback (4)."]}}
 ```
 
 On success the action envelope is unchanged; to see the issue after an update, run `redmine issues get <id>`.
