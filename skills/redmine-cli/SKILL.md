@@ -1,6 +1,6 @@
 ---
 name: redmine-cli
-description: Use the `redmine` CLI to interact with Redmine. Activate when the user asks to create, list, update, close, or search issues, log or view time entries, manage versions or memberships, query projects/users/groups, or perform any Redmine project management task. Also activate when the user says "redmine", "issue", "ticket", "time entry", or references Redmine workflows.
+description: Use the `redmine` CLI to interact with Redmine. Activate when the user asks to create, list, update, close, or search issues, epics, or subtasks, log or view time entries, read or edit Redmine wiki pages, manage versions or memberships, query projects/users/groups, or perform any Redmine project management task. Also activate when the user says "redmine", "issue", "ticket", "time entry", pastes a Redmine URL (e.g. `.../issues/123`), or references Redmine workflows.
 ---
 
 # Redmine CLI
@@ -33,6 +33,8 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |
 | `wiki` | List, get, create, update, delete wiki pages |
 | `api` | Make raw authenticated API requests |
+| `config` | Show the active configuration (server, profile, default project) |
+| `update` | Update the CLI to the latest release |
 
 ## Setup
 
@@ -46,9 +48,11 @@ Then run `redmine auth login` for interactive configuration. Use `redmine config
 
 ## Critical Rules
 
-- **Always use `-o json`** when you need to parse output programmatically. JSON goes to stdout only; stderr is separate.
+- **Use `--jq` (`-q`) to extract fields** — e.g. `redmine issues get 123 --jq '.status.name'`. It is built in (no external `jq` needed) and implies `-o json`. Never parse output with Python, awk, or regex. If the flag is unknown, the CLI is outdated — ask the user to run `redmine update`.
+- **Errors go to stderr with a non-zero exit code**; on failure stdout is empty. Check the exit code — never merge stderr into stdout (`2>&1`) or discard it (`2>/dev/null`). Error code `jq_failed` means the command itself succeeded and only the filter failed — don't re-run writes.
 - **Use `--limit 0`** to fetch ALL results. The default limit is 100.
-- **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity) resolve human-readable names automatically. You don't need to look up IDs first.
+- **Inspect attachments**: when reading an issue, add `--attachments` and look at any it has before answering (see below).
+- **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity) resolve human-readable names automatically. Don't look up IDs or option lists first — only when a name fails to resolve, check the valid values (e.g. `redmine projects get <project> --include trackers,issue_categories`) and ask the user if it's still unclear.
 - **`--assignee me`** refers to the current API user.
 - **`--status "*"`** shows all issues regardless of status (default is `open`).
 
@@ -60,28 +64,12 @@ Then run `redmine auth login` for interactive configuration. Use `redmine config
 2. **Read the help output carefully** — it is authoritative and always up to date. Trust it over your own assumptions.
 3. **Never invent flags or subcommands** that aren't shown in `--help`. If you think an option should exist but it doesn't appear in the help, it doesn't exist.
 4. **Do not loop** — if the same command fails twice, stop and re-read the help output. Do not keep retrying with slight variations hoping one will work.
-5. **Parse output with `-o json` and standard JSON tools (jq)** — never use Python scripts, awk hacks, or regex to parse CLI output. The CLI's JSON output is well-structured; use it.
-6. **Ask the user** if the help output doesn't clarify things — that's better than spiraling through failed attempts.
+5. **Ask the user** if the help output doesn't clarify things — that's better than spiraling through failed attempts.
 
-## Permission Gotcha: Users & Groups
+## Permission Errors
 
-Resolving users and groups **by name requires admin privileges**. If you get a permission error:
-- Do NOT retry with the same name
-- Use `me` for the current user
-- To discover user IDs without admin access, extract them from other sources:
-  - `redmine issues list --project <project> -o json` — the `assigned_to` and `author` fields contain user IDs and names
-  - `redmine memberships list --project <project> -o json` — lists all project members with their IDs
-  - `redmine issues get <id> --journals -o json` — journal entries contain user references
-
-## Workflow: Resolving Ambiguous Values
-
-When a command needs a value from a fixed set (tracker, status, priority, category, version, assignee) and you're not sure of the exact name:
-
-1. **Query options first**: `redmine trackers list -o json`, `redmine statuses list -o json`, etc.
-2. **Present choices to the user** via AskUserQuestion with a formatted list
-3. **Use the confirmed value** in the command
-
-For users/groups, if the list endpoint fails with a permission error, use the workarounds from the section above instead.
+- **Never retry with other credentials** (other profiles, API keys from env vars, CI settings, or config files). Permissions come from the user's Redmine role — stop and ask the user.
+- User and group names resolve through the project's members, so they work without admin.
 
 ## After Creating Resources
 
@@ -92,7 +80,7 @@ When you create an issue, project, user, or other resource, the CLI returns the 
 - **Users**: `<server>/users/<id>`
 - **Time entries**: `<server>/time_entries/<id>/edit`
 
-Get the server URL from `redmine config` (or from the JSON output's hints). Always mention the URL or the `open` command after a successful create so the user can quickly navigate to the new resource.
+Get the server URL with `redmine config --jq .server`. Always mention the URL or the `open` command after a successful create so the user can quickly navigate to the new resource.
 
 ## Attachments: Always Download and Inspect Them
 
@@ -103,8 +91,8 @@ images, which frequently hold the actual error, mockup, or detail the ticket is
 about.
 
 1. **Discover attachment IDs**: `redmine issues get <id> --attachments` lists each
-   attachment's `id`, `filename`, `size`, and `content_type`. With `-o json` the
-   issue's `attachments[]` array is included in the output.
+   attachment's `id`, `filename`, `filesize`, and `content_type` (JSON: `.attachments[]`).
+   Without `--attachments` the issue output doesn't show them.
 2. **Download one file**: `redmine attachments download <att-id> -d <dir>` saves it
    under its real filename (or `--path <file>` for an exact path, `--path -` to
    stream to stdout). No `curl`, no manual API-key handling - it reuses the active
@@ -113,13 +101,11 @@ about.
    pulls every attachment of the issue into `<dir>` in one step.
 4. **Inspect metadata only** (no download): `redmine attachments get <att-id>`.
 
-After downloading an image, open/read it and use what it shows. Do not answer a
-question about a ticket with attachments without first looking at them.
+After downloading an image, open/read it and use what it shows.
 
 ## Non-Obvious Behaviors
 
-- `redmine issues list` defaults to `--status open`. Use `--status closed`, `--status "*"`, or a specific status name.
-- `redmine issues get <id> --journals` includes comments/history. Also available: `--children`, `--relations`, `--attachments`.
+- `redmine issues get <id> --journals` includes comments/history.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - Projects can accumulate hundreds of versions, most of them closed or locked. When you need a version for a new issue, time entry, or similar workflow, always start from `redmine versions list --open` so the shortlist stays small and you don't pick a version that can no longer accept work.

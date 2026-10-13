@@ -28,7 +28,7 @@ redmine-cli 提供两种互补的集成方式，二者均与厂商无关：
 
 ## 代理 Skill
 
-该 skill 教给代理的是 `--help` 无法传达的内容：输出格式、分页、过滤、名称解析以及常用工作流。安装后，代理便知道使用 `-o json`、对存在歧义的值先查询再处理，并无需猜测即可选择正确的标志。
+该 skill 教给代理的是 `--help` 无法传达的内容：输出格式、分页、过滤、名称解析以及常用工作流。安装后，代理便知道用 `--jq` 提取字段、检查退出码而不是从 stdout 解析错误、查看附件，并在不确定时查阅 `--help` 而不是猜测标志。
 
 完整的 skill 源文件：[`skills/redmine-cli/SKILL.md`](https://github.com/aarondpn/redmine-cli/blob/main/skills/redmine-cli/SKILL.md)。如果不想运行安装器，可直接复制到代理的指令文件中。
 
