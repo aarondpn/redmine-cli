@@ -45,7 +45,11 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine issues get 123 --attachments
 
   # Download every attachment into ./issue-123
-  redmine issues get 123 --download-attachments ./issue-123`,
+  redmine issues get 123 --download-attachments ./issue-123
+
+  # Read a ticket fully before investigating: history, files, children, relations
+  redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
+  redmine issues get 123 --include journals,attachments,children,relations -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
