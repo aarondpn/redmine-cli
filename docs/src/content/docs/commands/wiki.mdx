@@ -88,7 +88,8 @@ Aliases: `new`. Creates a new wiki page. If a page with the same name already ex
 | Flag | Description |
 |------|-------------|
 | `--project`    | Project identifier or numeric ID |
-| `-t, --text`   | Page content in Textile/Markdown. <Badge text="required" variant="danger" /> |
+| `-t, --text`   | Page content in Textile/Markdown. <Badge text="required" variant="danger" /> unless `--text-file` is given |
+| `-F, --text-file` | Read the page content from a file (`-` reads standard input); mutually exclusive with `--text` |
 | `--title`      | Display title (defaults to the page name) |
 | `--comments`   | Change comment recorded in the page history |
 | `--attach`     | Path to a file to attach (repeatable) |
@@ -105,7 +106,7 @@ redmine wiki create MyPage --project myproject \
 ```
 
 <Aside type="tip">
-  Pipe long content from a file: `redmine wiki create Notes --project myproject --text "$(cat notes.md)"`.
+  Read long content from a file instead of quoting it on the command line: `redmine wiki create Notes --project myproject --text-file notes.md`, or pipe it in with `--text-file -`. The file is sent exactly as read (UTF-8, no trimming).
 </Aside>
 
 ## update
@@ -120,12 +121,13 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 |------|-------------|
 | `--project`        | Project identifier or numeric ID |
 | `-t, --text`       | New page content. If omitted, the current text is preserved. |
+| `-F, --text-file`  | Read the new page content from a file (`-` reads standard input); mutually exclusive with `--text` |
 | `--title`          | New display title |
 | `--comments`       | Change comment recorded in the page history |
 | `--attach`         | Path to a file to attach (repeatable) |
 | `--expect-version` | Expected current page version. The server returns `409 Conflict` (and the CLI surfaces error code `conflict`) if the page has moved on since you last fetched it. |
 | `--ensure-current` | Refetch the page first and assert its current version on update. Mutually exclusive with `--expect-version`. |
-| `--section`        | Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires `--text`. |
+| `--section`        | Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires `--text` or `--text-file`. |
 | `--section-hash`   | Hash of the original section content, used by Redmine for conflict detection on section edits. Requires `--section`. |
 
 ```bash

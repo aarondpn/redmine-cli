@@ -135,6 +135,7 @@ redmine issues create [flags]
 | `--priority`        | Priority (name or ID) |
 | `--assignee`        | Assignee: `me`, name, or ID |
 | `--description`     | Issue description |
+| `--description-file` | Read the description from a file (`-` reads standard input); mutually exclusive with `--description` |
 | `--parent`          | Parent issue ID |
 | `--category`        | Category (name or ID) |
 | `--version`         | Target version (name or ID) |
@@ -159,7 +160,12 @@ redmine issues create --project myproject --subject "Bug report" \
 redmine issues create --project myproject --subject "Bug" \
   --custom-field "2=Value for field 2" \
   --custom-field "61=Value for 61"
+
+# Long Textile/Markdown description from a file, no shell quoting needed
+redmine issues create --project myproject --subject "Spec" --description-file spec.textile
 ```
+
+If Redmine starts the new issue in a different status than `--status` asked for (its workflow does not allow new issues of that tracker to start there for your role), the command prints a warning on stderr. It still exits `0`, because the issue was created and a retry would duplicate it.
 
 ## update
 
@@ -172,7 +178,9 @@ Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
 | Flag | Description |
 |------|-------------|
 | `--note`           | Add a journal note |
-| `--private-notes`  | Mark the journal note from `--note` as private (requires `--note`) |
+| `--note-file`      | Read the journal note from a file (`-` reads standard input); mutually exclusive with `--note` |
+| `--description-file` | Read the new description from a file (`-` reads standard input); mutually exclusive with `--description` |
+| `--private-notes`  | Mark the journal note from `--note` / `--note-file` as private |
 | `--done-ratio`     | Completion percentage (0-100) |
 | `--start-date`     | Start date (empty string clears) |
 | `--due-date`       | Due date (empty string clears) |
@@ -187,7 +195,37 @@ redmine issues update 123 --note "Internal context" --private-notes
 
 # Update custom field by name
 redmine issues update 123 --custom-field Severity=Critical
+
+# Long description from a file, note piped in on stdin
+redmine issues update 123 --description-file description.textile
+generate-report | redmine issues update 123 --note-file -
 ```
+
+### Status changes are verified
+
+Redmine answers an issue update with success even when it **silently ignores** the requested status: transitions its workflow does not allow for your role and the issue's tracker are dropped, and so is closing an issue that still has open subtasks or is blocked by an open issue. So whenever a status change is requested (`update --status`, `close`, `reopen`), the CLI reads the issue back. If the status did not change:
+
+- a warning explaining why is printed on stderr, including the statuses you *can* move the issue to (Redmine 5.0+; older servers say they cannot report them),
+- `-o json` prints the usual action envelope with `"ok": false` and the explanation in `message`,
+- the command exits with status `1`.
+
+Other changes sent in the same request (fields, notes, attachments) may still have been applied, so do not resend them blindly. Updates without a status change do not trigger the extra request.
+
+```bash
+$ redmine issues close 123 -o json
+WARNING: Issue #123: status was not changed to "Closed" (ID 5); it is still "New" (ID 1). Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, and refuses to close issues that have open subtasks or are blocked by open issues. Allowed statuses: New (1), In Progress (2), Resolved (3), Feedback (4).
+{
+  "ok": false,
+  "action": "closed",
+  "resource": "issue",
+  "id": 123,
+  "message": "Issue #123: status was not changed to \"Closed\" (ID 5); ..."
+}
+$ echo $?
+1
+```
+
+The action envelope is unchanged otherwise; to see the issue after an update, run `redmine issues get <id>`.
 
 ## close
 
@@ -198,12 +236,22 @@ redmine issues close <id> [flags]
 | Flag | Description |
 |------|-------------|
 | `--note` | Add a closing comment |
+| `--note-file` | Read the closing comment from a file (`-` reads standard input) |
+
+Sets the first closed status. The result is [verified](#status-changes-are-verified).
 
 ## reopen
 
 ```bash
 redmine issues reopen <id> [flags]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--note` | Add a comment when reopening |
+| `--note-file` | Read the comment from a file (`-` reads standard input) |
+
+Sets the first open status. The result is [verified](#status-changes-are-verified).
 
 ## assign
 
@@ -218,6 +266,18 @@ The user argument accepts a numeric ID, login, full name, or `me`.
 ```bash
 redmine issues comment <id> --message "Your comment" [flags]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-m, --message`      | Comment text |
+| `-F, --message-file` | Read the comment from a file (`-` reads standard input); mutually exclusive with `--message` |
+
+```bash
+redmine issues comment 123 --message-file notes.textile
+git log -1 --format=%B | redmine issues comment 123 -F -
+```
+
+File contents are sent exactly as read (UTF-8, no trimming), so multi-line Textile or Markdown needs no shell quoting.
 
 ## watchers
 

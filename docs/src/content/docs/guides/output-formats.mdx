@@ -101,6 +101,12 @@ redmine issues list --project myproject -o json \
    successfully but have nothing to change may return the same envelope with
    `ok: false` and a descriptive `message`.
 
+   One `ok: false` case also exits non-zero: when Redmine silently ignores a
+   requested status change (`issues update --status`, `issues close`,
+   `issues reopen`), the envelope carries `ok: false`, the explanation goes
+   to `stderr` as well, and the exit status is `1`. See
+   [status changes are verified](/commands/issues/#status-changes-are-verified).
+
    The `action` vocabulary is small and intentional: `created`, `updated`,
    `deleted`, `closed`, `reopened`, `assigned`, `commented`, `logged`,
    `user_added`, `user_removed`, `logged_in`, `logged_out`, `switched`,
