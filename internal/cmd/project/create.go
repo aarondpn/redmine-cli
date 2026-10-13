@@ -40,6 +40,9 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if err := validateEnabledModules(enabledModules); err != nil {
 				return err
 			}
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
@@ -121,6 +124,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Project name (required)")
 	cmd.Flags().StringVar(&identifier, "identifier", "", "Project identifier (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&homepage, "homepage", "", "Project homepage URL")
 	cmd.Flags().BoolVar(&public, "public", false, "Make project public")
 	cmd.Flags().StringVar(&parent, "parent", "", "Parent project identifier, name, or numeric ID")

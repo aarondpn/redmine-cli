@@ -47,6 +47,9 @@ const (
 	// command did not run.
 	ErrCodeJQInvalid = "jq_invalid"
 	ErrCodeUnknown   = "unknown"
+	// ErrCodeStatusNotApplied: Redmine accepted an issue update but silently
+	// kept the old status (workflow, open subtasks, open blockers).
+	ErrCodeStatusNotApplied = "status_not_applied"
 )
 
 // Action actions exposed by no-body mutators. Keep the vocabulary small.

@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -62,6 +63,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   redmine issues create --project myproject --subject "Broken layout" \
     --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
 
+  # Read a long description from a file (or from stdin with "-")
+  redmine issues create --project myproject --subject "Spec" --description-file spec.textile
+
   # Set custom field values (by name or numeric ID, repeatable)
   redmine issues create --project myproject --subject "Bug" \
     --custom-field Severity=High --custom-field 7=urgent
@@ -73,6 +77,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
+				return err
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -188,6 +196,15 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create issue: %w", err)
 			}
+			if create.StatusID != 0 && issue.Status.ID != create.StatusID {
+				// The issue exists, so this is a warning rather than a failure:
+				// a non-zero exit would invite a retry that duplicates it.
+				requested := fmt.Sprintf("%q (ID %d)", status, create.StatusID)
+				if _, err := strconv.Atoi(status); err == nil {
+					requested = fmt.Sprintf("ID %d", create.StatusID)
+				}
+				printer.Warning(fmt.Sprintf("Issue #%d was created with status %q instead of the requested status %s: Redmine's workflow does not allow new issues of this tracker to start in that status for your role.", issue.ID, issue.Status.Name, requested))
+			}
 
 			if printer.Format() == output.FormatJSON {
 				printer.JSON(issue)
@@ -214,6 +231,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&tracker, "tracker", "", "Tracker name or ID")
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to set no assignee (Redmine may still apply the category/project default assignee)")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")

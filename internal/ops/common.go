@@ -1,5 +1,7 @@
 package ops
 
+import "strings"
+
 // DefaultListLimit caps list-style operations when the caller omits a limit so
 // MCP clients do not accidentally pull large result sets into context.
 const DefaultListLimit = 50
@@ -29,9 +31,18 @@ func ListLimit(requested int) int {
 // MessageResult is a simple acknowledgement payload for mutating operations.
 type MessageResult struct {
 	Message string `json:"message"`
+	// Warnings carries non-fatal notes gathered after the mutation itself
+	// succeeded (for example a failed read-back, or an issue that was already
+	// closed). The CLI prints them on stderr. They are deliberately not
+	// serialized: MCP clients see them only in the tool's text content, via
+	// MCPMessage, and not in the structured result.
+	Warnings []string `json:"-"`
 }
 
 // MCPMessage exposes the human-readable message used by the MCP wrapper.
 func (m MessageResult) MCPMessage() string {
-	return m.Message
+	if len(m.Warnings) == 0 {
+		return m.Message
+	}
+	return m.Message + "\nWarning: " + strings.Join(m.Warnings, "\nWarning: ")
 }

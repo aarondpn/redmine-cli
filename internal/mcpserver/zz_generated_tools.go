@@ -73,7 +73,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CloseIssueInput, ops.MessageResult]{
 		Name:        "close_issue",
-		Description: "Close an issue by setting its status to the first closed status. Requires --enable-writes.",
+		Description: "Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.",
 		Category:    "issues",
 		Writes:      true,
 		Call:        ops.CloseIssue,
@@ -151,14 +151,14 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ReopenIssueInput, ops.MessageResult]{
 		Name:        "reopen_issue",
-		Description: "Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.",
+		Description: "Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.",
 		Category:    "issues",
 		Writes:      true,
 		Call:        ops.ReopenIssue,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateIssueInput, ops.MessageResult]{
 		Name:        "update_issue",
-		Description: "Update fields on an existing Redmine issue. Requires --enable-writes.",
+		Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.",
 		Category:    "issues",
 		Writes:      true,
 		Call:        ops.UpdateIssue,
@@ -488,7 +488,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_group", Description: "Update an existing Redmine group. Requires --enable-writes.", Group: "groups", Writes: true},
 		{Name: "add_issue_comment", Description: "Add a journal comment to an existing issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "add_issue_watcher", Description: "Add a user as a watcher on an issue. Requires --enable-writes.", Group: "issues", Writes: true},
-		{Name: "close_issue", Description: "Close an issue by setting its status to the first closed status. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "close_issue", Description: "Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue", Description: "Create a new Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue_relation", Description: "Create a relation between two issues. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
@@ -500,8 +500,8 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_issue_watchers", Description: "List watchers of an issue.", Group: "issues", Writes: false},
 		{Name: "list_issues", Description: "List Redmine issues matching the given filters.", Group: "issues", Writes: false},
 		{Name: "remove_issue_watcher", Description: "Remove a user as a watcher from an issue. Requires --enable-writes.", Group: "issues", Writes: true},
-		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Requires --enable-writes.", Group: "issues", Writes: true},
-		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "delete_membership", Description: "Remove a project membership. Destructive. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "get_membership", Description: "Fetch a single project membership by ID.", Group: "memberships", Writes: false},

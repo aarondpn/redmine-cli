@@ -111,6 +111,16 @@ func FormatErrorMessage(err error) string {
 // line), derives a stable code from the underlying api.APIError
 // classification, and carries ErrorHint in the separate hint field.
 func BuildErrorEnvelope(err error) output.ErrorEnvelope {
+	var coded *CodedError
+	if errors.As(err, &coded) {
+		return output.ErrorEnvelope{Error: output.ErrorDetail{
+			Message: coded.Message,
+			Code:    coded.Code,
+			Details: append([]string(nil), coded.Details...),
+			Hint:    ErrorHint(err),
+		}}
+	}
+
 	env := output.ErrorEnvelope{
 		Error: output.ErrorDetail{
 			Message: FormatErrorMessage(err),

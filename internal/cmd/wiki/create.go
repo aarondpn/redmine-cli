@@ -33,12 +33,19 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
   redmine wiki create MyPage --project myproject --text "Content here" \
     --title "My Page" --comments "Initial draft"
 
+  # Read the page content from a file (or from stdin with "-")
+  redmine wiki create MyPage --project myproject --text-file page.textile
+
   # Attach a file
   redmine wiki create MyPage --project myproject --text "See diagram" \
     --attach ./diagram.png`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
+
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text); err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
@@ -83,13 +90,14 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
-	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown (required)")
+	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown (required unless --text-file is given)")
+	cmdutil.AddTextFileFlag(cmd, "text", "text-file", "F")
 	cmd.Flags().StringVar(&title, "title", "", "Display title (defaults to page name)")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)
 
-	_ = cmd.MarkFlagRequired("text")
+	cmd.MarkFlagsOneRequired("text", "text-file")
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 
 	return cmd

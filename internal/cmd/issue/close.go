@@ -19,12 +19,22 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "close <id>",
 		Short: "Close an issue",
-		Long:  "Close an issue by setting its status to the first closed status.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Close an issue by setting its status to the first closed status.\n\n" +
+			"The issue is read back afterwards. An issue that is already closed (in any " +
+			"closed status) counts as closed. If Redmine silently ignored the " +
+			"transition (its workflow does not allow it for your role and the issue's " +
+			"tracker, or the issue has open subtasks or open blocking issues), the " +
+			"command fails with error code status_not_applied, listing the allowed " +
+			"statuses (Redmine 5.0+).",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("invalid issue ID: %s", args[0])
+			}
+
+			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "note", "note-file", &note); err != nil {
+				return err
 			}
 
 			client, err := f.ApiClient()
@@ -34,21 +44,26 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Closing issue...")
-			_, err = ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
+			result, err := ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
 				ID:    id,
 				Notes: note,
 			})
 			stop()
 			if err != nil {
+				if coded := statusNotAppliedError(err); coded != nil {
+					return coded
+				}
 				return fmt.Errorf("failed to close issue %s: %w", fmt.Sprintf("#%d", id), err)
 			}
 
+			printWarnings(printer, result.Warnings)
 			printer.Action(output.ActionClosed, "issue", id, fmt.Sprintf("Closed issue #%d", id))
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&note, "note", "", "Add a note when closing")
+	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
 
 	return cmd
 }

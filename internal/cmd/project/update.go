@@ -42,6 +42,10 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if err := validateEnabledModules(enabledModules); err != nil {
 				return err
 			}
+			descriptionSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description)
+			if err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
@@ -55,7 +59,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("name") {
 				input.Name = &name
 			}
-			if cmd.Flags().Changed("description") {
+			if descriptionSet {
 				input.Description = &description
 			}
 			if cmd.Flags().Changed("homepage") {
@@ -130,6 +134,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "Project name")
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
+	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "")
 	cmd.Flags().StringVar(&homepage, "homepage", "", "Project homepage URL")
 	cmd.Flags().BoolVar(&public, "public", false, "Set public visibility")
 	cmd.Flags().StringVar(&parent, "parent", "", "Parent project identifier, name, or numeric ID. Pass empty to detach from the current parent.")

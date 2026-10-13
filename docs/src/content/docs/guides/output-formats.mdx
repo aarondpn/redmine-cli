@@ -177,11 +177,17 @@ come before it:
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
-`jq_failed`, `unknown`. Validation and conflict errors include a `details`
+`jq_failed`, `status_not_applied`, `unknown`. Validation and conflict errors include a `details`
 array with the individual messages from Redmine. `jq_invalid` means the
 `--jq` expression is empty or malformed and the command did not run;
 `jq_failed` means the command succeeded but the `--jq` expression failed on
 its output (see above).
+
+`status_not_applied` means Redmine accepted an issue update but silently kept
+the old status (see
+[status changes are verified](/commands/issues/#status-changes-are-verified)).
+Its `details` list the allowed statuses and, when the request carried other
+changes, a note that those may already have been applied.
 
 Because the failure never reaches `stdout`, a pipeline such as
 `redmine issues create ... -o json | jq '{id}'` can no longer mistake an error
