@@ -292,3 +292,72 @@ func TestStatusNotAppliedError_SummaryAndDetails(t *testing.T) {
 		t.Errorf("Details = %q", details)
 	}
 }
+
+// TestStatusNotAppliedError_SummaryPerTransition pins that the explanation
+// matches the requested action: reopen never mentions the closing rules,
+// while close and a plain status update (which may target a closed status)
+// do.
+func TestStatusNotAppliedError_SummaryPerTransition(t *testing.T) {
+	tests := []struct {
+		name        string
+		transition  StatusTransition
+		wantClosing bool
+	}{
+		{"close", StatusTransitionClose, true},
+		{"reopen", StatusTransitionReopen, false},
+		{"update", StatusTransitionUpdate, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &StatusNotAppliedError{
+				IssueID:    1,
+				Requested:  models.IDName{ID: 1, Name: "New"},
+				Current:    models.IDName{ID: 5, Name: "Closed"},
+				Transition: tt.transition,
+			}
+			summary := e.Summary()
+			if !strings.Contains(summary, "workflow") {
+				t.Errorf("summary missing workflow explanation: %q", summary)
+			}
+			if got := strings.Contains(summary, "open subtasks"); got != tt.wantClosing {
+				t.Errorf("mentions closing rules = %v, want %v: %q", got, tt.wantClosing, summary)
+			}
+		})
+	}
+}
+
+func TestReopenIssue_StatusNotApplied_SummaryIsReopenSpecific(t *testing.T) {
+	srv := &statusServer{issueGet: issueClosed}
+	client, closeTS := newTestAPIClient(t, srv)
+	defer closeTS()
+
+	_, err := ReopenIssue(context.Background(), client, ReopenIssueInput{ID: 42})
+	var notApplied *StatusNotAppliedError
+	if !errors.As(err, &notApplied) {
+		t.Fatalf("err = %v, want *StatusNotAppliedError", err)
+	}
+	if notApplied.Transition != StatusTransitionReopen {
+		t.Errorf("Transition = %v, want reopen", notApplied.Transition)
+	}
+	if strings.Contains(notApplied.Summary(), "close") {
+		t.Errorf("reopen summary mentions closing: %q", notApplied.Summary())
+	}
+}
+
+func TestCloseIssue_StatusNotApplied_TransitionIsClose(t *testing.T) {
+	srv := &statusServer{issueGet: issueStillNewWithAllowed}
+	client, closeTS := newTestAPIClient(t, srv)
+	defer closeTS()
+
+	_, err := CloseIssue(context.Background(), client, CloseIssueInput{ID: 42})
+	var notApplied *StatusNotAppliedError
+	if !errors.As(err, &notApplied) {
+		t.Fatalf("err = %v, want *StatusNotAppliedError", err)
+	}
+	if notApplied.Transition != StatusTransitionClose {
+		t.Errorf("Transition = %v, want close", notApplied.Transition)
+	}
+	if !strings.Contains(notApplied.Summary(), "refuses to close issues") {
+		t.Errorf("close summary missing closing rules: %q", notApplied.Summary())
+	}
+}

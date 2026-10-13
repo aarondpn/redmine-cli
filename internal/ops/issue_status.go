@@ -32,7 +32,22 @@ type StatusNotAppliedError struct {
 	// the status (fields, notes, attachments). Redmine applies those even when
 	// it drops the status, so callers must not blindly resend them.
 	OtherChanges bool
+	// Transition is the kind of change that was requested; it selects the
+	// explanation returned by Summary.
+	Transition StatusTransition
 }
+
+// StatusTransition names the kind of status change that was requested.
+type StatusTransition int
+
+const (
+	// StatusTransitionUpdate is an explicit status change (update --status).
+	StatusTransitionUpdate StatusTransition = iota
+	// StatusTransitionClose moves the issue to a closed status.
+	StatusTransitionClose
+	// StatusTransitionReopen moves the issue to an open status.
+	StatusTransitionReopen
+)
 
 func (e *StatusNotAppliedError) Error() string {
 	return e.Summary() + " " + strings.Join(e.Details(), " ")
@@ -41,10 +56,19 @@ func (e *StatusNotAppliedError) Error() string {
 // Summary is the one-paragraph explanation of what happened, without the
 // follow-up facts returned by Details.
 func (e *StatusNotAppliedError) Summary() string {
-	return fmt.Sprintf("Issue #%d: status was not changed to %s; it is now %s. "+
-		"Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, "+
-		"and refuses to close issues that have open subtasks or are blocked by open issues.",
-		e.IssueID, describeStatus(e.Requested), describeStatus(e.Current))
+	var why string
+	switch e.Transition {
+	case StatusTransitionClose:
+		why = "Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker, " +
+			"and refuses to close issues that have open subtasks or are blocked by open issues."
+	case StatusTransitionReopen:
+		why = "Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker."
+	default:
+		why = "Redmine silently ignores status transitions that its workflow does not allow for your role and the issue's tracker; " +
+			"moving to a closed status is also refused while the issue has open subtasks or is blocked by open issues."
+	}
+	return fmt.Sprintf("Issue #%d: status was not changed to %s; it is now %s. %s",
+		e.IssueID, describeStatus(e.Requested), describeStatus(e.Current), why)
 }
 
 // Details lists the follow-up facts a caller needs to recover: the statuses
@@ -116,6 +140,13 @@ func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, c
 			}
 		}
 	}
+	transition := StatusTransitionUpdate
+	if check.wantClosed != nil {
+		transition = StatusTransitionReopen
+		if *check.wantClosed {
+			transition = StatusTransitionClose
+		}
+	}
 	if requested.Name == "" {
 		requested.Name = lookupStatusName(ctx, client, requested.ID, append(append([]models.IssueStatus(nil), allowed...), check.statuses...))
 	}
@@ -126,6 +157,7 @@ func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, c
 		Allowed:         allowed,
 		AllowedReported: reported,
 		OtherChanges:    check.otherChanges,
+		Transition:      transition,
 	}
 }
 
