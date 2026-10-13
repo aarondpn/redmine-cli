@@ -76,7 +76,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if cmd.Flags().Changed("default-assignee") {
-				id, err := resolveOptionalUserID(ctx, client, defaultAssignee)
+				id, err := resolveOptionalUserID(ctx, client, defaultAssignee, identifier)
 				if err != nil {
 					return err
 				}
@@ -164,12 +164,13 @@ func resolveOptionalParentID(ctx context.Context, client *api.Client, input stri
 }
 
 // resolveOptionalUserID returns 0 for an empty input (signals "clear" to
-// Redmine) and otherwise resolves the input via ResolveAssignee.
-func resolveOptionalUserID(ctx context.Context, client *api.Client, input string) (int, error) {
+// Redmine) and otherwise resolves the input against the project's members
+// (users and groups) via ResolveAssigneeInProject.
+func resolveOptionalUserID(ctx context.Context, client *api.Client, input, project string) (int, error) {
 	if input == "" {
 		return 0, nil
 	}
-	id, err := resolver.ResolveAssignee(ctx, client, input)
+	id, err := resolver.ResolveAssigneeInProject(ctx, client, input, project)
 	if err != nil {
 		return 0, fmt.Errorf("resolve --default-assignee: %w", err)
 	}

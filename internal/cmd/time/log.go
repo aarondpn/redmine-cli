@@ -67,7 +67,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 
 			var userID int
 			if user != "" {
-				userID, err = resolver.ResolveUser(ctx, client, user)
+				userID, err = resolver.ResolveUserInProject(ctx, client, user, project)
 				if err != nil {
 					return fmt.Errorf("resolving user: %w", err)
 				}

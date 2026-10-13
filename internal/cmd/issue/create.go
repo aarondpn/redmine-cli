@@ -107,8 +107,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.PriorityID = id
 			}
 
-			if assignee != "" {
-				id, err := resolver.ResolveAssignee(ctx, client, assignee)
+			// "none" leaves the issue unassigned (Redmine may still apply a
+			// category or project default assignee).
+			if assignee != "" && !resolver.IsNone(assignee) {
+				id, err := resolveAssigneeValue(ctx, client, assignee, projectIdentifier)
 				if err != nil {
 					return fmt.Errorf("resolving assignee: %w", err)
 				}
@@ -144,7 +146,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(watchers) > 0 {
-				ids, err := resolveUserList(ctx, client, watchers, "watcher")
+				ids, err := resolveUserList(ctx, client, watchers, projectIdentifier, "watcher")
 				if err != nil {
 					return err
 				}
@@ -201,7 +203,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&subject, "subject", "", "Issue subject (required)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description")
 	cmd.Flags().StringVar(&priority, "priority", "", "Priority name or ID")
-	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee name, login, ID, or 'me'")
+	cmd.Flags().StringVar(&assignee, "assignee", "", "Assignee: user or group name, login, ID, 'me', or 'none' to leave unassigned")
 	cmd.Flags().StringVar(&status, "status", "", "Status name or ID")
 	cmd.Flags().StringVar(&category, "category", "", "Issue category name or ID")
 	cmd.Flags().StringVar(&version, "version", "", "Target version name or ID")
@@ -221,7 +223,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))
-	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteUsers(f))
+	_ = cmd.RegisterFlagCompletionFunc("assignee", cmdutil.CompleteAssignees(f))
 	_ = cmd.RegisterFlagCompletionFunc("watcher", cmdutil.CompleteUsers(f))
 	_ = cmd.RegisterFlagCompletionFunc("category", cmdutil.CompleteCategories(f))
 	_ = cmd.RegisterFlagCompletionFunc("version", cmdutil.CompleteOpenVersions(f))

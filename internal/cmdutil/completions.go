@@ -291,6 +291,56 @@ func CompleteUsers(f *Factory) func(cmd *cobra.Command, args []string, toComplet
 	}
 }
 
+// CompleteAssignees returns a completion function for --assignee flags.
+// "me" and "none" are always offered. When the command has a --project flag
+// (or a default project is configured) the candidates are the project's
+// members, users and groups alike, from the memberships endpoint, which
+// non-admins can read. Otherwise it falls back to CompleteUsers.
+func CompleteAssignees(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	completeUsers := CompleteUsers(f)
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		none := "none\tNo assignee"
+
+		if cmd.Flags().Lookup("project") != nil {
+			if project := resolveProjectForCompletion(f, cmd); project != "" {
+				if items, ok := completeProjectMembers(f, project); ok {
+					items = append([]string{"me\tCurrent user", none}, items...)
+					return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+				}
+			}
+		}
+
+		items, directive := completeUsers(cmd, args, toComplete)
+		return append(filterCompletions([]string{none}, toComplete), items...), directive
+	}
+}
+
+// completeProjectMembers lists the users and groups that are members of
+// project as completion candidates. ok is false when the list could not be
+// fetched.
+func completeProjectMembers(f *Factory, project string) ([]string, bool) {
+	client, ctx, cancel := completionClient(f)
+	if client == nil {
+		return nil, false
+	}
+	defer cancel()
+
+	memberships, _, err := client.Memberships.List(ctx, project, 100, 0)
+	if err != nil {
+		return nil, false
+	}
+	items := make([]string, 0, len(memberships))
+	for _, m := range memberships {
+		switch {
+		case m.User != nil:
+			items = append(items, fmt.Sprintf("%s\tuser, ID %d", m.User.Name, m.User.ID))
+		case m.Group != nil:
+			items = append(items, fmt.Sprintf("%s\tgroup, ID %d", m.Group.Name, m.Group.ID))
+		}
+	}
+	return items, true
+}
+
 // CompleteGroups returns a completion function for the --group flag.
 // Returns empty completions gracefully if the user lacks admin privileges.
 func CompleteGroups(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

@@ -11,7 +11,6 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
-	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
 // NewCmdWatchers creates the issues watchers command group.
@@ -85,7 +84,7 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-			userID, err := resolver.ResolveAssignee(ctx, client, args[1])
+			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
 				return fmt.Errorf("resolving user: %w", err)
 			}
@@ -122,7 +121,7 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-			userID, err := resolver.ResolveAssignee(ctx, client, args[1])
+			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
 				return fmt.Errorf("resolving user: %w", err)
 			}

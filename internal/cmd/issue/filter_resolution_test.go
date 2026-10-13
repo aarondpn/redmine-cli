@@ -12,7 +12,7 @@ func TestResolveIssueAssigneeFilter_MeBypassesLookup(t *testing.T) {
 	f := testutil.NewFactory(t, "https://example.invalid")
 	printer := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, false, true, "")
 
-	got, err := resolveIssueAssigneeFilter(context.Background(), nil, "me", printer)
+	got, err := resolveIssueAssigneeFilter(context.Background(), nil, "me", "", printer)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestResolveIssueAssigneeFilter_NumericBypassesLookup(t *testing.T) {
 	f := testutil.NewFactory(t, "https://example.invalid")
 	printer := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, false, true, "")
 
-	got, err := resolveIssueAssigneeFilter(context.Background(), nil, "42", printer)
+	got, err := resolveIssueAssigneeFilter(context.Background(), nil, "42", "", printer)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
