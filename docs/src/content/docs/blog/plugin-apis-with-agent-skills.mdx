@@ -76,7 +76,7 @@ On a 4xx or 5xx response, `redmine api` exits with code `1`. With `--jq` or `-o 
 
 ## Step 2. Write data
 
-For writes, `-F` builds a JSON body from `key=value` pairs and switches the method to `POST`. Numbers, booleans, arrays and objects keep their JSON type. Anything else is sent as a string, including JSON with a typo in it, so check the quotes. Linking two pull requests to issue 1234 looks like this:
+For writes, `-F` builds a JSON body from `key=value` pairs and switches the method to `POST`. Numbers, booleans, arrays and objects keep their JSON type. Anything else is sent as a string, including JSON with a typo in it, so check the quotes. A value that looks like a number is sent as one, so `-F 'name=1.10'` sends `1.1`. Inside a JSON object, strings stay strings. Linking two pull requests to issue 1234 looks like this:
 
 ```bash
 redmine api /issues/1234/pull_requests.json \
@@ -167,6 +167,8 @@ the API key yourself.
   issue. Stop and tell the user.
 - Ask before unlinking. Show the user which PR you are about to unlink.
 - Never pass `--read-only=false`. If a write is refused, tell the user.
+- Only use the profile the user set up for you. Never switch profiles or pass
+  `--server` or `--api-key`.
 
 ## "Is this issue ready to close?"
 
@@ -189,7 +191,7 @@ A few things that make skills like this work well:
 
 `redmine api` can call any endpoint with any method, so decide what the agent should be allowed to do:
 
-- A dedicated Redmine user is the limit that holds. Log in as that user in a separate profile, and the agent can only do what the user's role allows. For example, give the role *View pull requests* but not *Manage pull requests*. Tell the agent to pass `--profile <name>`, or make it the active profile with `redmine auth switch`.
+- A dedicated Redmine user limits the agent to what that user's role allows. For example, give the role *View pull requests* but not *Manage pull requests*. This only holds if the agent can't reach your own credentials. `--profile` and `redmine auth switch` are conventions the agent can ignore, and it can read `~/.redmine-cli.yaml` like any other file. Run the agent in a container or as a separate OS user whose config file only has the agent user's profile.
 - Read-only mode blocks every `POST`, `PUT`, `PATCH` and `DELETE` request before the CLI sends it. Set `read_only: true` on the agent's profile, or `REDMINE_READ_ONLY=1` for a session. It catches accidental writes, but it doesn't stop an agent that wants to write, because `--read-only=false` turns it off for a single command. That's why the skill above tells the agent never to pass it.
 
 <Aside type="note">
@@ -203,7 +205,7 @@ A few things that make skills like this work well:
 1. Explore the plugin endpoint with `redmine api -i` and `--jq`.
 2. Work out the write payloads with `-F` JSON values or `--input -`.
 3. Write down endpoints, payloads, allowed values and pitfalls in a short `SKILL.md`.
-4. Give the agent its own Redmine user, and turn on read-only mode until you trust it with writes.
+4. Give the agent its own Redmine user and no access to yours, and turn on read-only mode until you trust it with writes.
 
 </Steps>
 

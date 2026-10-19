@@ -8,7 +8,8 @@ const enUrl = new URL(enPath, Astro.site).href;
 
 // The blog is English-only: /zh-cn/blog/ pages are untranslated fallbacks, so
 // point their canonical, og:url and structured data at the English pages and
-// drop the hreflang alternates.
+// drop the hreflang alternates. The blog titles match the starlightBlog title
+// option in astro.config.mjs.
 const isBlog = new RegExp(`^${base}(/zh-cn)?/blog(/|$)`).test(pathname);
 if (isBlog) {
 	const zhBlogUrl = new URL(`${base}/zh-cn/blog/`, Astro.site).href;
@@ -24,7 +25,11 @@ if (isBlog) {
 				return { ...entry, attrs: { ...entry.attrs, content: enUrl } };
 			}
 			if (entry.tag === 'script' && entry.attrs?.type === 'application/ld+json' && entry.content) {
-				return { ...entry, content: entry.content.replaceAll(zhBlogUrl, enBlogUrl) };
+				const content = entry.content
+					.replaceAll(zhBlogUrl, enBlogUrl)
+					.replaceAll('"inLanguage":"zh-CN"', '"inLanguage":"en"')
+					.replaceAll('"name":"博客"', '"name":"Blog"');
+				return { ...entry, content };
 			}
 			return entry;
 		});

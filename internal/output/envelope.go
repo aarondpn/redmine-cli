@@ -42,7 +42,7 @@ const (
 	ErrCodeServerError      = "server_error"
 	// ErrCodeJQFailed means the command itself succeeded (any write already
 	// happened) but the --jq expression failed on its output. Exception:
-	// with `api -i` on a non-2xx response the filter ran on the error
+	// with `api -i` on a 4xx/5xx response the filter ran on the error
 	// response and the request itself did not succeed.
 	ErrCodeJQFailed = "jq_failed"
 	// ErrCodeJQInvalid means the --jq expression is empty or malformed; the
