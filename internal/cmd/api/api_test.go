@@ -133,6 +133,12 @@ func TestJSONValueParsing(t *testing.T) {
 		{"3.14", 3.14},
 		{`[1,2,3]`, []interface{}{float64(1), float64(2), float64(3)}},
 		{"hello", "hello"},
+		{"NaN", "NaN"},
+		{"inf", "inf"},
+		{"-Infinity", "-Infinity"},
+		{`{"id":9007199254740993}`, json.RawMessage(`{"id":9007199254740993}`)},
+		{`[1,2] x`, `[1,2] x`},
+		{`{"a":1}{"b":2}`, `{"a":1}{"b":2}`},
 	}
 	for _, tt := range tests {
 		got := parseJSONValue(tt.input)
