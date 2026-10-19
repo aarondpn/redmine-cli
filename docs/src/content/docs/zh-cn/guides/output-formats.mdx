@@ -118,7 +118,7 @@ redmine issues list --project myproject -o json \
 - 机器可读输出（JSON、CSV、表格行）始终写入 `stdout`。
 - 面向人的信息（非 JSON 模式下的成功确认、警告、进度 spinner、更新检查提示）始终写入 `stderr`。
 - 错误始终写入 `stderr`：普通模式下为 `Error: ...` 文本，JSON 模式下为 JSON 错误信封。失败时 `stdout` 为空。
-- 例外：`redmine api` 遇到非 2xx 响应时，会把响应（响应体，使用 `-i` 时还包括状态和响应头）打印到 `stdout` 并以退出码 `1` 退出；设置 `--silent` 时不输出任何内容，但同样以退出码 `1` 退出。只有在 JSON 模式且未使用 `-i` 或 `--silent` 时，失败才会作为错误信封写入 `stderr`。
+- 例外：`redmine api` 遇到 4xx 或 5xx 响应时，会把响应（响应体，使用 `-i` 时还包括状态和响应头）打印到 `stdout` 并以退出码 `1` 退出；设置 `--silent` 时不输出任何内容，但同样以退出码 `1` 退出。只有在 JSON 模式且未使用 `-i` 或 `--silent` 时，失败才会作为错误信封写入 `stderr`。
 
 这种分离是稳定的。脚本可以安全地把 `stdout` 重定向到文件，或者直接通过管道传给 `jq`，而不必担心状态提示混入输出。
 

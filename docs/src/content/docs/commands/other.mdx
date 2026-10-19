@@ -67,11 +67,11 @@ Make authenticated requests to any Redmine REST API endpoint.
 | `--silent`        | Suppress response output |
 
 <Aside type="caution" title="-F sets top-level keys">
-  Each `-F key=value` becomes a top-level key of the JSON body, and the value is parsed as JSON. Bracket notation is not expanded: `-F 'issue[subject]=Bug'` sends a key literally named `issue[subject]`, which Redmine ignores. A `PUT` like that still succeeds, but changes nothing. Pass nested objects as a JSON value (`-F 'issue={"subject":"Bug"}'`) or send the whole body with `--input`.
+  Each `-F key=value` becomes a top-level key of the JSON body. Numbers, booleans, arrays and objects are sent as JSON, anything else (including invalid JSON) as a string. Bracket notation is not expanded: `-F 'issue[subject]=Bug'` sends a key literally named `issue[subject]`, which Redmine ignores. A `PUT` like that still succeeds, but changes nothing. Pass nested objects as a JSON value (`-F 'issue={"subject":"Bug"}'`) or send the whole body with `--input`.
 </Aside>
 
 <Aside type="tip">
-  JSON responses are pretty-printed when stdout is a terminal. Non-2xx responses still print the body but exit with code `1`. In JSON mode (`-o json` or `--jq`) without `-i`, a non-2xx response is reported as the JSON error envelope on `stderr` instead, and `stdout` stays empty.
+  JSON responses are pretty-printed when stdout is a terminal. 4xx and 5xx responses still print the body but exit with code `1`. In JSON mode (`-o json` or `--jq`) without `-i`, such a response is reported as the JSON error envelope on `stderr` instead, and `stdout` stays empty.
 </Aside>
 
 ## categories

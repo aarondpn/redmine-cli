@@ -242,7 +242,7 @@ Redmine's messages are localized; branch on `code`, not on `message`.
   warnings, progress spinners, update-check hints) always go to `stderr`.
 - Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
   JSON error envelope. On failure `stdout` is empty.
-- One exception: `redmine api` prints the response of a non-2xx request to
+- One exception: `redmine api` prints the response of a 4xx or 5xx request to
   `stdout` (the body, and with `-i` the status and headers) and exits `1`;
   with `--silent` it prints nothing and still exits `1`. Only in JSON mode
   without `-i` or `--silent` is the failure reported as the error envelope

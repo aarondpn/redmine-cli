@@ -4,21 +4,27 @@ import Default from '@astrojs/starlight/components/Head.astro';
 const base = '';
 const pathname = Astro.url.pathname;
 const enPath = pathname.replace(new RegExp(`^${base}/zh-cn(/|$)`), `${base}$1`);
-const xDefault = new URL(enPath, Astro.site).href;
+const enUrl = new URL(enPath, Astro.site).href;
 
 // The blog is English-only: /zh-cn/blog/ pages are untranslated fallbacks, so
-// point their canonical at the English page and drop the hreflang alternates.
+// point their canonical, og:url and structured data at the English pages and
+// drop the hreflang alternates.
 const isBlog = new RegExp(`^${base}(/zh-cn)?/blog(/|$)`).test(pathname);
 if (isBlog) {
+	const zhBlogUrl = new URL(`${base}/zh-cn/blog/`, Astro.site).href;
+	const enBlogUrl = new URL(`${base}/blog/`, Astro.site).href;
 	const route = Astro.locals.starlightRoute;
 	route.head = route.head
 		.filter(({ tag, attrs }) => !(tag === 'link' && attrs?.rel === 'alternate' && attrs?.hreflang))
 		.map((entry) => {
 			if (entry.tag === 'link' && entry.attrs?.rel === 'canonical') {
-				return { ...entry, attrs: { ...entry.attrs, href: xDefault } };
+				return { ...entry, attrs: { ...entry.attrs, href: enUrl } };
 			}
 			if (entry.tag === 'meta' && entry.attrs?.property === 'og:url') {
-				return { ...entry, attrs: { ...entry.attrs, content: xDefault } };
+				return { ...entry, attrs: { ...entry.attrs, content: enUrl } };
+			}
+			if (entry.tag === 'script' && entry.attrs?.type === 'application/ld+json' && entry.content) {
+				return { ...entry, content: entry.content.replaceAll(zhBlogUrl, enBlogUrl) };
 			}
 			return entry;
 		});
@@ -26,5 +32,4 @@ if (isBlog) {
 ---
 
 <Default />
-{!isBlog && <link rel="alternate" hreflang="x-default" href={xDefault} />}
 <meta name="google-site-verification" content="3GN_SussYBJTIeb0i2fHLiuJs3JbSRosE0_kVZN7DZ8" />

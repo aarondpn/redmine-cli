@@ -42,8 +42,9 @@ The endpoint argument should be a path like "/issues.json" or "issues.json"
 The default HTTP method is GET. When --raw-field or --input is provided,
 the method defaults to POST instead.
 
-Each --raw-field sets a top-level key of the JSON body, and its value is
-parsed as JSON. Bracket keys like 'issue[subject]' are not expanded, so pass
+Each --raw-field sets a top-level key of the JSON body. Numbers, true/false,
+arrays and objects are sent as JSON, anything else (including invalid JSON)
+as a string. Bracket keys like 'issue[subject]' are not expanded, so pass
 nested objects as JSON: -F 'issue={"subject":"Bug"}'.`,
 		Example: `  # GET the current user
   redmine api /users/current.json

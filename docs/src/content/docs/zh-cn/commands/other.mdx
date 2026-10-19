@@ -60,11 +60,11 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 | `--silent`        | 抑制响应输出 |
 
 <Aside type="caution" title="-F 设置的是顶层键">
-  每个 `-F key=value` 都会成为 JSON 请求体的顶层键，值按 JSON 解析。方括号写法不会被展开：`-F 'issue[subject]=Bug'` 发送的是一个字面名为 `issue[subject]` 的键，Redmine 会忽略它。这样的 `PUT` 请求仍会成功，但不会修改任何内容。请将嵌套对象作为 JSON 值传入（`-F 'issue={"subject":"Bug"}'`），或使用 `--input` 发送完整的请求体。
+  每个 `-F key=value` 都会成为 JSON 请求体的顶层键。数字、布尔值、数组和对象按 JSON 发送，其他值（包括无效的 JSON）按字符串发送。方括号写法不会被展开：`-F 'issue[subject]=Bug'` 发送的是一个字面名为 `issue[subject]` 的键，Redmine 会忽略它。这样的 `PUT` 请求仍会成功，但不会修改任何内容。请将嵌套对象作为 JSON 值传入（`-F 'issue={"subject":"Bug"}'`），或使用 `--input` 发送完整的请求体。
 </Aside>
 
 <Aside type="tip">
-  当输出目标为终端时，JSON 响应将以格式化方式输出。非 2xx 响应仍会打印响应体，但以退出码 `1` 退出。在 JSON 模式（`-o json` 或 `--jq`）下且未使用 `-i` 时，非 2xx 响应会改为以 JSON 错误信封的形式写入 `stderr`，`stdout` 保持为空。
+  当输出目标为终端时，JSON 响应将以格式化方式输出。4xx 和 5xx 响应仍会打印响应体，但以退出码 `1` 退出。在 JSON 模式（`-o json` 或 `--jq`）下且未使用 `-i` 时，此类响应会改为以 JSON 错误信封的形式写入 `stderr`，`stdout` 保持为空。
 </Aside>
 
 ## categories
