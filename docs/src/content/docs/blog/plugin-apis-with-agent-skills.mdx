@@ -1,0 +1,198 @@
+---
+title: Teaching your agent the Redmine plugin APIs it has never seen
+description: Use redmine api and a short Agent Skill to let AI agents work with REST endpoints that Redmine plugins add, using the Pull Requests plugin as an example.
+date: 2026-10-19
+authors: aarond
+tags:
+  - guide
+  - ai-agents
+  - api
+  - plugins
+cover:
+  alt: A Redmine issue with linked GitHub pull requests, showing review state, checks and diff stats
+  image: ../../../assets/blog/redmine-pull-requests-hero.png
+excerpt: Redmine plugins often add their own REST endpoints. redmine-cli has no commands for them, and your agent has never heard of them. This post shows how to give your agent access with `redmine api` and a skill that fits on one screen.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import details from '../../../assets/blog/redmine-pull-requests-details.png';
+
+Many Redmine instances run plugins, and some of those plugins add their own REST endpoints. redmine-cli covers the core Redmine API with dedicated commands, but it can't ship commands for endpoints that only exist on your server. Your AI agent has never seen them either. Ask it about one and it either gives up or starts guessing URLs and building `curl` calls with your API key pasted into them.
+
+This post shows a setup with two pieces:
+
+1. `redmine api` sends authenticated requests to any endpoint, including plugin endpoints.
+2. A short Agent Skill tells the agent which endpoints exist and how they behave.
+
+## The example plugin
+
+The example in this post is [Redmine Pull Requests](https://github.com/aarondpn/redmine_pull_requests), a plugin I wrote to link GitHub pull requests and GitLab merge requests to Redmine issues. The issue page then shows the state, reviewers, checks and unresolved threads of each linked pull request:
+
+<Image src={details} alt="A linked pull request on a Redmine issue: approved, 3 of 4 checks passed, 12 comments and 2 unresolved threads" />
+
+It's a good example because it has its own REST API, and that API does things you can't guess:
+
+- the endpoints are nested under the issue: `/issues/:issue_id/pull_requests.json`;
+- `:id` in the URL is the plugin's own record ID, not the pull request number on GitHub;
+- each project has to allow a repository before its pull requests can be linked;
+- linking takes up to 20 URLs at once, and if one of them is rejected, none of them are linked;
+- refreshing a pull request is a `POST` without a body.
+
+An agent can't work any of this out by itself, so it goes into the skill.
+
+## Step 1. Explore the endpoint with `redmine api`
+
+`redmine api` sends a request to the configured server and prints the response. It reuses everything the active profile already has: the server URL, the API key or basic auth, [custom HTTP headers](/getting-started/configuration/#custom-http-headers) for reverse proxies, and [read-only mode](/getting-started/configuration/#read-only-mode). The API key never shows up on the command line, in shell history, or in the agent's context.
+
+Start by looking at the raw response, including status and headers:
+
+```bash
+redmine api /issues/1234/pull_requests.json -i
+```
+
+Once you know the shape, extract what you need with the built-in `--jq` filter. You don't need `jq` installed:
+
+```bash
+redmine api /issues/1234/pull_requests.json \
+  --jq '.pull_requests[] | "\(.reference)  \(.status)  \(.review_decision)  \(.checks.state)"'
+```
+
+```text
+acme/web#42  open  approved  pending
+acme/api#17  merged  approved  success
+```
+
+On a non-2xx response, `redmine api` exits with code `1`. With `--jq` or `-o json`, it writes the error to stderr as the same JSON error envelope every other command uses, and stdout stays empty. Scripts and agents can rely on the exit code instead of parsing error text.
+
+## Step 2. Write data
+
+For writes, `-F` builds a JSON body from `key=value` pairs and switches the method to `POST`. It parses each value as JSON, so arrays and objects keep their type. Linking two pull requests to issue 1234 looks like this:
+
+```bash
+redmine api /issues/1234/pull_requests.json \
+  -F 'pull_request={"urls":["https://github.com/acme/web/pull/42","https://gitlab.com/acme/platform/web/-/merge_requests/7"]}'
+```
+
+<Aside type="caution" title="Keys are not nested">
+  `-F` does not expand bracket notation. `-F 'pull_request[url]=...'` sends a top-level key literally named `pull_request[url]`. Pass the nested object as a JSON value like above, or send the whole body with `--input`.
+</Aside>
+
+For longer payloads, pipe the body in with `--input -`:
+
+```bash
+redmine api /issues/1234/pull_requests.json --input - <<'EOF'
+{
+  "pull_request": {
+    "urls": [
+      "https://github.com/acme/web/pull/42",
+      "https://gitlab.com/acme/platform/web/-/merge_requests/7"
+    ]
+  }
+}
+EOF
+```
+
+Endpoints without a body need an explicit method, because `redmine api` only defaults to `POST` when there is a body:
+
+```bash
+# Reload a pull request from GitHub (5 is the plugin's ID, not the PR number)
+redmine api -X POST /issues/1234/pull_requests/5/refresh.json
+
+# Unlink it
+redmine api -X DELETE /issues/1234/pull_requests/5.json
+```
+
+## Step 3. Write the skill
+
+Now turn what you learned into an [Agent Skill](https://agentskills.io). A skill is a folder with a `SKILL.md` file. The agent reads the `description` to decide when the skill applies and loads the rest only when it needs it.
+
+The bundled [redmine-cli skill](/guides/ai-agents/#agent-skill) already teaches the agent how to use the CLI: `--jq`, exit codes, `--help`, permission errors. The plugin skill builds on it and only covers what is specific to the plugin:
+
+```md title=".agents/skills/redmine-pull-requests/SKILL.md"
+---
+name: redmine-pull-requests
+description: Read and manage GitHub pull requests and GitLab merge requests linked to Redmine issues (Redmine Pull Requests plugin). Use when the user asks whether an issue's PRs are merged, approved or green, wants to link a PR or MR URL to an issue, refresh or unlink one, or asks if an issue is ready to close.
+---
+
+# Redmine Pull Requests plugin
+
+The plugin has no dedicated CLI command. Use `redmine api`, which reuses the
+active profile's auth. Never call these endpoints with curl and never handle
+the API key yourself.
+
+## Endpoints
+
+| Purpose | Command |
+|---------|---------|
+| List PRs of an issue | `redmine api /issues/<issue>/pull_requests.json` |
+| One PR | `redmine api /issues/<issue>/pull_requests/<id>.json` |
+| Link PRs by URL | `redmine api /issues/<issue>/pull_requests.json -F 'pull_request={"urls":["<url>", ...]}'` |
+| Reload from GitHub/GitLab | `redmine api -X POST /issues/<issue>/pull_requests/<id>/refresh.json` |
+| Unlink | `redmine api -X DELETE /issues/<issue>/pull_requests/<id>.json` |
+
+## Rules
+
+- `<id>` is the plugin's record ID from the list response, NOT the PR number.
+  Look it up first, for example with
+  `--jq '.pull_requests[] | select(.reference == "acme/web#42") | .id'`.
+- The list returns all linked PRs at once. There is no pagination.
+- Link at most 20 URLs per request.
+- The plugin only links repositories that the project settings allow. A 422 that
+  says a repository "is not allowed in this project" or that no repositories
+  are allowed yet can't be fixed with the API. Tell the user to ask a project
+  manager to allow it (Project » Settings » Pull requests).
+- Linking is all or nothing. After a 422, the plugin has linked nothing.
+  Report the errors from the response and don't retry the same URLs.
+- Linking the same URL twice is fine, it is idempotent.
+- `state` is `open`, `merged` or `closed`. `status` also has `draft`.
+- `review_decision` is `approved`, `changes_requested`, `review_required` or null.
+- `checks.state` is `success`, `failure`, `pending` or `neutral`. `checks` is
+  missing until checks or a pipeline exist. On GitLab, `total`, `passed` and
+  `failed` are null.
+- Data can be stale. If the user needs the current state, refresh first.
+- 403 means the role lacks *View/Manage pull requests* or the project doesn't
+  have the *Pull requests* module enabled. Stop and tell the user.
+- Ask before unlinking. Show the user which PR you are about to unlink.
+
+## "Is this issue ready to close?"
+
+Ready means every linked PR has `state` `merged` and none has
+`review_decision` `changes_requested`. Combine with
+`redmine issues get <issue>` for the issue's own status.
+```
+
+Skills follow an open standard, so the same file works in Claude Code, Codex, Gemini CLI, Cursor, Copilot and the other agents that support it. Only the folder differs. The cross-vendor `.agents/skills/` folder works for many agents, and some use their own, such as `.claude/skills/` or `.gemini/skills/`. Check your agent's documentation for the exact path. If you commit the skill to the repository, everyone on the team gets it.
+
+Now ask the agent "is #1234 ready to close?". It lists the linked pull requests, sees that `acme/web#42` is still open with checks pending, and tells you so, without guessing a single URL or touching your API key.
+
+A few things that make skills like this work well:
+
+- **Write the description for the trigger.** The agent matches requests against it, so describe the questions users ask, not the plugin's architecture.
+- **Only write down what the agent can't find out.** Endpoint paths, payload shapes, allowed values and pitfalls belong in the skill. General CLI usage is already in the redmine-cli skill.
+- **Put guardrails in the skill.** If an endpoint is destructive, say so and say what to do instead.
+- **Keep it short.** A skill that fits on one screen is easy to keep in sync with the plugin.
+
+## Step 4. Limit what the agent can change
+
+`redmine api` can call any endpoint with any method, so decide what the agent should be allowed to do:
+
+- Read-only mode blocks every `POST`, `PUT`, `PATCH` and `DELETE` request before the CLI sends it. Set `read_only: true` on the profile the agent uses, or `REDMINE_READ_ONLY=1` for a session. The agent can still check pull requests, but an unlink attempt fails locally.
+- A separate profile that logs in as a dedicated Redmine user limits the agent to what that user's role allows. For example, give the role *View pull requests* but not *Manage pull requests*. Tell the agent to pass `--profile <name>`, or make it the active profile with `redmine auth switch`.
+
+<Aside type="note">
+  The [MCP server](/guides/ai-agents/#mcp-server) only exposes the built-in tools and has no raw API tool. For plugin endpoints, use an agent that can run shell commands, together with the skill.
+</Aside>
+
+## Recap
+
+<Steps>
+
+1. Explore the plugin endpoint with `redmine api -i` and `--jq`.
+2. Work out the write payloads with `-F` JSON values or `--input -`.
+3. Write down endpoints, payloads, allowed values and pitfalls in a short `SKILL.md`.
+4. Give the agent a read-only or dedicated profile until you trust it with writes.
+
+</Steps>
+
+The same pattern works for any plugin with a REST API, whether it's a community plugin or one your team wrote years ago. If you want pull request state on your Redmine issues, try [Redmine Pull Requests](https://github.com/aarondpn/redmine_pull_requests). It supports GitHub and GitLab on Redmine 5.0 to 7.0.

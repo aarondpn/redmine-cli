@@ -5,8 +5,26 @@ const base = '';
 const pathname = Astro.url.pathname;
 const enPath = pathname.replace(new RegExp(`^${base}/zh-cn(/|$)`), `${base}$1`);
 const xDefault = new URL(enPath, Astro.site).href;
+
+// The blog is English-only: /zh-cn/blog/ pages are untranslated fallbacks, so
+// point their canonical at the English page and drop the hreflang alternates.
+const isBlog = new RegExp(`^${base}(/zh-cn)?/blog(/|$)`).test(pathname);
+if (isBlog) {
+	const route = Astro.locals.starlightRoute;
+	route.head = route.head
+		.filter(({ tag, attrs }) => !(tag === 'link' && attrs?.rel === 'alternate' && attrs?.hreflang))
+		.map((entry) => {
+			if (entry.tag === 'link' && entry.attrs?.rel === 'canonical') {
+				return { ...entry, attrs: { ...entry.attrs, href: xDefault } };
+			}
+			if (entry.tag === 'meta' && entry.attrs?.property === 'og:url') {
+				return { ...entry, attrs: { ...entry.attrs, content: xDefault } };
+			}
+			return entry;
+		});
+}
 ---
 
 <Default />
-<link rel="alternate" hreflang="x-default" href={xDefault} />
+{!isBlog && <link rel="alternate" hreflang="x-default" href={xDefault} />}
 <meta name="google-site-verification" content="3GN_SussYBJTIeb0i2fHLiuJs3JbSRosE0_kVZN7DZ8" />

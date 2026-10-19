@@ -1,14 +1,40 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightBlog from 'starlight-blog';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://redmine-cli.dev',
 	integrations: [
+		// Replaces Starlight's built-in sitemap to leave out the untranslated
+		// /zh-cn/blog/ fallback pages, which canonicalize to the English blog.
+		sitemap({
+			i18n: { defaultLocale: 'root', locales: { root: 'en', 'zh-cn': 'zh-CN' } },
+			filter: (page) => !new URL(page).pathname.startsWith('/zh-cn/blog/'),
+		}),
 		starlight({
 			title: 'redmine-cli',
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/aarondpn/redmine-cli' }],
+			plugins: [
+				starlightBlog({
+					title: { en: 'Blog', 'zh-CN': '博客' },
+					authors: {
+						aarond: {
+							name: 'Aaron Döppner',
+							url: 'https://github.com/aarondpn',
+							picture: 'https://github.com/aarondpn.png',
+						},
+					},
+					metrics: { readingTime: true },
+				}),
+			],
+			social: [
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/aarondpn/redmine-cli' },
+				// Relative, so the link also works locally. starlight-blog would add an
+				// absolute one pointing at the production site.
+				{ icon: 'rss', label: 'RSS', href: '/blog/rss.xml' },
+			],
 			customCss: ['./src/styles/custom.css'],
 			components: {
 				Hero: './src/components/Hero.astro',
