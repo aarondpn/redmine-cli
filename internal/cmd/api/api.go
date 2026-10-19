@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"sort"
@@ -44,8 +45,10 @@ the method defaults to POST instead.
 
 Each --raw-field sets a top-level key of the JSON body. Numbers, true/false,
 arrays and objects are sent as JSON, anything else (including invalid JSON)
-as a string. Bracket keys like 'issue[subject]' are not expanded, so pass
-nested objects as JSON: -F 'issue={"subject":"Bug"}'.`,
+as a string. A value that looks like a number is sent as one ('1.10' becomes
+1.1), so put such strings inside a JSON object. Bracket keys like
+'issue[subject]' are not expanded, so pass nested objects as JSON:
+-F 'issue={"subject":"Bug"}'.`,
 		Example: `  # GET the current user
   redmine api /users/current.json
 
@@ -267,15 +270,22 @@ func parseJSONValue(s string) interface{} {
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return n
 	}
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
+	// NaN and infinities parse as floats but can't be encoded as JSON.
+	if f, err := strconv.ParseFloat(s, 64); err == nil && !math.IsNaN(f) && !math.IsInf(f, 0) {
 		return f
 	}
-	// Try JSON array/object.
+	// Try JSON array/object. Numbers are kept as json.Number so large
+	// integers survive unchanged.
 	if (strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) ||
 		(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
+		dec := json.NewDecoder(strings.NewReader(s))
+		dec.UseNumber()
 		var v interface{}
-		if json.Unmarshal([]byte(s), &v) == nil {
-			return v
+		if dec.Decode(&v) == nil {
+			// Reject trailing data, as json.Unmarshal would.
+			if _, err := dec.Token(); err == io.EOF {
+				return v
+			}
 		}
 	}
 	return s

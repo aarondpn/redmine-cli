@@ -60,7 +60,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 | `--silent`        | 抑制响应输出 |
 
 <Aside type="caution" title="-F 设置的是顶层键">
-  每个 `-F key=value` 都会成为 JSON 请求体的顶层键。数字、布尔值、数组和对象按 JSON 发送，其他值（包括无效的 JSON）按字符串发送。方括号写法不会被展开：`-F 'issue[subject]=Bug'` 发送的是一个字面名为 `issue[subject]` 的键，Redmine 会忽略它。这样的 `PUT` 请求仍会成功，但不会修改任何内容。请将嵌套对象作为 JSON 值传入（`-F 'issue={"subject":"Bug"}'`），或使用 `--input` 发送完整的请求体。
+  每个 `-F key=value` 都会成为 JSON 请求体的顶层键。数字、布尔值、数组和对象按 JSON 发送，其他值（包括无效的 JSON）按字符串发送。看起来像数字的值会按数字发送，因此 `-F 'name=1.10'` 发送的是 `1.1`。此类字符串请放在 JSON 对象中：`-F 'version={"name":"1.10"}'`。方括号写法不会被展开：`-F 'issue[subject]=Bug'` 发送的是一个字面名为 `issue[subject]` 的键，Redmine 会忽略它。这样的 `PUT` 请求仍会成功，但不会修改任何内容。请将嵌套对象作为 JSON 值传入（`-F 'issue={"subject":"Bug"}'`），或使用 `--input` 发送完整的请求体。
 </Aside>
 
 <Aside type="tip">

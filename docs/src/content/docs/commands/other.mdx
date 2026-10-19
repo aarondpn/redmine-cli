@@ -67,7 +67,7 @@ Make authenticated requests to any Redmine REST API endpoint.
 | `--silent`        | Suppress response output |
 
 <Aside type="caution" title="-F sets top-level keys">
-  Each `-F key=value` becomes a top-level key of the JSON body. Numbers, booleans, arrays and objects are sent as JSON, anything else (including invalid JSON) as a string. Bracket notation is not expanded: `-F 'issue[subject]=Bug'` sends a key literally named `issue[subject]`, which Redmine ignores. A `PUT` like that still succeeds, but changes nothing. Pass nested objects as a JSON value (`-F 'issue={"subject":"Bug"}'`) or send the whole body with `--input`.
+  Each `-F key=value` becomes a top-level key of the JSON body. Numbers, booleans, arrays and objects are sent as JSON, anything else (including invalid JSON) as a string. A value that looks like a number is sent as one, so `-F 'name=1.10'` sends `1.1`. Put such strings inside a JSON object: `-F 'version={"name":"1.10"}'`. Bracket notation is not expanded: `-F 'issue[subject]=Bug'` sends a key literally named `issue[subject]`, which Redmine ignores. A `PUT` like that still succeeds, but changes nothing. Pass nested objects as a JSON value (`-F 'issue={"subject":"Bug"}'`) or send the whole body with `--input`.
 </Aside>
 
 <Aside type="tip">
