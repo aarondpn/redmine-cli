@@ -40,15 +40,19 @@ The endpoint argument should be a path like "/issues.json" or "issues.json"
 (the leading slash is optional).
 
 The default HTTP method is GET. When --raw-field or --input is provided,
-the method defaults to POST instead.`,
+the method defaults to POST instead.
+
+Each --raw-field sets a top-level key of the JSON body, and its value is
+parsed as JSON. Bracket keys like 'issue[subject]' are not expanded, so pass
+nested objects as JSON: -F 'issue={"subject":"Bug"}'.`,
 		Example: `  # GET the current user
   redmine api /users/current.json
 
   # GET issues with query parameters
   redmine api /issues.json -f project_id=myproject -f limit=5
 
-  # POST with JSON fields
-  redmine api /issues.json -F 'issue[subject]=Bug report' -F 'issue[project_id]=1'
+  # POST with a nested JSON field
+  redmine api /issues.json -F 'issue={"subject":"Bug report","project_id":1}'
 
   # POST from a file
   redmine api /issues.json --input body.json
