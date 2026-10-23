@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.27"
+          go-version: "1.27.3"
 
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
@@ -35,7 +35,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.27"
+          go-version: "1.27.3"
 
       - name: Build
         run: go build ./...
@@ -75,7 +75,7 @@ jobs:
       # Snapshot builds are never published, so the build cache is safe here.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7 # zizmor: ignore[cache-poisoning]
         with:
-          go-version: "1.27"
+          go-version: "1.27.3"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
