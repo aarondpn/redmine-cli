@@ -519,6 +519,50 @@ func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {
 	}
 }
 
+// A non-loopback --no-auth bind (flag, mcp.no_auth or REDMINE_MCP_NO_AUTH)
+// leaves the server open to the network, so strict mode refuses it.
+func TestResolveHTTPAuth_NoAuthNonLoopbackStrict(t *testing.T) {
+	t.Run("config", func(t *testing.T) {
+		cmd, stderr := newHTTPAuthCmd()
+		cfg := &config.Config{Strict: true, MCP: config.MCPConfig{NoAuth: true}}
+		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
+		var strictErr *cmdutil.StrictModeError
+		if !errors.As(err, &strictErr) || !strings.Contains(err.Error(), "--no-auth") {
+			t.Fatalf("resolveHTTPAuth() error = %v, want a StrictModeError about --no-auth", err)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("strict mode should fail instead of warning, got %q", stderr.String())
+		}
+	})
+	t.Run("flag", func(t *testing.T) {
+		cmd, _ := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("no-auth", "true"); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+		cfg := &config.Config{Strict: true}
+		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{NoAuth: true})
+		var strictErr *cmdutil.StrictModeError
+		if !errors.As(err, &strictErr) {
+			t.Fatalf("resolveHTTPAuth() error = %v, want a StrictModeError", err)
+		}
+	})
+}
+
+func TestResolveHTTPAuth_NoAuthWarnsOnce(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+	f := newHTTPAuthFactory(cmd)
+	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
+	for range 2 {
+		if _, _, err := resolveHTTPAuth(f, cmd, cfg, false, httpAuthFlags{}); err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+	}
+	want := "warning: " + publicNoAuthWarning + "\n"
+	if stderr.String() != want {
+		t.Errorf("stderr = %q, want the warning exactly once: %q", stderr.String(), want)
+	}
+}
+
 func TestResolveHTTPAuth_NoAuthConflictsWithToken(t *testing.T) {
 	cmd, _ := newHTTPAuthCmd()
 	if err := cmd.Flags().Set("no-auth", "true"); err != nil {

@@ -135,7 +135,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When --http binds outside of loopback and no token is set, one is generated at startup. Visible in the process list; prefer --auth-token-file or REDMINE_MCP_AUTH_TOKEN.")
 	cmd.Flags().StringVar(&authTokenFile, "auth-token-file", "", "Read the --auth-token value from a file, or from standard input with \"-\", so it never appears in the process list.")
 	cmd.MarkFlagsMutuallyExclusive("auth-token", "auth-token-file")
-	cmd.Flags().BoolVar(&noAuth, "no-auth", false, "Serve a non-loopback --http bind without a bearer token instead of generating one. Only use behind an authenticating proxy.")
+	cmd.Flags().BoolVar(&noAuth, "no-auth", false, "Serve a non-loopback --http bind without a bearer token instead of generating one. Only use behind an authenticating proxy; rejected in strict mode.")
 	cmd.Flags().StringVar(&name, "name", "redmine-cli", "Server name advertised to MCP clients")
 	cmd.Flags().StringSliceVar(&enableGroups, "enable-groups", nil, "Comma-separated tool groups to expose (default: all). See redmine mcp tools.")
 	cmd.Flags().StringSliceVar(&disableGroups, "disable-groups", nil, "Comma-separated tool groups to hide. Applied after --enable-groups.")
@@ -255,12 +255,13 @@ type httpAuthFlags struct {
 }
 
 // Security warnings for the HTTP transport. They go through
-// Factory.SecurityCheck, so strict mode turns authTokenFlagWarning into an
-// error. loopbackNoAuthWarning is only printed outside strict mode; strict
-// mode generates a token instead.
+// Factory.SecurityCheck, so strict mode turns authTokenFlagWarning and
+// publicNoAuthWarning into errors. loopbackNoAuthWarning is only printed
+// outside strict mode; strict mode generates a token instead.
 const (
 	authTokenFlagWarning  = "--auth-token puts the MCP bearer token in the process list and shell history; use --auth-token-file, REDMINE_MCP_AUTH_TOKEN, or mcp.auth_token instead"
 	loopbackNoAuthWarning = "serving MCP over HTTP on loopback without an auth token; any local user or process that can reach the port can call the server's tools as your Redmine user. Set --auth-token-file or REDMINE_MCP_AUTH_TOKEN, or enable strict mode to generate a token"
+	publicNoAuthWarning   = "serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server"
 )
 
 // resolveHTTPAuth decides which bearer token guards the HTTP transport.
@@ -268,7 +269,8 @@ const (
 // caller prints once the listener is up, unless --no-auth opts out
 // explicitly. Loopback binds are the exception: outside strict mode they stay
 // open (with a warning) so local setups keep working; strict mode treats them
-// like any other bind and generates a token.
+// like any other bind and generates a token. --no-auth on a non-loopback bind
+// warns, and is refused in strict mode; on loopback it is honored silently.
 func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config, isLoopback bool, flags httpAuthFlags) (token string, generated bool, err error) {
 	if cmd.Flags().Changed("auth-token-file") {
 		var stdin io.Reader
@@ -295,7 +297,9 @@ func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config,
 			return "", false, errors.New("--no-auth cannot be combined with an auth token (--auth-token, --auth-token-file, mcp.auth_token, or REDMINE_MCP_AUTH_TOKEN)")
 		}
 		if !isLoopback {
-			fmt.Fprintln(cmd.ErrOrStderr(), "warning: serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server")
+			if err := f.SecurityCheck(cfg, publicNoAuthWarning); err != nil {
+				return "", false, err
+			}
 		}
 		return "", false, nil
 	}
