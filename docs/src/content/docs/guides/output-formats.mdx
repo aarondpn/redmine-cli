@@ -119,7 +119,7 @@ How it behaves:
 - Errors are never filtered: a failed command writes its error envelope to
   `stderr` as-is.
 - The expression can read the process environment through `env` and `$ENV`.
-  In [strict mode](#security-hardening) (`strict: true` or `REDMINE_STRICT=1`),
+  In [strict mode](/getting-started/configuration/#strict-mode) (`strict: true` or `REDMINE_STRICT=1`),
   or with `REDMINE_JQ_NO_ENV=1`, both evaluate to `{}` instead. Set
   `REDMINE_JQ_NO_ENV=1` in wrappers that pass jq expressions from an
   untrusted source, so they cannot read secrets such as `REDMINE_API_KEY`.
@@ -300,7 +300,8 @@ of what the CLI prints. The output layer treats that text as untrusted:
   the status line and only opened when you press `o` a second time.
 
 Strict mode is enabled per profile with `strict: true` in the config file, or
-for a single shell with `REDMINE_STRICT=1`.
+for a single shell with `REDMINE_STRICT=1`. See
+[Strict mode](/getting-started/configuration/#strict-mode) for everything it changes.
 
 ## Related
 

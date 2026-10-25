@@ -168,7 +168,7 @@ When installed via Homebrew, delegates to `brew upgrade`.
 
 | Flag | Description |
 |------|-------------|
-| `--skip-attestation` | Install with checksum verification only. Prints a warning; rejected in strict mode (`strict: true` in the profile or `REDMINE_STRICT=1`). |
+| `--skip-attestation` | Install with checksum verification only. Prints a warning; rejected in [strict mode](/getting-started/configuration/#strict-mode) (`strict: true` in the profile or `REDMINE_STRICT=1`). |
 
 Verification needs to reach `api.github.com` (attestations API) and `tuf-repo-cdn.sigstore.dev` (Sigstore trusted root, cached for a day under your user cache directory). If either is unreachable, `redmine update` refuses to install and suggests `--skip-attestation`. Set `GITHUB_TOKEN` or `GH_TOKEN` to avoid GitHub API rate limits; it is only sent to `api.github.com`.
 

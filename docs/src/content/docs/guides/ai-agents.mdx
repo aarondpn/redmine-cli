@@ -166,9 +166,9 @@ openssl rand -hex 32 > ~/.redmine-mcp-token && chmod 600 ~/.redmine-mcp-token
 redmine mcp serve --http 0.0.0.0:8080 --auth-token-file ~/.redmine-mcp-token
 ```
 
-When a non-loopback bind is detected without a token, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token. Strict mode refuses `--no-auth` on a non-loopback bind.
+When a non-loopback bind is detected without a token, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token. [Strict mode](/getting-started/configuration/#strict-mode) refuses `--no-auth` on a non-loopback bind.
 
-A loopback bind without a token keeps working, but anyone with access to the machine can reach it: every local user and process can call the tools as your Redmine user. The server prints a warning at startup. In strict mode (`strict: true` in the profile or `REDMINE_STRICT=1`), the server generates a token for loopback binds too and prints it once, as it does for non-loopback binds. An explicit `--no-auth` still turns the token off on a loopback bind, without a warning. Whatever the bind, requests that reach a loopback listener with a non-loopback `Host` header are rejected with `403`, which blocks DNS-rebinding attacks from web pages open in a local browser.
+A loopback bind without a token keeps working, but anyone with access to the machine can reach it: every local user and process can call the tools as your Redmine user. The server prints a warning at startup. In [strict mode](/getting-started/configuration/#strict-mode) (`strict: true` in the profile or `REDMINE_STRICT=1`), the server generates a token for loopback binds too and prints it once, as it does for non-loopback binds. An explicit `--no-auth` still turns the token off on a loopback bind, without a warning. Whatever the bind, requests that reach a loopback listener with a non-loopback `Host` header are rejected with `403`, which blocks DNS-rebinding attacks from web pages open in a local browser.
 
 The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
 
@@ -184,7 +184,7 @@ Content-Type: application/json
 
 Pass the token with `--auth-token-file <path>`, or `--auth-token-file -` to read it from standard input (`pass show redmine-mcp | redmine mcp serve --http :8080 --auth-token-file -`). Surrounding whitespace such as a trailing newline is ignored. The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`, and the listen address in `mcp.http` or `REDMINE_MCP_HTTP`. Flags override both. For profiles with `credential_store: keyring`, `mcp.auth_token` is moved into the system keyring on the next save, like the API key (see [System keyring](/getting-started/configuration/#system-keyring-optional)).
 
-`--auth-token <token>` still works, but the token then shows up in `ps` output and shell history, so the CLI prints a warning. In strict mode it refuses to start. Use `--auth-token-file`, the environment variable, or the config block instead.
+`--auth-token <token>` still works, but the token then shows up in `ps` output and shell history, so the CLI prints a warning. In [strict mode](/getting-started/configuration/#strict-mode) it refuses to start. Use `--auth-token-file`, the environment variable, or the config block instead.
 
 <Aside type="danger">
   The bearer token is the only thing standing between any HTTP-reachable client and your Redmine instance through this server. Generate it with a CSPRNG, never reuse it across deployments, and prefer terminating TLS in front of the server (reverse proxy) when binding outside loopback.

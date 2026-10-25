@@ -177,11 +177,11 @@ A profile's stored secret (in the config file or the system keyring) belongs to 
 warning: sending the stored credentials of profile "work" (for https://redmine.work.com) to https://other.example.com; pass --api-key/REDMINE_API_KEY explicitly to silence this
 ```
 
-Supply the key for the other server explicitly (`--api-key-file`, `--api-key`, `REDMINE_API_KEY`, or `REDMINE_PASSWORD` for basic auth) to silence the warning. In strict mode the command is refused instead.
+Supply the key for the other server explicitly (`--api-key-file`, `--api-key`, `REDMINE_API_KEY`, or `REDMINE_PASSWORD` for basic auth) to silence the warning. In [strict mode](#strict-mode) the command is refused instead.
 
 ## Strict mode
 
-Some conditions are risky but common enough that the CLI only warns about them on stderr. Strict mode turns these warnings into errors, so the command stops before anything is sent. It is off by default. Enable it per profile or for a whole shell session:
+Some conditions are risky but common enough that the CLI only warns about them on stderr. Strict mode refuses them instead, so the command stops before anything is sent, or switches to the safer behavior where refusing would not help. It is off by default. Enable it per profile or for a whole shell session:
 
 ```yaml title="~/.redmine-cli.yaml"
 profiles:
@@ -194,11 +194,22 @@ profiles:
 export REDMINE_STRICT=1   # REDMINE_STRICT=0 turns it off for a profile with strict: true
 ```
 
-Strict mode refuses, among others:
+This is the complete list of what strict mode changes:
 
-- sending a profile's stored credentials to a server given with `--server` / `REDMINE_SERVER` (see [above](#server-overrides-and-stored-credentials)),
-- an API key passed with `--api-key` (use `--api-key-file`, `REDMINE_API_KEY`, or the keyring),
-- logging in to a non-loopback `http://` server with `redmine auth login`.
+| Condition | Default | Strict mode |
+|-----------|---------|-------------|
+| Server URL uses `http://` on a non-loopback host (see [Connection security](#connection-security)) | Warns, then sends credentials in cleartext | Refuses the command before any request |
+| `redmine auth login` with a non-loopback `http://` URL | Warns | Refuses before asking for credentials |
+| A profile's stored credentials would go to a different origin given with `--server` / `REDMINE_SERVER` (see [above](#server-overrides-and-stored-credentials)) | Warns, then sends them | Refuses the command |
+| API key passed with `--api-key` | Accepted | Refused; use `--api-key-file`, `REDMINE_API_KEY`, or the keyring |
+| `mcp serve --auth-token` on the command line | Warns | Refuses to start; use `--auth-token-file`, `REDMINE_MCP_AUTH_TOKEN`, or `mcp.auth_token` |
+| `mcp serve --http` on loopback without a token | Warns, serves without authentication | Generates a token and prints it once |
+| `mcp serve --http` on a non-loopback address with `--no-auth` (`mcp.no_auth`, `REDMINE_MCP_NO_AUTH`) | Warns, serves without authentication | Refuses to start |
+| CSV cells that start with `=`, `+`, `-`, `@`, tab or carriage return (see [output security](/guides/output-formats/#security-hardening)) | Written unchanged, with one warning | Prefixed with `'` so spreadsheets treat them as text |
+| `env` / `$ENV` in `--jq` expressions | Expose the process environment | Evaluate to `{}`, as with `REDMINE_JQ_NO_ENV=1` |
+| `redmine update --skip-attestation` (see [Self-Update](/commands/other/#self-update)) | Warns, installs with checksum verification only | Refuses the update |
+
+Warnings go to stderr, once per command, and never change stdout. `--no-auth` on a loopback MCP bind is honored without a warning in both modes. `redmine auth login` takes `strict` from the profile it updates (or `REDMINE_STRICT`), and `redmine update` uses `REDMINE_STRICT` alone when no config can be loaded.
 
 ## Read-only mode
 
@@ -263,7 +274,7 @@ Headers are only sent to the configured server, never to hosts it redirects to. 
 
 ## Connection security
 
-Use an `https://` server URL. With a plain `http://` URL the API key or password crosses the network in cleartext, so commands that contact the server print a warning to stderr. Strict mode (`strict: true` in the profile or `REDMINE_STRICT=1`) turns that warning into an error. Loopback servers (`localhost`, `127.0.0.0/8`, `::1`) are exempt, so a local development instance on `http://127.0.0.1:3000` works without a warning.
+Use an `https://` server URL. With a plain `http://` URL the API key or password crosses the network in cleartext, so commands that contact the server print a warning to stderr. [Strict mode](#strict-mode) (`strict: true` in the profile or `REDMINE_STRICT=1`) turns that warning into an error. Loopback servers (`localhost`, `127.0.0.0/8`, `::1`) are exempt, so a local development instance on `http://127.0.0.1:3000` works without a warning.
 
 Redirects are followed up to 10 hops. A redirect from `https://` to `http://` is always refused. Credentials and custom headers are only sent when both the scheme and the host (including the port) match the configured server; the one exception is an `http://` server redirecting to `https://` on the same host. For how attachment download redirects are handled, see [attachments download](/commands/attachments/#download).
 
