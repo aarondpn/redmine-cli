@@ -43,6 +43,11 @@ func (s *AttachmentService) Get(ctx context.Context, id int) (*models.Attachment
 // /attachments/download/:id/:filename path built from the base URL. This guard
 // ensures the API key (added to every request by authTransport) is never sent
 // to a host other than the configured server.
+//
+// Redirects are restricted by downloadRedirectPolicy: they may stay on the
+// configured server, or go to a public https destination (object storage)
+// without credentials; anything else is refused. The body is streamed and not
+// size-limited.
 func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment, w io.Writer) (int64, error) {
 	u := s.downloadURL(att)
 
@@ -52,9 +57,10 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 	}
 
 	start := time.Now()
-	resp, err := s.client.httpClient.Do(req)
+	resp, err := s.downloadHTTPClient().Do(req)
 	duration := time.Since(start)
 	if err != nil {
+		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return 0, fmt.Errorf("download request failed: %w", err)
 	}
@@ -71,6 +77,22 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 		return n, fmt.Errorf("streaming attachment %d: %w", att.ID, err)
 	}
 	return n, nil
+}
+
+// downloadHTTPClient returns the client used for attachment downloads. Clients
+// built by NewClient have a dedicated one; otherwise the regular client is
+// reused with the download redirect policy applied.
+func (s *AttachmentService) downloadHTTPClient() *http.Client {
+	if s.client.downloadClient != nil {
+		return s.client.downloadClient
+	}
+	server, err := url.Parse(s.client.baseURL)
+	if err != nil {
+		server = &url.URL{}
+	}
+	hc := *s.client.httpClient
+	hc.CheckRedirect = downloadRedirectPolicy(server)
+	return &hc
 }
 
 // downloadURL returns the absolute URL to stream the attachment bytes from.
@@ -104,6 +126,7 @@ func (s *AttachmentService) Upload(ctx context.Context, filename string, body io
 	resp, err := s.client.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
+		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return "", fmt.Errorf("upload request failed: %w", err)
 	}
@@ -120,7 +143,7 @@ func (s *AttachmentService) Upload(ctx context.Context, filename string, body io
 			Token string `json:"token"`
 		} `json:"upload"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxJSONResponseBytes)).Decode(&out); err != nil {
 		return "", fmt.Errorf("decoding upload response: %w", err)
 	}
 	if out.Upload.Token == "" {

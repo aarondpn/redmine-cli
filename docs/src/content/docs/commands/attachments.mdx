@@ -64,6 +64,8 @@ Aliases: `dl`, `get-file`. Streams the attachment's raw bytes to disk (or stdout
 
 With no destination flag, the file is saved as `./<filename>` in the current directory.
 
+If the server redirects the download, the redirect is followed only when it stays on the configured server's host, or goes over `https://` to a public address (for example presigned object-storage URLs such as S3). Credentials are only sent to the configured server, never to the redirect target. Redirects to plain `http://` elsewhere, from `https://` to `http://`, or to loopback, private, link-local, multicast, or unspecified addresses are refused; host names are re-checked against the address actually connected to.
+
 <Aside>
   Unlike most commands, `-o/--output` here controls only the **confirmation**
   output, not where the bytes go - use `--dir` / `--path` for that. When

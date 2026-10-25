@@ -118,7 +118,9 @@ func (f *Factory) Config() (*config.Config, error) {
 	return cfg, nil
 }
 
-// ApiClient returns an API client (cached after first call).
+// ApiClient returns an API client (cached after first call). A plain http://
+// server on a non-loopback host triggers a cleartext-credentials security
+// warning, which is an error in strict mode.
 func (f *Factory) ApiClient() (*api.Client, error) {
 	if f.client != nil {
 		return f.client, nil
@@ -126,6 +128,11 @@ func (f *Factory) ApiClient() (*api.Client, error) {
 	cfg, err := f.Config()
 	if err != nil {
 		return nil, err
+	}
+	if api.IsCleartextServer(cfg.Server) {
+		if err := f.SecurityCheck(cfg, api.CleartextServerWarning(cfg.Server)); err != nil {
+			return nil, err
+		}
 	}
 	client, err := api.NewClient(cfg, f.DebugLogger())
 	if err != nil {

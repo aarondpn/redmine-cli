@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -26,8 +28,17 @@ type RawResponse struct {
 // Client is the Redmine API client.
 type Client struct {
 	httpClient *http.Client
-	baseURL    string
-	debugLog   *debug.Logger
+	// downloadClient streams attachment bytes. It carries the same
+	// credentials as httpClient but a stricter redirect policy and a dialer
+	// that refuses internal addresses (see downloadRedirectPolicy). When nil
+	// (clients built directly in tests), Download derives one from
+	// httpClient.
+	downloadClient *http.Client
+	// downloadDialer guards downloadClient's connections; kept so tests can
+	// adjust which addresses it blocks.
+	downloadDialer *downloadDialer
+	baseURL        string
+	debugLog       *debug.Logger
 
 	Issues       *IssueService
 	Projects     *ProjectService
@@ -61,6 +72,54 @@ func (c *Client) DebugLog() *debug.Logger {
 // profile's headers takes precedence.
 var UserAgent = "redmine-cli"
 
+// Response size limits. They are variables so tests can lower them.
+var (
+	// maxJSONResponseBytes caps a decoded API response.
+	maxJSONResponseBytes int64 = 256 << 20
+	// maxRawResponseBytes caps a response returned by DoRaw.
+	maxRawResponseBytes int64 = 256 << 20
+	// maxErrorBodyBytes caps how much of an error response is read; the rest
+	// is discarded rather than failing the request.
+	maxErrorBodyBytes int64 = 1 << 20
+)
+
+// ResponseTooLargeError is returned when a response body exceeds the size
+// limit for its kind. Attachment downloads are streamed and never limited.
+type ResponseTooLargeError struct {
+	Limit int64
+}
+
+func (e *ResponseTooLargeError) Error() string {
+	if e.Limit >= 1<<20 && e.Limit%(1<<20) == 0 {
+		return fmt.Sprintf("response body exceeds the %d MiB limit", e.Limit>>20)
+	}
+	return fmt.Sprintf("response body exceeds the %d byte limit", e.Limit)
+}
+
+// readLimited reads r fully, failing with *ResponseTooLargeError when it
+// holds more than limit bytes.
+func readLimited(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, &ResponseTooLargeError{Limit: limit}
+	}
+	return data, nil
+}
+
+// scrubRequestError redacts credentials from the URL that net/http embeds in
+// a *url.Error (for a refused redirect that is the Location header, which may
+// be a presigned URL).
+func scrubRequestError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		urlErr.URL = debug.ScrubURL(urlErr.URL)
+	}
+	return err
+}
+
 // authTransport applies authentication and configured headers to every request.
 type authTransport struct {
 	base       http.RoundTripper
@@ -69,15 +128,43 @@ type authTransport struct {
 	username   string
 	password   string
 	// headers are the user-configured extra headers. Like credentials they are
-	// only sent to the configured host, since they may carry proxy tokens.
+	// only sent to the configured origin, since they may carry proxy tokens.
 	headers map[string]string
-	// host is the configured server host (host[:port]). Credentials are only
-	// attached when the request targets this host, so a redirect off-site
-	// (e.g. an attachment content_url that 302s to external object storage)
-	// never receives the API key or basic-auth credentials. An empty host
-	// means "always attach" (used by tests that construct the transport
-	// directly without a configured server).
-	host string
+	// origin is the configured server's scheme and host:port. Credentials are
+	// only attached when the request targets this exact origin, so neither a
+	// redirect off-site (e.g. an attachment content_url that 302s to external
+	// object storage) nor one to the same host over plain http ever receives
+	// the API key or basic-auth credentials. The one exception is the https
+	// upgrade of an http:// origin (see attachesTo). The zero origin means
+	// "always attach" (used by tests that construct the transport directly
+	// without a configured server).
+	origin origin
+}
+
+// attachesTo reports whether credentials and configured headers go to u: it
+// must be the configured origin, or, for a server configured as http://, the
+// same host upgraded to https (port 80 becoming 443), which is how most
+// servers redirect plain-http clients. The upgrade only ever improves on the
+// cleartext connection the user configured.
+func (t *authTransport) attachesTo(u *url.URL) bool {
+	if t.origin == (origin{}) {
+		return true
+	}
+	o := originOf(u)
+	if o == t.origin {
+		return true
+	}
+	if t.origin.scheme != "http" || o.scheme != "https" {
+		return false
+	}
+	host, port, err := net.SplitHostPort(t.origin.host)
+	if err != nil {
+		return false
+	}
+	if port == "80" {
+		port = "443"
+	}
+	return o.host == net.JoinHostPort(host, port)
 }
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -86,10 +173,10 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	// Only attach credentials to the configured server's host. This keeps the
-	// API key (and basic-auth) from leaking to a third party if the server, or
-	// an attachment's content_url, redirects to an off-site host.
-	if t.host == "" || strings.EqualFold(req.URL.Host, t.host) {
+	// Only attach credentials to the configured server's origin. This keeps
+	// the API key (and basic-auth) from leaking to a third party, or over
+	// cleartext, if the server or an attachment's content_url redirects.
+	if t.attachesTo(req.URL) {
 		// Headers already set on the request win over configured ones;
 		// authentication below wins over both.
 		for name, value := range t.headers {
@@ -116,36 +203,59 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient creates a new Redmine API client from configuration.
+//
+// The transport bounds connection setup and the wait for response headers
+// (see HTTPTimeoutEnv) but not body streaming. Redirects that downgrade
+// https to http are refused, and credentials and configured headers are only
+// sent to the configured server's origin (scheme and host:port, see
+// authTransport.attachesTo).
 func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if cfg.Server == "" {
 		return nil, fmt.Errorf("server URL not configured. Run 'redmine auth login' to set up")
 	}
+	headerTimeout, err := responseHeaderTimeout()
+	if err != nil {
+		return nil, err
+	}
+	return newClient(cfg, log, newBaseTransport(headerTimeout)), nil
+}
 
+// newClient wires a Client around base, the transport all requests share.
+func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Client {
 	baseURL := strings.TrimRight(cfg.Server, "/")
 
-	var host string
-	if u, err := url.Parse(baseURL); err == nil {
-		host = u.Host
+	serverURL, err := url.Parse(baseURL)
+	if err != nil {
+		serverURL = &url.URL{}
 	}
 
-	transport := &authTransport{
-		base:       http.DefaultTransport,
-		authMethod: cfg.AuthMethod,
-		apiKey:     cfg.APIKey,
-		username:   cfg.Username,
-		password:   cfg.Password,
-		headers:    cfg.Headers,
-		host:       host,
+	downloadBase, dialer := newDownloadTransport(base, serverURL)
+
+	newAuth := func(rt http.RoundTripper) http.RoundTripper {
+		var t http.RoundTripper = &authTransport{
+			base:       rt,
+			authMethod: cfg.AuthMethod,
+			apiKey:     cfg.APIKey,
+			username:   cfg.Username,
+			password:   cfg.Password,
+			headers:    cfg.Headers,
+			origin:     originOf(serverURL),
+		}
+		if cfg.ReadOnly {
+			t = &readOnlyTransport{base: t}
+		}
+		return t
 	}
 
-	var rt http.RoundTripper = transport
-	if cfg.ReadOnly {
-		rt = &readOnlyTransport{base: transport}
-	}
 	c := &Client{
-		httpClient: &http.Client{Transport: rt},
-		baseURL:    baseURL,
-		debugLog:   log,
+		httpClient: &http.Client{Transport: newAuth(base), CheckRedirect: checkRedirect},
+		downloadClient: &http.Client{
+			Transport:     newAuth(downloadBase),
+			CheckRedirect: downloadRedirectPolicy(serverURL),
+		},
+		downloadDialer: dialer,
+		baseURL:        baseURL,
+		debugLog:       log,
 	}
 
 	c.Issues = &IssueService{client: c}
@@ -169,7 +279,7 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	c.Files = &FileService{client: c}
 	c.Relations = &RelationService{client: c}
 
-	return c, nil
+	return c
 }
 
 // Get performs a GET request and decodes the response into out.
@@ -243,6 +353,7 @@ func (c *Client) DoRaw(ctx context.Context, method, path string, params url.Valu
 	duration := time.Since(start)
 
 	if err != nil {
+		err = scrubRequestError(err)
 		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -250,7 +361,7 @@ func (c *Client) DoRaw(ctx context.Context, method, path string, params url.Valu
 
 	c.debugLog.Printf("HTTP %s %s -> %d (%s)", req.Method, debug.ScrubURL(req.URL.String()), resp.StatusCode, duration.Round(time.Millisecond))
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readLimited(resp.Body, maxRawResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
@@ -269,6 +380,7 @@ func (c *Client) do(req *http.Request, out interface{}) error {
 	duration := time.Since(start)
 
 	if err != nil {
+		err = scrubRequestError(err)
 		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -281,7 +393,7 @@ func (c *Client) do(req *http.Request, out interface{}) error {
 	}
 
 	if out != nil && resp.StatusCode != http.StatusNoContent {
-		body, err := io.ReadAll(resp.Body)
+		body, err := readLimited(resp.Body, maxJSONResponseBytes)
 		if err != nil {
 			return fmt.Errorf("reading response: %w", err)
 		}
