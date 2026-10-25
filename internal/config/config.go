@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
@@ -23,7 +24,8 @@ var errNoActiveProfile = errors.New("multiple profiles exist but no active profi
 
 // Overrides carries CLI-flag credential values that outrank both the config
 // file and the keyring. They are resolved before any keyring lookup so an
-// explicit --server/--api-key never triggers a keyring read.
+// explicit --api-key never triggers a keyring read of the API key or password
+// (the optional MCP token of a keyring profile is still looked up).
 type Overrides struct {
 	Server string
 	APIKey string
@@ -113,6 +115,10 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 		}
 	}
 
+	// The server the profile's stored secret was saved for, before any
+	// flag or environment override.
+	profileServer := cfg.Server
+
 	// Apply env overrides (may have been applied above, idempotent)
 	applyEnvOverrides(&cfg, log)
 
@@ -137,7 +143,42 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field)
 	}
 
+	resolveKeyringMCPToken(&cfg, log)
+
+	if selectedName != "" {
+		cfg.profileName = selectedName
+		cfg.profileServer = profileServer
+		cfg.storedSecret = storedSecretInUse(&cfg, ov)
+	}
+
 	return &cfg, nil
+}
+
+// storedSecretInUse reports whether the auth method's secret was read from the
+// profile (config file or keyring) rather than a flag or environment variable.
+func storedSecretInUse(cfg *Config, ov Overrides) bool {
+	if cfg.AuthMethod == "basic" {
+		return cfg.Password != "" && os.Getenv("REDMINE_PASSWORD") == ""
+	}
+	return cfg.APIKey != "" && ov.APIKey == "" && os.Getenv("REDMINE_API_KEY") == ""
+}
+
+// resolveKeyringMCPToken fills mcp.auth_token from the keyring when neither the
+// config file nor REDMINE_MCP_AUTH_TOKEN supplied it. The token is optional,
+// so a missing entry or a failed lookup is logged, never fatal.
+func resolveKeyringMCPToken(cfg *Config, log *debug.Logger) {
+	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" || cfg.MCP.AuthToken != "" {
+		return
+	}
+	token, ok, err := secrets.Default.Get(cfg.KeyringID, secrets.FieldMCPToken)
+	if err != nil {
+		log.Printf("Config: keyring lookup for %s failed: %v", secrets.FieldMCPToken, err)
+		return
+	}
+	if ok {
+		cfg.MCP.AuthToken = token
+		log.Printf("Config: loaded %s from system keyring", secrets.FieldMCPToken)
+	}
 }
 
 // applyOverrides applies CLI-flag credential values onto cfg. Empty overrides
@@ -283,9 +324,12 @@ func LoadProfiles(configPath string, log *debug.Logger) (*ProfileConfig, error) 
 	return pc, nil
 }
 
-// SaveProfiles writes the full profile configuration to disk.
+// SaveProfiles writes the full profile configuration to disk. A symlinked
+// config file is updated through the link (the link itself is kept), and the
+// write is atomic: a crash leaves either the old or the new file.
 func SaveProfiles(pc *ProfileConfig, path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	path, err := resolveConfigPath(path)
+	if err != nil {
 		return err
 	}
 
@@ -296,6 +340,18 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 	var pending []Config
 	for name, cfg := range pc.Profiles {
 		if cfg.CredentialStore == CredentialStoreKeyring {
+			// A plaintext mcp.auth_token of a profile that already has a
+			// keyring id migrates before the file is written. Best-effort:
+			// when the keyring is unavailable the token stays in the file, as
+			// before, so an unrelated save (auth switch, another login) never
+			// fails because of it.
+			plainMCPToken := ""
+			if cfg.KeyringID != "" && cfg.MCP.AuthToken != "" {
+				if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldMCPToken, cfg.MCP.AuthToken); err != nil {
+					plainMCPToken = cfg.MCP.AuthToken
+				}
+				cfg.MCP.AuthToken = ""
+			}
 			if cfg.KeyringID == "" {
 				id, err := newKeyringID()
 				if err != nil {
@@ -307,11 +363,12 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 				src.KeyringID = id
 				pc.Profiles[name] = src
 			}
-			if cfg.APIKey != "" || cfg.Password != "" {
+			if cfg.APIKey != "" || cfg.Password != "" || cfg.MCP.AuthToken != "" {
 				pending = append(pending, cfg)
 			}
 			cfg.APIKey = ""
 			cfg.Password = ""
+			cfg.MCP.AuthToken = plainMCPToken
 		}
 		toWrite.Profiles[name] = cfg
 	}
@@ -334,12 +391,9 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 		}
 	}
 
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := writeFileAtomic(path, data); err != nil {
 		return err
 	}
-
-	// Chmod because WriteFile keeps an existing file's mode (older versions wrote 0o644).
-	_ = os.Chmod(path, 0o600)
 
 	// File first, so a crash cannot orphan a secret under an unrecorded id.
 	for _, cfg := range pending {
@@ -351,10 +405,11 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 }
 
 // rollbackConfigFile restores the config after a keyring persistence failure.
+// path must already be resolved (see resolveConfigPath).
 func rollbackConfigFile(path string, prev []byte, prevExisted bool, cause error) error {
 	var rbErr error
 	if prevExisted {
-		rbErr = os.WriteFile(path, prev, 0o600)
+		rbErr = writeFileAtomic(path, prev)
 	} else {
 		rbErr = os.Remove(path)
 	}
@@ -375,6 +430,11 @@ func persistKeyringSecrets(cfg Config) error {
 	if cfg.Password != "" {
 		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldPassword, cfg.Password); err != nil {
 			return fmt.Errorf("storing password in system keyring: %w", err)
+		}
+	}
+	if cfg.MCP.AuthToken != "" {
+		if err := secrets.Default.Set(cfg.KeyringID, secrets.FieldMCPToken, cfg.MCP.AuthToken); err != nil {
+			return fmt.Errorf("storing MCP auth token in system keyring: %w", err)
 		}
 	}
 	// A fresh write carries the full credential set: drop the counterpart
@@ -401,16 +461,21 @@ func newKeyringID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// removeKeyringSecrets deletes both of a keyring profile's stored secrets.
+// keyringFields lists every secret a keyring profile may store.
+var keyringFields = []string{secrets.FieldAPIKey, secrets.FieldPassword, secrets.FieldMCPToken}
+
+// removeKeyringSecrets deletes all of a keyring profile's stored secrets.
 // Not-found is not an error; real backend failures are returned.
 func removeKeyringSecrets(cfg Config) error {
 	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" {
 		return nil
 	}
-	if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldAPIKey); err != nil {
-		return err
+	for _, field := range keyringFields {
+		if err := secrets.Default.Delete(cfg.KeyringID, field); err != nil {
+			return err
+		}
 	}
-	return secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword)
+	return nil
 }
 
 // SaveProfile writes a named profile to the config file.
@@ -443,6 +508,11 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 	}
 	entry.ReadOnly = old.ReadOnly
 	entry.Strict = old.Strict
+	// auth login never sets the mcp block. A token kept in the keyring stays
+	// there under the reused KeyringID.
+	if reflect.ValueOf(entry.MCP).IsZero() {
+		entry.MCP = old.MCP
+	}
 	// Headers may hold secrets scoped to the old server; drop them when the
 	// profile is pointed at a different host.
 	if entry.Headers == nil && SameServerHost(old.Server, entry.Server) {
@@ -466,9 +536,17 @@ func saveProfilesRemovingOrphan(pc *ProfileConfig, path, name string, orphan *Co
 	restore := func() error { return nil }
 	if orphan != nil && orphan.CredentialStore == CredentialStoreKeyring && orphan.KeyringID != "" {
 		saved := map[string]string{}
-		for _, field := range []string{secrets.FieldAPIKey, secrets.FieldPassword} {
+		for _, field := range keyringFields {
 			if v, ok, err := secrets.Default.Get(orphan.KeyringID, field); err == nil && ok {
 				saved[field] = v
+			}
+		}
+		// auth login does not manage the MCP token: switching to plaintext
+		// moves it back into the file instead of dropping it.
+		if token := saved[secrets.FieldMCPToken]; token != "" {
+			if entry := pc.Profiles[name]; entry.MCP.AuthToken == "" {
+				entry.MCP.AuthToken = token
+				pc.Profiles[name] = entry
 			}
 		}
 		if err := removeKeyringSecrets(*orphan); err != nil {
@@ -646,6 +724,17 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// StrictEnv reports the REDMINE_STRICT setting; set is false when the variable
+// is unset or empty. For callers that need strict mode without loading a
+// profile (e.g. auth login).
+func StrictEnv() (strict, set bool) {
+	val := os.Getenv("REDMINE_STRICT")
+	if val == "" {
+		return false, false
+	}
+	return parseBoolEnv(val), true
 }
 
 // parseBoolEnv treats common falsy values as false; everything else is true.

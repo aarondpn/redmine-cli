@@ -55,6 +55,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	var (
 		server       string
 		apiKey       string
+		apiKeyFile   string
 		profile      string
 		noColor      bool
 		verbose      bool
@@ -85,6 +86,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 			f.ProfileOverride = profile
 			f.ServerOverride = server
 			f.APIKeyOverride = apiKey
+			f.APIKeyFile = apiKeyFile
 			if noColor {
 				f.NoColorOverride = true
 				os.Setenv("NO_COLOR", "1")
@@ -114,7 +116,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
-	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
+	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication (visible in process listings; prefer --api-key-file or REDMINE_API_KEY)")
+	cmd.PersistentFlags().StringVar(&apiKeyFile, "api-key-file", "", `Read the API key from a file ("-" for stdin) instead of passing it on the command line`)
+	cmd.MarkFlagsMutuallyExclusive("api-key", "api-key-file")
 	cmd.PersistentFlags().StringVar(&profile, "profile", "", "Use a specific auth profile")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")

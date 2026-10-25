@@ -135,6 +135,17 @@ func (s fatalStore) Delete(profile, field string) error {
 	return nil
 }
 
+// credentialFatalStore fails on any access to the API key or password but
+// answers the optional MCP token lookup with "not stored".
+type credentialFatalStore struct{ fatalStore }
+
+func (s credentialFatalStore) Get(profile, field string) (string, bool, error) {
+	if field == secrets.FieldMCPToken {
+		return "", false, nil
+	}
+	return s.fatalStore.Get(profile, field)
+}
+
 func (s fatalStore) Available() bool { return false }
 
 func TestLegacyPlaintextProfileUnaffected(t *testing.T) {
@@ -243,7 +254,7 @@ profiles:
 
 func TestAPIKeyOverrideBypassesKeyring(t *testing.T) {
 	orig := secrets.Default
-	secrets.Default = fatalStore{t}
+	secrets.Default = credentialFatalStore{fatalStore{t}}
 	t.Cleanup(func() { secrets.Default = orig })
 
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")

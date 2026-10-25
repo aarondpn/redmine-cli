@@ -30,6 +30,10 @@ type Factory struct {
 	APIKeyOverride  string
 	NoColorOverride bool
 
+	// APIKeyFile is the --api-key-file path ("-" reads stdin). Its contents
+	// are used like APIKeyOverride, without exposing the key in argv.
+	APIKeyFile string
+
 	// ReadOnly, when non-nil, is the --read-only flag value and overrides
 	// both REDMINE_READ_ONLY and the per-profile config (highest precedence).
 	ReadOnly *bool
@@ -49,6 +53,7 @@ type Factory struct {
 
 	jqErr          error
 	securityWarned map[string]bool
+	apiKeyFromFile string
 	config         *config.Config
 	client         *api.Client
 	debugLog       *debug.Logger
@@ -83,25 +88,42 @@ func (f *Factory) DebugLogger() *debug.Logger {
 
 // Config returns the loaded configuration (cached after first call).
 // CLI flag overrides carry the highest precedence: ServerOverride and
-// APIKeyOverride are resolved inside Load (before any keyring lookup), while
-// NoColorOverride is applied afterward.
+// APIKeyOverride (or the contents of APIKeyFile) are resolved inside Load
+// (before any keyring lookup), while NoColorOverride is applied afterward.
 func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
+	apiKey, err := f.apiKeyOverride()
+	if err != nil {
+		return nil, err
+	}
 	var cfg *config.Config
-	var err error
-	if f.ServerOverride != "" || f.APIKeyOverride != "" {
+	if f.ServerOverride != "" || apiKey != "" {
 		// Overrides resolve inside Load, before any keyring lookup.
 		cfg, err = config.LoadWithOverrides(f.ConfigPath, f.ProfileOverride, config.Overrides{
 			Server: f.ServerOverride,
-			APIKey: f.APIKeyOverride,
+			APIKey: apiKey,
 		}, f.DebugLogger())
 	} else {
 		cfg, err = config.Load(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// A key on the command line is visible in process listings and shell
+	// history; strict mode insists on a channel that is not.
+	if f.APIKeyOverride != "" && cfg.Strict {
+		return nil, &StrictModeError{Msg: "--api-key exposes the API key in process listings and shell history; use --api-key-file, REDMINE_API_KEY, or a keyring profile (redmine auth login --keyring) instead"}
+	}
+
+	// A stored secret is bound to the server it was saved for; following a
+	// --server / REDMINE_SERVER override elsewhere hands it to another host.
+	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, cfg.Server) {
+		if err := f.SecurityCheck(cfg, storedCredentialOverrideMessage(cfg, profile, server)); err != nil {
+			return nil, err
+		}
 	}
 
 	if f.NoColorOverride {

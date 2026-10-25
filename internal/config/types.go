@@ -29,6 +29,25 @@ type Config struct {
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
 	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`
 	MCP     MCPConfig         `mapstructure:"mcp" yaml:"mcp,omitempty"`
+
+	// Set by Load, never persisted: the selected profile, the server it was
+	// saved with (before --server / REDMINE_SERVER), and whether the secret in
+	// use came from that profile (config file or keyring) rather than a flag
+	// or environment variable.
+	profileName   string
+	profileServer string
+	storedSecret  bool
+}
+
+// StoredCredentialServer reports the profile whose stored secret (config file
+// or system keyring) is in use and the server that secret was saved for. ok is
+// false when the secret came from a flag or environment variable, no secret is
+// set, or the profile records no server.
+func (c *Config) StoredCredentialServer() (profile, server string, ok bool) {
+	if c == nil || !c.storedSecret || c.profileServer == "" {
+		return "", "", false
+	}
+	return c.profileName, c.profileServer, true
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.

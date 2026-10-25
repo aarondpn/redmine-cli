@@ -1,0 +1,78 @@
+package auth
+
+import (
+	"bytes"
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
+)
+
+func TestIsCleartextServer(t *testing.T) {
+	cases := []struct {
+		server string
+		want   bool
+	}{
+		{"http://redmine.example.com", true},
+		{"HTTP://redmine.example.com:8080/redmine", true},
+		{"http://10.0.0.5", true},
+		{"https://redmine.example.com", false},
+		{"redmine.example.com", false},
+		{"http://localhost:3000", false},
+		{"http://LOCALHOST", false},
+		{"http://127.0.0.1:3000", false},
+		{"http://127.1.2.3", false},
+		{"http://[::1]:3000", false},
+	}
+	for _, tc := range cases {
+		if got := isCleartextServer(tc.server); got != tc.want {
+			t.Errorf("isCleartextServer(%q) = %v, want %v", tc.server, got, tc.want)
+		}
+	}
+}
+
+func TestCheckCleartextServer(t *testing.T) {
+	cases := []struct {
+		name       string
+		server     string
+		existing   *config.Config
+		strictEnv  string
+		wantStrict bool
+		wantWarn   bool
+	}{
+		{name: "http warns", server: "http://redmine.example.com", wantWarn: true},
+		{name: "https is silent", server: "https://redmine.example.com"},
+		{name: "loopback http is silent", server: "http://127.0.0.1:3000"},
+		{name: "strict profile refuses", server: "http://redmine.example.com", existing: &config.Config{Strict: true}, wantStrict: true},
+		{name: "REDMINE_STRICT refuses", server: "http://redmine.example.com", strictEnv: "1", wantStrict: true},
+		{name: "REDMINE_STRICT=0 overrides strict profile", server: "http://redmine.example.com", existing: &config.Config{Strict: true}, strictEnv: "0", wantWarn: true},
+		{name: "strict allows loopback", server: "http://localhost:3000", strictEnv: "1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.strictEnv != "" {
+				t.Setenv("REDMINE_STRICT", tc.strictEnv)
+			}
+			var errOut bytes.Buffer
+			f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
+
+			err := checkCleartextServer(f, tc.server, tc.existing)
+			var strictErr *cmdutil.StrictModeError
+			if tc.wantStrict {
+				if !errors.As(err, &strictErr) {
+					t.Fatalf("checkCleartextServer error = %v, want *StrictModeError", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("checkCleartextServer error = %v, want nil", err)
+			}
+			warned := strings.Contains(errOut.String(), "sent in cleartext")
+			if warned != tc.wantWarn {
+				t.Fatalf("warned = %v, want %v (stderr %q)", warned, tc.wantWarn, errOut.String())
+			}
+		})
+	}
+}

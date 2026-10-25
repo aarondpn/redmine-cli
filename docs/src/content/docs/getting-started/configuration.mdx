@@ -81,6 +81,8 @@ profiles:
   The config file stores API keys in plaintext. Keep it `0600` and out of dotfile repositories. Use environment variables in CI.
 </Aside>
 
+The CLI writes the config file atomically with mode `0600`: a new file is written next to it and renamed into place, so an interrupted write never leaves a truncated config. A missing config directory is created with mode `0700`. If the config path is a symlink (for example into a dotfiles checkout), the file it points to is updated and the link is kept. A config file you made read-only is never overwritten. A file that cannot be replaced by a rename (for example a config bind-mounted into a container, or one in a directory you cannot write to) is overwritten in place instead.
+
 ## System keyring (optional)
 
 You can keep the API key (or password) out of the config file and in your operating system keyring instead. It is fully opt-in and backward compatible: existing plaintext profiles keep working unchanged.
@@ -99,7 +101,9 @@ You can keep the API key (or password) out of the config file and in your operat
 
 Logging in again for a profile that already uses the keyring keeps the keyring by default; it never silently falls back to the plaintext file. Pass `--keyring=false` to explicitly switch a profile back to plaintext storage.
 
-Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is ever consulted.
+The MCP server's bearer token (`mcp.auth_token`, see [AI agents](/guides/ai-agents/)) is kept in the keyring too. A keyring profile that still has a plaintext `mcp.auth_token` keeps working: the value in the file is used, and it is moved into the keyring and removed from the file the next time the CLI saves the config (for example on `redmine auth login` or `redmine auth switch`). If the keyring is unavailable at that point, the token stays in the file and the save still succeeds. To rotate the token, write the new value into `mcp.auth_token`; `REDMINE_MCP_AUTH_TOKEN` and `--auth-token` still take precedence. Switching the profile back to plaintext moves the token back into the file, and `redmine auth logout` removes it from the keyring.
+
+Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is consulted for the API key or password.
 
 <Aside type="tip" title="CI and headless environments">
   Keep using environment variables (`REDMINE_API_KEY`, `REDMINE_PASSWORD`) in CI. Set `REDMINE_NO_KEYRING=1` to hard-disable all keyring reads and writes on runners that have no usable keyring, so nothing ever stalls on a keyring prompt.
@@ -128,6 +132,8 @@ export REDMINE_NO_KEYRING=1
 export REDMINE_HTTP_TIMEOUT=5m
 # hide the environment from --jq expressions (env / $ENV evaluate to {})
 export REDMINE_JQ_NO_ENV=1
+# turn security warnings into errors (strict mode)
+export REDMINE_STRICT=1
 ```
 
 See [Self-Update](/commands/other/#startup-update-check) for details on the update check.
@@ -139,7 +145,8 @@ Flags take precedence over config values and environment variables.
 | Flag | Description |
 |------|-------------|
 | `-s, --server`  | Redmine server URL |
-| `-k, --api-key` | API key for authentication |
+| `-k, --api-key` | API key for authentication (visible in process listings; see below) |
+| `--api-key-file` | Read the API key from a file, or from stdin with `-` |
 | `--profile`     | Use a specific auth profile |
 | `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
 | `-o, --output`  | Output format: `table`, `json`, `csv` (see [Output formats](/guides/output-formats/)) |
@@ -148,6 +155,50 @@ Flags take precedence over config values and environment variables.
 | `--read-only`   | Refuse all requests that modify data on the server |
 | `--header`      | Extra HTTP header as `"Name: value"` (repeatable) |
 | `-v, --verbose` | Enable debug logging |
+
+### Passing an API key
+
+A key given with `--api-key` shows up in process listings (`ps`), shell history, and CI logs. Prefer one of these instead:
+
+```bash
+redmine --api-key-file ~/.config/redmine/key issues list   # read from a file
+pass show redmine | redmine --api-key-file - issues list   # read from stdin
+export REDMINE_API_KEY=your-api-key                        # environment variable
+redmine auth login --keyring                               # system keyring
+```
+
+`--api-key-file` trims surrounding whitespace, including the trailing newline, and cannot be combined with `--api-key`. With `-`, stdin is consumed by the key, so it cannot also feed a command that reads stdin. `--api-key` keeps working, but [strict mode](#strict-mode) rejects it.
+
+### Server overrides and stored credentials
+
+A profile's stored secret (in the config file or the system keyring) belongs to the server the profile was saved with. If `--server` or `REDMINE_SERVER` points the profile at a different origin (scheme, host, or port), the CLI still sends that secret, but prints a warning first:
+
+```text
+warning: sending the stored credentials of profile "work" (for https://redmine.work.com) to https://other.example.com; pass --api-key/REDMINE_API_KEY explicitly to silence this
+```
+
+Supply the key for the other server explicitly (`--api-key-file`, `--api-key`, `REDMINE_API_KEY`, or `REDMINE_PASSWORD` for basic auth) to silence the warning. In strict mode the command is refused instead.
+
+## Strict mode
+
+Some conditions are risky but common enough that the CLI only warns about them on stderr. Strict mode turns these warnings into errors, so the command stops before anything is sent. It is off by default. Enable it per profile or for a whole shell session:
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  work:
+    server: https://redmine.work.com
+    strict: true
+```
+
+```bash
+export REDMINE_STRICT=1   # REDMINE_STRICT=0 turns it off for a profile with strict: true
+```
+
+Strict mode refuses, among others:
+
+- sending a profile's stored credentials to a server given with `--server` / `REDMINE_SERVER` (see [above](#server-overrides-and-stored-credentials)),
+- an API key passed with `--api-key` (use `--api-key-file`, `REDMINE_API_KEY`, or the keyring),
+- logging in to a non-loopback `http://` server with `redmine auth login`.
 
 ## Read-only mode
 

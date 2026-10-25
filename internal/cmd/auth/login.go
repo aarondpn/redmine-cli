@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -106,6 +109,23 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		}
 	}
 
+	configPath := config.DefaultConfigPath()
+	if f.ConfigPath != "" {
+		configPath = f.ConfigPath
+	}
+	var existing *config.Config
+	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
+		if p, ok := pc.Profiles[profileName]; ok {
+			existing = &p
+		}
+	}
+
+	// Checked before the credentials are entered, so strict mode refuses
+	// before anything secret is typed.
+	if err := checkCleartextServer(f, server, existing); err != nil {
+		return err
+	}
+
 	// Step 3: Credentials
 	if authMethod == "apikey" {
 		err = huh.NewForm(
@@ -113,6 +133,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 				huh.NewInput().
 					Title("API Key").
 					Description("Found at My Account > API access key").
+					EchoMode(huh.EchoModePassword).
 					Value(&apiKey).
 					Validate(func(s string) error {
 						if s == "" {
@@ -137,17 +158,6 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 	}
 	if err != nil {
 		return err
-	}
-
-	configPath := config.DefaultConfigPath()
-	if f.ConfigPath != "" {
-		configPath = f.ConfigPath
-	}
-	var existing *config.Config
-	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
-		if p, ok := pc.Profiles[profileName]; ok {
-			existing = &p
-		}
 	}
 
 	printer := f.Printer("")
@@ -289,6 +299,37 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 		return false, err
 	}
 	return confirm, nil
+}
+
+// checkCleartextServer warns, or refuses in strict mode, when the server URL
+// would send the credentials in cleartext. Strict mode comes from the profile
+// being replaced or REDMINE_STRICT.
+func checkCleartextServer(f *cmdutil.Factory, server string, existing *config.Config) error {
+	if !isCleartextServer(server) {
+		return nil
+	}
+	cfg := &config.Config{Strict: existing != nil && existing.Strict}
+	if strict, set := config.StrictEnv(); set {
+		cfg.Strict = strict
+	}
+	return f.SecurityCheck(cfg, fmt.Sprintf("%s uses http://, so your credentials will be sent in cleartext; use https:// if the server supports it", server))
+}
+
+// isCleartextServer reports whether server is a non-loopback http:// URL.
+// Loopback hosts (localhost, 127.0.0.0/8, ::1) never leave the machine.
+func isCleartextServer(server string) bool {
+	u, err := url.Parse(strings.TrimSpace(server))
+	if err != nil || !strings.EqualFold(u.Scheme, "http") {
+		return false
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return false
+	}
+	return true
 }
 
 // loginProxyHint replaces the generic forbidden hint for the login probe. A
