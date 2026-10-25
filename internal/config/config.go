@@ -442,6 +442,7 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
+	entry.Strict = old.Strict
 	// Headers may hold secrets scoped to the old server; drop them when the
 	// profile is pointed at a different host.
 	if entry.Headers == nil && SameServerHost(old.Server, entry.Server) {
@@ -594,6 +595,10 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 
 	if val := os.Getenv("REDMINE_READ_ONLY"); val != "" {
 		cfg.ReadOnly = parseBoolEnv(val)
+	}
+
+	if val := os.Getenv("REDMINE_STRICT"); val != "" {
+		cfg.Strict = parseBoolEnv(val)
 	}
 
 	mcpListEnv := map[string]*[]string{

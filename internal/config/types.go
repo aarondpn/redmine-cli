@@ -19,6 +19,12 @@ type Config struct {
 	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
 	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
 	ReadOnly       bool   `mapstructure:"read_only" yaml:"read_only,omitempty"`
+	// Strict turns security warnings into hard errors: plaintext http://
+	// servers, keyring secrets sent to an overridden server, unneutralized
+	// CSV formulas, and an unauthenticated loopback MCP transport. Off by
+	// default so existing setups keep working; set via `strict: true` or
+	// REDMINE_STRICT.
+	Strict bool `mapstructure:"strict" yaml:"strict,omitempty"`
 	// Headers are extra HTTP headers sent with every request to the configured
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
 	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`

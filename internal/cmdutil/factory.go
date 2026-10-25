@@ -47,11 +47,12 @@ type Factory struct {
 	// document a Printer emits is filtered through it.
 	JQ *output.JQFilter
 
-	jqErr     error
-	config    *config.Config
-	client    *api.Client
-	debugLog  *debug.Logger
-	IOStreams *IOStreams
+	jqErr          error
+	securityWarned map[string]bool
+	config         *config.Config
+	client         *api.Client
+	debugLog       *debug.Logger
+	IOStreams      *IOStreams
 }
 
 // NewFactory creates a new Factory with default I/O streams.
