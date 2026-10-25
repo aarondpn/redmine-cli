@@ -23,7 +23,9 @@ const (
 )
 
 func main() {
-	// Start background update check.
+	// Start background update check. It is detached from the command
+	// context on purpose: it has its own deadline and its result is only
+	// printed after the command has finished.
 	var updateDone chan *update.CheckResult
 	var cancelUpdateCheck context.CancelFunc
 	if update.ShouldCheck(version, os.Args[1:]) {
@@ -36,11 +38,20 @@ func main() {
 	}
 
 	rootCmd, factory := cmd.NewRootCmdWithFactory(version)
-	err := rootCmd.Execute()
+	ctx, stopInterrupt := notifyInterrupt(context.Background())
+	err := rootCmd.ExecuteContext(ctx)
+	interruptCode, interrupted := interruptExitCode(ctx)
+	stopInterrupt()
 
 	if err != nil {
 		if cancelUpdateCheck != nil {
 			cancelUpdateCheck()
+		}
+		if interrupted {
+			// The command failed because Ctrl-C (or SIGTERM) cancelled it.
+			// Exit quietly with the status a signal death would have had,
+			// rather than reporting "context canceled".
+			os.Exit(interruptCode)
 		}
 		var silent *cmdutil.SilentError
 		if errors.As(err, &silent) {

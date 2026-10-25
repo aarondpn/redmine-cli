@@ -60,7 +60,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine issues get 123 --include journals,attachments,children,relations -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			id, err := strconv.Atoi(args[0])
 			if err != nil {

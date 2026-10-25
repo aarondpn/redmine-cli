@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -43,7 +42,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.Hours = &hours
 			}
 			if cmd.Flags().Changed("activity") {
-				activityID, err := resolver.ResolveActivity(context.Background(), client, activity)
+				activityID, err := resolver.ResolveActivity(cmdutil.Context(cmd), client, activity)
 				if err != nil {
 					return fmt.Errorf("resolving activity: %w", err)
 				}
@@ -57,7 +56,7 @@ func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.Comments = &comment
 			}
 
-			if _, err := ops.UpdateTimeEntry(context.Background(), client, input); err != nil {
+			if _, err := ops.UpdateTimeEntry(cmdutil.Context(cmd), client, input); err != nil {
 				return err
 			}
 

@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -39,7 +38,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -47,7 +46,7 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching memberships...")
 
-			result, err := ops.ListMemberships(context.Background(), client, ops.ListMembershipsInput{
+			result, err := ops.ListMemberships(cmdutil.Context(cmd), client, ops.ListMembershipsInput{
 				ProjectID: project,
 				Limit:     cmdutil.OpsLimit(limit),
 				Offset:    offset,

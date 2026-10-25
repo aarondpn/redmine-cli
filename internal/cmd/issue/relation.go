@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -47,7 +46,7 @@ func newCmdRelationList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching relations...")
-			result, err := ops.ListIssueRelations(context.Background(), client, ops.ListIssueRelationsInput{IssueID: id})
+			result, err := ops.ListIssueRelations(cmdutil.Context(cmd), client, ops.ListIssueRelationsInput{IssueID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list relations for issue #%d: %w", id, err)
@@ -118,7 +117,7 @@ func newCmdRelationAdd(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 			stop := printer.Spinner("Creating relation...")
-			rel, err := ops.CreateIssueRelation(context.Background(), client, input)
+			rel, err := ops.CreateIssueRelation(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to create relation: %w", err)
@@ -160,7 +159,7 @@ func newCmdRelationRemove(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer("")
 			stop := printer.Spinner("Deleting relation...")
-			_, err = ops.DeleteIssueRelation(context.Background(), client, ops.DeleteIssueRelationInput{ID: relID})
+			_, err = ops.DeleteIssueRelation(cmdutil.Context(cmd), client, ops.DeleteIssueRelationInput{ID: relID})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to delete relation #%d: %w", relID, err)

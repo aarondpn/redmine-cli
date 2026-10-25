@@ -37,7 +37,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: cmdutil.CompleteProjects(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			if err := validateEnabledModules(enabledModules); err != nil {
 				return err

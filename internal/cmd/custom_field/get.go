@@ -1,7 +1,6 @@
 package customfield
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			id, err := resolver.ResolveCustomField(ctx, client, args[0])
 			if err != nil {
 				return err

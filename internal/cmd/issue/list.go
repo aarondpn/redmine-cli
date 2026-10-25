@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -92,7 +91,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			printer := f.Printer(format)
 
 			project, err = cmdutil.DefaultProjectID(ctx, f, project)

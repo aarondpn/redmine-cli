@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +34,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Create a new project",
 		Long:    "Create a new Redmine project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			if err := validateEnabledModules(enabledModules); err != nil {
 				return err

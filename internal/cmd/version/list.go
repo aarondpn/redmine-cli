@@ -1,7 +1,6 @@
 package version
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -77,7 +76,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 				statusFilter = "locked"
 			}
 
-			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -97,7 +96,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 					need = offset + limit
 				}
 				matched, more, err := client.Versions.ListFiltered(
-					context.Background(), project, need,
+					cmdutil.Context(cmd), project, need,
 					func(v models.Version) bool { return v.Status == statusFilter },
 				)
 				stop()
@@ -114,7 +113,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 					versions = nil
 				}
 			} else {
-				result, err := ops.ListVersions(context.Background(), client, ops.ListVersionsInput{
+				result, err := ops.ListVersions(cmdutil.Context(cmd), client, ops.ListVersionsInput{
 					ProjectID: project,
 					Limit:     cmdutil.OpsLimit(limit),
 					Offset:    offset,

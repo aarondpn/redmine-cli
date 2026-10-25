@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ func newCmdQueryGet(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching saved query...")

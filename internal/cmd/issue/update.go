@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -87,7 +86,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			update := ops.UpdateIssueInput{ID: id}
 
 			if err := cmdutil.RejectMultipleStdinFlags(cmd, "description-file", "note-file"); err != nil {

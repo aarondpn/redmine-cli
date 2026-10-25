@@ -1,7 +1,6 @@
 package status
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -38,7 +37,7 @@ func newCmdStatusList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching statuses...")
-			result, err := ops.ListStatuses(context.Background(), client, struct{}{})
+			result, err := ops.ListStatuses(cmdutil.Context(cmd), client, struct{}{})
 			stop()
 			if err != nil {
 				return err

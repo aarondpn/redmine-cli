@@ -1,7 +1,6 @@
 package tracker
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -43,7 +42,7 @@ func newCmdTrackerList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching trackers...")
-			result, err := ops.ListTrackers(context.Background(), client, struct{}{})
+			result, err := ops.ListTrackers(cmdutil.Context(cmd), client, struct{}{})
 			stop()
 			if err != nil {
 				return err
@@ -81,7 +80,7 @@ func newCmdTrackerGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			id, err := resolver.ResolveTracker(ctx, client, args[0])
 			if err != nil {
 				return err

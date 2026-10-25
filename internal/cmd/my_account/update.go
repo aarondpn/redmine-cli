@@ -1,8 +1,6 @@
 package myaccount
 
 import (
-	"context"
-
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/user"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
@@ -56,7 +54,7 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Updating account...")
-			_, err = ops.UpdateMyAccount(context.Background(), client, input)
+			_, err = ops.UpdateMyAccount(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
 				return err

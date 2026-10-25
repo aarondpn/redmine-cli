@@ -151,7 +151,7 @@ func stubHomebrew(t *testing.T, isBrew bool, upgradeErr error) {
 func runUpdateForTest(t *testing.T, version string) error {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	return runUpdateWithFormat(version, &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable), updateOptions{})
+	return runUpdateWithFormat(context.Background(), version, &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable), updateOptions{})
 }
 
 func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
@@ -226,7 +226,7 @@ func TestRunUpdate_JSONOutput_AlreadyUpToDate(t *testing.T) {
 	}
 
 	var out, errOut bytes.Buffer
-	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
+	err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestRunUpdate_HomebrewNoopReturnsFalseOutcome(t *testing.T) {
 	}
 
 	var out, errOut bytes.Buffer
-	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
+	err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

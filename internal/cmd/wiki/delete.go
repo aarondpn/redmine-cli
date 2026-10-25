@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -29,7 +28,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
   redmine wiki delete MyPage --project myproject --force`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {

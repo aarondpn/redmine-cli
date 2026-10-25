@@ -181,7 +181,7 @@ func TestRunUpdate_AttestationDecision(t *testing.T) {
 			stubAttestationVerifier(t, fake)
 
 			var out, errOut bytes.Buffer
-			err := runUpdateWithFormat("1.0.0", &out, &errOut,
+			err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut,
 				output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable), tt.opts)
 
 			if tt.wantErr {

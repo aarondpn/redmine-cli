@@ -69,7 +69,7 @@ as a string. A value that looks like a number is sent as one ('1.10' becomes
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAPI(f, args[0], method, fields, rawFields, input, include, silent, format)
+			return runAPI(cmdutil.Context(cmd), f, args[0], method, fields, rawFields, input, include, silent, format)
 		},
 	}
 
@@ -84,7 +84,7 @@ as a string. A value that looks like a number is sent as one ('1.10' becomes
 	return cmd
 }
 
-func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool, format string) error {
+func runAPI(ctx context.Context, f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool, format string) error {
 	// Validate mutual exclusion.
 	if len(rawFields) > 0 && input != "" {
 		return fmt.Errorf("--raw-field and --input are mutually exclusive")
@@ -136,7 +136,7 @@ func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []str
 		return err
 	}
 
-	resp, err := client.DoRaw(context.Background(), method, endpoint, params, body)
+	resp, err := client.DoRaw(ctx, method, endpoint, params, body)
 	if err != nil {
 		return err
 	}

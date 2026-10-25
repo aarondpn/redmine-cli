@@ -112,7 +112,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			var notice string
-			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
+			project, notice, err = resolveSearchProject(cmdutil.Context(cmd), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Searching...")
-			results, total, err := client.Search.Search(context.Background(), params)
+			results, total, err := client.Search.Search(cmdutil.Context(cmd), params)
 			stop()
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)

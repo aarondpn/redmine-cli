@@ -81,7 +81,7 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 				}
 				return f.SecurityCheck(cfg, msg)
 			}
-			return runUpdateWithFormat(version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
+			return runUpdateWithFormat(cmdutil.Context(cmd), version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
 		},
 	}
 	cmdutil.AddOutputFlag(cmd, &format)
@@ -187,7 +187,7 @@ var fetchRelease = FetchLatestRelease
 // resolveInstallPath is a variable so tests can install into a temp file.
 var resolveInstallPath = installPath
 
-func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer, opts updateOptions) error {
+func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, stderr io.Writer, printer output.Printer, opts updateOptions) error {
 	if checkHomebrew() {
 		outdated, err := checkHomebrewOutdated()
 		if err != nil {
@@ -225,7 +225,7 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 	logStep(printer, stderr, "Current version: %s\n", currentVersion)
 	logLine(printer, stderr, "Checking for updates...")
 
-	release, err := fetchRelease(context.Background())
+	release, err := fetchRelease(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check for updates: %w", err)
 	}
@@ -276,7 +276,7 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 	if !opts.SkipAttestation {
 		logLine(printer, stderr, "Verifying attestation...")
 		digest := sha256.Sum256(archiveData)
-		if err := verifyAttestation(context.Background(), digest[:], release.TagName); err != nil {
+		if err := verifyAttestation(ctx, digest[:], release.TagName); err != nil {
 			return err
 		}
 	}

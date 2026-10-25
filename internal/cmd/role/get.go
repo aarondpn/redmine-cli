@@ -1,7 +1,6 @@
 package role
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -28,7 +27,7 @@ func newCmdRoleGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			id, err := resolver.ResolveRole(context.Background(), client, args[0])
+			id, err := resolver.ResolveRole(cmdutil.Context(cmd), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -36,7 +35,7 @@ func newCmdRoleGet(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching role...")
-			role, err := ops.GetRole(context.Background(), client, ops.GetRoleInput{ID: id})
+			role, err := ops.GetRole(cmdutil.Context(cmd), client, ops.GetRoleInput{ID: id})
 			stop()
 			if err != nil {
 				return err

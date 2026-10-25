@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -79,7 +78,7 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			stop := printer.Spinner("Downloading attachment...")
 			att, err := ops.GetAttachment(ctx, client, ops.GetAttachmentInput{ID: id})
 			if err != nil {

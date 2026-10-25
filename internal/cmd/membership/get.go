@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -34,7 +33,7 @@ func newCmdMembershipGet(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching membership...")
-			m, err := ops.GetMembership(context.Background(), client, ops.GetMembershipInput{ID: id})
+			m, err := ops.GetMembership(cmdutil.Context(cmd), client, ops.GetMembershipInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get membership %d: %w", id, err)

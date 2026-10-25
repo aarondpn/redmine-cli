@@ -165,8 +165,10 @@ func createDownloadTemp(dir string) (*os.File, error) {
 //
 // The bytes are streamed into a temporary file in the destination directory,
 // fsynced, and only then moved into place, so a failed download never
-// touches an existing file and never leaves a partial one behind (a process
-// killed mid-download may leave a hidden .redmine-download-*.tmp). The move
+// touches an existing file and never leaves a partial one behind. Cancelling
+// ctx (the first Ctrl-C) fails the download and removes the temporary file;
+// only a process killed outright (SIGKILL, a second Ctrl-C) may leave a
+// hidden .redmine-download-*.tmp. The move
 // replaces the directory entry itself: a symlink at path is replaced, never
 // written through.
 //

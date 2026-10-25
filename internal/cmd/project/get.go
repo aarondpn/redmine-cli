@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -38,7 +37,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			project, err := ops.GetProject(context.Background(), client, ops.GetProjectInput{
+			project, err := ops.GetProject(cmdutil.Context(cmd), client, ops.GetProjectInput{
 				Identifier: args[0],
 				Includes:   includes,
 			})

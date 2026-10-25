@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +34,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
   # Paginate results
   redmine wiki list --project myproject --limit 10 --offset 20`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {

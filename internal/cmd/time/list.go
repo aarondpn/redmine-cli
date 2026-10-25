@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -37,7 +36,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			from = cmdutil.ResolveDateKeyword(from)
 			to = cmdutil.ResolveDateKeyword(to)

@@ -1,7 +1,6 @@
 package files
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +39,7 @@ func newCmdUpload(f *cmdutil.Factory) *cobra.Command {
   redmine files upload ./build.zip --project myproject --filename "build-1.2.0.zip"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {

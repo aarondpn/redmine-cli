@@ -1,7 +1,6 @@
 package category
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -46,7 +45,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -54,7 +53,7 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching categories...")
-			result, err := ops.ListCategories(context.Background(), client, ops.ListCategoriesInput{ProjectID: project})
+			result, err := ops.ListCategories(cmdutil.Context(cmd), client, ops.ListCategoriesInput{ProjectID: project})
 			stop()
 			if err != nil {
 				return err

@@ -82,7 +82,10 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 			opts = mcpserver.ResolveOptions(opts, spec)
 
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			// main already cancels cmd.Context() on the first signal; this
+			// keeps serve shutting down cleanly when it runs without main
+			// (tests, embedding).
+			ctx, stop := signal.NotifyContext(cmdutil.Context(cmd), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)

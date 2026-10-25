@@ -1,7 +1,6 @@
 package files
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -38,7 +37,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
   # Paginate
   redmine files list --project myproject --limit 10 --offset 20`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {

@@ -1,7 +1,6 @@
 package group
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -31,7 +30,7 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			id, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			id, err := resolver.ResolveGroup(cmdutil.Context(cmd), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -47,7 +46,7 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Fetching group...")
-			group, err := ops.GetGroup(context.Background(), client, ops.GetGroupInput{
+			group, err := ops.GetGroup(cmdutil.Context(cmd), client, ops.GetGroupInput{
 				ID:       id,
 				Includes: includes,
 			})

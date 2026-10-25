@@ -1,7 +1,6 @@
 package role
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ func newCmdRoleList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching roles...")
-			result, err := ops.ListRoles(context.Background(), client, struct{}{})
+			result, err := ops.ListRoles(cmdutil.Context(cmd), client, struct{}{})
 			stop()
 			if err != nil {
 				return err

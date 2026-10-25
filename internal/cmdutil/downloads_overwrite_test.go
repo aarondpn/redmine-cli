@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
@@ -99,6 +100,53 @@ func TestSaveAttachmentToFile_FailedDownloadKeepsExistingFile(t *testing.T) {
 			assertDirEntries(t, dir, "keep.txt")
 		})
 	}
+}
+
+// TestSaveAttachmentToFile_CancelledMidStream covers Ctrl-C during a
+// download: main cancels the command context, the stream fails, and the
+// temporary file is removed instead of being left behind.
+func TestSaveAttachmentToFile_CancelledMidStream(t *testing.T) {
+	for _, clobber := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clobber=%v", clobber), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Length", "1000")
+				_, _ = w.Write([]byte("first chunk"))
+				w.(http.Flusher).Flush()
+				// The client has started streaming into the temp file;
+				// interrupt it and hold the rest of the body back.
+				cancel()
+				select {
+				case <-r.Context().Done():
+				case <-time.After(10 * time.Second):
+				}
+			}))
+			defer ts.Close()
+			client := api.NewTestClient(ts.Client(), ts.URL, debug.New(nil))
+
+			dir := t.TempDir()
+			path := filepath.Join(dir, "big.bin")
+			_, err := SaveAttachmentToFile(ctx, client, attFor(client, "big.bin"), path, SaveOptions{Clobber: clobber})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("SaveAttachmentToFile() error = %v, want context.Canceled", err)
+			}
+			assertDirEntries(t, dir)
+		})
+	}
+}
+
+func TestSaveAttachmentToFile_AlreadyCancelled(t *testing.T) {
+	client := newDownloadClient(t, []byte("payload"), http.StatusOK)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.txt")
+	if _, err := SaveAttachmentToFile(ctx, client, attFor(client, "a.txt"), path, SaveOptions{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("SaveAttachmentToFile() error = %v, want context.Canceled", err)
+	}
+	assertDirEntries(t, dir)
 }
 
 // TestSaveAttachmentToFile_ExistingTarget reproduces the H-03 PoC: an

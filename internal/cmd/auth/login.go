@@ -38,7 +38,7 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 				return err
 			}
-			return runLogin(f, name, useKeyring, cmd.Flags().Changed("keyring"))
+			return runLogin(cmdutil.Context(cmd), f, name, useKeyring, cmd.Flags().Changed("keyring"))
 		},
 	}
 
@@ -48,7 +48,7 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 	return cmd
 }
 
-func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSet bool) error {
+func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSet bool) error {
 	var (
 		server     string
 		authMethod string
@@ -197,7 +197,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
-	user, err := client.Users.Current(context.Background(), nil)
+	user, err := client.Users.Current(ctx, nil)
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
@@ -208,7 +208,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 
 	// Step 5: Default project (optional)
 	stop = printer.Spinner("Fetching projects...")
-	projects, _, err := client.Projects.List(context.Background(), nil, 100, 0)
+	projects, _, err := client.Projects.List(ctx, nil, 100, 0)
 	stop()
 
 	if err == nil && len(projects) > 0 {

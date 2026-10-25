@@ -1,7 +1,6 @@
 package search
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -35,14 +34,14 @@ func newCmdSearchNews(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			var notice string
-			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
+			project, notice, err = resolveSearchProject(cmdutil.Context(cmd), f, project, scope)
 			if err != nil {
 				return err
 			}
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Searching news...")
-			result, err := ops.Search(context.Background(), client, ops.SearchInput{
+			result, err := ops.Search(cmdutil.Context(cmd), client, ops.SearchInput{
 				Query:      query,
 				ProjectID:  project,
 				Scope:      scope,

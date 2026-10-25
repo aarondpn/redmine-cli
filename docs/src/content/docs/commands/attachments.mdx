@@ -75,7 +75,7 @@ failed to download attachment 42: logo.png already exists; use --clobber to over
 
 The bytes are first streamed into a temporary file in the destination directory and moved into place only once the download has completed. As a result:
 
-- A failed or interrupted download leaves any existing file untouched and leaves no partial file at the destination. If the process is killed mid-download, a hidden `.redmine-download-*.tmp` file may remain in the destination directory; it is safe to delete.
+- A failed or interrupted download leaves any existing file untouched and leaves no partial file at the destination. Pressing Ctrl-C once stops the download and removes its temporary file. If the process is killed outright (a second Ctrl-C, `kill -9`), a hidden `.redmine-download-*.tmp` file may remain in the destination directory; it is safe to delete.
 - A symlink at the destination is never followed. Without `--clobber` it counts as an existing file (even when it is dangling); with `--clobber` the link itself is replaced by the downloaded file, and whatever it pointed to is left alone.
 - A directory (or other non-regular file such as a FIFO or device) at the destination is always an error, even with `--clobber`.
 - A new file gets the same permissions as any other file you create (`0644` with the usual umask `022`). With `--clobber`, a replaced regular file keeps its previous permissions.

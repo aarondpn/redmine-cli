@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -35,7 +34,7 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			resolvedRoleIDs, err := resolveRoleIDs(
-				context.Background(),
+				cmdutil.Context(cmd),
 				client,
 				roleIDs,
 				roles,
@@ -49,7 +48,7 @@ func newCmdMembershipUpdate(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 
 			stop := printer.Spinner("Updating membership...")
-			_, err = ops.UpdateMembership(context.Background(), client, ops.UpdateMembershipInput{
+			_, err = ops.UpdateMembership(cmdutil.Context(cmd), client, ops.UpdateMembershipInput{
 				ID:      id,
 				RoleIDs: resolvedRoleIDs,
 			})

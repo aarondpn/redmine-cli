@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -47,7 +46,7 @@ func NewCmdClose(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Closing issue...")
-			result, err := ops.CloseIssue(context.Background(), client, ops.CloseIssueInput{
+			result, err := ops.CloseIssue(cmdutil.Context(cmd), client, ops.CloseIssueInput{
 				ID:    id,
 				Notes: note,
 			})

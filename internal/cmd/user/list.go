@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -36,14 +35,14 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 
 			var groupID int
 			if group != "" {
-				groupID, err = resolver.ResolveGroup(context.Background(), client, group)
+				groupID, err = resolver.ResolveGroup(cmdutil.Context(cmd), client, group)
 				if err != nil {
 					return err
 				}
 			}
 
 			stop := printer.Spinner("Fetching users...")
-			result, err := ops.ListUsers(context.Background(), client, ops.ListUsersInput{
+			result, err := ops.ListUsers(cmdutil.Context(cmd), client, ops.ListUsersInput{
 				Status:  status,
 				Name:    name,
 				GroupID: groupID,

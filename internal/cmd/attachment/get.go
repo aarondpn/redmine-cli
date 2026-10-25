@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -45,7 +44,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching attachment...")
-			att, err := ops.GetAttachment(context.Background(), client, ops.GetAttachmentInput{ID: id})
+			att, err := ops.GetAttachment(cmdutil.Context(cmd), client, ops.GetAttachmentInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get attachment %d: %w", id, err)

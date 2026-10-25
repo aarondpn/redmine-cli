@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -43,7 +42,7 @@ func newCmdMembershipDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting membership...")
-			_, err = ops.DeleteMembership(context.Background(), client, ops.DeleteMembershipInput{ID: id})
+			_, err = ops.DeleteMembership(cmdutil.Context(cmd), client, ops.DeleteMembershipInput{ID: id})
 			stop()
 			if err != nil {
 				return err

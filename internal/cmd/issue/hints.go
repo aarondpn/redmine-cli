@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -117,7 +116,7 @@ func createHintProject(f *cmdutil.Factory, cmd *cobra.Command) string {
 	if project == "" {
 		return "PROJECT"
 	}
-	if identifier, err := cmdutil.ResolveProjectIdentifier(context.Background(), f, project); err == nil && identifier != "" {
+	if identifier, err := cmdutil.ResolveProjectIdentifier(cmdutil.Context(cmd), f, project); err == nil && identifier != "" {
 		project = identifier
 	}
 	return shellQuote(project)

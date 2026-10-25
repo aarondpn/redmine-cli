@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"strconv"
 	"strings"
 
@@ -33,7 +32,7 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			result, err := ops.ListProjectMembers(context.Background(), client, ops.ListProjectMembersInput{
+			result, err := ops.ListProjectMembers(cmdutil.Context(cmd), client, ops.ListProjectMembersInput{
 				Identifier: args[0],
 				Limit:      cmdutil.OpsLimit(limit),
 				Offset:     offset,

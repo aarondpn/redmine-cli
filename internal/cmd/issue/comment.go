@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -52,7 +51,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Adding comment...")
-			_, err = ops.AddIssueComment(context.Background(), client, ops.AddIssueCommentInput{
+			_, err = ops.AddIssueComment(cmdutil.Context(cmd), client, ops.AddIssueCommentInput{
 				ID:    id,
 				Notes: message,
 			})

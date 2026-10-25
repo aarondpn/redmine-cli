@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -36,7 +35,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.DefaultProjectID(context.Background(), f, project)
+			project, err = cmdutil.DefaultProjectID(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -62,7 +61,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 			userID := user
 			if user != "" && user != "me" {
 				if _, err := strconv.Atoi(user); err != nil {
-					resolved, err := resolver.ResolveUserInProject(context.Background(), client, user, project)
+					resolved, err := resolver.ResolveUserInProject(cmdutil.Context(cmd), client, user, project)
 					if err != nil {
 						return fmt.Errorf("resolving user: %w", err)
 					}
@@ -79,7 +78,7 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				Limit:     0, // fetch all
 			}
 
-			entries, _, err := client.TimeEntries.List(context.Background(), filter)
+			entries, _, err := client.TimeEntries.List(cmdutil.Context(cmd), filter)
 			if err != nil {
 				return err
 			}

@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			result, err := ops.ListProjects(context.Background(), client, ops.ListProjectsInput{
+			result, err := ops.ListProjects(cmdutil.Context(cmd), client, ops.ListProjectsInput{
 				Limit:    cmdutil.OpsLimit(limit),
 				Offset:   offset,
 				Includes: includes,
