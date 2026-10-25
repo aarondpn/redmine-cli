@@ -16,7 +16,11 @@ type VersionService struct {
 
 // List retrieves versions for a project. If limit is 0, all versions are fetched.
 func (s *VersionService) List(ctx context.Context, projectID string, limit, offset int) ([]models.Version, int, error) {
-	path := fmt.Sprintf("/projects/%s/versions.json", projectID)
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	path := fmt.Sprintf("/projects/%s/versions.json", seg)
 	var params url.Values
 	if offset > 0 {
 		params = url.Values{}
@@ -38,11 +42,15 @@ func (s *VersionService) Get(ctx context.Context, id int) (*models.Version, erro
 
 // Create creates a version for a project.
 func (s *VersionService) Create(ctx context.Context, projectID string, version models.VersionCreate) (*models.Version, error) {
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, err
+	}
 	body := map[string]interface{}{"version": version}
 	var resp struct {
 		Version models.Version `json:"version"`
 	}
-	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/versions.json", projectID), body, &resp); err != nil {
+	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/versions.json", seg), body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Version, nil
@@ -64,6 +72,10 @@ func (s *VersionService) Delete(ctx context.Context, id int) error {
 // (or there are no more pages). If need is 0, all matching versions are returned.
 // The hasMore return indicates whether additional matches may exist beyond what was collected.
 func (s *VersionService) ListFiltered(ctx context.Context, projectID string, need int, filter func(models.Version) bool) ([]models.Version, bool, error) {
-	path := fmt.Sprintf("/projects/%s/versions.json", projectID)
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, false, err
+	}
+	path := fmt.Sprintf("/projects/%s/versions.json", seg)
 	return FetchAllFiltered[models.Version](ctx, s.client, path, nil, "versions", need, filter)
 }

@@ -39,10 +39,14 @@ func (s *ProjectService) Get(ctx context.Context, identifier string, includes []
 	if len(includes) > 0 {
 		params.Set("include", joinStrings(includes, ","))
 	}
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return nil, err
+	}
 	var resp struct {
 		Project models.Project `json:"project"`
 	}
-	if err := s.client.Get(ctx, fmt.Sprintf("/projects/%s.json", identifier), params, &resp); err != nil {
+	if err := s.client.Get(ctx, fmt.Sprintf("/projects/%s.json", seg), params, &resp); err != nil {
 		return nil, err
 	}
 	resp.Project.NormalizeCollections()
@@ -64,31 +68,51 @@ func (s *ProjectService) Create(ctx context.Context, project models.ProjectCreat
 
 // Update updates an existing project.
 func (s *ProjectService) Update(ctx context.Context, identifier string, update models.ProjectUpdate) error {
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return err
+	}
 	body := map[string]interface{}{"project": update}
-	return s.client.Put(ctx, fmt.Sprintf("/projects/%s.json", identifier), body)
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s.json", seg), body)
 }
 
 // Delete deletes a project.
 func (s *ProjectService) Delete(ctx context.Context, identifier string) error {
-	return s.client.Delete(ctx, fmt.Sprintf("/projects/%s.json", identifier))
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return err
+	}
+	return s.client.Delete(ctx, fmt.Sprintf("/projects/%s.json", seg))
 }
 
 // Archive archives a project. Requires Redmine 5.0+.
 func (s *ProjectService) Archive(ctx context.Context, identifier string) error {
-	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/archive.json", identifier), nil)
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return err
+	}
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/archive.json", seg), nil)
 }
 
 // Unarchive unarchives a previously-archived project. Requires Redmine 5.0+.
 func (s *ProjectService) Unarchive(ctx context.Context, identifier string) error {
-	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/unarchive.json", identifier), nil)
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return err
+	}
+	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/unarchive.json", seg), nil)
 }
 
 // Members retrieves project memberships.
 func (s *ProjectService) Members(ctx context.Context, identifier string, limit, offset int) ([]models.Membership, int, error) {
+	seg, err := projectSegment(identifier)
+	if err != nil {
+		return nil, 0, err
+	}
 	var params url.Values
 	if offset > 0 {
 		params = url.Values{}
 		params.Set("offset", strconv.Itoa(offset))
 	}
-	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", identifier), params, "memberships", limit)
+	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", seg), params, "memberships", limit)
 }

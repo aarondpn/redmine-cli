@@ -29,7 +29,7 @@ func TestVersionList_RequiresProject(t *testing.T) {
 }
 
 func TestVersionList_EmptyJSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[],"total_count":0}`))
 	}))
@@ -48,7 +48,7 @@ func TestVersionList_EmptyJSON(t *testing.T) {
 }
 
 func TestVersionList_Table(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[{"id":1,"project":{"id":1,"name":"Demo"},"name":"v1.0","status":"open","due_date":"2025-07-01","sharing":"none","description":"First release","created_on":"","updated_on":""}],"total_count":1}`))
 	}))
@@ -73,7 +73,7 @@ func TestVersionList_OpenFilter(t *testing.T) {
 	// The versions endpoint returns all versions; --open triggers client-side
 	// filtering via ListFiltered. Return a mix of statuses and verify only
 	// "open" versions appear in the output.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[
 			{"id":1,"project":{"id":1,"name":"Demo"},"name":"v1.0","status":"closed","due_date":"2025-01-01","sharing":"none","description":"","created_on":"","updated_on":""},
@@ -106,7 +106,7 @@ func TestVersionList_FilteredOffsetTrim(t *testing.T) {
 	// When --open and --offset are combined, the command fetches all matching
 	// versions then trims client-side. Verify that offset=1 drops the first
 	// matched version.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[
 			{"id":1,"project":{"id":1,"name":"Demo"},"name":"v1.0","status":"open","due_date":"","sharing":"none","description":"","created_on":"","updated_on":""},
@@ -136,7 +136,7 @@ func TestVersionList_FilteredOffsetTrim(t *testing.T) {
 func TestVersionList_UnfilteredPaginationWarning(t *testing.T) {
 	// Without status filtering, the standard pagination path is used.
 	// Verify the warning when total > limit+offset.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[
 			{"id":1,"project":{"id":1,"name":"Demo"},"name":"v1.0","status":"open","due_date":"","sharing":"none","description":"","created_on":"","updated_on":""}
@@ -158,7 +158,7 @@ func TestVersionList_UnfilteredPaginationWarning(t *testing.T) {
 }
 
 func TestVersionList_ClosedFilter_JSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(withProject(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"versions":[
 			{"id":1,"project":{"id":1,"name":"Demo"},"name":"v1.0","status":"closed","due_date":"","sharing":"none","description":"","created_on":"","updated_on":""},
@@ -498,5 +498,19 @@ func TestVersionDelete_NameWithoutProjectErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--project is required") {
 		t.Errorf("error = %q, want contains '--project is required'", err.Error())
+	}
+}
+
+// withProject answers the resolver's /projects/1.json lookup with a real
+// project so the command receives a non-empty identifier, and delegates every
+// other request to h.
+func withProject(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/projects/1.json" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"project":{"id":1,"name":"Demo","identifier":"demo"}}`))
+			return
+		}
+		h(w, r)
 	}
 }

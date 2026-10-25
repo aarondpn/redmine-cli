@@ -17,7 +17,11 @@ type WikiService struct {
 
 // List retrieves the wiki page index for a project.
 func (s *WikiService) List(ctx context.Context, projectID string, limit, offset int) ([]models.WikiPageIndex, int, error) {
-	path := fmt.Sprintf("/projects/%s/wiki/index.json", url.PathEscape(projectID))
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	path := fmt.Sprintf("/projects/%s/wiki/index.json", seg)
 	var params url.Values
 	if offset > 0 {
 		params = url.Values{}
@@ -32,10 +36,14 @@ func (s *WikiService) Get(ctx context.Context, projectID, page string, includes 
 	if len(includes) > 0 {
 		params.Set("include", joinStrings(includes, ","))
 	}
+	path, err := wikiPagePath(projectID, page)
+	if err != nil {
+		return nil, err
+	}
 	var resp struct {
 		WikiPage models.WikiPage `json:"wiki_page"`
 	}
-	if err := s.client.Get(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page)), params, &resp); err != nil {
+	if err := s.client.Get(ctx, path+".json", params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.WikiPage, nil
@@ -43,10 +51,14 @@ func (s *WikiService) Get(ctx context.Context, projectID, page string, includes 
 
 // GetVersion retrieves a specific version of a wiki page.
 func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, version int) (*models.WikiPage, error) {
+	path, err := wikiPagePath(projectID, page)
+	if err != nil {
+		return nil, err
+	}
 	var resp struct {
 		WikiPage models.WikiPage `json:"wiki_page"`
 	}
-	if err := s.client.Get(ctx, fmt.Sprintf("/projects/%s/wiki/%s/%d.json", url.PathEscape(projectID), url.PathEscape(page), version), nil, &resp); err != nil {
+	if err := s.client.Get(ctx, fmt.Sprintf("%s/%d.json", path, version), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.WikiPage, nil
@@ -54,12 +66,15 @@ func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, ve
 
 // Create creates a new wiki page (or overwrites an existing one).
 func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki models.WikiPageCreate) (*models.WikiPage, error) {
+	path, err := wikiPagePath(projectID, page)
+	if err != nil {
+		return nil, err
+	}
 	body := map[string]interface{}{"wiki_page": wiki}
-	path := fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page))
 	var resp struct {
 		WikiPage models.WikiPage `json:"wiki_page"`
 	}
-	if err := s.client.doWithBody(ctx, http.MethodPut, path, body, &resp); err != nil {
+	if err := s.client.doWithBody(ctx, http.MethodPut, path+".json", body, &resp); err != nil {
 		return nil, err
 	}
 	if resp.WikiPage.Title != "" {
@@ -77,6 +92,10 @@ func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki m
 
 // Update updates an existing wiki page.
 func (s *WikiService) Update(ctx context.Context, projectID, page string, update models.WikiPageUpdate) error {
+	path, err := wikiPagePath(projectID, page)
+	if err != nil {
+		return err
+	}
 	body := map[string]interface{}{"wiki_page": update}
 	// Section selectors live at the top level of the params, not inside
 	// wiki_page (see WikiController#update). Adding them here keeps the rest
@@ -88,10 +107,28 @@ func (s *WikiService) Update(ctx context.Context, projectID, page string, update
 	if update.SectionHash != nil {
 		body["section_hash"] = *update.SectionHash
 	}
-	return s.client.Put(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page)), body)
+	return s.client.Put(ctx, path+".json", body)
 }
 
 // Delete deletes a wiki page.
 func (s *WikiService) Delete(ctx context.Context, projectID, page string) error {
-	return s.client.Delete(ctx, fmt.Sprintf("/projects/%s/wiki/%s.json", url.PathEscape(projectID), url.PathEscape(page)))
+	path, err := wikiPagePath(projectID, page)
+	if err != nil {
+		return err
+	}
+	return s.client.Delete(ctx, path+".json")
+}
+
+// wikiPagePath returns the escaped /projects/<project>/wiki/<page> prefix
+// (without the ".json" suffix) after validating both segments.
+func wikiPagePath(projectID, page string) (string, error) {
+	projectSeg, err := projectSegment(projectID)
+	if err != nil {
+		return "", err
+	}
+	pageSeg, err := wikiPageSegment(page)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("/projects/%s/wiki/%s", projectSeg, pageSeg), nil
 }

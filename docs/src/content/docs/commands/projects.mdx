@@ -18,6 +18,10 @@ The `projects` command (alias `p`) manages Redmine projects.
   <LinkCard title="members"   href="#members"   description="List members and their roles." />
 </CardGrid>
 
+<Aside type="note" title="Project identifiers">
+  Wherever a command or MCP tool takes a project identifier, it must be a Redmine identifier (such as `my-project`) or a numeric ID. Values that could change the request path (empty, `.`, `..`, or anything containing `/`, `\`, `?`, `#`, `%`, or control characters) are rejected with `invalid project identifier` before any request is sent. Commands that also accept a project name (for example `--project` on `issues create`) still resolve names containing those characters by matching against the project list.
+</Aside>
+
 ## list
 
 ```bash
