@@ -1,10 +1,14 @@
 package mcpserver
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 )
@@ -41,6 +45,11 @@ func TestDescribeAPIError(t *testing.T) {
 			wantParts: []string{"500", "boom"},
 		},
 		{
+			name:      "invalid path segment",
+			err:       fmt.Errorf("resolving project: %w", &api.InvalidPathSegmentError{Kind: "project identifier", Value: "a/b", Reason: `must not contain "/"`}),
+			wantParts: []string{"Invalid argument", `project identifier "a/b" must not contain "/"`, "not sent to Redmine"},
+		},
+		{
 			name:      "plain error",
 			err:       errors.New("network dropped"),
 			wantParts: []string{"network dropped"},
@@ -71,5 +80,50 @@ func TestToolErrSetsIsError(t *testing.T) {
 	}
 	if len(res.Content) == 0 {
 		t.Fatal("expected at least one content block")
+	}
+}
+
+// An identifier that cannot be a URL path segment never reaches Redmine;
+// the tool error says so instead of echoing the bare validation error.
+func TestGetProjectTool_InvalidIdentifier(t *testing.T) {
+	var paths []string
+	apiClient, closeTS := newTestAPIClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[],"total_count":0,"offset":0,"limit":100}`))
+	}))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_project",
+		Arguments: map[string]any{"identifier": "../users/2"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("expected a tool error, got %+v", res.Content)
+	}
+	text := asText(t, res.Content[0])
+	for _, want := range []string{"Invalid argument", `"../users/2"`, "not sent to Redmine"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("tool error %q missing %q", text, want)
+		}
+	}
+	for _, p := range paths {
+		if strings.Contains(p, "users") {
+			t.Errorf("request reached %s", p)
+		}
+	}
+}
+
+func TestResourceError_InvalidPathSegment(t *testing.T) {
+	err := resourceError("redmine://project/..", fmt.Errorf("get project: %w",
+		&api.InvalidPathSegmentError{Kind: "project identifier", Value: "..", Reason: "must not be a dot segment"}))
+	if err == nil || !strings.Contains(err.Error(), `Invalid argument: project identifier ".." must not be a dot segment`) {
+		t.Fatalf("resourceError() = %v", err)
 	}
 }

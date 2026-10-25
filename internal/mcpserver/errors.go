@@ -30,8 +30,11 @@ func toolErrFromAPI[T any](err error) (*mcp.CallToolResult, T, error) {
 // toolErrFromError returns a tool-level error for both API failures and local
 // validation/runtime failures from the ops layer.
 func toolErrFromError[T any](err error) (*mcp.CallToolResult, T, error) {
-	var ae *api.APIError
-	if errors.As(err, &ae) {
+	var (
+		ae *api.APIError
+		pe *api.InvalidPathSegmentError
+	)
+	if errors.As(err, &ae) || errors.As(err, &pe) {
 		return toolErrFromAPI[T](err)
 	}
 	return toolErr[T](err.Error())
@@ -59,6 +62,10 @@ func toolOKMsgWithValue[T any](v T, msg string) (*mcp.CallToolResult, T, error) 
 // describeAPIError converts an error from the api package to a user-facing
 // message.
 func describeAPIError(err error) string {
+	var pe *api.InvalidPathSegmentError
+	if errors.As(err, &pe) {
+		return fmt.Sprintf("Invalid argument: %s %q %s. The request was not sent to Redmine; pass the value as Redmine shows it (for a project, its identifier or numeric ID).", pe.Kind, pe.Value, pe.Reason)
+	}
 	var ae *api.APIError
 	if errors.As(err, &ae) {
 		switch {

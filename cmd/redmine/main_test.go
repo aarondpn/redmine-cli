@@ -340,6 +340,13 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			wantMsg:  "command succeeded, but --jq failed: ",
 		},
 		{
+			name:     "identifier rejected before any request",
+			args:     []string{"projects", "get", "../users/2", "-o", "json"},
+			wantJSON: true,
+			wantCode: output.ErrCodeValidationFailed,
+			wantMsg:  `invalid project identifier \"../users/2\"`,
+		},
+		{
 			name:    "table mode",
 			args:    []string{"issues", "get", "-o", "table"},
 			wantMsg: "Error: accepts 1 arg(s)",

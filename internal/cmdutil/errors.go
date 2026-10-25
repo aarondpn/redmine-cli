@@ -157,6 +157,12 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 	if errors.Is(err, api.ErrWatchersNotVisible) {
 		env.Error.Code = output.ErrCodeForbidden
 	}
+	// An identifier that cannot be used as a URL path segment is rejected
+	// before any request is sent; it is the caller's input that is invalid.
+	var pathErr *api.InvalidPathSegmentError
+	if errors.As(err, &pathErr) {
+		env.Error.Code = output.ErrCodeValidationFailed
+	}
 
 	return env
 }

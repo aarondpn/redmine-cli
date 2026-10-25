@@ -190,7 +190,10 @@ come before it:
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
 `jq_failed`, `status_not_applied`, `unknown`. Validation and conflict errors include a `details`
-array with the individual messages from Redmine. `jq_invalid` means the
+array with the individual messages from Redmine. `validation_failed` is also
+used, without `details`, when the CLI rejects an argument before sending
+anything, such as a project identifier or wiki page title that is not a
+single URL path segment (`../users/2`). `jq_invalid` means the
 `--jq` expression is empty or malformed and the command did not run;
 `jq_failed` means the `--jq` expression failed on the command's output; the
 command itself succeeded unless the message says the output was an error

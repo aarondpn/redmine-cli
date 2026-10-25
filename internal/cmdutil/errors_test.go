@@ -93,6 +93,19 @@ func TestBuildErrorEnvelope_UnknownForGenericError(t *testing.T) {
 	}
 }
 
+// A value rejected by the path-segment check is invalid input, reported
+// before any request is sent.
+func TestBuildErrorEnvelope_InvalidPathSegmentIsValidation(t *testing.T) {
+	pathErr := &api.InvalidPathSegmentError{Kind: "project identifier", Value: "../users/2", Reason: `must not contain "/"`}
+	env := BuildErrorEnvelope(fmt.Errorf("resolving project: %w", pathErr))
+	if env.Error.Code != output.ErrCodeValidationFailed {
+		t.Errorf("code = %q, want %q", env.Error.Code, output.ErrCodeValidationFailed)
+	}
+	if !strings.Contains(env.Error.Message, `invalid project identifier "../users/2"`) {
+		t.Errorf("message = %q", env.Error.Message)
+	}
+}
+
 func TestFormatError_HintRenderedOnOwnLine(t *testing.T) {
 	err := WithHint(&api.APIError{StatusCode: 422, Errors: []string{"Category cannot be blank"}}, "Look up values with 'redmine projects get demo'.")
 	msg := FormatError(err)
