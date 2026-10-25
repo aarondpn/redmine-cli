@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 		relations           bool
 		attachments         bool
 		downloadAttachments string
+		clobber             bool
 		format              string
 	)
 
@@ -34,7 +36,10 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 		Long: "Display detailed information about a specific issue.\n\n" +
 			"Use --attachments to list the issue's attachments (with their IDs, so you can\n" +
 			"download one via `redmine attachments download <id>`), or --download-attachments\n" +
-			"<dir> to download every attachment of the issue into <dir> in one step.",
+			"<dir> to download every attachment of the issue into <dir> in one step.\n\n" +
+			"Existing files in <dir> are never overwritten unless --clobber is given.\n" +
+			"Attachments of the same issue that share a filename are all kept: the first\n" +
+			"keeps its name and later ones are saved as \"<name> (attachment-<id>).<ext>\".",
 		Example: `  # Show an issue
   redmine issues get 123
 
@@ -46,6 +51,9 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 
   # Download every attachment into ./issue-123
   redmine issues get 123 --download-attachments ./issue-123
+
+  # Re-download into the same directory, replacing earlier copies
+  redmine issues get 123 --download-attachments ./issue-123 --clobber
 
   # Read a ticket fully before investigating: history, files, children, relations
   redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
@@ -92,7 +100,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 			// Side-effect: download every attachment into the target dir.
 			// Confirmations go to stderr so JSON stdout stays the issue body.
 			if downloadAttachments != "" {
-				if err := downloadIssueAttachments(ctx, client, printer, issue, downloadAttachments); err != nil {
+				if err := downloadIssueAttachments(ctx, client, printer, issue, downloadAttachments, clobber); err != nil {
 					return err
 				}
 			}
@@ -171,6 +179,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include the issue's attachments (shorthand for --include attachments)")
 	cmd.Flags().StringVar(&downloadAttachments, "download-attachments", "", "Download every attachment of the issue into the given directory")
+	cmd.Flags().BoolVar(&clobber, "clobber", false, "Overwrite existing files when using --download-attachments")
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd
@@ -178,15 +187,26 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 // downloadIssueAttachments streams every attachment of the issue into dir,
 // reporting progress to stderr (via the printer) so it never pollutes JSON
-// output on stdout.
-func downloadIssueAttachments(ctx context.Context, client *api.Client, printer output.Printer, issue *models.Issue, dir string) error {
+// output on stdout. Attachments that share a filename are given distinct
+// names (see cmdutil.UniqueAttachmentFilenames) so none overwrites another.
+// Every target is checked up front, so a conflict (an existing file without
+// clobber, or a directory) aborts the command before anything is downloaded.
+func downloadIssueAttachments(ctx context.Context, client *api.Client, printer output.Printer, issue *models.Issue, dir string, clobber bool) error {
 	if len(issue.Attachments) == 0 {
 		printer.Warning(fmt.Sprintf("Issue #%d has no attachments to download", issue.ID))
 		return nil
 	}
+	names := cmdutil.UniqueAttachmentFilenames(issue.Attachments)
+	for i := range issue.Attachments {
+		if err := cmdutil.CheckDownloadTarget(filepath.Join(dir, names[i]), clobber); err != nil {
+			att := &issue.Attachments[i]
+			return fmt.Errorf("downloading attachment %d (%s): %w", att.ID, att.Filename, err)
+		}
+	}
+	opts := cmdutil.SaveOptions{Clobber: clobber, Warn: printer.Warning}
 	for i := range issue.Attachments {
 		att := &issue.Attachments[i]
-		path, n, err := cmdutil.SaveAttachmentToDir(ctx, client, att, dir)
+		path, n, err := cmdutil.SaveAttachmentToDirAs(ctx, client, att, dir, names[i], opts)
 		if err != nil {
 			return fmt.Errorf("downloading attachment %d (%s): %w", att.ID, att.Filename, err)
 		}

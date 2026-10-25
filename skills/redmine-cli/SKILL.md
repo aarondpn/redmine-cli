@@ -98,7 +98,11 @@ about.
    stream to stdout). No `curl`, no manual API-key handling - it reuses the active
    profile's auth.
 3. **Download everything at once**: `redmine issues get <id> --download-attachments <dir>`
-   pulls every attachment of the issue into `<dir>` in one step.
+   pulls every attachment of the issue into `<dir>` in one step. Same-named
+   attachments are kept side by side (`name (attachment-<id>).ext`); read the
+   reported paths.
+   Neither command overwrites an existing file: it fails with "already exists".
+   Add `--clobber` to replace it.
 4. **Inspect metadata only** (no download): `redmine attachments get <att-id>`.
 
 After downloading an image, open/read it and use what it shows.

@@ -60,9 +60,35 @@ Aliases: `dl`, `get-file`. Streams the attachment's raw bytes to disk (or stdout
 |------|-------------|
 | `-d, --dir`    | Directory to save into, using the attachment's real filename (created if missing) |
 | `--path`       | Exact destination file path. Use `-` to stream to stdout |
+| `--clobber`    | Overwrite an existing file at the destination |
 | `-o, --output` | Confirmation format: `json` prints a result object; otherwise a human line is written to stderr |
 
 With no destination flag, the file is saved as `./<filename>` in the current directory.
+
+### Existing files and `--clobber`
+
+Downloads never overwrite an existing file unless you pass `--clobber`. This applies to `--path`, `--dir`, and the default current directory. Without it, the command fails before downloading and names the path:
+
+```text
+failed to download attachment 42: logo.png already exists; use --clobber to overwrite it
+```
+
+The bytes are first streamed into a temporary file in the destination directory and moved into place only once the download has completed. As a result:
+
+- A failed or interrupted download leaves any existing file untouched and leaves no partial file at the destination. If the process is killed mid-download, a hidden `.redmine-download-*.tmp` file may remain in the destination directory; it is safe to delete.
+- A symlink at the destination is never followed. Without `--clobber` it counts as an existing file (even when it is dangling); with `--clobber` the link itself is replaced by the downloaded file, and whatever it pointed to is left alone.
+- A directory (or other non-regular file such as a FIFO or device) at the destination is always an error, even with `--clobber`.
+- A new file gets the same permissions as any other file you create (`0644` with the usual umask `022`). With `--clobber`, a replaced regular file keeps its previous permissions.
+
+Without `--clobber`, the final step uses a hard link, which fails atomically if a file appeared at the destination while the download was running. On filesystems without hard-link support the CLI falls back to re-checking the destination and then renaming, which leaves a small window between the check and the rename.
+
+<Aside type="caution" title="Changed behavior">
+  Earlier versions silently truncated an existing file at the destination and
+  wrote through symlinks. Scripts that re-download into the same location now
+  need `--clobber`.
+</Aside>
+
+With `--dir` or the default destination the filename comes from the server. It is reduced to its base name, so it can never escape the directory. A name that starts with `.` (such as `.bashrc` or `.gitconfig`) is still saved, but a warning is printed to stderr because it may shadow a configuration file. `--path -` (stdout) is unaffected by any of this.
 
 If the server redirects the download, the redirect is followed only when it stays on the configured server's host, or goes over `https://` to a public address (for example presigned object-storage URLs such as S3). Credentials are only sent to the configured server, never to the redirect target. Redirects to plain `http://` elsewhere, from `https://` to `http://`, or to loopback, private, link-local, multicast, or unspecified addresses are refused; host names are re-checked against the address actually connected to.
 
@@ -88,6 +114,12 @@ If the server redirects the download, the redirect is followed only when it stay
   <TabItem label="Exact path">
     ```bash
     redmine attachments download 42 --path ./logo.png
+    ```
+  </TabItem>
+  <TabItem label="Overwrite">
+    ```bash
+    # Replace a copy left over from an earlier download
+    redmine attachments download 42 --dir ./downloads --clobber
     ```
   </TabItem>
   <TabItem label="Pipe to stdout">

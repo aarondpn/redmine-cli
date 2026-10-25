@@ -37,7 +37,7 @@ func TestSaveAttachmentToDir_WritesRealFilename(t *testing.T) {
 	client := newDownloadClient(t, want, http.StatusOK)
 	dir := t.TempDir()
 
-	path, n, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "report.pdf"), dir)
+	path, n, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "report.pdf"), dir, SaveOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSaveAttachmentToDir_SanitizesFilename(t *testing.T) {
 	client := newDownloadClient(t, []byte("x"), http.StatusOK)
 	dir := t.TempDir()
 
-	path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "../../../etc/evil"), dir)
+	path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "../../../etc/evil"), dir, SaveOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestSaveAttachmentToDir_FallsBackForDegenerateNames(t *testing.T) {
 			client := newDownloadClient(t, []byte("x"), http.StatusOK)
 			dir := t.TempDir()
 
-			path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, name), dir)
+			path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, name), dir, SaveOptions{})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -107,7 +107,7 @@ func TestSaveAttachmentToDir_CreatesDir(t *testing.T) {
 	client := newDownloadClient(t, []byte("data"), http.StatusOK)
 	dir := filepath.Join(t.TempDir(), "nested", "created")
 
-	path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "a.bin"), dir)
+	path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, "a.bin"), dir, SaveOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -117,12 +117,14 @@ func TestSaveAttachmentToDir_CreatesDir(t *testing.T) {
 }
 
 // TestSaveAttachmentToFile_CleansUpPartialOnError verifies a failed download
-// does not leave a truncated artifact behind.
+// does not leave a truncated artifact (or its temporary file) behind.
 func TestSaveAttachmentToFile_CleansUpPartialOnError(t *testing.T) {
 	client := newDownloadClient(t, nil, http.StatusForbidden)
-	path := filepath.Join(t.TempDir(), "partial.bin")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "partial.bin")
+	defer assertDirEntries(t, dir)
 
-	if _, err := SaveAttachmentToFile(context.Background(), client, attFor(client, "partial.bin"), path); err == nil {
+	if _, err := SaveAttachmentToFile(context.Background(), client, attFor(client, "partial.bin"), path, SaveOptions{}); err == nil {
 		t.Fatal("expected error on 403 download")
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
