@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -52,6 +53,11 @@ func TestAttachmentDownload_RefusesRedirectToInternalAddress(t *testing.T) {
 		{"ipv4-mapped private", "https://[::ffff:10.0.0.1]/internal", "non-public address"},
 		{"unspecified", "https://0.0.0.0/", "non-public address"},
 		{"multicast", "https://224.0.0.1/", "non-public address"},
+		{"carrier-grade nat", "https://100.64.0.1/", "non-public address"},
+		{"this network", "https://0.1.2.3/", "non-public address"},
+		{"benchmarking", "https://198.18.0.1/", "non-public address"},
+		{"nat64 metadata", "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/", "non-public address"},
+		{"6to4 private", "https://[2002:a00:1::1]/internal", "non-public address"},
 		{"public host over http", "http://storage.example.com/obj", "only https"},
 	}
 	for _, tt := range tests {
@@ -199,6 +205,40 @@ func TestAttachmentDownload_RefusesHTTPSDowngrade(t *testing.T) {
 	}
 }
 
+// The configured server may live in any of the blocked ranges (an intranet
+// Redmine on CGNAT or a NAT64 address); redirects within its host are still
+// followed, while the same ranges stay off-limits for every other host.
+func TestDownloadRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
+	tests := []struct {
+		server, target string
+		allowed        bool
+	}{
+		{"https://100.64.1.1", "https://100.64.1.1:8443/files/x.bin", true},
+		{"https://[64:ff9b::a00:1]", "https://[64:ff9b::a00:1]/files/x.bin", true},
+		{"https://198.18.0.10", "https://198.18.0.10/files/x.bin", true},
+		{"https://100.64.1.1", "https://100.64.1.2/files/x.bin", false},
+		{"https://redmine.example.com", "https://[2002:a00:1::1]/x.bin", false},
+		{"https://redmine.example.com", "https://[::ffff:100.64.0.1]/x.bin", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.server+" -> "+tt.target, func(t *testing.T) {
+			server, err := url.Parse(tt.server)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prev := httptest.NewRequest(http.MethodGet, tt.server+"/attachments/download/1", nil)
+			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
+			err = downloadRedirectPolicy(server)(req, []*http.Request{prev})
+			if tt.allowed && err != nil {
+				t.Fatalf("redirect refused: %v", err)
+			}
+			if !tt.allowed && (err == nil || !strings.Contains(err.Error(), "non-public address")) {
+				t.Fatalf("err = %v, want refusal of a non-public address", err)
+			}
+		})
+	}
+}
+
 func TestIsBlockedDownloadIP(t *testing.T) {
 	tests := []struct {
 		ip      string
@@ -216,9 +256,28 @@ func TestIsBlockedDownloadIP(t *testing.T) {
 		{"fc00::1", true},
 		{"fe80::1", true},
 		{"ff02::1", true},
+		{"0.1.2.3", true},
+		{"100.64.0.1", true},
+		{"100.127.255.255", true},
+		{"198.18.0.1", true},
+		{"198.19.255.255", true},
+		{"::ffff:10.0.0.1", true},
+		{"::ffff:100.64.0.1", true},
+		{"::ffff:8.8.8.8", false},
+		{"64:ff9b::7f00:1", true},    // NAT64 of 127.0.0.1
+		{"64:ff9b::a9fe:a9fe", true}, // NAT64 of 169.254.169.254
+		{"64:ff9b::808:808", false},  // NAT64 of 8.8.8.8
+		{"2002:c0a8:101::1", true},   // 6to4 of 192.168.1.1
+		{"2002:6440:1::1", true},     // 6to4 of 100.64.0.1
+		{"2002:808:808::1", false},   // 6to4 of 8.8.8.8
 		{"8.8.8.8", false},
 		{"52.216.0.1", false},
 		{"172.32.0.1", false},
+		{"100.63.255.255", false},
+		{"100.128.0.0", false},
+		{"198.17.255.255", false},
+		{"198.20.0.0", false},
+		{"1.0.0.1", false},
 		{"2600:1f18::1", false},
 	}
 	for _, tt := range tests {

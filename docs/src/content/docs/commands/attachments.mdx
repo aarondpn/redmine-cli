@@ -90,7 +90,7 @@ Without `--clobber`, the final step uses a hard link, which fails atomically if 
 
 With `--dir` or the default destination the filename comes from the server. It is reduced to its base name, so it can never escape the directory. A name that starts with `.` (such as `.bashrc` or `.gitconfig`) is still saved, but a warning is printed to stderr because it may shadow a configuration file. `--path -` (stdout) is unaffected by any of this.
 
-If the server redirects the download, the redirect is followed only when it stays on the configured server's host, or goes over `https://` to a public address (for example presigned object-storage URLs such as S3). Credentials are only sent to the configured server, never to the redirect target. Redirects to plain `http://` elsewhere, from `https://` to `http://`, or to loopback, private, link-local, multicast, or unspecified addresses are refused; host names are re-checked against the address actually connected to.
+If the server redirects the download, the redirect is followed only when it stays on the configured server's host, or goes over `https://` to a public address (for example presigned object-storage URLs such as S3). Credentials are only sent to the configured server, never to the redirect target. Redirects to plain `http://` elsewhere, from `https://` to `http://`, or to loopback, private, link-local, multicast, unspecified (`0.0.0.0/8`), carrier-grade NAT (`100.64.0.0/10`), or benchmarking (`198.18.0.0/15`) addresses are refused, including IPv6 addresses that embed one of them (IPv4-mapped, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`); host names are re-checked against the address actually connected to.
 
 <Aside>
   Unlike most commands, `-o/--output` here controls only the **confirmation**

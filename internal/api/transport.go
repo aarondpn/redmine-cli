@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -136,8 +137,8 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 // downgrade) it only follows redirects that
 //   - stay on the configured server's host (any port; credentials are still
 //     only attached to the exact configured origin), or
-//   - go to another https origin that is not a loopback, private, link-local,
-//     unspecified or multicast address. This keeps installations that offload
+//   - go to another https origin that is not a non-public address (see
+//     isBlockedDownloadIP). This keeps installations that offload
 //     attachments to object storage (e.g. S3 presigned URLs) working without
 //     turning the CLI into a proxy for internal services.
 //
@@ -163,14 +164,57 @@ func downloadRedirectPolicy(server *url.URL) func(*http.Request, []*http.Request
 	}
 }
 
+// blockedDownloadPrefixes are non-public IPv4 ranges that the net/netip
+// predicates in isBlockedDownloadAddr do not cover.
+var blockedDownloadPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),     // "this network" (RFC 1122)
+	netip.MustParsePrefix("100.64.0.0/10"), // carrier-grade NAT shared space (RFC 6598)
+	netip.MustParsePrefix("198.18.0.0/15"), // benchmarking (RFC 2544)
+}
+
+// IPv6 prefixes that embed an IPv4 address a gateway may route to.
+var (
+	nat64Prefix  = netip.MustParsePrefix("64:ff9b::/96") // NAT64 (RFC 6052), IPv4 in the last 4 bytes
+	sixToFourNet = netip.MustParsePrefix("2002::/16")    // 6to4 (RFC 3056), IPv4 in bytes 2-5
+)
+
 // isBlockedDownloadIP reports whether ip is an address an attachment redirect
 // must not reach: loopback, private (RFC 1918, RFC 4193), link-local
-// (169.254.0.0/16 including cloud metadata endpoints, fe80::/10), unspecified
-// or multicast.
+// (169.254.0.0/16 including cloud metadata endpoints, fe80::/10), unspecified,
+// multicast, 0.0.0.0/8, carrier-grade NAT (100.64.0.0/10) or benchmarking
+// (198.18.0.0/15) space. IPv6 addresses that embed an IPv4 address
+// (IPv4-mapped ::ffff:0:0/96, NAT64 64:ff9b::/96, 6to4 2002::/16) are judged
+// by the embedded address. An unparseable ip is blocked.
 func isBlockedDownloadIP(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
-		ip.IsMulticast() || ip.IsUnspecified()
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+	return isBlockedDownloadAddr(addr)
+}
+
+func isBlockedDownloadAddr(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if addr.Is6() {
+		b := addr.As16()
+		switch {
+		case nat64Prefix.Contains(addr):
+			return isBlockedDownloadAddr(netip.AddrFrom4([4]byte(b[12:16])))
+		case sixToFourNet.Contains(addr):
+			return isBlockedDownloadAddr(netip.AddrFrom4([4]byte(b[2:6])))
+		}
+	}
+	if addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() ||
+		addr.IsLinkLocalMulticast() || addr.IsInterfaceLocalMulticast() ||
+		addr.IsMulticast() || addr.IsUnspecified() {
+		return true
+	}
+	for _, p := range blockedDownloadPrefixes {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 // errBlockedAddress is returned when a download connection would reach an
