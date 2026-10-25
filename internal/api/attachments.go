@@ -40,7 +40,8 @@ func (s *AttachmentService) Get(ctx context.Context, id int) (*models.Attachment
 // The download URL is resolved from the attachment's content_url when that URL
 // is hosted on the configured Redmine server (so subdirectory installs keep
 // working), and otherwise falls back to the canonical
-// /attachments/download/:id/:filename path built from the base URL. This guard
+// /attachments/download/:id/:filename path built from the base URL (see
+// downloadURL for unsafe filenames). This guard
 // ensures the API key (added to every request by authTransport) is never sent
 // to a host other than the configured server.
 //
@@ -96,12 +97,19 @@ func (s *AttachmentService) downloadHTTPClient() *http.Client {
 }
 
 // downloadURL returns the absolute URL to stream the attachment bytes from.
-// See Download for the host-matching rationale.
+// See Download for the host-matching rationale. The server-supplied filename
+// only decorates the built path, so one that is not a safe single path
+// segment (empty, a dot segment, or containing separators) is dropped:
+// Redmine serves /attachments/download/:id without a filename as well.
 func (s *AttachmentService) downloadURL(att *models.Attachment) string {
 	if att.ContentURL != "" && strings.HasPrefix(att.ContentURL, s.client.baseURL+"/") {
 		return att.ContentURL
 	}
-	return s.client.baseURL + "/attachments/download/" + strconv.Itoa(att.ID) + "/" + url.PathEscape(att.Filename)
+	u := s.client.baseURL + "/attachments/download/" + strconv.Itoa(att.ID)
+	if name, err := pathSegment("attachment filename", att.Filename); err == nil {
+		u += "/" + name
+	}
+	return u
 }
 
 // Upload streams body (of known size) to Redmine's /uploads.json endpoint and
