@@ -67,7 +67,11 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: "~> v2"
+          # Exact version: a floating range would pick up a new (possibly
+          # compromised) GoReleaser release mid-flight. Keep in sync with
+          # ci.yml; Renovate bumps both via the custom manager.
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: "v2.19.0"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,7 +124,11 @@ jobs:
       contents: read
       id-token: write
     env:
+      # Bump version and hash together: the hash is the sha256 of
+      # mcp-publisher_linux_amd64.tar.gz from that release's checksums file.
+      # renovate: datasource=github-releases depName=modelcontextprotocol/registry
       MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -154,10 +162,15 @@ jobs:
           mv server.tmp server.json
           cat server.json
 
+      # The tarball is checked against the pinned hash before extraction, so a
+      # replaced release asset cannot run with this job's OIDC token.
       - name: Install mcp-publisher
         run: |
           set -euo pipefail
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          archive="${RUNNER_TEMP}/mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  ${archive}" | sha256sum -c -
+          tar xzf "$archive" mcp-publisher
 
       - name: Publish to MCP Registry
         run: |

@@ -26,6 +26,16 @@ Pick the install path that suits your platform. All methods produce the same `re
     curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
     ```
 
+    If the [GitHub CLI](https://cli.github.com) is installed and logged in, the script also runs `gh attestation verify` on the archive and refuses to install if the build provenance does not check out. Without `gh` it prints the command to verify the release yourself.
+
+    To install a specific release instead of the latest, set `REDMINE_VERSION` and fetch the script from that same tag:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.sh | REDMINE_VERSION=<tag> bash
+    ```
+
+    The `install.sh` of releases up to v2.14.1 ignores `REDMINE_VERSION` and installs the latest release; to pin one of those, fetch the script from `main` instead.
+
     <Aside type="tip" title="PATH">
       Make sure `~/.local/bin` is on your `PATH`. Most modern shells add it automatically.
     </Aside>
@@ -81,10 +91,10 @@ Pick the install path that suits your platform. All methods produce the same `re
 redmine update
 ```
 
-Pulls the latest release, verifies its SHA256 checksum, then replaces the running binary. See [Self-Update](/commands/other/#startup-update-check) for flags.
+Pulls the latest release, verifies its SHA256 checksum and its GitHub artifact attestation, then replaces the running binary. See [Self-Update](/commands/other/#self-update) for details and flags.
 
-<Aside type="caution" title="Checksum verification">
-  The installer and self-updater both fail closed if the release checksum does not match. Never bypass this — report any mismatch as a security issue.
+<Aside type="caution" title="Checksum and attestation verification">
+  The installer and self-updater both fail closed if the release checksum does not match. The self-updater also refuses a release without a valid attestation from this repository's release workflow, and so does the installer when `gh` is available. Never bypass a failed check — report it as a security issue.
 </Aside>
 
 ## Next

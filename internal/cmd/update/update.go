@@ -10,17 +10,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -44,21 +47,57 @@ type GithubAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+// updateOptions carries the security-relevant knobs of runUpdateWithFormat.
+type updateOptions struct {
+	// SkipAttestation downgrades verification to checksum-only.
+	SkipAttestation bool
+	// SecurityCheck reports a security-relevant condition: it warns and
+	// returns nil by default, or returns an error in strict mode. Nil means
+	// warn-only without a Factory (tests).
+	SecurityCheck func(msg string) error
+}
+
 // NewCmdUpdate creates the update command.
 func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 	var format string
+	var opts updateOptions
 
 	cmd := &cobra.Command{
 		Use:   "update",
 		Args:  cobra.NoArgs,
 		Short: "Update redmine CLI to the latest version",
-		Long:  "Check GitHub releases for a newer version and replace the current binary.",
+		Long: "Check GitHub releases for a newer version and replace the current binary.\n\n" +
+			"The downloaded archive must match the release checksums and carry a valid\n" +
+			"GitHub artifact attestation (SLSA build provenance signed via Sigstore) from\n" +
+			"this repository's release workflow for the exact release tag. The update is\n" +
+			"refused if either check fails.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpdateWithFormat(version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format))
+			opts.SecurityCheck = func(msg string) error {
+				cfg, err := f.Config()
+				if err != nil {
+					// Without a loadable config only REDMINE_STRICT can
+					// enable strict mode.
+					cfg = &config.Config{Strict: envStrict()}
+				}
+				return f.SecurityCheck(cfg, msg)
+			}
+			return runUpdateWithFormat(version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
 		},
 	}
 	cmdutil.AddOutputFlag(cmd, &format)
+	cmd.Flags().BoolVar(&opts.SkipAttestation, "skip-attestation", false,
+		"Install with checksum verification only, skipping the attestation check (not recommended; rejected in strict mode)")
 	return cmd
+}
+
+// envStrict mirrors the REDMINE_STRICT parsing of the config package.
+func envStrict() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("REDMINE_STRICT"))) {
+	case "0", "false", "no", "off", "":
+		return false
+	default:
+		return true
+	}
 }
 
 // checkHomebrew and upgradeHomebrew are package-level functions to allow
@@ -145,7 +184,10 @@ func defaultUpgradeHomebrew(stdout, stderr io.Writer) error {
 
 var fetchRelease = FetchLatestRelease
 
-func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer) error {
+// resolveInstallPath is a variable so tests can install into a temp file.
+var resolveInstallPath = installPath
+
+func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer, opts updateOptions) error {
 	if checkHomebrew() {
 		outdated, err := checkHomebrewOutdated()
 		if err != nil {
@@ -167,6 +209,17 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 		}
 		printer.Action(output.ActionUpdated, "cli", "homebrew", "Updated redmine via Homebrew")
 		return nil
+	}
+
+	if opts.SkipAttestation {
+		msg := "--skip-attestation: the update will only be verified against the release checksums, which come from the same place as the archive; a tampered release would NOT be detected"
+		if opts.SecurityCheck != nil {
+			if err := opts.SecurityCheck(msg); err != nil {
+				return err
+			}
+		} else {
+			fmt.Fprintf(stderr, "warning: %s\n", msg)
+		}
 	}
 
 	logStep(printer, stderr, "Current version: %s\n", currentVersion)
@@ -203,7 +256,7 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 		return fmt.Errorf("checksums asset %q not found in release %s; refusing to install unverified binary", checksumsName, release.TagName)
 	}
 
-	execPath, err := installPath()
+	execPath, err := resolveInstallPath(release.TagName)
 	if err != nil {
 		return err
 	}
@@ -220,6 +273,14 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
+	if !opts.SkipAttestation {
+		logLine(printer, stderr, "Verifying attestation...")
+		digest := sha256.Sum256(archiveData)
+		if err := verifyAttestation(context.Background(), digest[:], release.TagName); err != nil {
+			return err
+		}
+	}
+
 	binaryData, err := extractBinary(archiveData, assetName)
 	if err != nil {
 		return fmt.Errorf("failed to extract binary: %w", err)
@@ -232,6 +293,23 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 	printer.Action(output.ActionUpdated, "cli", release.TagName,
 		fmt.Sprintf("Updated successfully: %s -> %s", currentVersion, release.TagName))
 	return nil
+}
+
+// verifyAttestation runs the attestation check and turns its outcome into the
+// user-facing error. Every failure refuses the install; only an unreachable
+// attestations API or TUF repository points at --skip-attestation.
+func verifyAttestation(ctx context.Context, digest []byte, tag string) error {
+	err := newAttestationVerifier().Verify(ctx, digest, tag)
+	if err == nil {
+		return nil
+	}
+	var unavailable *attestationUnavailableError
+	if errors.As(err, &unavailable) {
+		return fmt.Errorf("attestation verification failed: %w\n\n"+
+			"Could not reach GitHub or the Sigstore TUF repository to verify the release attestation; refusing to install.\n"+
+			"Retry later, or re-run with --skip-attestation to install with checksum verification only (not recommended; rejected in strict mode).", err)
+	}
+	return fmt.Errorf("attestation verification failed: %w; refusing to install %s", err, tag)
 }
 
 func logLine(printer output.Printer, w io.Writer, msg string) {
@@ -387,8 +465,9 @@ func extractFromZipReader(r io.ReaderAt, size int64) ([]byte, error) {
 }
 
 // installPath returns the resolved path of the current binary, or an error
-// if the directory is not writable by the current user.
-func installPath() (string, error) {
+// if the directory is not writable by the current user. tag selects the
+// install.sh revision suggested in that error.
+func installPath(tag string) (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("failed to find current executable: %w", err)
@@ -401,19 +480,38 @@ func installPath() (string, error) {
 	dir := filepath.Dir(execPath)
 	tmp, err := os.CreateTemp(dir, ".redmine-write-test-*")
 	if err != nil {
-		return "", fmt.Errorf(
-			"cannot update: %s is not writable\n\n"+
-				"Reinstall to a user-writable location:\n"+
-				"  curl -fsSL https://raw.githubusercontent.com/%s/%s/main/install.sh | bash\n\n"+
-				"Or download manually from:\n"+
-				"  https://github.com/%s/%s/releases/latest",
-			dir, RepoOwner, RepoName, RepoOwner, RepoName,
-		)
+		return "", notWritableError(dir, tag)
 	}
 	tmp.Close()
 	os.Remove(tmp.Name())
 
 	return execPath, nil
+}
+
+// safeTagPattern matches release tags that are safe to embed in a suggested
+// shell command and URL path.
+var safeTagPattern = regexp.MustCompile(`^v[0-9A-Za-z][0-9A-Za-z.+-]*$`)
+
+// notWritableError explains how to reinstall when the binary's directory is
+// not writable. The suggested install.sh is pinned to the release tag rather
+// than the mutable main branch.
+func notWritableError(dir, tag string) error {
+	if !safeTagPattern.MatchString(tag) {
+		return fmt.Errorf(
+			"cannot update: %s is not writable\n\n"+
+				"Reinstall to a user-writable location by downloading from:\n"+
+				"  https://github.com/%s/%s/releases/latest",
+			dir, RepoOwner, RepoName,
+		)
+	}
+	return fmt.Errorf(
+		"cannot update: %s is not writable\n\n"+
+			"Reinstall to a user-writable location:\n"+
+			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_VERSION=%s bash\n\n"+
+			"Or download manually from:\n"+
+			"  https://github.com/%s/%s/releases/tag/%s",
+		dir, RepoOwner, RepoName, tag, tag, RepoOwner, RepoName, tag,
+	)
 }
 
 func replaceBinary(execPath string, newBinary []byte) error {

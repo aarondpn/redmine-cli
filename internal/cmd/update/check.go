@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -92,9 +93,29 @@ func CheckForUpdate(ctx context.Context, currentVersion string) *CheckResult {
 	}
 }
 
-// PrintNotice writes an update notice to w.
+// releasePagePrefix is the only URL prefix an update notice may link to.
+const releasePagePrefix = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/"
+
+var (
+	// safeVersionPattern matches a normalized release version such as
+	// "2.14.1" or "3.0.0-rc.1".
+	safeVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]*)?$`)
+	// safeReleaseURLPattern only accepts a single release tag page. It also
+	// rules out whitespace and control characters (terminal escape
+	// sequences), and dot segments ("releases/../../other/repo") that a
+	// browser would resolve outside this repository's releases.
+	safeReleaseURLPattern = regexp.MustCompile(`^` + regexp.QuoteMeta(releasePagePrefix) + `tag/[0-9A-Za-z][0-9A-Za-z.+-]*$`)
+)
+
+// validNotice reports whether a version and release URL are safe to print.
+func validNotice(version, releaseURL string) bool {
+	return safeVersionPattern.MatchString(version) && safeReleaseURLPattern.MatchString(releaseURL)
+}
+
+// PrintNotice writes an update notice to w. Results whose version or release
+// URL do not look like a release of this repository are not printed.
 func PrintNotice(w io.Writer, currentVersion string, result *CheckResult) {
-	if result == nil {
+	if result == nil || !validNotice(result.NewVersion, result.ReleaseURL) {
 		return
 	}
 	current := strings.TrimPrefix(currentVersion, "v")
@@ -120,15 +141,30 @@ func normalizeVersion(version string) string {
 	return strings.TrimPrefix(version, "v")
 }
 
+// maxCacheBytes bounds the cache file read; a valid entry is a few hundred
+// bytes.
+const maxCacheBytes = 64 << 10
+
+// maxCacheClockSkew tolerates small clock differences when rejecting cache
+// entries timestamped in the future.
+const maxCacheClockSkew = 5 * time.Minute
+
 // readCache loads the update check cache from disk.
-// Returns nil if the file does not exist or is corrupt.
+// Returns nil if the file does not exist, is corrupt, or fails validation.
+// The file lives in the home directory and may have been written by someone
+// else, so it is treated as untrusted input.
 func readCache() *updateCheckCache {
 	path := cachePath()
 	if path == "" {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxCacheBytes+1))
+	if err != nil || len(data) > maxCacheBytes {
 		return nil
 	}
 
@@ -136,18 +172,34 @@ func readCache() *updateCheckCache {
 	if err := json.Unmarshal(data, &cache); err != nil {
 		return nil
 	}
+	if !cache.valid(time.Now()) {
+		return nil
+	}
 
 	return &cache
 }
 
-// writeCache saves the update check cache to disk.
-// Errors are silently ignored.
+// valid reports whether a decoded cache entry is well-formed: a plausible
+// timestamp (a future one would pin the entry forever), the versions it
+// compares, and a release URL pointing at this repository's releases.
+func (c *updateCheckCache) valid(now time.Time) bool {
+	if c.CheckedAt.IsZero() || c.CheckedAt.After(now.Add(maxCacheClockSkew)) {
+		return false
+	}
+	if c.CheckedFromVersion == "" {
+		return false
+	}
+	return validNotice(c.LatestVersion, c.ReleaseURL)
+}
+
+// writeCache saves the update check cache to disk, readable only by the
+// current user. Errors are silently ignored.
 func writeCache(cache *updateCheckCache) {
 	path := cachePath()
 	if path == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return
 	}
 
@@ -156,9 +208,12 @@ func writeCache(cache *updateCheckCache) {
 		return
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return
 	}
+	// WriteFile keeps the mode of an existing file; tighten caches created
+	// by older versions with 0644.
+	_ = os.Chmod(path, 0o600)
 }
 
 // CheckForUpdateCached checks GitHub for a newer release, caching the result
@@ -216,6 +271,10 @@ func CheckForUpdateCached(ctx context.Context, currentVersion string) *CheckResu
 	latestVersion := normalizeVersion(release.TagName)
 	updateAvailable := IsNewer(latestVersion, currentClean)
 	releaseURL := fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", RepoOwner, RepoName, release.TagName)
+	if !validNotice(latestVersion, releaseURL) {
+		// Unexpected tag format: neither cache nor print it.
+		return nil
+	}
 
 	// Persist the cache entry (even when no update available).
 	writeCache(&updateCheckCache{
