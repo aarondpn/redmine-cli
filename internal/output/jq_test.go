@@ -244,3 +244,41 @@ func TestStdPrinter_JQRuntimeErrorReported(t *testing.T) {
 		t.Fatalf("expected empty stdout, got %q", out.String())
 	}
 }
+
+func TestJQFilter_EnvAccess(t *testing.T) {
+	t.Setenv("REDMINE_JQ_TEST_SECRET", "s3cret")
+
+	tests := []struct {
+		name     string
+		noEnvVar string
+		without  bool
+		want     string
+	}{
+		{name: "env is readable by default", want: "s3cret\n"},
+		{name: "REDMINE_JQ_NO_ENV=0 keeps env", noEnvVar: "0", want: "s3cret\n"},
+		{name: "WithoutEnv hides env", without: true, want: "null\n"},
+		{name: "REDMINE_JQ_NO_ENV=1 hides env", noEnvVar: "1", want: "null\n"},
+		{name: "REDMINE_JQ_NO_ENV=true hides env", noEnvVar: "true", want: "null\n"},
+	}
+	for _, tt := range tests {
+		for _, expr := range []string{"env.REDMINE_JQ_TEST_SECRET", "$ENV.REDMINE_JQ_TEST_SECRET"} {
+			t.Run(tt.name+"/"+expr, func(t *testing.T) {
+				t.Setenv(JQNoEnvVar, tt.noEnvVar)
+				q, err := CompileJQ(expr)
+				if err != nil {
+					t.Fatalf("CompileJQ(%q): %v", expr, err)
+				}
+				if tt.without {
+					q = q.WithoutEnv()
+				}
+				var buf bytes.Buffer
+				if err := q.Evaluate(&buf, map[string]any{}, false); err != nil {
+					t.Fatalf("Evaluate: %v", err)
+				}
+				if buf.String() != tt.want {
+					t.Errorf("Evaluate(%q) = %q, want %q", expr, buf.String(), tt.want)
+				}
+			})
+		}
+	}
+}

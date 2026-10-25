@@ -462,6 +462,8 @@ Constructs the issue URL from your configured Redmine server and opens it in you
 redmine issues open 123   # → https://redmine.example.com/issues/123
 ```
 
+The URL must be an absolute `http` or `https` URL; anything else is refused. The browser is launched with `open` (macOS), `xdg-open` (Linux and BSD) or `rundll32 url.dll,FileProtocolHandler` (Windows), never through a shell.
+
 ## browse
 
 ```bash

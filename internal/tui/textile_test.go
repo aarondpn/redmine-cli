@@ -139,3 +139,26 @@ func stripANSI(s string) string {
 	}
 	return out.String()
 }
+
+func TestRenderDescription_CharacterReferencesStayInert(t *testing.T) {
+	// Markdown decodes character references, so sanitizing the input alone
+	// would let "&#x1b;" turn back into ESC after rendering.
+	for _, in := range []string{
+		"Hello &#x1b;]52;c;ZXZpbA==&#x07; world",
+		"a &#27;[2J b",
+		"x &#x9b;31m y",
+		"z &#x202e;abc",
+		"<pre>&#x1b;]8;;https://evil.example/&#x1b;\\</pre>",
+		"h1. &#x1b;]0;title&#7;",
+	} {
+		out := RenderDescription(in, 80)
+		for _, bad := range []string{"\x1b]", "\x07", "\x1b[2J", "\u009b", "\u202E"} {
+			if strings.Contains(out, bad) {
+				t.Errorf("RenderDescription(%q) contains %q: %q", in, bad, out)
+			}
+		}
+	}
+	if out := RenderDescription("Hello &#x1b;]52;c;ZXZpbA==&#x07; world", 80); !strings.Contains(out, "^[]52;c;ZXZpbA==^G") {
+		t.Errorf("expected the decoded sequence as visible text, got %q", out)
+	}
+}

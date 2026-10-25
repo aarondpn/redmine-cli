@@ -154,7 +154,10 @@ func (f *Factory) Printer(format string) output.Printer {
 		// can see the effective format.
 		f.OutputFormat = format
 	}
-	if cfg, err := f.Config(); err == nil {
+	// A config error is surfaced by the command itself; the printer then
+	// falls back to the defaults (cfg is nil on error).
+	cfg, _ := f.Config()
+	if cfg != nil {
 		noColor = noColor || cfg.NoColor
 		if format == "" {
 			format = cfg.OutputFormat
@@ -166,9 +169,19 @@ func (f *Factory) Printer(format string) output.Printer {
 	if noColor {
 		os.Setenv("NO_COLOR", "1")
 	}
+	strict := cfg != nil && cfg.Strict
 	p := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
+	// Strict mode neutralizes CSV formula cells; otherwise they are written
+	// verbatim with a one-time warning.
+	p.SetCSVFormulaGuard(strict, func(msg string) {
+		_ = f.SecurityCheck(cfg, msg)
+	})
 	if f.JQ != nil && p.Format() == output.FormatJSON {
-		p.SetJQ(f.JQ, f.recordJQError)
+		q := f.JQ
+		if strict {
+			q = q.WithoutEnv()
+		}
+		p.SetJQ(q, f.recordJQError)
 	}
 	return p
 }

@@ -118,6 +118,11 @@ How it behaves:
   `stdout`.
 - Errors are never filtered: a failed command writes its error envelope to
   `stderr` as-is.
+- The expression can read the process environment through `env` and `$ENV`.
+  In [strict mode](#security-hardening) (`strict: true` or `REDMINE_STRICT=1`),
+  or with `REDMINE_JQ_NO_ENV=1`, both evaluate to `{}` instead. Set
+  `REDMINE_JQ_NO_ENV=1` in wrappers that pass jq expressions from an
+  untrusted source, so they cannot read secrets such as `REDMINE_API_KEY`.
 
 <Aside type="note">
   Plain `-o json` pairs just as well with an external `jq`. In JSON mode the
@@ -261,6 +266,38 @@ output_format: table
 
 The `-o` flag always overrides the default for a single command, and `--jq`
 always selects JSON.
+
+## Security hardening
+
+Anyone who can edit an issue, wiki page or name on your Redmine controls part
+of what the CLI prints. The output layer treats that text as untrusted:
+
+- **Terminal output.** Tables, detail views, journals, status messages,
+  errors and the interactive browsers (`issues browse`, `search browse`)
+  neutralize terminal control characters in server data. Escape sequences
+  are shown as visible text (ESC as `^[`, BEL as `^G`, a stray carriage
+  return as `^M`), C1 controls as `\u009b`-style escapes, and invisible bidi
+  override characters are removed, so a crafted subject cannot set your
+  clipboard, plant hyperlinks, move the cursor or overwrite lines. Regular
+  Unicode (accents, CJK, emoji) is unaffected. JSON, CSV, `--jq` results,
+  `redmine api` bodies and attachment downloads are written byte for byte.
+- **CSV.** Cells that start with `=`, `+`, `-`, `@`, a tab or a carriage
+  return may be evaluated as formulas when the file is opened in a
+  spreadsheet app. By default the CSV stays unchanged and a single warning is
+  printed to `stderr`; in strict mode those cells are prefixed with a single
+  quote (`'`) so spreadsheets treat them as text. Plain numbers such as
+  `-1.5` are never flagged or changed.
+- **`--jq` and the environment.** `env` / `$ENV` work by default. Strict mode
+  or `REDMINE_JQ_NO_ENV=1` hides the environment from the expression.
+- **Opening links.** `issues open` and the open key in the interactive
+  browsers only launch absolute `http`/`https` URLs, never strings starting
+  with `-`, and never through a shell (Windows uses
+  `rundll32 url.dll,FileProtocolHandler`). Issue search results are opened
+  on your configured server. A link to any other host is shown in full in
+  the status line and only opened when you press `o` a second time.
+
+Strict mode is enabled per profile with `strict: true` in the config file, or
+for a single shell with `REDMINE_STRICT=1`.
 
 ## Related
 

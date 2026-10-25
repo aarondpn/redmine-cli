@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 var (
@@ -121,7 +123,10 @@ func convertInline(line string) string {
 	return line
 }
 
-// RenderDescription converts textile markup to styled terminal output.
+// RenderDescription converts textile markup to styled terminal output. The
+// result keeps glamour's colors but no other escape sequences: Markdown
+// decodes character references such as "&#x1b;", so control characters can
+// reappear in the rendered output even when the input was sanitized.
 func RenderDescription(textile string, width int) string {
 	if width < 10 {
 		width = 10
@@ -134,15 +139,15 @@ func RenderDescription(textile string, width int) string {
 		glamour.WithWordWrap(width),
 	)
 	if err != nil {
-		return wordWrap(textile, width)
+		return output.SanitizeTerminal(wordWrap(textile, width))
 	}
 
 	out, err := r.Render(md)
 	if err != nil {
-		return wordWrap(textile, width)
+		return output.SanitizeTerminal(wordWrap(textile, width))
 	}
 
-	return strings.TrimRight(out, "\n")
+	return output.SanitizeStyled(strings.TrimRight(out, "\n"))
 }
 
 // wordWrap is a simple fallback wrapper.

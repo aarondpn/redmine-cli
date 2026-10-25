@@ -149,7 +149,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 				fmt.Println()
 				for _, j := range issue.Journals {
 					if j.Notes != "" {
-						fmt.Printf("--- %s (%s) ---\n%s\n\n", j.User.Name, j.CreatedOn, j.Notes)
+						fmt.Printf("--- %s (%s) ---\n%s\n\n", output.SanitizeTerminal(j.User.Name), output.SanitizeTerminal(j.CreatedOn), output.SanitizeTerminal(j.Notes))
 					}
 				}
 			}

@@ -153,3 +153,39 @@ func TestOpenInvalidID(t *testing.T) {
 		t.Fatal("expected error for non-numeric ID")
 	}
 }
+
+func TestOpenRejectsUnsafeServerURL(t *testing.T) {
+	for _, server := range []string{"-aNoSuchApp", "file:///etc", "javascript:alert(1)//", "redmine.example.com"} {
+		t.Run(server, func(t *testing.T) {
+			called := false
+			origOpen := openBrowser
+			t.Cleanup(func() { openBrowser = origOpen })
+			openBrowser = func(url string) error {
+				called = true
+				return nil
+			}
+
+			cfgPath := t.TempDir() + "/config.yaml"
+			if err := os.WriteFile(cfgPath, []byte("server: \""+server+"\"\napi_key: test\nauth_method: apikey\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			f := &cmdutil.Factory{
+				ConfigPath: cfgPath,
+				IOStreams: &cmdutil.IOStreams{
+					In:     os.Stdin,
+					Out:    &bytes.Buffer{},
+					ErrOut: &bytes.Buffer{},
+				},
+			}
+
+			cmd := NewCmdOpen(f)
+			cmd.SetArgs([]string{"1"})
+			if err := cmd.Execute(); err == nil {
+				t.Fatal("expected an error for an unsafe URL")
+			}
+			if called {
+				t.Fatal("browser must not be launched for an unsafe URL")
+			}
+		})
+	}
+}

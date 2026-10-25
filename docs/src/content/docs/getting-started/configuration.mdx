@@ -126,6 +126,8 @@ export REDMINE_NO_KEYRING=1
 
 # wait up to 5 minutes for the server to start responding (default 120s, 0 disables)
 export REDMINE_HTTP_TIMEOUT=5m
+# hide the environment from --jq expressions (env / $ENV evaluate to {})
+export REDMINE_JQ_NO_ENV=1
 ```
 
 See [Self-Update](/commands/other/#startup-update-check) for details on the update check.

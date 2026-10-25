@@ -203,26 +203,26 @@ func printResults(printer output.Printer, results []models.SearchResult, total, 
 }
 
 // typeStyle returns a color style based on the result type.
-func typeStyle(t string) lipgloss.Style {
+func typeStyle(t string) output.Style {
 	switch strings.ToLower(t) {
 	case "issue":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("12")))
 	case "issue-closed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("8")))
 	case "news":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("11")))
 	case "wiki-page":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("13"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("13")))
 	case "changeset":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("10")))
 	case "message":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("14")))
 	case "project":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("6")))
 	case "document":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("3")))
 	default:
-		return lipgloss.NewStyle()
+		return output.NewStyle(lipgloss.NewStyle())
 	}
 }
 

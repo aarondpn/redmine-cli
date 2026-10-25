@@ -2,8 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -13,11 +11,27 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/browser"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
-// clearStatusMsg is sent after a timeout to clear the status message.
-type clearStatusMsg struct{}
+// clearStatusMsg is sent after a timeout to clear the status message. seq
+// identifies the status it belongs to, so an older timer cannot clear a
+// newer message (or a pending open confirmation).
+type clearStatusMsg struct {
+	seq int
+}
+
+// openURL launches a URL in the default browser. It is a variable so tests
+// can stub it.
+var openURL = func(rawURL string) error {
+	cmd, err := browser.Command(rawURL)
+	if err != nil {
+		return err
+	}
+	return cmd.Start()
+}
 
 // field is a key-value pair displayed in the detail header.
 type field struct {
@@ -35,9 +49,13 @@ type DetailPane struct {
 	width         int
 	height        int
 	statusMsg     string
+	statusSeq     int
 	serverURL     string
 	issueID       int
 	issueURL      string
+	// confirmURL is the off-server URL the user was asked to confirm by
+	// pressing the open key a second time.
+	confirmURL string
 }
 
 var (
@@ -81,6 +99,7 @@ func (d *DetailPane) contentWidth() int {
 // SetIssueContent builds and sets the content for an issue.
 func (d *DetailPane) SetIssueContent(issue *models.Issue) {
 	d.issueID = issue.ID
+	d.confirmURL = ""
 	if d.serverURL != "" {
 		d.issueURL = fmt.Sprintf("%s/issues/%d", strings.TrimRight(d.serverURL, "/"), issue.ID)
 	}
@@ -115,7 +134,8 @@ func (d *DetailPane) SetIssueContent(issue *models.Issue) {
 // SetSearchContent builds and sets the content for a search result.
 func (d *DetailPane) SetSearchContent(result *models.SearchResult) {
 	d.issueID = result.ID
-	d.issueURL = result.URL
+	d.issueURL = searchResultURL(d.serverURL, result)
+	d.confirmURL = ""
 
 	d.title = result.Title
 
@@ -128,7 +148,7 @@ func (d *DetailPane) SetSearchContent(result *models.SearchResult) {
 		{"ID", fmt.Sprintf("%d", result.ID)},
 		{"Type", result.Type},
 		{"Date", date},
-		{"URL", result.URL},
+		{"URL", d.issueURL},
 	}
 
 	d.selectedField = 0
@@ -144,7 +164,7 @@ func (d *DetailPane) setViewportContent(description string) {
 
 	var content string
 	if description != "" {
-		content = RenderDescription(description, cw)
+		content = RenderDescription(output.SanitizeTerminal(description), cw)
 	}
 
 	// Viewport height = total height - border/padding (4) - title (2) - fields - description label (2) - footer (1)
@@ -162,7 +182,10 @@ func (d *DetailPane) setViewportContent(description string) {
 func (d *DetailPane) Update(msg tea.Msg, keys KeyMap) tea.Cmd {
 	switch msg := msg.(type) {
 	case clearStatusMsg:
-		d.statusMsg = ""
+		if msg.seq == d.statusSeq {
+			d.statusMsg = ""
+			d.confirmURL = ""
+		}
 		return nil
 
 	case tea.KeyMsg:
@@ -215,47 +238,31 @@ func (d *DetailPane) Update(msg tea.Msg, keys KeyMap) tea.Cmd {
 			return nil
 
 		case key.Matches(msg, keys.OpenBrowser):
-			if d.issueURL != "" {
-				if err := openURL(d.issueURL); err != nil {
-					d.statusMsg = "Failed to open browser"
-				} else {
-					d.statusMsg = "Opened in browser"
-				}
-				return clearStatusAfter(2 * time.Second)
-			}
-			d.statusMsg = "No URL available"
-			return clearStatusAfter(2 * time.Second)
+			return d.openInBrowser(keys)
 
 		case key.Matches(msg, keys.CopyID):
 			id := fmt.Sprintf("#%d", d.issueID)
 			if err := clipboard.WriteAll(id); err != nil {
-				d.statusMsg = "Copy failed"
-			} else {
-				d.statusMsg = fmt.Sprintf("Copied %s", id)
+				return d.setStatus("Copy failed", 2*time.Second)
 			}
-			return clearStatusAfter(2 * time.Second)
+			return d.setStatus(fmt.Sprintf("Copied %s", id), 2*time.Second)
 
 		case key.Matches(msg, keys.CopyURL):
 			if d.issueURL == "" {
-				d.statusMsg = "No URL available"
-				return clearStatusAfter(2 * time.Second)
+				return d.setStatus("No URL available", 2*time.Second)
 			}
 			if err := clipboard.WriteAll(d.issueURL); err != nil {
-				d.statusMsg = "Copy failed"
-			} else {
-				d.statusMsg = "Copied URL"
+				return d.setStatus("Copy failed", 2*time.Second)
 			}
-			return clearStatusAfter(2 * time.Second)
+			return d.setStatus("Copied URL", 2*time.Second)
 
 		case key.Matches(msg, keys.Enter):
 			if inFields {
 				f := d.fields[d.selectedField]
 				if err := clipboard.WriteAll(f.value); err != nil {
-					d.statusMsg = "Copy failed"
-				} else {
-					d.statusMsg = fmt.Sprintf("Copied %s", f.key)
+					return d.setStatus("Copy failed", 2*time.Second)
 				}
-				return clearStatusAfter(2 * time.Second)
+				return d.setStatus(fmt.Sprintf("Copied %s", f.key), 2*time.Second)
 			}
 			return nil
 		}
@@ -277,7 +284,7 @@ func (d *DetailPane) ViewFocused(focused bool) string {
 	var b strings.Builder
 
 	// Title (truncated to one line)
-	title := d.title
+	title := output.SanitizeTerminal(d.title)
 	if len(title) > cw {
 		title = title[:cw-1] + "…"
 	}
@@ -290,7 +297,7 @@ func (d *DetailPane) ViewFocused(focused bool) string {
 		maxValWidth = 10
 	}
 	for i, f := range d.fields {
-		value := f.value
+		value := output.SanitizeTerminal(f.value)
 		if len(value) > maxValWidth {
 			value = value[:maxValWidth-1] + "…"
 		}
@@ -333,19 +340,55 @@ func (d *DetailPane) ViewFocused(focused bool) string {
 	)
 }
 
-func clearStatusAfter(d time.Duration) tea.Cmd {
-	return tea.Tick(d, func(time.Time) tea.Msg {
-		return clearStatusMsg{}
+// setStatus shows msg in the footer and clears it after timeout. A new
+// status replaces any pending open confirmation.
+func (d *DetailPane) setStatus(msg string, timeout time.Duration) tea.Cmd {
+	d.statusMsg = msg
+	d.confirmURL = ""
+	d.statusSeq++
+	seq := d.statusSeq
+	return tea.Tick(timeout, func(time.Time) tea.Msg {
+		return clearStatusMsg{seq: seq}
 	})
 }
 
-func openURL(url string) error {
-	switch runtime.GOOS {
-	case "darwin":
-		return exec.Command("open", url).Start()
-	case "linux":
-		return exec.Command("xdg-open", url).Start()
-	default:
-		return exec.Command("open", url).Start()
+// openInBrowser opens the current URL. URLs that are not plain http(s)
+// links are refused, and a URL on a host other than the configured server
+// is only opened after the user saw it and pressed the open key again.
+func (d *DetailPane) openInBrowser(keys KeyMap) tea.Cmd {
+	if d.issueURL == "" {
+		return d.setStatus("No URL available", 2*time.Second)
 	}
+	shown := output.SanitizeTerminal(d.issueURL)
+	u, err := browser.ValidateURL(d.issueURL)
+	if err != nil {
+		return d.setStatus("Refusing to open unsafe URL: "+shown, 5*time.Second)
+	}
+	if !browser.SameHost(u, d.serverURL) && d.confirmURL != d.issueURL {
+		// Name the host explicitly: a URL such as
+		// https://redmine.example.com@evil.example/ reads like the server.
+		prompt := fmt.Sprintf("Link leaves the Redmine server for %s: %s (press %s again to open)",
+			output.SanitizeTerminal(u.Host), shown, keys.OpenBrowser.Help().Key)
+		cmd := d.setStatus(prompt, 5*time.Second)
+		d.confirmURL = d.issueURL
+		return cmd
+	}
+	d.confirmURL = ""
+	if err := openURL(d.issueURL); err != nil {
+		return d.setStatus("Failed to open browser", 2*time.Second)
+	}
+	return d.setStatus("Opened in browser", 2*time.Second)
+}
+
+// searchResultURL returns the URL to open for a search result. Issue results
+// link to the issue on the configured server; everything else falls back to
+// the URL the server reported, which openInBrowser validates.
+func searchResultURL(serverURL string, result *models.SearchResult) string {
+	if serverURL != "" && result.ID > 0 {
+		switch result.Type {
+		case "issue", "issue-closed":
+			return fmt.Sprintf("%s/issues/%d", strings.TrimRight(serverURL, "/"), result.ID)
+		}
+	}
+	return result.URL
 }

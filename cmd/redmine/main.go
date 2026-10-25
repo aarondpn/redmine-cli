@@ -102,7 +102,9 @@ func renderError(w io.Writer, err error, format string) {
 		_ = output.RenderErrorJSON(w, env)
 		return
 	}
-	fmt.Fprintf(w, "Error: %s\n", cmdutil.FormatError(err))
+	// Error messages can carry server-controlled text (validation errors,
+	// names), so neutralize terminal control sequences.
+	fmt.Fprintf(w, "Error: %s\n", output.SanitizeTerminal(cmdutil.FormatError(err)))
 }
 
 func waitForStartupUpdate(w io.Writer, currentVersion string, updateDone <-chan *update.CheckResult, cancel context.CancelFunc, hintDelay, maxWait time.Duration) {

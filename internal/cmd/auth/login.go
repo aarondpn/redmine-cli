@@ -206,7 +206,7 @@ func runLogin(f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSe
 			huh.NewOption("(none)", ""),
 		}
 		for _, p := range projects {
-			options = append(options, huh.NewOption(p.Name, p.Identifier))
+			options = append(options, huh.NewOption(output.SanitizeTerminal(p.Name), p.Identifier))
 		}
 
 		_ = huh.NewForm(

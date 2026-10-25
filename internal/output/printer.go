@@ -46,6 +46,11 @@ type StdPrinter struct {
 	// jq, when set, filters every JSON document before it reaches out.
 	jq        *JQFilter
 	onJQError func(error)
+
+	// neutralizeFormulas prefixes CSV formula cells with a single quote;
+	// otherwise onFormulaCells is told about them and output stays verbatim.
+	neutralizeFormulas bool
+	onFormulaCells     func(msg string)
 }
 
 // NewStdPrinter creates a new StdPrinter.
@@ -78,6 +83,15 @@ func (p *StdPrinter) SetJQ(q *JQFilter, onErr func(error)) {
 	p.onJQError = onErr
 }
 
+// SetCSVFormulaGuard configures how CSV output handles cells that
+// spreadsheet apps may evaluate as formulas (see IsFormulaCell). With
+// neutralize the cells are prefixed with a single quote; otherwise the
+// output is written verbatim and warn, if set, receives CSVFormulaWarning.
+func (p *StdPrinter) SetCSVFormulaGuard(neutralize bool, warn func(msg string)) {
+	p.neutralizeFormulas = neutralize
+	p.onFormulaCells = warn
+}
+
 // writeJSON is the single point where JSON output reaches stdout.
 func (p *StdPrinter) writeJSON(v any) {
 	if p.jq == nil {
@@ -95,12 +109,14 @@ func (p *StdPrinter) Table(headers []string, rows [][]string) {
 
 func (p *StdPrinter) Detail(pairs []KeyValue) {
 	maxKeyLen := 0
-	for _, kv := range pairs {
-		if len(kv.Key) > maxKeyLen {
-			maxKeyLen = len(kv.Key)
+	clean := make([]KeyValue, len(pairs))
+	for i, kv := range pairs {
+		clean[i] = KeyValue{Key: sanitizeValue(kv.Key), Value: sanitizeValue(kv.Value)}
+		if len(clean[i].Key) > maxKeyLen {
+			maxKeyLen = len(clean[i].Key)
 		}
 	}
-	for _, kv := range pairs {
+	for _, kv := range clean {
 		if p.noColor {
 			fmt.Fprintf(p.out, "%-*s  %s\n", maxKeyLen, kv.Key+":", kv.Value)
 		} else {
@@ -117,10 +133,18 @@ func (p *StdPrinter) JSON(v interface{}) {
 }
 
 func (p *StdPrinter) CSV(headers []string, rows [][]string) {
+	if HasFormulaCells(rows) {
+		if p.neutralizeFormulas {
+			rows = NeutralizeFormulaCells(rows)
+		} else if p.onFormulaCells != nil {
+			p.onFormulaCells(CSVFormulaWarning)
+		}
+	}
 	RenderCSV(p.out, headers, rows)
 }
 
 func (p *StdPrinter) Success(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "OK: %s\n", msg)
 	} else {
@@ -129,6 +153,7 @@ func (p *StdPrinter) Success(msg string) {
 }
 
 func (p *StdPrinter) Error(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "ERROR: %s\n", msg)
 	} else {
@@ -137,6 +162,7 @@ func (p *StdPrinter) Error(msg string) {
 }
 
 func (p *StdPrinter) Warning(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "WARNING: %s\n", msg)
 	} else {
@@ -175,5 +201,5 @@ func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
 }
 
 func (p *StdPrinter) Spinner(msg string) func() {
-	return StartSpinner(msg, p.isTTY && !p.noColor)
+	return StartSpinner(SanitizeTerminal(msg), p.isTTY && !p.noColor)
 }
