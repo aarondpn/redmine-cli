@@ -42,7 +42,19 @@ The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarond
 - **Authentication:** the active profile is used by default. Override with `--profile <name>`, `--server` / `--api-key`, or the `REDMINE_*` environment variables -- exactly like every other subcommand.
 - **Read-only by default.** Mutating tools (create / update / delete, comment, close, reopen, and similar write operations) are registered only when `--enable-writes` is passed. Without the flag they never appear in `tools/list`. For a second, transport-level guarantee, set [read-only mode](/getting-started/configuration/#read-only-mode) (`read_only: true` in the profile or `REDMINE_READ_ONLY=1`) -- it blocks every write at the HTTP layer, even when `--enable-writes` is passed.
 - **Verified status changes.** `update_issue` (with `status_id`), `close_issue` and `reopen_issue` read the issue back and return a tool error when Redmine silently ignored the transition, naming the allowed statuses on Redmine 5.0+ (`close_issue` / `reopen_issue` accept an issue that is already in another closed / open status). Other changes in the same call (such as notes) may already have been applied. The CLI behaves the same way, see [status changes are verified](/commands/issues/#status-changes-are-verified).
-- **Configurable surface.** `--enable-groups` / `--disable-groups` constrain the registered tools to specific categories (`issues`, `wiki`, `time`, ...). For sharper control, `--enable-tools` / `--disable-tools` allow- or deny-list individual tool names. Run `redmine mcp tools` to print the full catalog.
+- **API keys stay out of MCP.** No tool or resource returns a Redmine API key. `get_my_account`, `me`, `get_user`, `list_users`, `create_user`, and `redmine://user/...` strip `api_key` from the user record before it reaches the client, even if Redmine includes it in the response. The CLI is unaffected: `redmine my-account get` still shows your own key.
+- **Configurable surface.** `--enable-groups` / `--disable-groups` constrain the registered tools to specific categories (`issues`, `wiki`, `time`, ...). For sharper control, `--enable-tools` / `--disable-tools` allow- or deny-list individual tool names. Run `redmine mcp tools` to print the full catalog. Resources follow the same filters as the matching read tool, so a host can't use a resource to read data its tools are denied:
+
+  | Resource | Registered when this tool is enabled |
+  | --- | --- |
+  | `redmine://issue/{id}` | `get_issue` |
+  | `redmine://project/{identifier}` | `get_project` |
+  | `redmine://user/{id}` | `get_user` (numeric IDs) or `me` (`redmine://user/me`) |
+  | `redmine://time-entry/{id}` | `get_time_entry` |
+  | `redmine://wiki/{project}/{page}` | `get_wiki_page` |
+  | `redmine://version/{id}` | `get_version` |
+
+  With no `--enable-tools` / `--disable-tools` filter, every resource in the enabled groups stays available.
 
 <Aside type="caution">
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.
@@ -143,17 +155,22 @@ If you leave out `REDMINE_MCP_AUTH_TOKEN`, the server generates a token at start
 Pass `--http <addr>` to expose the server over streamable HTTP instead of stdio. The address shorthand `:8080` (no host) is rewritten to `127.0.0.1:8080` so the server is never accidentally reachable from other machines. Pass an explicit host to listen elsewhere:
 
 ```bash
-# Loopback only -- safe default
+# Loopback only
 redmine mcp serve --http :8080
 
 # Explicit loopback (equivalent)
 redmine mcp serve --http 127.0.0.1:8080
 
-# Listen on every interface -- always pair with --auth-token
-redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
+# Listen on every interface -- always pair with a token
+openssl rand -hex 32 > ~/.redmine-mcp-token && chmod 600 ~/.redmine-mcp-token
+redmine mcp serve --http 0.0.0.0:8080 --auth-token-file ~/.redmine-mcp-token
 ```
 
-When a non-loopback bind is detected without `--auth-token`, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token. The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
+When a non-loopback bind is detected without a token, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token.
+
+A loopback bind without a token keeps working, but anyone with access to the machine can reach it: every local user and process can call the tools as your Redmine user. The server prints a warning at startup. In strict mode (`strict: true` in the profile or `REDMINE_STRICT=1`), the server generates a token for loopback binds too and prints it once, as it does for non-loopback binds. An explicit `--no-auth` still turns the token off. Whatever the bind, requests that reach a loopback listener with a non-loopback `Host` header are rejected with `403`, which blocks DNS-rebinding attacks from web pages open in a local browser.
+
+The server applies `ReadHeaderTimeout=10s`, `ReadTimeout=30s`, and `IdleTimeout=120s`; `WriteTimeout` is left unbounded so slow Redmine instances don't terminate in-flight tool calls.
 
 The HTTP transport is stateless, so it speaks MCP revision `2026-07-28` (sessionless, `server/discover` instead of the `initialize` handshake). Every tool call is a self-contained Redmine API request, so there is no session to keep. Practical consequences: only `POST` is served (`GET` and `DELETE` answer `405`), and stream resumption via `Last-Event-ID` is not available. Older clients negotiate down to `2025-11-25` and keep working unchanged.
 
@@ -165,7 +182,9 @@ Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`, and the listen address in `mcp.http` or `REDMINE_MCP_HTTP`. Flags override both.
+Pass the token with `--auth-token-file <path>`, or `--auth-token-file -` to read it from standard input (`pass show redmine-mcp | redmine mcp serve --http :8080 --auth-token-file -`). Surrounding whitespace such as a trailing newline is ignored. The token can also live in the config block (`mcp.auth_token`) or `REDMINE_MCP_AUTH_TOKEN`, and the listen address in `mcp.http` or `REDMINE_MCP_HTTP`. Flags override both.
+
+`--auth-token <token>` still works, but the token then shows up in `ps` output and shell history, so the CLI prints a warning. In strict mode it refuses to start. Use `--auth-token-file`, the environment variable, or the config block instead.
 
 <Aside type="danger">
   The bearer token is the only thing standing between any HTTP-reachable client and your Redmine instance through this server. Generate it with a CSPRNG, never reuse it across deployments, and prefer terminating TLS in front of the server (reverse proxy) when binding outside loopback.

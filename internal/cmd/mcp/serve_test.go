@@ -2,7 +2,10 @@ package mcp
 
 import (
 	"bytes"
+	"errors"
 	"net"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -223,10 +226,21 @@ func newHTTPAuthCmd() (*cobra.Command, *bytes.Buffer) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("http", "", "")
 	cmd.Flags().String("auth-token", "", "")
+	cmd.Flags().String("auth-token-file", "", "")
 	cmd.Flags().Bool("no-auth", false, "")
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	return cmd, &stderr
+}
+
+// newHTTPAuthFactory returns a Factory whose streams are the command's, so
+// SecurityCheck warnings land in the same buffer as cmd.ErrOrStderr().
+func newHTTPAuthFactory(cmd *cobra.Command) *cmdutil.Factory {
+	return &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{
+		In:     cmd.InOrStdin(),
+		Out:    cmd.OutOrStdout(),
+		ErrOut: cmd.ErrOrStderr(),
+	}}
 }
 
 func TestResolveHTTPAddr(t *testing.T) {
@@ -251,22 +265,26 @@ func TestResolveHTTPAddr(t *testing.T) {
 func TestResolveHTTPAuth_LoopbackWithoutTokenStaysOpen(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 
-	token, generated, err := resolveHTTPAuth(cmd, nil, true, "", false)
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, true, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
 	if token != "" || generated {
 		t.Errorf("loopback bind should not get a generated token, got %q", token)
 	}
-	if stderr.Len() != 0 {
-		t.Errorf("unexpected stderr output: %q", stderr.String())
+	if !strings.Contains(stderr.String(), "warning: serving MCP over HTTP on loopback without an auth token") {
+		t.Errorf("expected a loopback warning on stderr, got %q", stderr.String())
 	}
 }
 
-func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
+// TestResolveHTTPAuth_LoopbackStrictGeneratesToken pins L-09: strict mode
+// does not refuse an unauthenticated loopback bind, it closes it by
+// generating a token exactly like the non-loopback path.
+func TestResolveHTTPAuth_LoopbackStrictGeneratesToken(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
+	cfg := &config.Config{Strict: true}
 
-	token, generated, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -278,12 +296,189 @@ func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	printGeneratedToken(&out, token)
+	printGeneratedToken(&out, token, true)
+	if !strings.Contains(out.String(), token) || !strings.Contains(out.String(), "strict mode") {
+		t.Errorf("printGeneratedToken output = %q, want the token and the strict-mode reason", out.String())
+	}
+}
+
+func TestResolveHTTPAuth_LoopbackWithTokenOrNoAuthIsSilent(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *config.Config
+	}{
+		{"configured token", &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}},
+		{"explicit no-auth", &config.Config{MCP: config.MCPConfig{NoAuth: true}}},
+		{"explicit no-auth in strict mode", &config.Config{Strict: true, MCP: config.MCPConfig{NoAuth: true}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, stderr := newHTTPAuthCmd()
+			token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, tt.cfg, true, httpAuthFlags{})
+			if err != nil {
+				t.Fatalf("resolveHTTPAuth: %v", err)
+			}
+			if generated || token != tt.cfg.MCP.AuthToken {
+				t.Errorf("token = %q (generated=%v), want %q", token, generated, tt.cfg.MCP.AuthToken)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("unexpected stderr output: %q", stderr.String())
+			}
+		})
+	}
+}
+
+// TestResolveHTTPAuth_AuthTokenFlag covers the L-07 half for MCP: a token on
+// the command line still works but warns, and strict mode refuses it.
+func TestResolveHTTPAuth_AuthTokenFlag(t *testing.T) {
+	t.Run("warns by default", func(t *testing.T) {
+		cmd, stderr := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+		token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{Token: "from-flag"})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token != "from-flag" {
+			t.Errorf("token = %q, want from-flag", token)
+		}
+		if !strings.Contains(stderr.String(), "warning: --auth-token puts the MCP bearer token in the process list") {
+			t.Errorf("expected an --auth-token warning, got %q", stderr.String())
+		}
+		if strings.Contains(stderr.String(), "from-flag") {
+			t.Errorf("warning must not echo the token: %q", stderr.String())
+		}
+	})
+
+	t.Run("strict mode refuses", func(t *testing.T) {
+		cmd, _ := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, &config.Config{Strict: true}, false, httpAuthFlags{Token: "from-flag"})
+		var strictErr *cmdutil.StrictModeError
+		if !errors.As(err, &strictErr) {
+			t.Fatalf("err = %v, want *cmdutil.StrictModeError", err)
+		}
+	})
+
+	t.Run("strict mode accepts config and env tokens", func(t *testing.T) {
+		cmd, stderr := newHTTPAuthCmd()
+		cfg := &config.Config{Strict: true, MCP: config.MCPConfig{AuthToken: "from-env"}}
+		token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token != "from-env" || stderr.Len() != 0 {
+			t.Errorf("token = %q, stderr = %q; want from-env and no warning", token, stderr.String())
+		}
+	})
+
+	t.Run("explicitly empty flag is not a secret", func(t *testing.T) {
+		cmd, stderr := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("auth-token", ""); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+		cfg := &config.Config{Strict: true}
+		if _, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{}); err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if strings.Contains(stderr.String(), "--auth-token puts") {
+			t.Errorf("empty --auth-token should not warn: %q", stderr.String())
+		}
+	})
+}
+
+func TestResolveHTTPAuth_AuthTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	good := write("token", "  file-token\n")
+
+	tests := []struct {
+		name      string
+		path      string
+		stdin     string
+		cfg       *config.Config
+		want      string
+		wantError string
+	}{
+		{name: "file, trailing newline trimmed", path: good, want: "file-token"},
+		{name: "stdin", path: "-", stdin: "stdin-token\n", want: "stdin-token"},
+		{name: "file beats config token", path: good, cfg: &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}, want: "file-token"},
+		{name: "allowed in strict mode", path: good, cfg: &config.Config{Strict: true}, want: "file-token"},
+		{name: "empty file", path: write("empty", "\n\n"), wantError: "is empty"},
+		{name: "empty stdin", path: "-", wantError: "standard input is empty"},
+		{name: "whitespace inside", path: write("two", "a b\n"), wantError: "without whitespace"},
+		{name: "missing file", path: filepath.Join(dir, "missing"), wantError: "--auth-token-file"},
+		{name: "empty path", path: "", wantError: "file path is empty"},
+		{name: "too large", path: write("big", strings.Repeat("a", maxAuthTokenFileSize+1)), wantError: "larger than"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, stderr := newHTTPAuthCmd()
+			cmd.SetIn(strings.NewReader(tt.stdin))
+			if err := cmd.Flags().Set("auth-token-file", tt.path); err != nil {
+				t.Fatalf("Set: %v", err)
+			}
+			token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, tt.cfg, false, httpAuthFlags{TokenFile: tt.path})
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("err = %v, want it to contain %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveHTTPAuth: %v", err)
+			}
+			if token != tt.want || generated {
+				t.Errorf("token = %q (generated=%v), want %q", token, generated, tt.want)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("unexpected stderr output: %q", stderr.String())
+			}
+		})
+	}
+}
+
+func TestServeFlags_AuthTokenAndFileAreMutuallyExclusive(t *testing.T) {
+	cmd := newCmdServe(cmdutil.NewFactory())
+	cmd.SetArgs([]string{"--auth-token", "x", "--auth-token-file", "-"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "auth-token") {
+		t.Fatalf("err = %v, want a mutually-exclusive flag error", err)
+	}
+}
+
+func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{})
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if !generated || len(token) != 64 {
+		t.Fatalf("generated token = %q (generated=%v), want 64 hex chars", token, generated)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("token must only be printed after the listener is up, got %q", stderr.String())
+	}
+
+	var out bytes.Buffer
+	printGeneratedToken(&out, token, false)
 	if !strings.Contains(out.String(), token) {
 		t.Errorf("printGeneratedToken output misses the token: %q", out.String())
 	}
 
-	again, _, err := resolveHTTPAuth(cmd, nil, false, "", false)
+	again, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -296,7 +491,7 @@ func TestResolveHTTPAuth_ConfiguredTokenIsKept(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
 
-	token, generated, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -312,7 +507,7 @@ func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {
 	cmd, stderr := newHTTPAuthCmd()
 	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
 
-	token, _, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}
@@ -331,7 +526,7 @@ func TestResolveHTTPAuth_NoAuthConflictsWithToken(t *testing.T) {
 	}
 	cfg := &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}
 
-	if _, _, err := resolveHTTPAuth(cmd, cfg, false, "", true); err == nil {
+	if _, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{NoAuth: true}); err == nil {
 		t.Fatal("--no-auth combined with a token should be rejected")
 	}
 }
@@ -343,7 +538,7 @@ func TestResolveHTTPAuth_ExplicitNoAuthFalseBeatsConfig(t *testing.T) {
 	}
 	cfg := &config.Config{MCP: config.MCPConfig{NoAuth: true}}
 
-	token, generated, err := resolveHTTPAuth(cmd, cfg, false, "", false)
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
 	if err != nil {
 		t.Fatalf("resolveHTTPAuth: %v", err)
 	}

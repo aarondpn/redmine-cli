@@ -52,6 +52,22 @@ func (o Options) toolEnabled(name string) bool {
 	return true
 }
 
+// anyToolEnabled reports whether at least one of names passes toolEnabled.
+// Resources use it to follow the per-tool filter of the tools that expose the
+// same data. An empty names list is treated as "not tied to any tool" and is
+// always enabled.
+func (o Options) anyToolEnabled(names []string) bool {
+	if len(names) == 0 {
+		return true
+	}
+	for _, n := range names {
+		if o.toolEnabled(n) {
+			return true
+		}
+	}
+	return false
+}
+
 // FilterSpec is the user-facing filter input collected from flags, env, and
 // config. ResolveOptions merges it into the runtime maps used by Options.
 type FilterSpec struct {

@@ -90,7 +90,11 @@ func emptyNilSlices[T any](v *T) {
 	}
 }
 
+// toolResult is the single exit point for successful tool calls. Secrets are
+// redacted here, before both the text content and the structured value are
+// produced, so no tool can return an API key to the client.
 func toolResult[T any](v T) (*mcp.CallToolResult, T, error) {
+	redactSecrets(&v)
 	emptyNilSlices(&v)
 	asMessage, ok := any(v).(messageResult)
 	if ok {
