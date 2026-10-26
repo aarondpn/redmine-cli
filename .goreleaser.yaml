@@ -115,3 +115,6 @@ release:
   github:
     owner: aarondpn
     name: redmine-cli
+  # Tags with a pre-release suffix (v2.15.0-rc.1) become GitHub prereleases,
+  # which /releases/latest, `redmine update` and install.sh never pick.
+  prerelease: auto
