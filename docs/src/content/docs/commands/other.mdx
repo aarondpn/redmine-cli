@@ -198,7 +198,7 @@ https://github.com/aarondpn/redmine-cli/releases/tag/v1.3.0
 Run "redmine update" to upgrade
 ```
 
-The check runs in a goroutine with a 3-second timeout, so it never delays the CLI. It is automatically skipped when:
+The check starts in the background together with the command and gives up 2 seconds after startup. Its result is only printed after a command that succeeded; a failed command exits right away. If the check is still running when the command finishes, the CLI waits for it, at most until that 2-second deadline, and prints `Checking for updates...` to stderr once the wait exceeds 200 ms. A fresh cached result (see below) answers immediately, so the delay only happens when GitHub has to be asked: once a day after a successful check, but on every run while checks fail or time out (failures are not cached). It is automatically skipped when:
 
 - the command is `redmine update` itself;
 - stderr is not a TTY (piped output, CI);
