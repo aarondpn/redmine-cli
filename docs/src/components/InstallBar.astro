@@ -3,12 +3,12 @@
 const t = Astro.locals.t;
 
 const installers = [
-  { id: 'brew', label: 'Homebrew', code: 'brew install aarondpn/tap/redmine' },
   {
     id: 'script',
     label: t('install.script'),
     code: 'curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash',
   },
+  { id: 'brew', label: 'Homebrew', code: 'brew install aarondpn/tap/redmine' },
   { id: 'go', label: 'Go', code: 'go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest' },
 ];
 ---
