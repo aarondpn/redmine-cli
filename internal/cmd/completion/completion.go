@@ -1,8 +1,6 @@
 package completion
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -32,15 +30,20 @@ PowerShell:
 		Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		DisableFlagsInUseLine: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			switch args[0] {
 			case "bash":
-				return cmd.Root().GenBashCompletion(os.Stdout)
+				// The V2 script quotes candidates with printf %q before
+				// handing them to compgen -W. The legacy script passed them
+				// unquoted, so a candidate from the server such as
+				// "$(cmd)" (a tracker or version name) ran on TAB.
+				return cmd.Root().GenBashCompletionV2(out, true)
 			case "zsh":
-				return cmd.Root().GenZshCompletion(os.Stdout)
+				return cmd.Root().GenZshCompletion(out)
 			case "fish":
-				return cmd.Root().GenFishCompletion(os.Stdout, true)
+				return cmd.Root().GenFishCompletion(out, true)
 			case "powershell":
-				return cmd.Root().GenPowerShellCompletionWithDesc(os.Stdout)
+				return cmd.Root().GenPowerShellCompletionWithDesc(out)
 			}
 			return nil
 		},

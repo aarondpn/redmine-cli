@@ -54,6 +54,21 @@ func TestPrinterCSVFormulaGuard(t *testing.T) {
 	}
 }
 
+// Ordinary subjects such as "- fix typo" trigger the formula warning, so a
+// list with many of them, exported page by page, must still print the
+// warning exactly once, on a single line.
+func TestPrinterCSVFormulaWarningOncePerCommand(t *testing.T) {
+	t.Setenv("REDMINE_STRICT", "")
+	f := testFactoryWithConfig(t, "")
+	rows := [][]string{{"1", "- fix typo"}, {"2", "- update docs"}, {"3", "+1 from QA"}}
+	for range 3 {
+		f.Printer(output.FormatCSV).CSV([]string{"ID", "SUBJECT"}, rows)
+	}
+	if got, want := f.IOStreams.ErrOut.(*bytes.Buffer).String(), "warning: "+output.CSVFormulaWarning+"\n"; got != want {
+		t.Errorf("stderr = %q, want exactly one single-line warning %q", got, want)
+	}
+}
+
 func TestPrinterJQEnvHiddenInStrictMode(t *testing.T) {
 	t.Setenv("REDMINE_JQ_TEST_SECRET", "s3cret")
 	t.Setenv(output.JQNoEnvVar, "")

@@ -122,11 +122,12 @@ Aliases: `show`, `view`.
 | `--attachments`            | List the issue's attachments (id, filename, size, content type) |
 | `--download-attachments`   | Download every attachment of the issue into the given directory |
 | `--clobber`                | With `--download-attachments`, overwrite files that already exist in the directory |
+| `--allow-hidden`           | With `--download-attachments`, allow saving attachments whose filename starts with `.` |
 | `-o, --output`             | Output format |
 
-`--download-attachments` never overwrites a file that already exists in the directory unless you pass `--clobber`. Every destination is checked before anything is downloaded, so a conflict aborts the command without writing any file. The same rules as [`attachments download`](/commands/attachments/#existing-files-and---clobber) apply: symlinks are never followed, directories are never replaced, and a failed download leaves no partial file. Server-supplied names starting with `.` are saved with a warning on stderr.
+`--download-attachments` never overwrites a file that already exists in the directory unless you pass `--clobber`, and refuses server-supplied names starting with `.` (such as `.bashrc` or `.envrc`) unless you pass `--allow-hidden`. Every destination is checked before anything is downloaded, so a conflict aborts the command without writing any file. The same rules as [`attachments download`](/commands/attachments/#existing-files-and---clobber) apply: symlinks are never followed, directories are never replaced, and a failed download leaves no partial file.
 
-Attachments of the same issue often share a filename (for example several `screenshot.png`). They are all kept: the first keeps its name and later ones get the attachment ID added, such as `screenshot (attachment-71).png`. Names that differ only in case are treated as the same name. Each confirmation on stderr shows the path the attachment was saved to. This renaming only covers names within one download; `--clobber` covers files that were already there.
+Attachments of the same issue often share a filename (for example several `screenshot.png`). They are all kept: the newest (the one with the highest attachment ID, usually a corrected re-upload) keeps its name and older ones get their attachment ID added, such as `screenshot (attachment-71).png`. Names that differ only in case are treated as the same name on every platform, because macOS and Windows filesystems usually cannot hold both. Each confirmation on stderr shows the path the attachment was saved to. This renaming only covers names within one download; `--clobber` covers files that were already there.
 
 <Tabs syncKey="issues-get">
   <TabItem label="Attachments">

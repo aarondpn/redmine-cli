@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,9 +27,10 @@ type SaveOptions struct {
 	// Clobber allows replacing a file that already exists at the destination.
 	// Without it, an existing entry (including a dangling symlink) is an error.
 	Clobber bool
-	// Warn, when non-nil, receives non-fatal warnings about the download, such
-	// as a server-supplied filename that names a hidden file.
-	Warn func(msg string)
+	// AllowHidden allows saving an attachment under its own filename when
+	// that name starts with "." (--allow-hidden). Without it such a name is
+	// an error; see CheckHiddenFilename.
+	AllowHidden bool
 }
 
 // DestinationExistsError reports that a download target already exists and
@@ -41,6 +44,29 @@ func (e *DestinationExistsError) Error() string {
 }
 
 func (e *DestinationExistsError) Unwrap() error { return fs.ErrExist }
+
+// HiddenFilenameError reports that an attachment would be saved under its
+// server-supplied filename, that name starts with "." and --allow-hidden
+// was not given. A server could otherwise plant a dotfile such as .bashrc,
+// .envrc or .npmrc in the destination directory.
+type HiddenFilenameError struct {
+	Name string
+	Path string
+}
+
+func (e *HiddenFilenameError) Error() string {
+	return fmt.Sprintf("refusing to save the hidden filename %q as %s; pass --allow-hidden to save it anyway", e.Name, e.Path)
+}
+
+// CheckHiddenFilename returns a *HiddenFilenameError when name, the
+// sanitized filename an attachment would be saved under in dir, starts with
+// "." and allowHidden is false.
+func CheckHiddenFilename(dir, name string, allowHidden bool) error {
+	if allowHidden || !strings.HasPrefix(name, ".") {
+		return nil
+	}
+	return &HiddenFilenameError{Name: name, Path: filepath.Join(dir, name)}
+}
 
 // AttachmentFilename returns the server-supplied filename of att reduced to
 // its base component, so a malicious or malformed name (e.g. one containing
@@ -58,14 +84,33 @@ func AttachmentFilename(att *models.Attachment) string {
 
 // UniqueAttachmentFilenames returns one sanitized filename per attachment,
 // deduplicated so a bulk download never writes two attachments to the same
-// path. The first attachment with a given name keeps it; later ones become
-// "<stem> (attachment-<id>)<ext>". Names are compared case-insensitively
-// because the common desktop filesystems (APFS, NTFS) are case-insensitive.
+// path. Of the attachments sharing a name, the newest (highest ID) keeps it,
+// since a corrected file is usually re-uploaded under the same name; older
+// ones become "<stem> (attachment-<id>)<ext>". An attachment whose own name
+// is unique keeps it even if it looks like such a suffixed name. Names are
+// compared case-insensitively, whatever the destination filesystem, because
+// the common desktop filesystems (APFS, NTFS) are case-insensitive.
 func UniqueAttachmentFilenames(atts []models.Attachment) []string {
+	newestFirst := make([]int, len(atts))
+	for i := range newestFirst {
+		newestFirst[i] = i
+	}
+	slices.SortStableFunc(newestFirst, func(a, b int) int { return cmp.Compare(atts[b].ID, atts[a].ID) })
+
 	names := make([]string, len(atts))
 	used := make(map[string]bool, len(atts))
-	for i := range atts {
+	var older []int
+	for _, i := range newestFirst {
 		name := AttachmentFilename(&atts[i])
+		if used[strings.ToLower(name)] {
+			older = append(older, i)
+			continue
+		}
+		used[strings.ToLower(name)] = true
+		names[i] = name
+	}
+	for _, i := range older {
+		name := withAttachmentSuffix(AttachmentFilename(&atts[i]), atts[i].ID)
 		for used[strings.ToLower(name)] {
 			name = withAttachmentSuffix(name, atts[i].ID)
 		}
@@ -96,17 +141,17 @@ func SaveAttachmentToDir(ctx context.Context, client *api.Client, att *models.At
 
 // SaveAttachmentToDirAs is SaveAttachmentToDir with an explicit filename,
 // which must already be a sanitized base name (see AttachmentFilename and
-// UniqueAttachmentFilenames). A name starting with "." is still written, but
-// reported through opts.Warn because it may shadow a dotfile such as .bashrc.
+// UniqueAttachmentFilenames). A name starting with "." is refused unless
+// opts.AllowHidden is set (see CheckHiddenFilename).
 func SaveAttachmentToDirAs(ctx context.Context, client *api.Client, att *models.Attachment, dir, name string, opts SaveOptions) (string, int64, error) {
+	if err := CheckHiddenFilename(dir, name, opts.AllowHidden); err != nil {
+		return "", 0, err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", 0, fmt.Errorf("creating directory %s: %w", dir, err)
 	}
 	path := filepath.Join(dir, name)
-	if strings.HasPrefix(name, ".") && opts.Warn != nil {
-		opts.Warn(fmt.Sprintf("Attachment %d has a hidden filename %q; saving it as %s", att.ID, name, path))
-	}
-	n, err := SaveAttachmentToFile(ctx, client, att, path, opts)
+	n, err := saveAttachmentFile(ctx, client, att, path, opts)
 	return path, n, err
 }
 
@@ -168,16 +213,65 @@ func createDownloadTemp(dir string) (*os.File, error) {
 // touches an existing file and never leaves a partial one behind. Cancelling
 // ctx (the first Ctrl-C) fails the download and removes the temporary file;
 // only a process killed outright (SIGKILL, a second Ctrl-C) may leave a
-// hidden .redmine-download-*.tmp. The move
-// replaces the directory entry itself: a symlink at path is replaced, never
-// written through.
+// hidden .redmine-download-*.tmp. The move replaces the directory entry
+// itself: a symlink at path is replaced, never written through.
 //
 // Without opts.Clobber an existing path is an error. The final move then uses
 // a hard link, which fails atomically if path appeared during the download;
 // only where hard links are unsupported (some filesystems, cross-device
 // mounts) does it fall back to a re-check followed by a rename, which leaves
 // a small window between the check and the rename.
+//
+// The exception is a path that is, or is a symlink to, a character device
+// or a FIFO, such as /dev/null, /dev/stdout or a named pipe: there is no
+// file to replace, so the bytes are written into it directly, with or
+// without opts.Clobber. Other non-regular files, such as directories, are
+// still an error.
 func SaveAttachmentToFile(ctx context.Context, client *api.Client, att *models.Attachment, path string, opts SaveOptions) (int64, error) {
+	stream, err := openStreamTarget(path)
+	if err != nil {
+		return 0, err
+	}
+	if stream != nil {
+		n, err := client.Attachments.Download(ctx, att, stream)
+		if closeErr := stream.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("closing %s: %w", path, closeErr)
+		}
+		return n, err
+	}
+	return saveAttachmentFile(ctx, client, att, path, opts)
+}
+
+// isStreamMode reports whether mode is that of a character device or a FIFO.
+func isStreamMode(mode fs.FileMode) bool {
+	return mode&(fs.ModeCharDevice|fs.ModeNamedPipe) != 0
+}
+
+// openStreamTarget opens path for writing when it is, or links to, a
+// character device or a FIFO, and returns nil otherwise. Opening a FIFO
+// blocks until a reader opens it, as it always has.
+func openStreamTarget(path string) (*os.File, error) {
+	info, err := os.Stat(path)
+	if err != nil || !isStreamMode(info.Mode()) {
+		return nil, nil
+	}
+	// No O_CREATE and no O_TRUNC: this never creates or truncates a file.
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s: %w", path, err)
+	}
+	// path may have been replaced since the Stat; anything but a device or
+	// FIFO goes through the regular no-clobber logic instead.
+	if info, err := f.Stat(); err != nil || !isStreamMode(info.Mode()) {
+		_ = f.Close()
+		return nil, nil
+	}
+	return f, nil
+}
+
+// saveAttachmentFile is SaveAttachmentToFile without the device and FIFO
+// exception, which only applies to a path the user chose.
+func saveAttachmentFile(ctx context.Context, client *api.Client, att *models.Attachment, path string, opts SaveOptions) (int64, error) {
 	existing, err := checkDownloadTarget(path, opts.Clobber)
 	if err != nil {
 		return 0, err

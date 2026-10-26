@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -82,27 +81,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
   # Capture the ID of a newly created issue
   redmine issues create --project myproject --tracker Bug --subject "Crash on save" --jq '.id'`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			f.ConfigPath = cfgFile
-			f.ProfileOverride = profile
-			f.ServerOverride = server
-			f.APIKeyOverride = apiKey
-			f.APIKeyFile = apiKeyFile
-			if noColor {
-				f.NoColorOverride = true
-				os.Setenv("NO_COLOR", "1")
+			if err := cmdutil.ApplyGlobalFlags(f, cmd); err != nil {
+				return err
 			}
-			f.Verbose = verbose
-			f.OutputFormat = outputFormat
-			if cmd.Flags().Changed("read-only") {
-				f.ReadOnly = &readOnly
-			}
-			// Validate early so a typo fails before any interactive prompt.
-			for _, h := range headers {
-				if _, _, err := config.ParseHeader(h); err != nil {
-					return err
-				}
-			}
-			f.Headers = headers
 			return applyJQFlag(cmd, f, jqExpr, cmd.Flags().Changed("jq"))
 		},
 		// Printer methods have no error return, so a --jq runtime failure

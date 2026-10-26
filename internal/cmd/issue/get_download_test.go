@@ -39,9 +39,9 @@ func duplicateAttachmentsServer(t *testing.T) *httptest.Server {
 }
 
 // TestCmdIssueGet_DownloadAttachments_DuplicateFilenames is the regression
-// test for same-named attachments silently overwriting each other: the first
-// keeps its name, the second gets a deterministic suffix, and both paths are
-// reported.
+// test for same-named attachments silently overwriting each other: the newest
+// (highest ID) keeps its name, the older one gets a deterministic suffix, and
+// both paths are reported.
 func TestCmdIssueGet_DownloadAttachments_DuplicateFilenames(t *testing.T) {
 	srv := duplicateAttachmentsServer(t)
 	f := testutil.NewFactory(t, srv.URL)
@@ -53,8 +53,8 @@ func TestCmdIssueGet_DownloadAttachments_DuplicateFilenames(t *testing.T) {
 	}
 
 	want := map[string]string{
-		"screenshot.png":                 "body-70",
-		"screenshot (attachment-71).png": "body-71",
+		"screenshot (attachment-70).png": "body-70",
+		"screenshot.png":                 "body-71",
 	}
 	for name, body := range want {
 		path := filepath.Join(dir, name)
@@ -80,7 +80,7 @@ func TestCmdIssueGet_DownloadAttachments_ExistingFile(t *testing.T) {
 			srv := duplicateAttachmentsServer(t)
 			f := testutil.NewFactory(t, srv.URL)
 			dir := t.TempDir()
-			existing := filepath.Join(dir, "screenshot (attachment-71).png")
+			existing := filepath.Join(dir, "screenshot (attachment-70).png")
 			if err := os.WriteFile(existing, []byte("original"), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -99,7 +99,7 @@ func TestCmdIssueGet_DownloadAttachments_ExistingFile(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error with --clobber: %v", err)
 				}
-				if string(got) != "body-71" {
+				if string(got) != "body-70" {
 					t.Errorf("existing file = %q, want it replaced", got)
 				}
 				return
@@ -112,6 +112,67 @@ func TestCmdIssueGet_DownloadAttachments_ExistingFile(t *testing.T) {
 			}
 			if _, err := os.Stat(filepath.Join(dir, "screenshot.png")); !os.IsNotExist(err) {
 				t.Errorf("no attachment should be downloaded when a target exists (stat err = %v)", err)
+			}
+		})
+	}
+}
+
+// TestCmdIssueGet_DownloadAttachments_HiddenFilename refuses the whole
+// download, before fetching any attachment, when one attachment's filename
+// starts with "."; --allow-hidden saves them all.
+func TestCmdIssueGet_DownloadAttachments_HiddenFilename(t *testing.T) {
+	for _, allow := range []bool{false, true} {
+		t.Run(fmt.Sprintf("allow-hidden=%v", allow), func(t *testing.T) {
+			downloads := 0
+			var srv *httptest.Server
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/issues/4.json":
+					w.Header().Set("Content-Type", "application/json")
+					fmt.Fprintf(w, `{"issue":{"id":4,"project":{"id":1,"name":"P"},"tracker":{"id":1,"name":"T"},"status":{"id":1,"name":"New"},"priority":{"id":1,"name":"Normal"},"author":{"id":1,"name":"A"},"subject":"s","attachments":[`+
+						`{"id":80,"filename":"notes.txt","content_url":%q},`+
+						`{"id":81,"filename":".envrc","content_url":%q}]}}`,
+						srv.URL+"/attachments/download/80/notes.txt", srv.URL+"/attachments/download/81/.envrc")
+				case "/attachments/download/80/notes.txt", "/attachments/download/81/.envrc":
+					downloads++
+					_, _ = w.Write([]byte("body"))
+				default:
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			t.Cleanup(srv.Close)
+
+			f := testutil.NewFactory(t, srv.URL)
+			dir := t.TempDir()
+			args := []string{"4", "--download-attachments", dir, "--output", "json"}
+			if allow {
+				args = append(args, "--allow-hidden")
+			}
+			cmd := NewCmdGet(f)
+			cmd.SetArgs(args)
+			cmd.SilenceUsage, cmd.SilenceErrors = true, true
+			err := cmd.Execute()
+
+			if allow {
+				if err != nil {
+					t.Fatalf("unexpected error with --allow-hidden: %v", err)
+				}
+				for _, name := range []string{"notes.txt", ".envrc"} {
+					if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+						t.Errorf("expected %s: %v", name, err)
+					}
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), `".envrc"`) || !strings.Contains(err.Error(), "--allow-hidden") {
+				t.Fatalf("err = %v, want an error naming .envrc and --allow-hidden", err)
+			}
+			if downloads != 0 {
+				t.Errorf("%d attachments downloaded, want none", downloads)
+			}
+			if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+				t.Errorf("dir has %d entries, want none", len(entries))
 			}
 		})
 	}

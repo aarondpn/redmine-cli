@@ -21,6 +21,12 @@ func NewStyle(s lipgloss.Style) Style {
 }
 
 // Render sanitizes strs and renders them with the style.
+//
+// Use the result as a whole table cell or detail value. The printer keeps
+// the styling only of strings that are exactly a Render result; anything
+// built from one, such as Render(a) + " " + b or a fmt.Sprintf around it, is
+// sanitized as a whole, which shows its escape sequences as text ("^[[31m").
+// Render the combined text in a single call instead.
 func (s Style) Render(strs ...string) string {
 	clean := make([]string, len(strs))
 	for i, str := range strs {

@@ -25,13 +25,7 @@ type clearStatusMsg struct {
 
 // openURL launches a URL in the default browser. It is a variable so tests
 // can stub it.
-var openURL = func(rawURL string) error {
-	cmd, err := browser.Command(rawURL)
-	if err != nil {
-		return err
-	}
-	return cmd.Start()
-}
+var openURL = browser.Open
 
 // field is a key-value pair displayed in the detail header.
 type field struct {
@@ -164,7 +158,7 @@ func (d *DetailPane) setViewportContent(description string) {
 
 	var content string
 	if description != "" {
-		content = RenderDescription(output.SanitizeTerminal(description), cw)
+		content = RenderDescription(description, cw)
 	}
 
 	// Viewport height = total height - border/padding (4) - title (2) - fields - description label (2) - footer (1)

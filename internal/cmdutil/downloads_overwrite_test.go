@@ -499,38 +499,88 @@ func TestSaveAttachmentToFile_TargetAppearsBeforeLink(t *testing.T) {
 	assertDirEntries(t, dir, "race.txt")
 }
 
-// TestSaveAttachmentToDir_WarnsOnHiddenFilename allows a server-supplied
-// dotfile name such as .bashrc but reports it through opts.Warn.
-func TestSaveAttachmentToDir_WarnsOnHiddenFilename(t *testing.T) {
+// TestSaveAttachmentToDir_RefusesHiddenFilename refuses a server-supplied
+// dotfile name such as .bashrc, without creating the directory or
+// contacting the server, unless opts.AllowHidden is set.
+func TestSaveAttachmentToDir_RefusesHiddenFilename(t *testing.T) {
 	tests := []struct {
 		filename string
-		warn     bool
+		hidden   bool
 	}{
 		{".bashrc", true},
 		{"../.gitconfig", true},
 		{"report.pdf", false},
+		{"..", false}, // saved as attachment-<id>
 	}
 	for _, tt := range tests {
-		t.Run(tt.filename, func(t *testing.T) {
-			client := newDownloadClient(t, []byte("x"), http.StatusOK)
-			dir := t.TempDir()
-			var warnings []string
-			opts := SaveOptions{Warn: func(msg string) { warnings = append(warnings, msg) }}
+		for _, allow := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/allow=%v", tt.filename, allow), func(t *testing.T) {
+				requests := 0
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests++
+					_, _ = w.Write([]byte("x"))
+				}))
+				t.Cleanup(ts.Close)
+				client := api.NewTestClient(ts.Client(), ts.URL, debug.New(nil))
+				dir := filepath.Join(t.TempDir(), "out")
 
-			path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, tt.filename), dir, opts)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				path, _, err := SaveAttachmentToDir(context.Background(), client, attFor(client, tt.filename), dir, SaveOptions{AllowHidden: allow})
+				if !tt.hidden || allow {
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					if _, err := os.Stat(path); err != nil {
+						t.Errorf("expected file at %q: %v", path, err)
+					}
+					return
+				}
+				var hidden *HiddenFilenameError
+				if !errors.As(err, &hidden) {
+					t.Fatalf("err = %v, want HiddenFilenameError", err)
+				}
+				name := filepath.Base(tt.filename)
+				if msg := err.Error(); !strings.Contains(msg, name) || !strings.Contains(msg, filepath.Join(dir, name)) || !strings.Contains(msg, "--allow-hidden") {
+					t.Errorf("error %q should name the file, its path and --allow-hidden", msg)
+				}
+				if requests != 0 {
+					t.Errorf("server was asked %d times, want 0", requests)
+				}
+				if _, err := os.Stat(dir); !os.IsNotExist(err) {
+					t.Errorf("destination directory was created (stat err = %v)", err)
+				}
+			})
+		}
+	}
+}
+
+// An explicit path is the user's choice, so a hidden name is fine there.
+func TestSaveAttachmentToFile_HiddenPathAllowed(t *testing.T) {
+	client := newDownloadClient(t, []byte("x"), http.StatusOK)
+	path := filepath.Join(t.TempDir(), ".bashrc")
+	if _, err := SaveAttachmentToFile(context.Background(), client, attFor(client, ".bashrc"), path, SaveOptions{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("expected file at %q: %v", path, err)
+	}
+}
+
+func TestUniqueAttachmentFilenames_NewestKeepsName(t *testing.T) {
+	// The API does not promise any order, so the result must not depend on it.
+	for _, atts := range [][]models.Attachment{
+		{{ID: 5, Filename: "log.txt"}, {ID: 9, Filename: "LOG.txt"}, {ID: 7, Filename: "log.txt"}},
+		{{ID: 9, Filename: "LOG.txt"}, {ID: 7, Filename: "log.txt"}, {ID: 5, Filename: "log.txt"}},
+	} {
+		got := map[int]string{}
+		for i, name := range UniqueAttachmentFilenames(atts) {
+			got[atts[i].ID] = name
+		}
+		want := map[int]string{9: "LOG.txt", 7: "log (attachment-7).txt", 5: "log (attachment-5).txt"}
+		for id, name := range want {
+			if got[id] != name {
+				t.Errorf("attachment %d saved as %q, want %q (input %v)", id, got[id], name, atts)
 			}
-			if _, err := os.Stat(path); err != nil {
-				t.Errorf("expected file at %q: %v", path, err)
-			}
-			if got := len(warnings) > 0; got != tt.warn {
-				t.Fatalf("warnings = %q, want warning=%v", warnings, tt.warn)
-			}
-			if tt.warn && !strings.Contains(warnings[0], filepath.Base(tt.filename)) {
-				t.Errorf("warning %q should name the file", warnings[0])
-			}
-		})
+		}
 	}
 }
 
@@ -549,18 +599,20 @@ func TestUniqueAttachmentFilenames(t *testing.T) {
 		{ID: 20, Filename: "archive.tar.gz"},
 		{ID: 21, Filename: ".."},
 	}
+	// The newest attachment of each name keeps it; 18 keeps its own name
+	// although it looks like the suffixed name of 11.
 	want := []string{
+		"screenshot (attachment-10).png",
+		"screenshot (attachment-11) (attachment-11).png",
+		"Screenshot (attachment-12).PNG",
+		"notes (attachment-13)",
+		"notes",
+		".env (attachment-15)",
+		".env",
 		"screenshot.png",
 		"screenshot (attachment-11).png",
-		"Screenshot (attachment-12).PNG",
-		"notes",
-		"notes (attachment-14)",
-		".env",
-		".env (attachment-16)",
-		"screenshot (attachment-17).png",
-		"screenshot (attachment-11) (attachment-18).png",
+		"archive.tar (attachment-19).gz",
 		"archive.tar.gz",
-		"archive.tar (attachment-20).gz",
 		"attachment-21",
 	}
 	got := UniqueAttachmentFilenames(atts)

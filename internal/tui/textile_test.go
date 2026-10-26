@@ -140,6 +140,29 @@ func stripANSI(s string) string {
 	return out.String()
 }
 
+// RenderDescription sanitizes its input itself. The post-render filter keeps
+// SGR sequences for glamour's colors, and in code blocks and inline code
+// glamour passes a raw SGR sequence from the input through intact, so
+// without that an unsanitized description could hide or blink text.
+func TestRenderDescription_SanitizesRawInput(t *testing.T) {
+	for _, in := range []string{
+		"<pre>\x1b[8mhidden</pre>",
+		"Run @\x1b[8mhidden@ now",
+		"    \x1b[8mhidden",
+		"Body \x1b[8mhidden \x1b]52;c;ZXZpbA==\x07 \u202Eend",
+	} {
+		out := RenderDescription(in, 80)
+		for _, bad := range []string{"\x1b[8m", "\x1b]", "\x07", "\u202E"} {
+			if strings.Contains(out, bad) {
+				t.Errorf("RenderDescription(%q) contains %q: %q", in, bad, out)
+			}
+		}
+		if !strings.Contains(out, "hidden") {
+			t.Errorf("RenderDescription(%q) lost the text: %q", in, out)
+		}
+	}
+}
+
 func TestRenderDescription_CharacterReferencesStayInert(t *testing.T) {
 	// Markdown decodes character references, so sanitizing the input alone
 	// would let "&#x1b;" turn back into ESC after rendering.

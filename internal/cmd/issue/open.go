@@ -13,13 +13,7 @@ import (
 )
 
 // openBrowser is a package-level variable so tests can stub it.
-var openBrowser = func(url string) error {
-	cmd, err := browser.Command(url)
-	if err != nil {
-		return err
-	}
-	return cmd.Run()
-}
+var openBrowser = browser.Open
 
 // NewCmdOpen creates the issues open command.
 func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
@@ -41,10 +35,6 @@ func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			url := fmt.Sprintf("%s/issues/%d", strings.TrimRight(cfg.Server, "/"), id)
-			if _, err := browser.ValidateURL(url); err != nil {
-				return fmt.Errorf("failed to open browser: %w", err)
-			}
-
 			if err := openBrowser(url); err != nil {
 				return fmt.Errorf("failed to open browser: %w", err)
 			}

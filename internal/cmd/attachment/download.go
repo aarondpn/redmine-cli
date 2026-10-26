@@ -23,10 +23,11 @@ type downloadResult struct {
 
 func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 	var (
-		dir     string
-		path    string
-		clobber bool
-		format  string
+		dir         string
+		path        string
+		clobber     bool
+		allowHidden bool
+		format      string
 	)
 
 	cmd := &cobra.Command{
@@ -42,6 +43,9 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			"An existing file at the destination is never overwritten unless --clobber\n" +
 			"is given; with --clobber it is replaced atomically once the download has\n" +
 			"completed (a symlink at the destination is replaced, not followed).\n\n" +
+			"A server-supplied filename starting with \".\" (such as .bashrc) is refused\n" +
+			"with --dir and the default destination unless --allow-hidden is given;\n" +
+			"--path is not affected.\n\n" +
 			"Note: for this command -o/--output controls the confirmation output\n" +
 			"(json prints a result object; otherwise a human-readable line is written to\n" +
 			"stderr). It does NOT change where the bytes go; use --path/--dir for that.",
@@ -99,13 +103,7 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			// Warnings are held until the spinner stops so they do not
-			// interleave with it on stderr.
-			var warnings []string
-			opts := cmdutil.SaveOptions{
-				Clobber: clobber,
-				Warn:    func(msg string) { warnings = append(warnings, msg) },
-			}
+			opts := cmdutil.SaveOptions{Clobber: clobber, AllowHidden: allowHidden}
 			var (
 				dest  string
 				bytes int64
@@ -120,9 +118,6 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 				dest, bytes, err = cmdutil.SaveAttachmentToDir(ctx, client, att, ".", opts)
 			}
 			stop()
-			for _, w := range warnings {
-				printer.Warning(w)
-			}
 			if err != nil {
 				return fmt.Errorf("failed to download attachment %d: %w", id, err)
 			}
@@ -146,6 +141,7 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory to save into, using the attachment's real filename")
 	cmd.Flags().StringVar(&path, "path", "", "Exact destination file path (use - for stdout)")
 	cmd.Flags().BoolVar(&clobber, "clobber", false, "Overwrite an existing file at the destination")
+	cmd.Flags().BoolVar(&allowHidden, "allow-hidden", false, `Allow saving under a filename starting with "." (with --dir or the default destination)`)
 	cmd.MarkFlagsMutuallyExclusive("dir", "path")
 	cmdutil.AddOutputFlag(cmd, &format)
 

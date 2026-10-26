@@ -81,9 +81,10 @@ func TestCmdAttachmentDownload_ExistingFile(t *testing.T) {
 	}
 }
 
-// TestCmdAttachmentDownload_HiddenFilenameWarns saves a server-supplied dotfile
-// name but warns about it on stderr.
-func TestCmdAttachmentDownload_HiddenFilenameWarns(t *testing.T) {
+// hiddenAttachmentServer serves attachment 56, whose server-supplied
+// filename is ".bashrc".
+func hiddenAttachmentServer(t *testing.T) *httptest.Server {
+	t.Helper()
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -99,21 +100,66 @@ func TestCmdAttachmentDownload_HiddenFilenameWarns(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
+	return srv
+}
 
-	f := testutil.NewFactory(t, srv.URL)
-	dir := t.TempDir()
-	cmd := newCmdDownload(f)
-	cmd.SetArgs([]string{"56", "--dir", dir, "--output", "json"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
+// TestCmdAttachmentDownload_HiddenFilename refuses to save a server-supplied
+// dotfile name under its own name in --dir and the default destination,
+// naming the file and --allow-hidden; --allow-hidden and an explicit --path
+// save it.
+func TestCmdAttachmentDownload_HiddenFilename(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    func(dir string) ([]string, string)
+		refused bool
+	}{
+		{"dir", func(dir string) ([]string, string) {
+			return []string{"--dir", dir}, filepath.Join(dir, ".bashrc")
+		}, true},
+		{"default", func(string) ([]string, string) { return nil, ".bashrc" }, true},
+		{"dir with --allow-hidden", func(dir string) ([]string, string) {
+			return []string{"--dir", dir, "--allow-hidden"}, filepath.Join(dir, ".bashrc")
+		}, false},
+		{"default with --allow-hidden", func(string) ([]string, string) {
+			return []string{"--allow-hidden"}, ".bashrc"
+		}, false},
+		{"path", func(dir string) ([]string, string) {
+			p := filepath.Join(dir, ".bashrc")
+			return []string{"--path", p}, p
+		}, false},
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".bashrc")); err != nil {
-		t.Fatalf("expected the hidden file to be saved: %v", err)
-	}
-	if stderr := testutil.Stderr(f); !strings.Contains(stderr, "hidden filename") || !strings.Contains(stderr, ".bashrc") {
-		t.Errorf("stderr = %q, want a hidden-filename warning", stderr)
-	}
-	if strings.Contains(testutil.Stdout(f), "hidden") {
-		t.Errorf("warning leaked to stdout: %q", testutil.Stdout(f))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := hiddenAttachmentServer(t)
+			f := testutil.NewFactory(t, srv.URL)
+			dir := t.TempDir()
+			t.Chdir(dir)
+			flags, target := tt.args(dir)
+
+			cmd := newCmdDownload(f)
+			cmd.SetArgs(append([]string{"56", "--output", "json"}, flags...))
+			cmd.SilenceUsage, cmd.SilenceErrors = true, true
+			err := cmd.Execute()
+
+			_, statErr := os.Stat(target)
+			if !tt.refused {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if statErr != nil {
+					t.Fatalf("expected the hidden file to be saved: %v", statErr)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), `".bashrc"`) || !strings.Contains(err.Error(), "--allow-hidden") {
+				t.Fatalf("err = %v, want an error naming .bashrc and --allow-hidden", err)
+			}
+			if !os.IsNotExist(statErr) {
+				t.Errorf("hidden file was saved (stat err = %v)", statErr)
+			}
+			if out := testutil.Stdout(f); out != "" {
+				t.Errorf("stdout = %q, want nothing", out)
+			}
+		})
 	}
 }
