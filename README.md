@@ -51,7 +51,7 @@ This also installs shell completions for bash, zsh, and fish.
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-Auto-detects your OS and architecture, downloads the latest release with checksum verification, and installs to `~/.local/bin`. If the [GitHub CLI](https://cli.github.com) is installed and logged in, it also verifies the release's build attestation with `gh attestation verify`. Set `REDMINE_VERSION=<tag>` to install a specific release.
+Auto-detects your OS and architecture, downloads the latest release with checksum verification, and installs to `~/.local/bin`. If the [GitHub CLI](https://cli.github.com) is installed and logged in, it also verifies the release's build attestation with `gh attestation verify`. Set `REDMINE_CLI_VERSION=<tag>` to install a specific release.
 
 ### Install with Go
 

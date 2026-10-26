@@ -77,8 +77,8 @@ type updateOptions struct {
 	// SkipAttestation downgrades verification to checksum-only.
 	SkipAttestation bool
 	// SecurityCheck reports a security-relevant condition: it warns and
-	// returns nil by default, or returns an error in strict mode. Nil means
-	// warn-only without a Factory (tests).
+	// returns nil by default, or returns an error in strict mode. Required
+	// when SkipAttestation is set; see factorySecurityCheck.
 	SecurityCheck func(msg string) error
 }
 
@@ -97,15 +97,7 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 			"this repository's release workflow for the exact release tag. The update is\n" +
 			"refused if either check fails.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.SecurityCheck = func(msg string) error {
-				cfg, err := f.Config()
-				if err != nil {
-					// Without a loadable config only REDMINE_STRICT can
-					// enable strict mode.
-					cfg = &config.Config{Strict: envStrict()}
-				}
-				return f.SecurityCheck(cfg, msg)
-			}
+			opts.SecurityCheck = factorySecurityCheck(f)
 			return runUpdateWithFormat(cmdutil.Context(cmd), version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
 		},
 	}
@@ -115,13 +107,13 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 	return cmd
 }
 
-// envStrict mirrors the REDMINE_STRICT parsing of the config package.
-func envStrict() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("REDMINE_STRICT"))) {
-	case "0", "false", "no", "off", "":
-		return false
-	default:
-		return true
+// factorySecurityCheck reports security conditions through f, in strict mode
+// if the selected profile or REDMINE_STRICT enables it. StrictMode needs no
+// credentials: Config can fail on a strict profile precisely because strict
+// mode refused something, which must not downgrade the check to a warning.
+func factorySecurityCheck(f *cmdutil.Factory) func(msg string) error {
+	return func(msg string) error {
+		return f.SecurityCheck(&config.Config{Strict: f.StrictMode()}, msg)
 	}
 }
 
@@ -238,12 +230,8 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 
 	if opts.SkipAttestation {
 		msg := "--skip-attestation: the update will only be verified against the release checksums, which come from the same place as the archive; a tampered release would NOT be detected"
-		if opts.SecurityCheck != nil {
-			if err := opts.SecurityCheck(msg); err != nil {
-				return err
-			}
-		} else {
-			fmt.Fprintf(stderr, "warning: %s\n", msg)
+		if err := opts.SecurityCheck(msg); err != nil {
+			return err
 		}
 	}
 
@@ -551,7 +539,7 @@ func installPath(tag string) (string, error) {
 
 // safeTagPattern matches release tags that are safe to embed in a suggested
 // shell command and URL path.
-var safeTagPattern = regexp.MustCompile(`^v[0-9A-Za-z][0-9A-Za-z.+-]*$`)
+var safeTagPattern = regexp.MustCompile(`^v` + releaseTagPattern + `$`)
 
 // notWritableError explains how to reinstall when the binary's directory is
 // not writable. The suggested install.sh is pinned to the release tag rather
@@ -568,7 +556,7 @@ func notWritableError(dir, tag string) error {
 	return fmt.Errorf(
 		"cannot update: %s is not writable\n\n"+
 			"Reinstall to a user-writable location:\n"+
-			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_VERSION=%s bash\n\n"+
+			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash\n\n"+
 			"Or download manually from:\n"+
 			"  https://github.com/%s/%s/releases/tag/%s",
 		dir, RepoOwner, RepoName, tag, tag, RepoOwner, RepoName, tag,

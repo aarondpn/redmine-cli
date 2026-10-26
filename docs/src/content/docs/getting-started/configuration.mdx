@@ -219,7 +219,7 @@ This is the complete list of what strict mode changes:
 | `env` / `$ENV` in `--jq` expressions | Expose the process environment | Evaluate to `{}`, as with `REDMINE_JQ_NO_ENV=1` |
 | `redmine update --skip-attestation` (see [Self-Update](/commands/other/#self-update)) | Warns, installs with checksum verification only | Refuses the update |
 
-Warnings go to stderr, once per command, and never change stdout. `--no-auth` on a loopback MCP bind is honored without a warning in both modes. `redmine auth login` takes `strict` from the profile it updates (or `REDMINE_STRICT`), and `redmine update` uses `REDMINE_STRICT` alone when no config can be loaded.
+Warnings go to stderr, once per command, and never change stdout. `--no-auth` on a loopback MCP bind is honored without a warning in both modes. `redmine auth login` takes `strict` from the profile it updates (or `REDMINE_STRICT`), and `redmine update` from the selected profile (or `REDMINE_STRICT`) even when that profile's credentials cannot be loaded. For both, a config file that cannot be parsed counts as strict.
 
 ## Read-only mode
 

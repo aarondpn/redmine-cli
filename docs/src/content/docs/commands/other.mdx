@@ -160,7 +160,15 @@ redmine update
 Checks GitHub for the latest release, downloads it, and replaces the current binary only after two checks pass:
 
 1. **Checksum** — the archive's SHA256 must match the release's checksums file.
-2. **Attestation** — the archive's SHA256 must have a [GitHub artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) (SLSA build provenance, signed through Sigstore and recorded in its transparency log) issued by this repository's `release.yml` workflow for exactly the release tag being installed. This is the same check as `gh attestation verify --repo aarondpn/redmine-cli`, built in.
+2. **Attestation** — the archive's SHA256 must have a [GitHub artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) (SLSA build provenance, signed through Sigstore and recorded in its transparency log) issued by this repository's `release.yml` workflow for exactly the release tag being installed.
+
+Besides the repository, the built-in check pins the signer workflow and the source ref, so it is stricter than `gh attestation verify --repo aarondpn/redmine-cli` alone. The equivalent `gh` command, which `install.sh` also runs, is (Windows archives end in `.zip`):
+
+```bash
+gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli \
+  --signer-workflow aarondpn/redmine-cli/.github/workflows/release.yml \
+  --source-ref refs/tags/<tag>
+```
 
 The checksums come from the same place as the archive, so only the attestation proves the binary was built by the project's release pipeline. The update is refused if the attestation is missing, invalid, or signed by any other identity.
 
@@ -173,7 +181,7 @@ When installed via Homebrew, delegates to `brew upgrade`.
 Verification needs to reach `api.github.com` (attestations API) and `tuf-repo-cdn.sigstore.dev` (Sigstore trusted root, cached for a day under your user cache directory). If either is unreachable, `redmine update` refuses to install and suggests `--skip-attestation`. Set `GITHUB_TOKEN` or `GH_TOKEN` to avoid GitHub API rate limits; it is only sent to `api.github.com`.
 
 <Aside type="caution" title="Do not skip verification on failure">
-  `--skip-attestation` is meant for networks that block the verification endpoints. If verification *fails* (rather than being unreachable), do not work around it; report it as a security issue.
+  `--skip-attestation` is meant for networks that block the verification endpoints. If verification *fails* (rather than being unreachable), do not work around it; report it as a security issue. The same applies to `REDMINE_CLI_SKIP_ATTESTATION=1`, the [install script](/getting-started/installation/)'s equivalent.
 </Aside>
 
 If the binary's directory is not writable, the error suggests reinstalling with the `install.sh` from the same release tag rather than from `main`.

@@ -28,13 +28,15 @@ Pick the install path that suits your platform. All methods produce the same `re
 
     If the [GitHub CLI](https://cli.github.com) is installed and logged in, the script also runs `gh attestation verify` on the archive and refuses to install if the build provenance does not check out. Without `gh` it prints the command to verify the release yourself.
 
-    To install a specific release instead of the latest, set `REDMINE_VERSION` and fetch the script from that same tag:
+    If `gh` cannot complete the check because of your environment (a proxy that blocks Sigstore, or `gh` logged in to GitHub Enterprise Server only), set `REDMINE_CLI_SKIP_ATTESTATION=1` to install with checksum verification only. The script prints a warning and the command to verify the release yourself. As with [`redmine update --skip-attestation`](/commands/other/#self-update), the checksums come from the same place as the archive, so a tampered release would not be detected; never use it to get past an attestation that is actually invalid.
+
+    To install a specific release instead of the latest, set `REDMINE_CLI_VERSION` and fetch the script from that same tag:
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.sh | REDMINE_VERSION=<tag> bash
+    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.sh | REDMINE_CLI_VERSION=<tag> bash
     ```
 
-    The `install.sh` of releases up to v2.14.1 ignores `REDMINE_VERSION` and installs the latest release; to pin one of those, fetch the script from `main` instead.
+    The `install.sh` of releases up to v2.14.1 ignores `REDMINE_CLI_VERSION` and installs the latest release; to pin one of those, fetch the script from `main` instead.
 
     <Aside type="tip" title="PATH">
       Make sure `~/.local/bin` is on your `PATH`. Most modern shells add it automatically.

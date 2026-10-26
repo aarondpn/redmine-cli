@@ -96,6 +96,12 @@ func CheckForUpdate(ctx context.Context, currentVersion string) *CheckResult {
 // releasePagePrefix is the only URL prefix an update notice may link to.
 const releasePagePrefix = "https://github.com/" + RepoOwner + "/" + RepoName + "/releases/"
 
+// releaseTagPattern matches the characters a release tag may contain: a
+// letter or digit, then letters, digits, '.', '+' and '-'. That rules out
+// whitespace, control characters, shell metacharacters and path separators.
+// Callers anchor it.
+const releaseTagPattern = `[0-9A-Za-z][0-9A-Za-z.+-]*`
+
 var (
 	// safeVersionPattern matches a normalized release version such as
 	// "2.14.1" or "3.0.0-rc.1".
@@ -104,7 +110,7 @@ var (
 	// rules out whitespace and control characters (terminal escape
 	// sequences), and dot segments ("releases/../../other/repo") that a
 	// browser would resolve outside this repository's releases.
-	safeReleaseURLPattern = regexp.MustCompile(`^` + regexp.QuoteMeta(releasePagePrefix) + `tag/[0-9A-Za-z][0-9A-Za-z.+-]*$`)
+	safeReleaseURLPattern = regexp.MustCompile(`^` + regexp.QuoteMeta(releasePagePrefix) + `tag/` + releaseTagPattern + `$`)
 )
 
 // validNotice reports whether a version and release URL are safe to print.
@@ -194,12 +200,18 @@ func (c *updateCheckCache) valid(now time.Time) bool {
 
 // writeCache saves the update check cache to disk, readable only by the
 // current user. Errors are silently ignored.
+//
+// The entry is written to a temp file (created 0600) in the same directory
+// and renamed into place, so concurrent invocations never read a truncated
+// file and a cache created 0644 by an older version, or a symlink planted at
+// the path, is replaced rather than written through.
 func writeCache(cache *updateCheckCache) {
 	path := cachePath()
 	if path == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return
 	}
 
@@ -208,12 +220,21 @@ func writeCache(cache *updateCheckCache) {
 		return
 	}
 
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	tmp, err := os.CreateTemp(dir, ".redmine-cli-update-check-*.tmp")
+	if err != nil {
 		return
 	}
-	// WriteFile keeps the mode of an existing file; tighten caches created
-	// by older versions with 0644.
-	_ = os.Chmod(path, 0o600)
+	tmpPath := tmp.Name()
+	_, err = tmp.Write(data)
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmpPath, path)
+	}
+	if err != nil {
+		_ = os.Remove(tmpPath)
+	}
 }
 
 // CheckForUpdateCached checks GitHub for a newer release, caching the result

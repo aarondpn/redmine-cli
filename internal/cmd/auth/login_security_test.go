@@ -3,12 +3,13 @@ package auth
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
 // TestCheckCleartextServerMatchesCommands pins that auth login judges a
@@ -37,8 +38,9 @@ func TestCheckCleartextServerMatchesCommands(t *testing.T) {
 		t.Run(tc.server, func(t *testing.T) {
 			t.Setenv("REDMINE_STRICT", "")
 			var errOut bytes.Buffer
-			f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
-			if err := checkCleartextServer(f, tc.server, nil); err != nil {
+			// A missing config file keeps the lookup away from the real ~/.redmine-cli.yaml.
+			f := &cmdutil.Factory{ConfigPath: filepath.Join(t.TempDir(), "config.yaml"), IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
+			if err := checkCleartextServer(f, tc.server, "work"); err != nil {
 				t.Fatalf("checkCleartextServer error = %v, want nil outside strict mode", err)
 			}
 			if got := api.IsCleartextServer(tc.server); got != tc.want {
@@ -59,10 +61,12 @@ func TestCheckCleartextServerMatchesCommands(t *testing.T) {
 }
 
 func TestCheckCleartextServer(t *testing.T) {
+	const strictProfile = "profiles:\n  work:\n    server: http://redmine.example.com\n    strict: true\n"
 	cases := []struct {
 		name       string
 		server     string
-		existing   *config.Config
+		profile    string // the profile login writes; default "work"
+		configYAML string
 		strictEnv  string
 		wantStrict bool
 		wantWarn   bool
@@ -70,9 +74,11 @@ func TestCheckCleartextServer(t *testing.T) {
 		{name: "http warns", server: "http://redmine.example.com", wantWarn: true},
 		{name: "https is silent", server: "https://redmine.example.com"},
 		{name: "loopback http is silent", server: "http://127.0.0.1:3000"},
-		{name: "strict profile refuses", server: "http://redmine.example.com", existing: &config.Config{Strict: true}, wantStrict: true},
+		{name: "strict profile refuses", server: "http://redmine.example.com", configYAML: strictProfile, wantStrict: true},
+		{name: "strict setting of other profiles is ignored", server: "http://redmine.example.com", profile: "home", configYAML: "active_profile: work\n" + strictProfile + "  home:\n    server: http://home.example.com\n", wantWarn: true},
 		{name: "REDMINE_STRICT refuses", server: "http://redmine.example.com", strictEnv: "1", wantStrict: true},
-		{name: "REDMINE_STRICT=0 overrides strict profile", server: "http://redmine.example.com", existing: &config.Config{Strict: true}, strictEnv: "0", wantWarn: true},
+		{name: "REDMINE_STRICT=0 cannot lower a strict profile", server: "http://redmine.example.com", configYAML: strictProfile, strictEnv: "0", wantStrict: true},
+		{name: "unparsable config fails closed", server: "http://redmine.example.com", configYAML: "profiles: [", wantStrict: true},
 		{name: "strict allows loopback", server: "http://localhost:3000", strictEnv: "1"},
 	}
 	for _, tc := range cases {
@@ -80,10 +86,20 @@ func TestCheckCleartextServer(t *testing.T) {
 			if tc.strictEnv != "" {
 				t.Setenv("REDMINE_STRICT", tc.strictEnv)
 			}
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			if tc.configYAML != "" {
+				if err := os.WriteFile(configPath, []byte(tc.configYAML), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			var errOut bytes.Buffer
-			f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
+			f := &cmdutil.Factory{ConfigPath: configPath, IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
 
-			err := checkCleartextServer(f, tc.server, tc.existing)
+			profile := tc.profile
+			if profile == "" {
+				profile = "work"
+			}
+			err := checkCleartextServer(f, tc.server, profile)
 			var strictErr *cmdutil.StrictModeError
 			if tc.wantStrict {
 				if !errors.As(err, &strictErr) {

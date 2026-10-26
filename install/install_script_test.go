@@ -172,6 +172,16 @@ func (e *scriptEnv) run(t *testing.T, extra map[string]string) (string, error) {
 	return string(out), err
 }
 
+// corruptChecksums replaces the fixture's checksum for the archive.
+func (e *scriptEnv) corruptChecksums(t *testing.T) {
+	t.Helper()
+	name := "redmine-cli_" + strings.TrimPrefix(scriptFixtureTag, "v") + "_checksums.txt"
+	sums := strings.Repeat("0", 64) + "  " + e.archive + "\n"
+	if err := os.WriteFile(filepath.Join(e.dir, "fixture", name), []byte(sums), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (e *scriptEnv) installed() bool {
 	_, err := os.Stat(filepath.Join(e.installDir, "redmine"))
 	return err == nil
@@ -196,6 +206,7 @@ func TestInstallScript(t *testing.T) {
 	tests := []struct {
 		name          string
 		withGh        bool
+		corruptSums   bool // the release checksums do not match the archive
 		env           map[string]string
 		wantErr       bool
 		wantInstalled bool
@@ -213,11 +224,22 @@ func TestInstallScript(t *testing.T) {
 		{
 			name:          "pinned version without v prefix",
 			withGh:        true,
-			env:           map[string]string{"REDMINE_VERSION": strings.TrimPrefix(scriptFixtureTag, "v")},
+			env:           map[string]string{"REDMINE_CLI_VERSION": strings.TrimPrefix(scriptFixtureTag, "v")},
 			wantInstalled: true,
 			wantOutput:    []string{"Requested version: " + scriptFixtureTag},
 			wantLog:       []string{"/releases/download/" + scriptFixtureTag + "/"},
 			wantLogNot:    []string{"/releases/latest"},
+		},
+		{
+			// The official Redmine Docker image sets REDMINE_VERSION to the
+			// Redmine release; it must not pin a redmine-cli tag.
+			name:          "REDMINE_VERSION of the Redmine image is ignored",
+			withGh:        true,
+			env:           map[string]string{"REDMINE_VERSION": "7.0.2"},
+			wantInstalled: true,
+			wantOutput:    []string{"Latest version: " + scriptFixtureTag},
+			wantLog:       []string{"/releases/latest"},
+			wantLogNot:    []string{"v7.0.2"},
 		},
 		{
 			name:       "failed attestation refuses to install",
@@ -225,6 +247,51 @@ func TestInstallScript(t *testing.T) {
 			env:        map[string]string{"GH_VERIFY_EXIT": "1"},
 			wantErr:    true,
 			wantOutput: []string{"Attestation verification failed"},
+		},
+		{
+			name:       "failed attestation names the escape hatch with a caveat",
+			withGh:     true,
+			env:        map[string]string{"GH_VERIFY_EXIT": "1"},
+			wantErr:    true,
+			wantOutput: []string{"REDMINE_CLI_SKIP_ATTESTATION=1", "If the attestation itself is invalid, do not\ninstall"},
+		},
+		{
+			// Escape hatch for networks that block Sigstore or a gh logged
+			// in to GitHub Enterprise Server only.
+			name:          "REDMINE_CLI_SKIP_ATTESTATION skips gh with a warning",
+			withGh:        true,
+			env:           map[string]string{"REDMINE_CLI_SKIP_ATTESTATION": "1", "GH_VERIFY_EXIT": "1"},
+			wantInstalled: true,
+			wantOutput: []string{
+				"REDMINE_CLI_SKIP_ATTESTATION is set; skipping attestation verification",
+				"a tampered release would NOT be detected",
+				"Checksum verified.",
+				"gh attestation verify ",
+			},
+			wantLogNot: []string{"gh attestation verify", "gh auth status"},
+		},
+		{
+			name:          "REDMINE_CLI_SKIP_ATTESTATION=true without gh",
+			env:           map[string]string{"REDMINE_CLI_SKIP_ATTESTATION": "true"},
+			wantInstalled: true,
+			wantOutput:    []string{"REDMINE_CLI_SKIP_ATTESTATION is set"},
+		},
+		{
+			name:       "REDMINE_CLI_SKIP_ATTESTATION=0 still verifies",
+			withGh:     true,
+			env:        map[string]string{"REDMINE_CLI_SKIP_ATTESTATION": "0", "GH_VERIFY_EXIT": "1"},
+			wantErr:    true,
+			wantOutput: []string{"Attestation verification failed"},
+		},
+		{
+			// Skipping only drops the attestation; a checksum mismatch
+			// still refuses.
+			name:        "REDMINE_CLI_SKIP_ATTESTATION keeps the checksum check",
+			withGh:      true,
+			env:         map[string]string{"REDMINE_CLI_SKIP_ATTESTATION": "1"},
+			corruptSums: true,
+			wantErr:     true,
+			wantOutput:  []string{"Checksum mismatch"},
 		},
 		{
 			name:          "no gh prints manual verification command",
@@ -249,7 +316,7 @@ func TestInstallScript(t *testing.T) {
 		},
 		{
 			name:       "invalid pinned tag",
-			env:        map[string]string{"REDMINE_VERSION": "v1;touch pwned"},
+			env:        map[string]string{"REDMINE_CLI_VERSION": "v1;touch pwned"},
 			wantErr:    true,
 			wantOutput: []string{"Invalid release tag"},
 			wantLogNot: []string{"/releases/download/"},
@@ -257,7 +324,7 @@ func TestInstallScript(t *testing.T) {
 		{
 			// Each line is a valid tag on its own; the whole value is not.
 			name:       "multi-line pinned tag",
-			env:        map[string]string{"REDMINE_VERSION": scriptFixtureTag + "\nv0.0.1"},
+			env:        map[string]string{"REDMINE_CLI_VERSION": scriptFixtureTag + "\nv0.0.1"},
 			wantErr:    true,
 			wantOutput: []string{"Invalid release tag"},
 			wantLogNot: []string{"/releases/download/"},
@@ -266,6 +333,9 @@ func TestInstallScript(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			env := newScriptEnv(t, tt.withGh)
+			if tt.corruptSums {
+				env.corruptChecksums(t)
+			}
 			out, err := env.run(t, tt.env)
 			if tt.wantErr != (err != nil) {
 				t.Fatalf("err = %v, wantErr %v\noutput:\n%s", err, tt.wantErr, out)

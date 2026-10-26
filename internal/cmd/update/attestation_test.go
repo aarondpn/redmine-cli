@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -170,9 +171,9 @@ func stubAttestationsURL(t *testing.T, url string) {
 	attestationsURL = url + "/attestations/sha256:%s"
 }
 
-func fixtureTrustedRootFn(t *testing.T) func() (root.TrustedMaterial, error) {
+func fixtureTrustedRootFn(t *testing.T) func(context.Context) (root.TrustedMaterial, error) {
 	tr := loadFixtureTrustedRoot(t)
-	return func() (root.TrustedMaterial, error) { return tr, nil }
+	return func(context.Context) (root.TrustedMaterial, error) { return tr, nil }
 }
 
 func TestSigstoreAttestationVerifier_Verify(t *testing.T) {
@@ -258,7 +259,7 @@ func TestSigstoreAttestationVerifier_Verify(t *testing.T) {
 
 			v := &sigstoreAttestationVerifier{httpClient: ts.Client(), trustedMaterial: fixtureTrustedRootFn(t)}
 			if tt.trustedRootErr != nil {
-				v.trustedMaterial = func() (root.TrustedMaterial, error) { return nil, tt.trustedRootErr }
+				v.trustedMaterial = func(context.Context) (root.TrustedMaterial, error) { return nil, tt.trustedRootErr }
 			}
 
 			err := v.Verify(context.Background(), fixtureDigest(t), fixtureTag)
@@ -329,5 +330,36 @@ func TestSigstoreAttestationVerifier_SendsToken(t *testing.T) {
 				t.Errorf("Authorization = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestTUFFetcher_HonorsContext checks that cancelling the update (Ctrl-C)
+// aborts a TUF metadata download instead of waiting for the server.
+func TestTUFFetcher_HonorsContext(t *testing.T) {
+	release := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer ts.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := newTUFFetcher(ctx).DownloadFile(ts.URL+"/1.root.json", 1<<20, 0)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("DownloadFile error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("DownloadFile did not return after the context was cancelled")
 	}
 }

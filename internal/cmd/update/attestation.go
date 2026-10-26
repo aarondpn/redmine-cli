@@ -81,7 +81,7 @@ var newAttestationVerifier = func() attestationVerifier {
 // the Sigstore public-good instance.
 type sigstoreAttestationVerifier struct {
 	httpClient      *http.Client
-	trustedMaterial func() (root.TrustedMaterial, error)
+	trustedMaterial func(ctx context.Context) (root.TrustedMaterial, error)
 }
 
 func (v *sigstoreAttestationVerifier) Verify(ctx context.Context, digest []byte, tag string) error {
@@ -90,7 +90,7 @@ func (v *sigstoreAttestationVerifier) Verify(ctx context.Context, digest []byte,
 		return err
 	}
 
-	trusted, err := v.trustedMaterial()
+	trusted, err := v.trustedMaterial(ctx)
 	if err != nil {
 		return &attestationUnavailableError{err: fmt.Errorf("loading Sigstore trusted root: %w", err)}
 	}
@@ -241,14 +241,9 @@ func releaseCertificateIdentity(tag string) (verify.CertificateIdentity, error) 
 
 // fetchSigstoreTrustedRoot obtains the Sigstore public-good trusted root via
 // TUF, anchored at the root embedded in sigstore-go and cached under the
-// user cache directory.
-func fetchSigstoreTrustedRoot() (root.TrustedMaterial, error) {
-	// The default TUF fetcher uses http.DefaultClient, which never times
-	// out; an unresponsive TUF CDN would hang the update.
-	f := fetcher.NewDefaultFetcher()
-	f.SetHTTPUserAgent(util.ConstructUserAgent())
-	f.SetHTTPClient(&http.Client{Timeout: attestationHTTPTimeout})
-	opts := tuf.DefaultOptions().WithCacheValidity(tufCacheValidityDays).WithFetcher(f)
+// user cache directory. Cancelling ctx aborts any TUF download in flight.
+func fetchSigstoreTrustedRoot(ctx context.Context) (root.TrustedMaterial, error) {
+	opts := tuf.DefaultOptions().WithCacheValidity(tufCacheValidityDays).WithFetcher(newTUFFetcher(ctx))
 	if dir, err := os.UserCacheDir(); err == nil && dir != "" {
 		opts = opts.WithCachePath(filepath.Join(dir, "redmine-cli", "sigstore-tuf"))
 	} else {
@@ -259,6 +254,28 @@ func fetchSigstoreTrustedRoot() (root.TrustedMaterial, error) {
 		return nil, err
 	}
 	return root.GetTrustedRoot(client)
+}
+
+// newTUFFetcher returns a TUF metadata fetcher whose requests time out and are
+// cancelled with ctx. The default fetcher uses http.DefaultClient, which never
+// times out (an unresponsive TUF CDN would hang the update), and neither
+// go-tuf nor sigstore-go pass a context to its requests, so the client
+// attaches ctx itself.
+func newTUFFetcher(ctx context.Context) *fetcher.DefaultFetcher {
+	f := fetcher.NewDefaultFetcher()
+	f.SetHTTPUserAgent(util.ConstructUserAgent())
+	f.SetHTTPClient(contextHTTPClient{ctx: ctx, client: &http.Client{Timeout: attestationHTTPTimeout}})
+	return f
+}
+
+// contextHTTPClient sends every request with ctx.
+type contextHTTPClient struct {
+	ctx    context.Context
+	client *http.Client
+}
+
+func (c contextHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return c.client.Do(req.WithContext(c.ctx))
 }
 
 func githubToken() string {

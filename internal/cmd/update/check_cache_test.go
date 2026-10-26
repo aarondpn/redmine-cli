@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -37,6 +38,56 @@ func TestWriteCache_Permissions(t *testing.T) {
 	}
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Errorf("cache mode = %o, want 600", perm)
+	}
+}
+
+// TestWriteCache_ReplacesSymlink checks that the cache is renamed into place
+// rather than written through whatever sits at the path.
+func TestWriteCache_ReplacesSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on Windows")
+	}
+	dir := t.TempDir()
+	setCachePath(t, dir)
+	target := filepath.Join(t.TempDir(), "victim")
+	if err := os.WriteFile(target, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, cachePath()); err != nil {
+		t.Fatal(err)
+	}
+
+	writeCache(&updateCheckCache{
+		CheckedAt:          time.Now(),
+		CheckedFromVersion: "1.0.0",
+		LatestVersion:      "2.0.0",
+		ReleaseURL:         "https://github.com/aarondpn/redmine-cli/releases/tag/v2.0.0",
+		UpdateAvailable:    true,
+	})
+
+	if data, err := os.ReadFile(target); err != nil || string(data) != "keep" {
+		t.Errorf("symlink target = %q, %v; want it untouched", data, err)
+	}
+	info, err := os.Lstat(cachePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Errorf("cache path mode = %v, want a regular file", info.Mode())
+	}
+	if c := readCache(); c == nil || c.LatestVersion != "2.0.0" {
+		t.Errorf("readCache() = %+v, want the new entry", c)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("cache dir holds %v, want only the cache file (no temp files left)", names)
 	}
 }
 
