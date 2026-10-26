@@ -108,6 +108,23 @@ func TestWaitForStartupUpdate_TimeoutCancelsCheck(t *testing.T) {
 	}
 }
 
+func TestRenderError_SanitizesTextErrors(t *testing.T) {
+	err := errors.New("Subject \x1b]52;c;ZXZpbA==\x07 is invalid\r")
+
+	var text bytes.Buffer
+	renderError(&text, err, output.FormatTable)
+	if got, want := text.String(), "Error: Subject ^[]52;c;ZXZpbA==^G is invalid^M\n"; got != want {
+		t.Errorf("text error = %q, want %q", got, want)
+	}
+
+	// The JSON envelope is left to encoding/json, which escapes controls.
+	var js bytes.Buffer
+	renderError(&js, err, output.FormatJSON)
+	if !strings.Contains(js.String(), `\u001b]52`) {
+		t.Errorf("JSON error = %q, want the escaped original message", js.String())
+	}
+}
+
 func TestSelectedOutputFormat_FallsBackToConfigDefault(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := "server: https://example.invalid\napi_key: test\nauth_method: apikey\noutput_format: json\n"
@@ -321,6 +338,13 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 			wantJSON: true,
 			wantCode: output.ErrCodeJQFailed,
 			wantMsg:  "command succeeded, but --jq failed: ",
+		},
+		{
+			name:     "identifier rejected before any request",
+			args:     []string{"projects", "get", "../users/2", "-o", "json"},
+			wantJSON: true,
+			wantCode: output.ErrCodeValidationFailed,
+			wantMsg:  `invalid project identifier \"../users/2\"`,
 		},
 		{
 			name:    "table mode",

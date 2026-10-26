@@ -28,7 +28,7 @@ Aliases: `show`, `view`, `metadata`. Fetches the attachment's ID, filename, size
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output` | Output format: `table`, `json`, `csv` |
+| `-o, --output` | Output format: `table`, `json` |
 
 <Tabs syncKey="attachments-get">
   <TabItem label="Table">
@@ -39,11 +39,6 @@ Aliases: `show`, `view`, `metadata`. Fetches the attachment's ID, filename, size
   <TabItem label="JSON">
     ```bash
     redmine attachments get 42 -o json
-    ```
-  </TabItem>
-  <TabItem label="CSV">
-    ```bash
-    redmine attachments get 42 -o csv
     ```
   </TabItem>
 </Tabs>
@@ -60,9 +55,44 @@ Aliases: `dl`, `get-file`. Streams the attachment's raw bytes to disk (or stdout
 |------|-------------|
 | `-d, --dir`    | Directory to save into, using the attachment's real filename (created if missing) |
 | `--path`       | Exact destination file path. Use `-` to stream to stdout |
+| `--clobber`    | Overwrite an existing file at the destination |
+| `--allow-hidden` | Allow saving under a server-supplied filename that starts with `.` (with `--dir` or the default destination) |
 | `-o, --output` | Confirmation format: `json` prints a result object; otherwise a human line is written to stderr |
 
 With no destination flag, the file is saved as `./<filename>` in the current directory.
+
+### Existing files and `--clobber`
+
+Downloads never overwrite an existing file unless you pass `--clobber`. This applies to `--path`, `--dir`, and the default current directory. Without it, the command fails before downloading and names the path:
+
+```text
+failed to download attachment 42: logo.png already exists; use --clobber to overwrite it
+```
+
+The bytes are first streamed into a temporary file in the destination directory and moved into place only once the download has completed. As a result:
+
+- A failed or interrupted download leaves any existing file untouched and leaves no partial file at the destination. Pressing Ctrl-C once stops the download and removes its temporary file. If the process is killed outright (a second Ctrl-C, `kill -9`), a hidden `.redmine-download-*.tmp` file may remain in the destination directory; it is safe to delete.
+- A symlink at the destination is never followed. Without `--clobber` it counts as an existing file (even when it is dangling); with `--clobber` the link itself is replaced by the downloaded file, and whatever it pointed to is left alone.
+- A directory at the destination is always an error, even with `--clobber`. So is any other non-regular file, except that a `--path` that is (or links to) a character device or a named pipe, such as `/dev/null` or a FIFO, is written into directly, without `--clobber`. (`/dev/stdout` counts when stdout is a terminal or a pipe; to write to stdout, prefer `--path -`.) With `--dir` or the default destination such an entry is refused like a directory.
+- A new file gets the same permissions as any other file you create (`0644` with the usual umask `022`). With `--clobber`, a replaced regular file keeps its previous permissions.
+
+Without `--clobber`, the final step uses a hard link, which fails atomically if a file appeared at the destination while the download was running. On filesystems without hard-link support the CLI falls back to re-checking the destination and then renaming, which leaves a small window between the check and the rename.
+
+<Aside type="caution" title="Changed behavior">
+  Earlier versions silently truncated an existing file at the destination and
+  wrote through symlinks. Scripts that re-download into the same location now
+  need `--clobber`.
+</Aside>
+
+With `--dir` or the default destination the filename comes from the server. It is reduced to its base name, so it can never escape the directory. A name that starts with `.` (such as `.bashrc`, `.envrc` or `.npmrc`) is refused, because it could plant or shadow a configuration file, unless you pass `--allow-hidden`:
+
+```text
+failed to download attachment 42: refusing to save the hidden filename ".bashrc" as downloads/.bashrc; pass --allow-hidden to save it anyway
+```
+
+Choosing the name yourself with `--path` is not affected, and neither is `--path -` (stdout).
+
+If the server redirects the download (or any other request), the redirect is followed only when it stays on the configured server (the same host and port, or the `https://` upgrade of an `http://` server, port 80 becoming 443), or goes to a public address (for example presigned object-storage URLs such as S3). Credentials are only sent to the configured server, never to the redirect target. Redirects from `https://` to `http://`, or to loopback, private, link-local, multicast, unspecified (`0.0.0.0/8`), carrier-grade NAT (`100.64.0.0/10`), or benchmarking (`198.18.0.0/15`) addresses are refused, including IPv6 addresses that embed one of them (IPv4-mapped, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`); host names are re-checked against the address actually connected to. When the redirect goes through an HTTP(S) proxy, the CLI never connects to the target itself, so it resolves the host name locally and refuses it if it points at one of these addresses; a name only the proxy can resolve is left to the proxy. Another port on the configured server's host gets the same checks as any other host. A redirect to a public `http://` URL is followed as long as it does not come from an `https://` URL.
 
 <Aside>
   Unlike most commands, `-o/--output` here controls only the **confirmation**
@@ -86,6 +116,12 @@ With no destination flag, the file is saved as `./<filename>` in the current dir
   <TabItem label="Exact path">
     ```bash
     redmine attachments download 42 --path ./logo.png
+    ```
+  </TabItem>
+  <TabItem label="Overwrite">
+    ```bash
+    # Replace a copy left over from an earlier download
+    redmine attachments download 42 --dir ./downloads --clobber
     ```
   </TabItem>
   <TabItem label="Pipe to stdout">

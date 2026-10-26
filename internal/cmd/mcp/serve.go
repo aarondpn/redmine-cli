@@ -9,8 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -26,6 +25,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 		name          string
 		httpAddr      string
 		authToken     string
+		authTokenFile string
 		noAuth        bool
 		enableGroups  []string
 		disableGroups []string
@@ -44,11 +44,15 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			"also register create/update/delete tools. Use --http to listen on " +
 			"an HTTP address such as :8080 instead of stdio. The HTTP transport " +
 			"defaults to a loopback bind (127.0.0.1); pass an explicit host to " +
-			"listen elsewhere. Every request must then carry a bearer token: set " +
-			"--auth-token (or REDMINE_MCP_AUTH_TOKEN), otherwise a random token " +
-			"is generated at startup and printed to stderr. Pass --no-auth only " +
-			"when something in front of the server (e.g. a reverse proxy) " +
-			"already authenticates clients.\n\n" +
+			"listen elsewhere. When a token is configured (--auth-token-file, " +
+			"REDMINE_MCP_AUTH_TOKEN or the profile's mcp.auth_token), every " +
+			"request must carry it as a bearer token, on any bind. On a " +
+			"non-loopback bind without a configured token, a random token is " +
+			"generated at startup and printed to stderr. A loopback bind " +
+			"without a token stays open to every local user and process; the " +
+			"server warns about it. Pass --no-auth only when something in front " +
+			"of the server (e.g. a reverse proxy) already authenticates " +
+			"clients.\n\n" +
 			"To narrow the set of tools exposed to MCP clients, use " +
 			"--enable-groups / --disable-groups (allow- and deny-list of tool " +
 			"groups) and --enable-tools / --disable-tools (per-tool overrides). " +
@@ -78,13 +82,21 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 			opts = mcpserver.ResolveOptions(opts, spec)
 
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
+			// main cancels this context on the first SIGINT/SIGTERM, which
+			// shuts both transports down cleanly, and restores default
+			// signal handling so a second Ctrl-C still kills the process.
+			// Serve must not catch signals itself, or it would swallow that
+			// second Ctrl-C while shutting down.
+			ctx := cmdutil.Context(cmd)
 
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
 			if httpAddr != "" {
 				normalized, isLoopback := mcpserver.NormalizeBindAddr(httpAddr)
-				token, generated, err := resolveHTTPAuth(cmd, cfg, isLoopback, authToken, noAuth)
+				token, generated, err := resolveHTTPAuth(f, cmd, cfg, isLoopback, httpAuthFlags{
+					Token:     authToken,
+					TokenFile: authTokenFile,
+					NoAuth:    noAuth,
+				})
 				if err != nil {
 					return err
 				}
@@ -121,7 +133,9 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().BoolVar(&enableWrites, "enable-writes", false, "Register tools that create, update, or delete Redmine data")
 	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (e.g. :8080 binds 127.0.0.1; pass 0.0.0.0:8080 to expose externally). Also settable via REDMINE_MCP_HTTP.")
-	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When --http binds outside of loopback and no token is set, one is generated at startup.")
+	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When no token is set, one is generated at startup for an --http bind outside of loopback. Visible in the process list; prefer --auth-token-file, REDMINE_MCP_AUTH_TOKEN, or mcp.auth_token.")
+	cmd.Flags().StringVar(&authTokenFile, "auth-token-file", "", "Read the --auth-token value from a file, or from standard input with \"-\", so it never appears in the process list.")
+	cmd.MarkFlagsMutuallyExclusive("auth-token", "auth-token-file")
 	cmd.Flags().BoolVar(&noAuth, "no-auth", false, "Serve a non-loopback --http bind without a bearer token instead of generating one. Only use behind an authenticating proxy.")
 	cmd.Flags().StringVar(&name, "name", "redmine-cli", "Server name advertised to MCP clients")
 	cmd.Flags().StringSliceVar(&enableGroups, "enable-groups", nil, "Comma-separated tool groups to expose (default: all). See redmine mcp tools.")
@@ -233,25 +247,66 @@ func resolveNoAuth(cmd *cobra.Command, flagVal bool, cfg *config.Config) bool {
 	return flagVal
 }
 
+// httpAuthFlags carries the raw --auth-token, --auth-token-file and --no-auth
+// flag values into resolveHTTPAuth.
+type httpAuthFlags struct {
+	Token     string
+	TokenFile string
+	NoAuth    bool
+}
+
+// Security warnings for the HTTP transport, printed through Factory.Warn.
+const (
+	loopbackNoAuthWarning = "serving MCP over HTTP on loopback without an auth token; any local user or process that can reach the port can call the server's tools as your Redmine user. Set --auth-token-file or REDMINE_MCP_AUTH_TOKEN to require a token"
+	publicNoAuthWarning   = "serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server"
+)
+
 // resolveHTTPAuth decides which bearer token guards the HTTP transport.
-// Loopback binds keep the configured token (possibly none). Non-loopback
-// binds without a token get a freshly generated one (generated=true) that the
-// caller prints once the listener is up, unless --no-auth opts out explicitly.
-func resolveHTTPAuth(cmd *cobra.Command, cfg *config.Config, isLoopback bool, authTokenFlag string, noAuthFlag bool) (token string, generated bool, err error) {
-	token = resolveAuthToken(cmd, authTokenFlag, cfg)
-	noAuth := resolveNoAuth(cmd, noAuthFlag, cfg)
+// Non-loopback binds without a token get a freshly generated one
+// (generated=true) that the caller prints once the listener is up, unless
+// --no-auth opts out explicitly, which warns. Loopback binds without a token
+// stay open with a warning so local setups keep working; --no-auth on
+// loopback is honored silently.
+func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config, isLoopback bool, flags httpAuthFlags) (token string, generated bool, err error) {
+	if cmd.Flags().Changed("auth-token-file") {
+		var stdin io.Reader
+		if f.IOStreams != nil {
+			stdin = f.IOStreams.In
+		}
+		token, err = readAuthTokenFile(flags.TokenFile, stdin)
+		if err != nil {
+			return "", false, err
+		}
+	} else {
+		token = resolveAuthToken(cmd, flags.Token, cfg)
+		if token == "" && !cmd.Flags().Changed("auth-token") {
+			// A keyring profile keeps mcp.auth_token in the keyring, and
+			// config loading leaves it there until it is needed. If the
+			// keyring can't be read, a saved token may exist, so refuse to
+			// serve without it unless --no-auth asks for exactly that.
+			token, err = config.ResolveMCPAuthToken(cfg, f.DebugLogger())
+			if err != nil && !resolveNoAuth(cmd, flags.NoAuth, cfg) {
+				return "", false, fmt.Errorf("%w; refusing to serve without a token that may exist. Set REDMINE_MCP_AUTH_TOKEN or --auth-token-file, or pass --no-auth to serve without authentication", err)
+			}
+		}
+	}
+	noAuth := resolveNoAuth(cmd, flags.NoAuth, cfg)
 
 	if noAuth {
 		if token != "" {
-			return "", false, errors.New("--no-auth cannot be combined with an auth token (--auth-token, mcp.auth_token, or REDMINE_MCP_AUTH_TOKEN)")
+			return "", false, errors.New("--no-auth cannot be combined with an auth token (--auth-token, --auth-token-file, mcp.auth_token, or REDMINE_MCP_AUTH_TOKEN)")
 		}
 		if !isLoopback {
-			fmt.Fprintln(cmd.ErrOrStderr(), "warning: serving MCP without authentication (--no-auth); anyone reachable on that interface can drive Redmine through this server")
+			f.Warn(publicNoAuthWarning)
 		}
 		return "", false, nil
 	}
-	if token != "" || isLoopback {
+	if token != "" {
 		return token, false, nil
+	}
+	if isLoopback {
+		f.Warn(loopbackNoAuthWarning)
+		return "", false, nil
 	}
 
 	token, err = generateAuthToken()
@@ -261,12 +316,30 @@ func resolveHTTPAuth(cmd *cobra.Command, cfg *config.Config, isLoopback bool, au
 	return token, true, nil
 }
 
+// readAuthTokenFile reads the bearer token from path, or from stdin when path
+// is "-" (os.Stdin when stdin is nil). A token containing whitespace is
+// rejected because it could never match an "Authorization: Bearer <token>"
+// header.
+func readAuthTokenFile(path string, stdin io.Reader) (string, error) {
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	token, err := cmdutil.ReadSecretFile("--auth-token-file", path, stdin)
+	if err != nil {
+		return "", err
+	}
+	if strings.ContainsAny(token, " \t\r\n") {
+		return "", errors.New("--auth-token-file: the token must not contain whitespace")
+	}
+	return token, nil
+}
+
 // printGeneratedToken tells the operator which token clients must present.
 func printGeneratedToken(w io.Writer, token string) {
 	fmt.Fprintf(w,
 		"No auth token configured for a non-loopback bind; generated one for this run:\n\n"+
 			"    %s\n\n"+
-			"Clients must send \"Authorization: Bearer <token>\". Set --auth-token or REDMINE_MCP_AUTH_TOKEN to keep a stable token across restarts.\n",
+			"Clients must send \"Authorization: Bearer <token>\". Set --auth-token-file or REDMINE_MCP_AUTH_TOKEN to keep a stable token across restarts.\n",
 		token)
 }
 

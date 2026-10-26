@@ -1,7 +1,6 @@
 package group
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -29,7 +28,7 @@ func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			id, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			id, err := resolver.ResolveGroup(cmdutil.Context(cmd), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -45,7 +44,7 @@ func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Updating group...")
-			_, err = ops.UpdateGroup(context.Background(), client, input)
+			_, err = ops.UpdateGroup(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
 				return err

@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -27,7 +26,7 @@ func NewCmdBrowse(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			project, err := cmdutil.DefaultProjectID(ctx, f, project)
 			if err != nil {
 				return err

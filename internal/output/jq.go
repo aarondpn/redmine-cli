@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/textsafe"
 )
 
 // jqBufferLimit is how much filtered output Evaluate holds back before it
@@ -20,9 +23,22 @@ const jqBufferLimit = 1 << 20
 // JQFilter is a compiled --jq expression that is applied to every JSON
 // document a command would otherwise print. String results are printed raw
 // (without quotes), every other value is printed as JSON, and each result
-// goes on its own line.
+// goes on its own line. On a terminal, raw strings are neutralized like other
+// server text (see textsafe.Terminal); piped output is left untouched.
 type JQFilter struct {
 	code *gojq.Code
+}
+
+// JQNoEnvVar is the environment variable that, when set to a true value,
+// hides the process environment from --jq expressions (`env` and `$ENV`
+// evaluate to {}).
+const JQNoEnvVar = "REDMINE_JQ_NO_ENV"
+
+// jqEnvDisabled reports whether REDMINE_JQ_NO_ENV asks to hide the
+// environment from jq. Like the other boolean REDMINE_* variables, any value
+// other than "", 0, false, no and off counts as true.
+func jqEnvDisabled() bool {
+	return config.ParseBoolEnv(os.Getenv(JQNoEnvVar))
 }
 
 // JQRuntimeError reports that a --jq expression failed while filtering the
@@ -54,6 +70,9 @@ func (e *JQCompileError) Unwrap() error { return e.Err }
 // CompileJQ parses and compiles a jq expression. Compiling up front lets
 // callers reject a malformed expression before any API request is made.
 // Failures are returned as *JQCompileError.
+//
+// The expression can read the process environment through `env` and `$ENV`
+// unless REDMINE_JQ_NO_ENV is set.
 func CompileJQ(expr string) (*JQFilter, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, &JQCompileError{Err: errors.New("expression is empty")}
@@ -62,7 +81,11 @@ func CompileJQ(expr string) (*JQFilter, error) {
 	if err != nil {
 		return nil, &JQCompileError{Err: err}
 	}
-	code, err := gojq.Compile(query, gojq.WithEnvironLoader(os.Environ))
+	var opts []gojq.CompilerOption
+	if !jqEnvDisabled() {
+		opts = append(opts, gojq.WithEnvironLoader(os.Environ))
+	}
+	code, err := gojq.Compile(query, opts...)
 	if err != nil {
 		return nil, &JQCompileError{Err: err}
 	}
@@ -73,12 +96,15 @@ func CompileJQ(expr string) (*JQFilter, error) {
 // results to w. The input is exactly the JSON that RenderJSON would print, so
 // expressions can be written against the documented output shape.
 //
-// When indent is true, object and array results are pretty-printed;
-// otherwise they are written compactly, one per line. Results are buffered
+// terminal reports whether w is a terminal. If so, object and array results
+// are pretty-printed and raw string results go through textsafe.Terminal, so
+// server-controlled text (e.g. `--jq '.[0].subject'` or `@csv` output) can't
+// emit escape sequences. Otherwise containers are written compactly, one per
+// line, and strings are written byte for byte. Results are buffered
 // so a runtime error leaves w untouched, unless the output grows past
 // jqBufferLimit, in which case it is streamed. Filter failures are returned
 // as *JQRuntimeError.
-func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
+func (q *JQFilter) Evaluate(w io.Writer, v any, terminal bool) error {
 	data, err := json.Marshal(normalizeJSONValue(v))
 	if err != nil {
 		return &JQRuntimeError{Err: err}
@@ -90,7 +116,7 @@ func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 		return &JQRuntimeError{Err: err}
 	}
 
-	out := &jqWriter{w: w}
+	out := &jqWriter{w: w, terminal: terminal}
 	iter := q.code.Run(input)
 	for {
 		result, ok := iter.Next()
@@ -106,7 +132,7 @@ func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 			}
 			return &JQRuntimeError{Err: err}
 		}
-		if err := out.writeResult(result, indent); err != nil {
+		if err := out.writeResult(result); err != nil {
 			return err
 		}
 	}
@@ -117,12 +143,16 @@ func (q *JQFilter) Evaluate(w io.Writer, v any, indent bool) error {
 // the limit is exceeded.
 type jqWriter struct {
 	w         io.Writer
+	terminal  bool
 	buf       bytes.Buffer
 	streaming bool
 }
 
-func (o *jqWriter) writeResult(v any, indent bool) error {
+func (o *jqWriter) writeResult(v any) error {
 	if s, ok := v.(string); ok {
+		if o.terminal {
+			s = textsafe.Terminal(s)
+		}
 		o.buf.WriteString(s)
 		o.buf.WriteByte('\n')
 		return o.maybeStream()
@@ -132,7 +162,7 @@ func (o *jqWriter) writeResult(v any, indent bool) error {
 		return &JQRuntimeError{Err: err}
 	}
 	wrote := false
-	if indent {
+	if o.terminal {
 		switch v.(type) {
 		case map[string]any, []any:
 			if err := json.Indent(&o.buf, data, "", "  "); err != nil {

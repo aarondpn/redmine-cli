@@ -94,7 +94,9 @@ func TestCmdProjectList_IncludePropagatedToURL(t *testing.T) {
 	}
 }
 
-func TestCmdProjectList_CSVConfigDoesNotEmitANSI(t *testing.T) {
+// A profile that still selects the removed CSV format gets the table and a
+// warning instead of an error.
+func TestCmdProjectList_RemovedCSVConfigFallsBackToTable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/projects.json" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -105,7 +107,6 @@ func TestCmdProjectList_CSVConfigDoesNotEmitANSI(t *testing.T) {
 	defer srv.Close()
 
 	f := testutil.NewFactoryWithConfig(t, srv.URL, "output_format: csv\n")
-	f.IOStreams.IsTTY = true
 	cmd := newCmdList(f)
 
 	if err := cmd.Execute(); err != nil {
@@ -113,12 +114,15 @@ func TestCmdProjectList_CSVConfigDoesNotEmitANSI(t *testing.T) {
 	}
 
 	stdout := testutil.Stdout(f)
-	if strings.Contains(stdout, "\x1b[") {
-		t.Fatalf("csv output contains ANSI escapes:\n%q", stdout)
+	if strings.Contains(stdout, "1,demo") {
+		t.Fatalf("stdout is CSV, want a table:\n%s", stdout)
 	}
-	for _, want := range []string{"ID,Identifier,Name,Status,Public", "1,demo,Demo,active,yes"} {
+	for _, want := range []string{"Identifier", "demo", "Demo"} {
 		if !strings.Contains(stdout, want) {
-			t.Fatalf("csv output missing %q:\n%s", want, stdout)
+			t.Fatalf("table output missing %q:\n%s", want, stdout)
 		}
+	}
+	if stderr := testutil.Stderr(f); strings.Count(stderr, "warning: CSV output was removed") != 1 || !strings.Contains(stderr, "@csv") {
+		t.Fatalf("stderr = %q, want one CSV removal warning with the @csv hint", stderr)
 	}
 }

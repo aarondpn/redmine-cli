@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 var (
@@ -121,12 +123,19 @@ func convertInline(line string) string {
 	return line
 }
 
-// RenderDescription converts textile markup to styled terminal output.
+// RenderDescription converts textile markup, typically untrusted server
+// data, to styled terminal output. The input is sanitized with
+// output.SanitizeTerminal first, so it cannot bring its own escape
+// sequences, and the result keeps glamour's colors but no other escape
+// sequences: Markdown decodes character references such as "&#x1b;", so
+// control characters can reappear in the rendered output even though the
+// input was sanitized.
 func RenderDescription(textile string, width int) string {
 	if width < 10 {
 		width = 10
 	}
 
+	textile = output.SanitizeTerminal(textile)
 	md := TextileToMarkdown(textile)
 
 	r, err := glamour.NewTermRenderer(
@@ -142,7 +151,7 @@ func RenderDescription(textile string, width int) string {
 		return wordWrap(textile, width)
 	}
 
-	return strings.TrimRight(out, "\n")
+	return output.SanitizeStyled(strings.TrimRight(out, "\n"))
 }
 
 // wordWrap is a simple fallback wrapper.

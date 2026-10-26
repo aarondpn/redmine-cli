@@ -18,6 +18,10 @@ The `projects` command (alias `p`) manages Redmine projects.
   <LinkCard title="members"   href="#members"   description="List members and their roles." />
 </CardGrid>
 
+<Aside type="note" title="Project identifiers">
+  Wherever a command or MCP tool takes a project identifier, it must be a Redmine identifier (such as `my-project`) or a numeric ID. Values that could change the request path (empty, `.`, `..`, or anything containing `/`, `\`, `?`, `#`, `%`, or control characters) are rejected with `invalid project identifier` before any request is sent. Commands that also accept a project name (for example `--project` on `issues create`) still resolve names containing those characters by matching against the project list.
+</Aside>
+
 ## list
 
 ```bash
@@ -29,7 +33,7 @@ redmine projects list [flags]
 | `--include`    | Extra data, repeatable or comma-separated: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities`, `issue_custom_fields` |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
-| `-o, --output` | Output format: `table`, `json`, `csv` |
+| `-o, --output` | Output format: `table`, `json` |
 
 The table view always shows `ID, Identifier, Name, Status, Public`. Use `--output json` to inspect any extra sections you requested with `--include`.
 

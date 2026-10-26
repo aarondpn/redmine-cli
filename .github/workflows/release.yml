@@ -1,5 +1,14 @@
 name: Release
 
+# Installed updaters (v2.15.0+) only install a release whose archives carry a
+# GitHub artifact attestation signed by THIS workflow file running for the
+# release tag: the certificate identity is pinned to
+#   https://github.com/aarondpn/redmine-cli/.github/workflows/release.yml@refs/tags/<tag>
+# (internal/cmd/update/attestation.go). Renaming or moving this file,
+# transferring the repository, or releasing from anything but a v* tag push
+# makes every installed updater refuse new releases, short of
+# --skip-attestation. TestReleaseWorkflowMatchesPinnedSigner guards this.
+
 on:
   push:
     tags:
@@ -67,7 +76,11 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: "~> v2"
+          # Exact version: a floating range would pick up a new (possibly
+          # compromised) GoReleaser release mid-flight. Keep in sync with
+          # ci.yml; Renovate bumps both via the custom manager.
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: "v2.19.0"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,6 +121,68 @@ jobs:
           subject-name: ghcr.io/aarondpn/redmine-mcp
           subject-digest: ${{ steps.image.outputs.digest }}
 
+  # Proves that installed updaters accept the release just published: the
+  # archives are downloaded back from the release, checked against its
+  # checksums, verified with gh against the exact identity the updater pins,
+  # and finally verified by the updater's own Go verifier.
+  #
+  # If this job fails, the release is public without a usable attestation and
+  # `redmine update` (v2.15.0+) refuses it. If it is a transient API error,
+  # re-run this job. Otherwise delete the release but keep the tag
+  # (gh release delete <tag> --yes) and re-run all jobs of this workflow run,
+  # which rebuilds, re-uploads and re-attests it.
+  verify-release:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.3"
+          cache: false
+
+      - name: Download release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="${RUNNER_TEMP}/release-assets"
+          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --pattern 'redmine-cli*' --dir "$dir"
+          cd "$dir"
+          sha256sum -c --ignore-missing "redmine-cli_${GITHUB_REF_NAME#v}_checksums.txt"
+          for f in redmine-cli-*.tar.gz redmine-cli-*.zip; do
+            grep -q "  ${f}\$" "redmine-cli_${GITHUB_REF_NAME#v}_checksums.txt" || { echo "::error::${f} is missing from the checksums file"; exit 1; }
+          done
+
+      - name: Verify attestations with gh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${GITHUB_REF_NAME}"
+          for f in "${RUNNER_TEMP}"/release-assets/redmine-cli-*.tar.gz "${RUNNER_TEMP}"/release-assets/redmine-cli-*.zip; do
+            gh attestation verify "$f" --repo "${GITHUB_REPOSITORY}" \
+              --cert-identity "$identity" \
+              --cert-oidc-issuer https://token.actions.githubusercontent.com \
+              --source-ref "refs/tags/${GITHUB_REF_NAME}" \
+              --predicate-type https://slsa.dev/provenance/v1
+          done
+
+      - name: Verify attestations with the updater's verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REDMINE_RELEASE_TAG="${GITHUB_REF_NAME}" \
+          REDMINE_RELEASE_ASSETS="${RUNNER_TEMP}/release-assets" \
+            go test -tags releaselive ./internal/cmd/update -run TestReleaseAttestationLive -count=1 -v
+
   # Publishes server.json to the official MCP Registry so registry-aware hosts
   # can install the Docker image. Stable releases only: the registry entry
   # points at the exact version tag, which prereleases also push, but `latest`
@@ -120,7 +195,11 @@ jobs:
       contents: read
       id-token: write
     env:
+      # Bump version and hash together: the hash is the sha256 of
+      # mcp-publisher_linux_amd64.tar.gz from that release's checksums file.
+      # renovate: datasource=github-releases depName=modelcontextprotocol/registry
       MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -154,10 +233,15 @@ jobs:
           mv server.tmp server.json
           cat server.json
 
+      # The tarball is checked against the pinned hash before extraction, so a
+      # replaced release asset cannot run with this job's OIDC token.
       - name: Install mcp-publisher
         run: |
           set -euo pipefail
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          archive="${RUNNER_TEMP}/mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  ${archive}" | sha256sum -c -
+          tar xzf "$archive" mcp-publisher
 
       - name: Publish to MCP Registry
         run: |

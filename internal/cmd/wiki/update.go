@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -73,7 +72,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
     --text "Updated content" --ensure-current`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			textSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text)
 			if err != nil {

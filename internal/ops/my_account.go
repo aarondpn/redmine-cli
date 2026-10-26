@@ -17,7 +17,7 @@ type UpdateMyAccountInput struct {
 }
 
 //mcpgen:tool get_my_account
-//mcpgen:description Fetch the authenticated user's account via /my/account.json. Includes api_key and custom_fields.
+//mcpgen:description Fetch the authenticated user's account via /my/account.json. Includes custom_fields.
 //mcpgen:category my_account
 func GetMyAccount(ctx context.Context, client *api.Client, _ GetMyAccountInput) (*models.User, error) {
 	return client.MyAccount.Get(ctx)

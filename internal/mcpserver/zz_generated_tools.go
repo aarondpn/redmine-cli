@@ -285,7 +285,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetMyAccountInput, *models.User]{
 		Name:        "get_my_account",
-		Description: "Fetch the authenticated user's account via /my/account.json. Includes api_key and custom_fields.",
+		Description: "Fetch the authenticated user's account via /my/account.json. Includes custom_fields.",
 		Category:    "my_account",
 		Call:        ops.GetMyAccount,
 	})
@@ -521,7 +521,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_versions", Description: "List versions (milestones) for a project.", Group: "meta", Writes: false},
 		{Name: "update_version", Description: "Update an existing version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
-		{Name: "get_my_account", Description: "Fetch the authenticated user's account via /my/account.json. Includes api_key and custom_fields.", Group: "my_account", Writes: false},
+		{Name: "get_my_account", Description: "Fetch the authenticated user's account via /my/account.json. Includes custom_fields.", Group: "my_account", Writes: false},
 		{Name: "update_my_account", Description: "Update the authenticated user's own account. Works without admin privileges. Requires --enable-writes.", Group: "my_account", Writes: true},
 		{Name: "archive_project", Description: "Archive a Redmine project. Hides it from default listings. Requires Redmine 5.0+ and --enable-writes.", Group: "projects", Writes: true},
 		{Name: "create_project", Description: "Create a new Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},

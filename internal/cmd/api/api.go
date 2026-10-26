@@ -69,7 +69,7 @@ as a string. A value that looks like a number is sent as one ('1.10' becomes
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAPI(f, args[0], method, fields, rawFields, input, include, silent, format)
+			return runAPI(cmdutil.Context(cmd), f, args[0], method, fields, rawFields, input, include, silent, format)
 		},
 	}
 
@@ -84,7 +84,7 @@ as a string. A value that looks like a number is sent as one ('1.10' becomes
 	return cmd
 }
 
-func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool, format string) error {
+func runAPI(ctx context.Context, f *cmdutil.Factory, endpoint, method string, fields, rawFields []string, input string, include, silent bool, format string) error {
 	// Validate mutual exclusion.
 	if len(rawFields) > 0 && input != "" {
 		return fmt.Errorf("--raw-field and --input are mutually exclusive")
@@ -136,7 +136,7 @@ func runAPI(f *cmdutil.Factory, endpoint, method string, fields, rawFields []str
 		return err
 	}
 
-	resp, err := client.DoRaw(context.Background(), method, endpoint, params, body)
+	resp, err := client.DoRaw(ctx, method, endpoint, params, body)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,10 @@ func renderAPIResponse(printer output.Printer, out io.Writer, isTTY bool, resp *
 	}
 
 	if include {
-		fmt.Fprintf(out, "%s\n", resp.Status)
+		// The status line and headers are metadata the server controls, so
+		// they are always sanitized like other terminal output; the body
+		// below is written as received.
+		fmt.Fprintf(out, "%s\n", output.SanitizeTerminal(resp.Status))
 		// Sort header keys for stable output.
 		keys := make([]string, 0, len(resp.Headers))
 		for k := range resp.Headers {
@@ -177,7 +180,7 @@ func renderAPIResponse(printer output.Printer, out io.Writer, isTTY bool, resp *
 		sort.Strings(keys)
 		for _, k := range keys {
 			for _, v := range resp.Headers[k] {
-				fmt.Fprintf(out, "%s: %s\n", k, v)
+				fmt.Fprintf(out, "%s: %s\n", output.SanitizeTerminal(k), output.SanitizeTerminal(v))
 			}
 		}
 		fmt.Fprintln(out)
@@ -229,19 +232,14 @@ func decodeAPIJSONBody(body []byte) any {
 }
 
 func rawResponseError(resp *redmineapi.RawResponse, endpoint string) error {
-	apiErr := &redmineapi.APIError{
-		StatusCode: resp.StatusCode,
-		URL:        endpoint,
-	}
-
 	var payload struct {
 		Errors []string `json:"errors"`
 	}
+	var messages []string
 	if err := json.Unmarshal(resp.Body, &payload); err == nil && len(payload.Errors) > 0 {
-		apiErr.Errors = append(apiErr.Errors, payload.Errors...)
+		messages = payload.Errors
 	}
-
-	return apiErr
+	return redmineapi.NewAPIError(resp.StatusCode, endpoint, messages)
 }
 
 // buildJSONBody constructs a JSON object from key=value pairs.

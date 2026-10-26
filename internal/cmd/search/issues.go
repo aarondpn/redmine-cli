@@ -1,7 +1,6 @@
 package search
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -47,7 +46,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			var notice string
-			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
+			project, notice, err = resolveSearchProject(cmdutil.Context(cmd), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -67,7 +66,7 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Searching issues...")
-			results, total, err := client.Search.Search(context.Background(), params)
+			results, total, err := client.Search.Search(cmdutil.Context(cmd), params)
 			stop()
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
@@ -78,14 +77,8 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, results, []string{"ID", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
-				id := fmt.Sprintf("%d", r.ID)
-				date := r.DateTime
-				if styled {
-					id = output.StyleID.Render(fmt.Sprintf("#%d", r.ID))
-					date = formatDate(r.DateTime)
-				}
-				return []string{id, r.Title, date}
+			cmdutil.RenderCollection(printer, results, []string{"ID", "Title", "Date"}, func(r models.SearchResult) []string {
+				return []string{output.StyleID.Render(fmt.Sprintf("#%d", r.ID)), r.Title, formatDate(r.DateTime)}
 			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{

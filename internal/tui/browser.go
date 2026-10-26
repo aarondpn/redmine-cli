@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 var (
@@ -19,13 +20,14 @@ var (
 	listUnfocusStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8"))
 )
 
-// issueItem implements list.Item for the issue browser.
+// issueItem implements list.Item for the issue browser. Every method returns
+// server data, so it is sanitized for the terminal.
 type issueItem struct {
 	issue models.Issue
 }
 
 func (i issueItem) Title() string {
-	return fmt.Sprintf("#%d %s", i.issue.ID, i.issue.Subject)
+	return output.SanitizeTerminal(fmt.Sprintf("#%d %s", i.issue.ID, i.issue.Subject))
 }
 
 func (i issueItem) Description() string {
@@ -33,16 +35,16 @@ func (i issueItem) Description() string {
 	if i.issue.AssignedTo != nil {
 		assignee = " -> " + i.issue.AssignedTo.Name
 	}
-	return fmt.Sprintf("%s | %s | %s%s",
+	return output.SanitizeTerminal(fmt.Sprintf("%s | %s | %s%s",
 		i.issue.Tracker.Name,
 		i.issue.Status.Name,
 		i.issue.Priority.Name,
 		assignee,
-	)
+	))
 }
 
 func (i issueItem) FilterValue() string {
-	return i.issue.Subject
+	return output.SanitizeTerminal(i.issue.Subject)
 }
 
 // BrowserModel is the bubbletea model for the issue browser.

@@ -68,6 +68,11 @@ func TestSameServerHost(t *testing.T) {
 		{"https://redmine.example.com", "redmine.example.com", true},
 		{"https://redmine.example.com", "https://other.example.com", false},
 		{"https://redmine.example.com:8443", "https://redmine.example.com", false},
+		{"https://redmine.example.com", "https://redmine.example.com:443", true},
+		{"redmine.example.com", "https://redmine.example.com:443/redmine", true},
+		{"https://redmine.example.com.", "https://REDMINE.example.com", true},
+		{"http://redmine.example.com", "https://redmine.example.com", true},
+		{"http://redmine.example.com:8080", "https://redmine.example.com", false},
 		{"", "", false},
 	}
 	for _, tt := range tests {

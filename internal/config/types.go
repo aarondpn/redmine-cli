@@ -16,13 +16,42 @@ type Config struct {
 	// entries unique across config files and stable across profile renames.
 	KeyringID      string `mapstructure:"keyring_id" yaml:"keyring_id,omitempty"`
 	DefaultProject string `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
+	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table" or "json"
 	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
 	ReadOnly       bool   `mapstructure:"read_only" yaml:"read_only,omitempty"`
 	// Headers are extra HTTP headers sent with every request to the configured
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
 	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`
 	MCP     MCPConfig         `mapstructure:"mcp" yaml:"mcp,omitempty"`
+
+	// Set by Load, never persisted: the selected profile, the server it was
+	// saved with (before --server / REDMINE_SERVER), and whether the secret in
+	// use came from that profile (config file or keyring) rather than a flag
+	// or environment variable.
+	profileName   string
+	profileServer string
+	storedSecret  bool
+}
+
+// StoredCredentialServer reports the profile whose stored secret (config file
+// or system keyring) is in use and the server that secret was saved for. ok is
+// false when the secret came from a flag or environment variable, no secret is
+// set, or the profile records no server.
+func (c *Config) StoredCredentialServer() (profile, server string, ok bool) {
+	if c == nil || !c.storedSecret || c.profileServer == "" {
+		return "", "", false
+	}
+	return c.profileName, c.profileServer, true
+}
+
+// ProfileServer reports the selected profile and the server it was saved
+// with, before any --server / REDMINE_SERVER override. ok is false when no
+// profile was selected or the profile records no server.
+func (c *Config) ProfileServer() (profile, server string, ok bool) {
+	if c == nil || c.profileName == "" || c.profileServer == "" {
+		return "", "", false
+	}
+	return c.profileName, c.profileServer, true
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.

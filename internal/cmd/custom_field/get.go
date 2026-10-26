@@ -1,7 +1,6 @@
 package customfield
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			id, err := resolver.ResolveCustomField(ctx, client, args[0])
 			if err != nil {
 				return err
@@ -46,29 +45,6 @@ func newCmdCustomFieldGet(f *cmdutil.Factory) *cobra.Command {
 				printer.JSON(field)
 				return nil
 			}
-			if printer.Format() == output.FormatCSV {
-				printer.CSV(
-					[]string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple", "Default", "Possible Values", "Trackers", "Roles", "For All", "Projects"},
-					[][]string{{
-						fmt.Sprintf("%d", field.ID),
-						field.Name,
-						field.CustomizedType,
-						field.FieldFormat,
-						boolLabel(field.IsRequired),
-						boolLabel(field.IsFilter),
-						boolLabel(field.Searchable),
-						boolLabel(field.Multiple),
-						field.DefaultValue,
-						formatPossibleValues(field.PossibleValues),
-						formatIDNames(field.Trackers),
-						formatIDNames(field.Roles),
-						optionalBoolLabel(field.IsForAll),
-						formatIDNames(field.Projects),
-					}},
-				)
-				return nil
-			}
-
 			details := []output.KeyValue{
 				{Key: "ID", Value: fmt.Sprintf("%d", field.ID)},
 				{Key: "Name", Value: field.Name},

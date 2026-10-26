@@ -1,7 +1,6 @@
 package group
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -31,7 +30,7 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching groups...")
-			result, err := ops.ListGroups(context.Background(), client, ops.ListGroupsInput{
+			result, err := ops.ListGroups(cmdutil.Context(cmd), client, ops.ListGroupsInput{
 				Limit:  cmdutil.OpsLimit(limit),
 				Offset: offset,
 			})
@@ -41,11 +40,8 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 			}
 			groups, total := result.Groups, result.TotalCount
 
-			cmdutil.RenderCollection(printer, groups, []string{"ID", "Name"}, func(g models.Group, styled bool) []string {
-				id := fmt.Sprintf("%d", g.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, groups, []string{"ID", "Name"}, func(g models.Group) []string {
+				id := output.StyleID.Render(fmt.Sprintf("%d", g.ID))
 				return []string{id, g.Name}
 			})
 

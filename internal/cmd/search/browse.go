@@ -1,7 +1,6 @@
 package search
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -43,7 +42,7 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 
 			query := strings.Join(args, " ")
 
-			project, err := cmdutil.DefaultProjectIdentifier(context.Background(), f, project)
+			project, err := cmdutil.DefaultProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -83,7 +82,7 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 				}
 				p := baseParams
 				p.Query = q
-				results, _, err := client.Search.Search(context.Background(), p)
+				results, _, err := client.Search.Search(cmdutil.Context(cmd), p)
 				if err != nil {
 					return nil, fmt.Errorf("search failed: %w", err)
 				}
@@ -95,7 +94,7 @@ func newCmdSearchBrowse(f *cmdutil.Factory) *cobra.Command {
 			if query != "" {
 				printer := f.Printer("")
 				stop := printer.Spinner("Searching...")
-				initialResults, _, err = client.Search.Search(context.Background(), func() api.SearchParams {
+				initialResults, _, err = client.Search.Search(cmdutil.Context(cmd), func() api.SearchParams {
 					p := baseParams
 					p.Query = query
 					return p

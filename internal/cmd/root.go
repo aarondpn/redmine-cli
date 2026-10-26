@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,6 +54,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	var (
 		server       string
 		apiKey       string
+		apiKeyFile   string
 		profile      string
 		noColor      bool
 		verbose      bool
@@ -81,26 +81,12 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
   # Capture the ID of a newly created issue
   redmine issues create --project myproject --tracker Bug --subject "Crash on save" --jq '.id'`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			f.ConfigPath = cfgFile
-			f.ProfileOverride = profile
-			f.ServerOverride = server
-			f.APIKeyOverride = apiKey
-			if noColor {
-				f.NoColorOverride = true
-				os.Setenv("NO_COLOR", "1")
+			if err := cmdutil.ApplyGlobalFlags(f, cmd); err != nil {
+				return err
 			}
-			f.Verbose = verbose
-			f.OutputFormat = outputFormat
-			if cmd.Flags().Changed("read-only") {
-				f.ReadOnly = &readOnly
+			if err := cmdutil.CheckOutputFlag(cmd); err != nil {
+				return err
 			}
-			// Validate early so a typo fails before any interactive prompt.
-			for _, h := range headers {
-				if _, _, err := config.ParseHeader(h); err != nil {
-					return err
-				}
-			}
-			f.Headers = headers
 			return applyJQFlag(cmd, f, jqExpr, cmd.Flags().Changed("jq"))
 		},
 		// Printer methods have no error return, so a --jq runtime failure
@@ -114,12 +100,14 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
-	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication")
+	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication (visible in process listings; prefer --api-key-file, REDMINE_API_KEY, or a keyring profile)")
+	cmd.PersistentFlags().StringVar(&apiKeyFile, "api-key-file", "", `Read the API key from a file ("-" for stdin) instead of passing it on the command line`)
+	cmd.MarkFlagsMutuallyExclusive("api-key", "api-key-file")
 	cmd.PersistentFlags().StringVar(&profile, "profile", "", "Use a specific auth profile")
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
-	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
+	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json")
 	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all requests that modify data on the server")
 	cmd.PersistentFlags().StringArrayVar(&headers, "header", nil, `Extra HTTP header sent to the server, as "Name: value" (repeatable)`)
 	cmd.PersistentFlags().StringVarP(&jqExpr, "jq", "q", "", "Filter JSON output using a jq expression (implies --output json)")

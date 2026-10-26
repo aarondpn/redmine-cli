@@ -1,6 +1,13 @@
 BINARY_NAME=redmine
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS=-ldflags "-X main.version=$(VERSION) $(EXTRA_LDFLAGS)"
+# VERSION (from the environment or a git tag) ends up in a shell recipe, so
+# reduce it to version-string characters first. Single quotes are dropped
+# before quoting so the value cannot break out of them. A VERSION from the
+# environment or command line is taken literally ($(value ...)) so it cannot
+# smuggle in make functions such as $(shell ...) either.
+RAW_VERSION = $(if $(filter file,$(origin VERSION)),$(VERSION),$(value VERSION))
+SAFE_VERSION = $(or $(shell printf '%s' '$(subst ',,$(RAW_VERSION))' | tr -cd 'A-Za-z0-9._+-'),dev)
+LDFLAGS=-ldflags "-X main.version=$(SAFE_VERSION) $(EXTRA_LDFLAGS)"
 E2E_COMPOSE_FILE=e2e/compose.yaml
 E2E_VERSION ?= 7.0
 E2E_IMAGE ?= redmine:$(E2E_VERSION)

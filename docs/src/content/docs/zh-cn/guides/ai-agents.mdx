@@ -148,15 +148,23 @@ redmine mcp serve --http :8080
 # 显式回环（等价）
 redmine mcp serve --http 127.0.0.1:8080
 
-# 在所有网卡上监听 -- 务必同时设置 --auth-token
-redmine mcp serve --http 0.0.0.0:8080 --auth-token "$(openssl rand -hex 32)"
+# 在所有网卡上监听 -- 务必同时设置令牌。
+# umask 077 让令牌文件从创建起就只有你本人可读。
+(umask 077; openssl rand -hex 32 > ~/.redmine-mcp-token)
+redmine mcp serve --http 0.0.0.0:8080 --auth-token-file ~/.redmine-mcp-token
 ```
 
-当检测到非回环绑定但未设置 `--auth-token` 时，服务器会为本次运行生成一个随机令牌并输出到 stderr。仅当服务器前方已有组件（例如带认证的反向代理）校验客户端时，才传入 `--no-auth`（或 `REDMINE_MCP_NO_AUTH=1`）；此时 CLI 会输出警告，并在没有令牌的情况下提供服务。服务器会应用 `ReadHeaderTimeout=10s`、`ReadTimeout=30s`、`IdleTimeout=120s`；为避免缓慢的 Redmine 实例中断进行中的工具调用，`WriteTimeout` 保持不限。
+umask 只在创建文件时生效。如果令牌文件已经存在，请先运行 `chmod 600 ~/.redmine-mcp-token`，再向其中写入新令牌。
+
+当检测到非回环绑定但未设置令牌时，服务器会为本次运行生成一个随机令牌并输出到 stderr。仅当服务器前方已有组件（例如带认证的反向代理）校验客户端时，才传入 `--no-auth`（或 `REDMINE_MCP_NO_AUTH=1`）；此时 CLI 会输出警告，并在没有令牌的情况下提供服务。
+
+未设置令牌的回环绑定仍然可以工作，但能访问这台机器的任何人都可以连接它：每个本地用户和进程都能以你的 Redmine 用户身份调用工具。服务器会在启动时输出警告；设置令牌即可关闭这一入口。在回环绑定上显式传入 `--no-auth` 时，服务器会在没有令牌、也没有警告的情况下提供服务。无论绑定到哪里，到达回环监听器但 `Host` 头不是回环地址的请求都会被以 `403` 拒绝，从而阻止本地浏览器中打开的网页发起 DNS 重绑定攻击。
+
+服务器会应用 `ReadHeaderTimeout=10s`、`ReadTimeout=30s`、`IdleTimeout=120s`；为避免缓慢的 Redmine 实例中断进行中的工具调用，`WriteTimeout` 保持不限。
 
 HTTP 传输是无状态的，因此使用 MCP `2026-07-28` 版本（无会话，用 `server/discover` 取代 `initialize` 握手）。每次工具调用都是一次自包含的 Redmine API 请求，无需维护会话。实际影响：仅提供 `POST`（`GET` 和 `DELETE` 返回 `405`），并且不支持通过 `Last-Event-ID` 恢复流。较旧的客户端会协商降级到 `2025-11-25`，行为保持不变。
 
-客户端必须在每个请求上发送 Bearer 令牌：
+设置了令牌时，客户端必须在每个请求上发送 Bearer 令牌：
 
 ```http
 POST / HTTP/1.1
@@ -164,7 +172,11 @@ Authorization: Bearer <token>
 Content-Type: application/json
 ```
 
-令牌也可以放在配置块（`mcp.auth_token`）或 `REDMINE_MCP_AUTH_TOKEN` 中，监听地址可以放在 `mcp.http` 或 `REDMINE_MCP_HTTP` 中。命令行标志会覆盖二者。
+通过 `--auth-token-file <path>` 传入令牌，或用 `--auth-token-file -` 从标准输入读取（`pass show redmine-mcp | redmine mcp serve --http :8080 --auth-token-file -`）。首尾的空白（例如末尾换行）会被忽略。令牌也可以放在配置块（`mcp.auth_token`）或 `REDMINE_MCP_AUTH_TOKEN` 中，监听地址可以放在 `mcp.http` 或 `REDMINE_MCP_HTTP` 中。命令行标志会覆盖二者。
+
+对于 `credential_store: keyring` 的配置档，`mcp.auth_token` 会像 API 密钥一样，在下次保存时移入系统密钥环。之后如果 `redmine mcp serve --http` 无法读取密钥环（例如通过 SSH 登录时钥匙串被锁定，或设置了 `REDMINE_NO_KEYRING=1`），它会拒绝启动，而不是在没有令牌的情况下提供服务；请通过 `REDMINE_MCP_AUTH_TOKEN` 或 `--auth-token-file` 提供令牌，或有意传入 `--no-auth` 以不带认证地提供服务。
+
+`--auth-token <token>` 同样可用，但令牌会出现在 `ps` 输出和 shell 历史中。请优先使用 `--auth-token-file`、`REDMINE_MCP_AUTH_TOKEN` 或 `mcp.auth_token`。
 
 <Aside type="danger">
   Bearer 令牌是任何可达 HTTP 客户端与你的 Redmine 实例之间唯一的屏障。请使用 CSPRNG 生成令牌，不要在不同部署间复用，并尽量在服务器之前用反向代理终止 TLS（特别是当绑定到回环以外时）。

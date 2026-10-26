@@ -15,10 +15,12 @@ import (
 // Service is the keyring service name used for all redmine-cli secrets.
 const Service = "redmine-cli"
 
-// Field names for the two secrets that may live in the keyring.
+// Field names for the secrets that may live in the keyring.
 const (
 	FieldAPIKey   = "apikey"
 	FieldPassword = "password"
+	// FieldMCPToken holds the profile's optional mcp.auth_token.
+	FieldMCPToken = "mcp_auth_token"
 )
 
 // Store abstracts credential storage so the keyring backend can be swapped for

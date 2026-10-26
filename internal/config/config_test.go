@@ -773,3 +773,16 @@ func TestReadOnlyEnvOverride(t *testing.T) {
 		t.Fatal("expected ReadOnly=true from REDMINE_READ_ONLY=1")
 	}
 }
+
+func TestParseBoolEnv(t *testing.T) {
+	for _, v := range []string{"", "0", "false", "FALSE", "no", "Off", " off "} {
+		if ParseBoolEnv(v) {
+			t.Errorf("ParseBoolEnv(%q) = true, want false", v)
+		}
+	}
+	for _, v := range []string{"1", "true", "yes", "on", "TRUE", "anything"} {
+		if !ParseBoolEnv(v) {
+			t.Errorf("ParseBoolEnv(%q) = false, want true", v)
+		}
+	}
+}

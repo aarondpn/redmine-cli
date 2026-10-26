@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -45,7 +44,7 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 			stop := printer.Spinner("Fetching watchers...")
-			result, err := ops.ListIssueWatchers(context.Background(), client, ops.ListIssueWatchersInput{ID: id})
+			result, err := ops.ListIssueWatchers(cmdutil.Context(cmd), client, ops.ListIssueWatchersInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to list watchers for issue #%d: %w", id, err)
@@ -53,11 +52,8 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 			if cmdutil.HandleEmpty(printer, result.Watchers, "watchers") {
 				return nil
 			}
-			cmdutil.RenderCollection(printer, result.Watchers, []string{"ID", "Name"}, func(w models.IDName, styled bool) []string {
-				id := strconv.Itoa(w.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, result.Watchers, []string{"ID", "Name"}, func(w models.IDName) []string {
+				id := output.StyleID.Render(strconv.Itoa(w.ID))
 				return []string{id, w.Name}
 			})
 			return nil
@@ -83,7 +79,7 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
 				return fmt.Errorf("resolving watcher: %w", err)
@@ -120,7 +116,7 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
 			if err != nil {
 				return fmt.Errorf("resolving watcher: %w", err)

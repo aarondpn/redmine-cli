@@ -1,7 +1,6 @@
 package group
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -23,11 +22,11 @@ func newCmdGroupRemoveUser(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			groupID, err := resolver.ResolveGroup(context.Background(), client, args[0])
+			groupID, err := resolver.ResolveGroup(cmdutil.Context(cmd), client, args[0])
 			if err != nil {
 				return err
 			}
-			userID, err := resolver.ResolveUser(context.Background(), client, args[1])
+			userID, err := resolver.ResolveUser(cmdutil.Context(cmd), client, args[1])
 			if err != nil {
 				return err
 			}
@@ -35,7 +34,7 @@ func newCmdGroupRemoveUser(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 
 			stop := printer.Spinner("Removing user from group...")
-			_, err = ops.RemoveGroupUser(context.Background(), client, ops.GroupUserInput{
+			_, err = ops.RemoveGroupUser(cmdutil.Context(cmd), client, ops.GroupUserInput{
 				GroupID: groupID,
 				UserID:  userID,
 			})

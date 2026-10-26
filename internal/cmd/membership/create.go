@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -46,12 +45,12 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
 			resolvedRoleIDs, err := resolveRoleIDs(
-				context.Background(),
+				cmdutil.Context(cmd),
 				client,
 				roleIDs,
 				roles,
@@ -69,7 +68,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Creating membership...")
-			m, err := ops.CreateMembership(context.Background(), client, ops.CreateMembershipInput{
+			m, err := ops.CreateMembership(cmdutil.Context(cmd), client, ops.CreateMembershipInput{
 				ProjectID: project,
 				UserID:    memberID,
 				RoleIDs:   resolvedRoleIDs,

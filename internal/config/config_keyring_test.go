@@ -268,6 +268,34 @@ profiles:
 	}
 }
 
+func TestAPIKeyEnvBypassesKeyring(t *testing.T) {
+	orig := secrets.Default
+	secrets.Default = fatalStore{t}
+	t.Cleanup(func() { secrets.Default = orig })
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    credential_store: keyring
+    keyring_id: env-id
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_API_KEY", "env-key")
+
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load error = %v, want nil (env supplies the key)", err)
+	}
+	if loaded.APIKey != "env-key" {
+		t.Fatalf("loaded APIKey = %q, want env value %q", loaded.APIKey, "env-key")
+	}
+}
+
 func TestKeyringProfileMissingSecretReportsClearError(t *testing.T) {
 	keyring.MockInit()
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")

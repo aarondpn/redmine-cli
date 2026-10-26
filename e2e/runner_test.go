@@ -130,7 +130,7 @@ func (r *cliRunner) runRaw(args ...string) (stdout, stderr []byte, err error) {
 //
 // If the user-supplied args do not already specify --output (or -o), this
 // helper auto-injects --output json so JSON-shaped assertions keep working.
-// Tests that exercise other output formats (csv, table) must pass --output
+// Tests that exercise other output formats (table) must pass --output
 // explicitly to opt out of the auto-injection.
 func (r *cliRunner) runRawWithEnv(extraEnv []string, args ...string) (stdout, stderr []byte, err error) {
 	cmdArgs := []string{"--config", r.configPath}

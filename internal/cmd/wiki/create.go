@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -41,7 +40,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
     --attach ./diagram.png`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text); err != nil {
 				return err

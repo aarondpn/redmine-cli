@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -37,7 +36,7 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			from = cmdutil.ResolveDateKeyword(from)
 			to = cmdutil.ResolveDateKeyword(to)
@@ -95,11 +94,6 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 			headers := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}
 
-			if len(entries) == 0 && printer.Format() == output.FormatCSV {
-				printer.CSV(headers, nil)
-				return nil
-			}
-
 			if cmdutil.HandleEmpty(printer, entries, "time entries") {
 				return nil
 			}
@@ -107,26 +101,6 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 			switch printer.Format() {
 			case output.FormatJSON:
 				printer.JSON(entries)
-				return nil
-			case output.FormatCSV:
-				rows := make([][]string, len(entries))
-				for i, e := range entries {
-					issueRef := ""
-					if e.Issue != nil {
-						issueRef = strconv.Itoa(e.Issue.ID)
-					}
-					rows[i] = []string{
-						strconv.Itoa(e.ID),
-						e.SpentOn,
-						e.Project.Name,
-						issueRef,
-						fmt.Sprintf("%.2f", e.Hours),
-						e.Activity.Name,
-						e.User.Name,
-						e.Comments,
-					}
-				}
-				printer.CSV(headers, rows)
 				return nil
 			}
 

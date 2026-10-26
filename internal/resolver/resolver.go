@@ -174,8 +174,14 @@ func ResolveProject(ctx context.Context, client *api.Client, input string) (int,
 		return project.ID, project.Identifier, nil
 	}
 
+	// A project name (e.g. "Team A/B") can contain characters that are not
+	// valid in an identifier. The API layer rejects those without sending a
+	// request; treat that like a 404 and fall back to matching by name.
 	var apiErr *api.APIError
-	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
+	var segErr *api.InvalidPathSegmentError
+	if errors.As(err, &segErr) {
+		client.DebugLog().Printf("Resolver: %q is not a valid identifier, matching by name", input)
+	} else if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
 		if isForbiddenErr(err) {
 			return 0, "", fmt.Errorf("cannot resolve project %q (insufficient permissions). Use the project identifier or numeric ID instead", input)
 		}

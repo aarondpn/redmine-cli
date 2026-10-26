@@ -5,7 +5,7 @@ description: Controlling how redmine-cli displays data.
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-Every command accepts `-o` / `--output` to control the output format. The flag is registered globally, so read, write, delete, and every other subcommand honour it uniformly. Pick the one that matches what you're doing: reading, scripting, or exporting.
+Every command accepts `-o` / `--output` to control the output format. The flag is registered globally, so read, write, delete, and every other subcommand honour it uniformly. Pick the one that matches what you're doing: reading or scripting. For spreadsheets, see [CSV export](#csv-export).
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
@@ -41,20 +41,6 @@ Every command accepts `-o` / `--output` to control the output format. The flag i
     ]
     ```
   </TabItem>
-
-  <TabItem label="csv">
-    Comma-separated values for spreadsheets and data analysis.
-
-    ```bash
-    redmine issues list --project myproject -o csv
-    ```
-
-    ```
-    ID,Tracker,Status,Priority,Subject
-    123,Bug,Open,High,Fix login timeout
-    124,Feature,Open,Normal,Add dark mode
-    ```
-  </TabItem>
 </Tabs>
 
 ## Filtering with `--jq`
@@ -85,8 +71,8 @@ redmine api /users/current.json --jq '.user.login'
 
 How it behaves:
 
-- `--jq` implies `-o json`. Combining it with an explicit `-o table` or
-  `-o csv` is an error.
+- `--jq` implies `-o json`. Combining it with an explicit `-o table` is an
+  error.
 - Commands that never print JSON reject `--jq`: `completion`, `mcp serve`,
   `mcp tools`, `attachments download --path -` (raw file bytes) and the
   interactive commands (`auth login`, `auth logout`, `auth switch` without a
@@ -96,6 +82,9 @@ How it behaves:
   envelopes, and `redmine api` response bodies.
 - String results are printed raw, without quotes. Numbers, booleans, `null`,
   objects and arrays are printed as JSON. Each result goes on its own line.
+  When `stdout` is a terminal, control characters in string results are
+  neutralized (see [Security hardening](#security-hardening)); piped output
+  is written byte for byte.
 - Objects and arrays are compact (one per line) when `stdout` is piped, and
   indented when it is a terminal.
 - An empty or invalid expression fails with error code `jq_invalid` before
@@ -118,12 +107,44 @@ How it behaves:
   `stdout`.
 - Errors are never filtered: a failed command writes its error envelope to
   `stderr` as-is.
+- The expression can read the process environment through `env` and `$ENV`.
+  With `REDMINE_JQ_NO_ENV=1`, both evaluate to `{}` instead. Set
+  `REDMINE_JQ_NO_ENV=1` in wrappers that pass jq expressions from an
+  untrusted source, so they cannot read secrets such as `REDMINE_API_KEY`.
 
 <Aside type="note">
   Plain `-o json` pairs just as well with an external `jq`. In JSON mode the
   CLI writes only the result to `stdout`; pagination hints are suppressed and
   errors go to `stderr`, so piping is safe.
 </Aside>
+
+### CSV export
+
+There is no `csv` output format. Build CSV from the JSON output with jq's
+`@csv` instead, which also lets you pick the columns:
+
+```bash
+# ID and subject of every issue, one CSV row each
+redmine issues list --project myproject -o json --jq '.[] | [.id, .subject] | @csv'
+
+# With a header row, nested fields, and all pages
+redmine issues list --project myproject --limit 0 -o json \
+  --jq '["ID", "Status", "Subject"], (.[] | [.id, .status.name, .subject]) | @csv'
+```
+
+`@csv` quotes strings and doubles embedded quotes; numbers are written as
+they are and `null` becomes an empty field. Use `@tsv` for tab-separated
+values. Written to a file or pipe, the values are not altered, so a cell
+that starts with `=`, `+`, `-` or `@` may be evaluated as a formula when the
+file is opened in a spreadsheet app. Rows printed straight to a terminal have
+their control characters neutralized (see
+[Security hardening](#security-hardening)).
+
+`-o csv` fails before any request is sent, with a hint to use `@csv`. A
+profile with `output_format: csv` or `REDMINE_OUTPUT_FORMAT=csv` falls back
+to the table format and prints a warning; a command that picks its format
+with `-o` or `--jq` uses that format and prints no warning. The value `csv`
+is matched in any letter case.
 
 ## JSON output shapes
 
@@ -184,12 +205,20 @@ come before it:
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
-`jq_failed`, `status_not_applied`, `unknown`. Validation and conflict errors include a `details`
-array with the individual messages from Redmine. `jq_invalid` means the
+`jq_failed`, `status_not_applied`, `timeout`, `already_exists`,
+`unknown`. Validation and conflict errors include a `details`
+array with the individual messages from Redmine. `validation_failed` is also
+used, without `details`, when the CLI rejects an argument before sending
+anything, such as a project identifier or wiki page title that is not a
+single URL path segment (`../users/2`). `jq_invalid` means the
 `--jq` expression is empty or malformed and the command did not run;
 `jq_failed` means the `--jq` expression failed on the command's output; the
 command itself succeeded unless the message says the output was an error
-response (see above).
+response (see above). `timeout` means connecting to the server, or waiting
+for its response, timed out (see
+[timeouts](/getting-started/configuration/#timeouts-and-limits));
+`already_exists` means a download target already exists and `--clobber` was
+not given.
 
 `status_not_applied` means Redmine accepted an issue update but silently kept
 the old status (see
@@ -237,7 +266,7 @@ Redmine's messages are localized; branch on `code`, not on `message`.
 
 ## stdout vs stderr
 
-- Machine-readable output (JSON, CSV, table rows) always goes to `stdout`.
+- Machine-readable output (JSON, table rows) always goes to `stdout`.
 - Human-oriented messages (success confirmations in non-JSON mode,
   warnings, progress spinners, update-check hints) always go to `stderr`.
 - Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
@@ -261,6 +290,35 @@ output_format: table
 
 The `-o` flag always overrides the default for a single command, and `--jq`
 always selects JSON.
+
+## Security hardening
+
+Anyone who can edit an issue, wiki page or name on your Redmine controls part
+of what the CLI prints. The output layer treats that text as untrusted:
+
+- **Terminal output.** Tables, detail views, journals, status messages,
+  errors, `--verbose` debug lines, the status line and headers printed by
+  `redmine api -i`, and the interactive browsers (`issues browse`,
+  `search browse`) neutralize terminal control characters in server data. Escape sequences
+  are shown as visible text (ESC as `^[`, BEL as `^G`, a stray carriage
+  return as `^M`), C1 controls as `\u009b`-style escapes, and invisible bidi
+  override characters are removed, so a crafted subject cannot set your
+  clipboard, plant hyperlinks, move the cursor or overwrite lines. Regular
+  Unicode (accents, CJK, emoji) is unaffected. JSON, `redmine api` bodies
+  and attachment downloads are written byte for byte. So are `--jq` results
+  when `stdout` is piped or redirected; on a terminal, string results
+  (including `@csv` and `@tsv` rows) are neutralized the same way, while
+  JSON results are not.
+  Error messages from Redmine get the same treatment wherever they appear,
+  including the `details` of JSON error envelopes and MCP tool errors.
+- **`--jq` and the environment.** `env` / `$ENV` work by default.
+  `REDMINE_JQ_NO_ENV=1` hides the environment from the expression.
+- **Opening links.** `issues open` and the open key in the interactive
+  browsers only launch absolute `http`/`https` URLs, never strings starting
+  with `-`, and never through a shell (Windows uses
+  `rundll32 url.dll,FileProtocolHandler`). Issue search results are opened
+  on your configured server. A link to any other host is shown in full in
+  the status line and only opened when you press `o` a second time.
 
 ## Related
 

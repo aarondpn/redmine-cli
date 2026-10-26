@@ -10,7 +10,6 @@ type Printer interface {
 	Table(headers []string, rows [][]string)
 	Detail(pairs []KeyValue)
 	JSON(v interface{})
-	CSV(headers []string, rows [][]string)
 	Success(msg string)
 	Error(msg string)
 	Warning(msg string)
@@ -95,12 +94,14 @@ func (p *StdPrinter) Table(headers []string, rows [][]string) {
 
 func (p *StdPrinter) Detail(pairs []KeyValue) {
 	maxKeyLen := 0
-	for _, kv := range pairs {
-		if len(kv.Key) > maxKeyLen {
-			maxKeyLen = len(kv.Key)
+	clean := make([]KeyValue, len(pairs))
+	for i, kv := range pairs {
+		clean[i] = KeyValue{Key: sanitizeValue(kv.Key), Value: sanitizeValue(kv.Value)}
+		if len(clean[i].Key) > maxKeyLen {
+			maxKeyLen = len(clean[i].Key)
 		}
 	}
-	for _, kv := range pairs {
+	for _, kv := range clean {
 		if p.noColor {
 			fmt.Fprintf(p.out, "%-*s  %s\n", maxKeyLen, kv.Key+":", kv.Value)
 		} else {
@@ -116,11 +117,8 @@ func (p *StdPrinter) JSON(v interface{}) {
 	p.writeJSON(v)
 }
 
-func (p *StdPrinter) CSV(headers []string, rows [][]string) {
-	RenderCSV(p.out, headers, rows)
-}
-
 func (p *StdPrinter) Success(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "OK: %s\n", msg)
 	} else {
@@ -129,6 +127,7 @@ func (p *StdPrinter) Success(msg string) {
 }
 
 func (p *StdPrinter) Error(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "ERROR: %s\n", msg)
 	} else {
@@ -137,6 +136,7 @@ func (p *StdPrinter) Error(msg string) {
 }
 
 func (p *StdPrinter) Warning(msg string) {
+	msg = SanitizeTerminal(msg)
 	if p.noColor {
 		fmt.Fprintf(p.errOut, "WARNING: %s\n", msg)
 	} else {
@@ -175,5 +175,5 @@ func (p *StdPrinter) Action(action, resource string, id any, humanMsg string) {
 }
 
 func (p *StdPrinter) Spinner(msg string) func() {
-	return StartSpinner(msg, p.isTTY && !p.noColor)
+	return StartSpinner(SanitizeTerminal(msg), p.isTTY && !p.noColor)
 }

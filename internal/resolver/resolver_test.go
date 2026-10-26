@@ -1,7 +1,9 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -295,6 +297,43 @@ func TestResolveProjectFromList_SuggestionsIncludeIdentifier(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "Internal Platform [platform]") {
 		t.Fatalf("expected identifier in suggestion output, got: %v", err)
+	}
+}
+
+func TestResolveProject_NameWithPathCharsFallsBackToList(t *testing.T) {
+	// Names such as "Team A/B" are not valid identifiers: the API layer
+	// refuses to put them in a URL path, so the resolver must skip the
+	// direct lookup and match by name without sending a traversal request.
+	var paths []string
+	client, close := newQueryResolverClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.EscapedPath())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[{"id":7,"name":"Team A/B","identifier":"team-ab"},{"id":8,"name":"..","identifier":"dots"}],"total_count":2}`))
+	}))
+	defer close()
+
+	tests := []struct {
+		input          string
+		wantID         int
+		wantIdentifier string
+	}{
+		{input: "Team A/B", wantID: 7, wantIdentifier: "team-ab"},
+		{input: "..", wantID: 8, wantIdentifier: "dots"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			paths = nil
+			id, identifier, err := ResolveProject(context.Background(), client, tt.input)
+			if err != nil {
+				t.Fatalf("ResolveProject(%q): %v", tt.input, err)
+			}
+			if id != tt.wantID || identifier != tt.wantIdentifier {
+				t.Fatalf("got %d/%s, want %d/%s", id, identifier, tt.wantID, tt.wantIdentifier)
+			}
+			if len(paths) != 1 || paths[0] != "/projects.json" {
+				t.Fatalf("requests = %v, want only /projects.json", paths)
+			}
+		})
 	}
 }
 

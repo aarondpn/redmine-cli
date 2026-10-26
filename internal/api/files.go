@@ -19,7 +19,11 @@ type FileService struct {
 // response. limit/offset are still accepted for client-side trimming via
 // FetchAll's fallback path.
 func (s *FileService) List(ctx context.Context, projectID string, limit, offset int) ([]models.ProjectFile, int, error) {
-	path := fmt.Sprintf("/projects/%s/files.json", url.PathEscape(projectID))
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	path := fmt.Sprintf("/projects/%s/files.json", seg)
 	var params url.Values
 	if offset > 0 {
 		params = url.Values{}
@@ -32,7 +36,11 @@ func (s *FileService) List(ctx context.Context, projectID string, limit, offset 
 // token. Redmine's POST /projects/:id/files.json returns 204 No Content on
 // success and does not echo the created resource.
 func (s *FileService) Create(ctx context.Context, projectID string, file models.ProjectFileCreate) error {
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return err
+	}
 	body := map[string]interface{}{"file": file}
-	path := fmt.Sprintf("/projects/%s/files.json", url.PathEscape(projectID))
+	path := fmt.Sprintf("/projects/%s/files.json", seg)
 	return s.client.Post(ctx, path, body, nil)
 }

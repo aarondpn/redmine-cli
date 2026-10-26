@@ -14,6 +14,10 @@ type CategoryService struct {
 
 // List retrieves issue categories for a project.
 func (s *CategoryService) List(ctx context.Context, projectID string) ([]models.IssueCategory, int, error) {
-	path := fmt.Sprintf("/projects/%s/issue_categories.json", projectID)
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	path := fmt.Sprintf("/projects/%s/issue_categories.json", seg)
 	return FetchAll[models.IssueCategory](ctx, s.client, path, nil, "issue_categories", 0)
 }

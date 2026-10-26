@@ -9,6 +9,8 @@ The `wiki` command (alias `w`) reads and writes pages on a project's wiki.
 
 Every subcommand needs a project. Pass `--project <identifier>`, or rely on the default project of the active profile (see [`auth`](/commands/auth/)).
 
+Page names are sent as a single escaped path segment. An empty name, or one with a `.` or `..` part between `/` or `\` (such as `..` or `a/../b`), is rejected with `invalid wiki page` before any request is sent.
+
 <CardGrid>
   <LinkCard title="list"   href="#list"   description="List wiki pages in a project." />
   <LinkCard title="get"    href="#get"    description="View a page's content, metadata, and history." />
@@ -30,7 +32,7 @@ Aliases: `ls`. Lists each page's title and last-modified timestamp. Results are 
 | `--project`     | Project identifier or numeric ID. Falls back to the default project of the active profile. |
 | `--limit`       | Maximum number of results (`0` for all) |
 | `--offset`      | Result offset for pagination |
-| `-o, --output`  | Output format: `table`, `json`, `csv` |
+| `-o, --output`  | Output format: `table`, `json` |
 
 <Tabs syncKey="wiki-list">
   <TabItem label="Default">

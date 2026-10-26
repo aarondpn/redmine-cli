@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -26,7 +25,7 @@ func newCmdUserDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			id, err := resolver.ResolveUser(context.Background(), client, args[0])
+			id, err := resolver.ResolveUser(cmdutil.Context(cmd), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -42,7 +41,7 @@ func newCmdUserDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting user...")
-			_, err = ops.DeleteUser(context.Background(), client, ops.DeleteUserInput{ID: id})
+			_, err = ops.DeleteUser(cmdutil.Context(cmd), client, ops.DeleteUserInput{ID: id})
 			stop()
 			if err != nil {
 				return err

@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -24,9 +23,11 @@ type downloadResult struct {
 
 func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 	var (
-		dir    string
-		path   string
-		format string
+		dir         string
+		path        string
+		clobber     bool
+		allowHidden bool
+		format      string
 	)
 
 	cmd := &cobra.Command{
@@ -39,6 +40,12 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			"filename. Use --dir to choose a directory, --path to choose an exact file\n" +
 			"path, or `--path -` to stream the bytes to stdout for piping. The file is\n" +
 			"streamed to disk, never buffered entirely in memory.\n\n" +
+			"An existing file at the destination is never overwritten unless --clobber\n" +
+			"is given; with --clobber it is replaced atomically once the download has\n" +
+			"completed (a symlink at the destination is replaced, not followed).\n\n" +
+			"A server-supplied filename starting with \".\" (such as .bashrc) is refused\n" +
+			"with --dir and the default destination unless --allow-hidden is given;\n" +
+			"--path is not affected.\n\n" +
 			"Note: for this command -o/--output controls the confirmation output\n" +
 			"(json prints a result object; otherwise a human-readable line is written to\n" +
 			"stderr). It does NOT change where the bytes go; use --path/--dir for that.",
@@ -50,6 +57,9 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 
   # Save to an explicit path
   redmine attachments download 42 --path ./logo.png
+
+  # Replace a file left over from an earlier download
+  redmine attachments download 42 --clobber
 
   # Stream to stdout (pipe into another tool)
   redmine attachments download 42 --path - > logo.png
@@ -72,7 +82,7 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			stop := printer.Spinner("Downloading attachment...")
 			att, err := ops.GetAttachment(ctx, client, ops.GetAttachmentInput{ID: id})
 			if err != nil {
@@ -93,6 +103,7 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
+			opts := cmdutil.SaveOptions{Clobber: clobber, AllowHidden: allowHidden}
 			var (
 				dest  string
 				bytes int64
@@ -100,11 +111,11 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 			switch {
 			case path != "":
 				dest = path
-				bytes, err = cmdutil.SaveAttachmentToFile(ctx, client, att, path)
+				bytes, err = cmdutil.SaveAttachmentToFile(ctx, client, att, path, opts)
 			case dir != "":
-				dest, bytes, err = cmdutil.SaveAttachmentToDir(ctx, client, att, dir)
+				dest, bytes, err = cmdutil.SaveAttachmentToDir(ctx, client, att, dir, opts)
 			default:
-				dest, bytes, err = cmdutil.SaveAttachmentToDir(ctx, client, att, ".")
+				dest, bytes, err = cmdutil.SaveAttachmentToDir(ctx, client, att, ".", opts)
 			}
 			stop()
 			if err != nil {
@@ -129,6 +140,8 @@ func newCmdDownload(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory to save into, using the attachment's real filename")
 	cmd.Flags().StringVar(&path, "path", "", "Exact destination file path (use - for stdout)")
+	cmd.Flags().BoolVar(&clobber, "clobber", false, "Overwrite an existing file at the destination")
+	cmd.Flags().BoolVar(&allowHidden, "allow-hidden", false, `Allow saving under a filename starting with "." (with --dir or the default destination)`)
 	cmd.MarkFlagsMutuallyExclusive("dir", "path")
 	cmdutil.AddOutputFlag(cmd, &format)
 

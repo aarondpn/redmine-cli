@@ -21,14 +21,14 @@ func NewCmdStatus(f *cmdutil.Factory) *cobra.Command {
 		Short: "Show current authentication status",
 		Long:  "Display the active profile, server, and authenticated user.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(f)
+			return runStatus(cmdutil.Context(cmd), f)
 		},
 	}
 
 	return cmd
 }
 
-func runStatus(f *cmdutil.Factory) error {
+func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
@@ -98,7 +98,7 @@ func runStatus(f *cmdutil.Factory) error {
 		authOK = false
 		kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("unavailable: %s", err)})
 	} else {
-		user, err := ops.GetCurrentUser(context.Background(), client, ops.GetCurrentUserInput{})
+		user, err := ops.GetCurrentUser(ctx, client, ops.GetCurrentUserInput{})
 		if err == nil {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {

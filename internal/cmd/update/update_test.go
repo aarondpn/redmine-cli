@@ -151,7 +151,7 @@ func stubHomebrew(t *testing.T, isBrew bool, upgradeErr error) {
 func runUpdateForTest(t *testing.T, version string) error {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	return runUpdateWithFormat(version, &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable))
+	return runUpdateWithFormat(context.Background(), version, &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable), updateOptions{})
 }
 
 func TestRunUpdate_DelegatesToBrewWhenInstalled(t *testing.T) {
@@ -226,7 +226,7 @@ func TestRunUpdate_JSONOutput_AlreadyUpToDate(t *testing.T) {
 	}
 
 	var out, errOut bytes.Buffer
-	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON))
+	err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestRunUpdate_HomebrewNoopReturnsFalseOutcome(t *testing.T) {
 	}
 
 	var out, errOut bytes.Buffer
-	err := runUpdateWithFormat("1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON))
+	err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut, output.NewStdPrinter(&out, &errOut, false, true, output.FormatJSON), updateOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestVerifyChecksum_Valid(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := verifyChecksum(data, "redmine-linux-amd64.tar.gz", ts.URL)
+	err := verifyChecksum(context.Background(), data, "redmine-linux-amd64.tar.gz", ts.URL)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestVerifyChecksum_Mismatch(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := verifyChecksum(data, "redmine-linux-amd64.tar.gz", ts.URL)
+	err := verifyChecksum(context.Background(), data, "redmine-linux-amd64.tar.gz", ts.URL)
 	if err == nil {
 		t.Fatal("expected checksum mismatch error, got nil")
 	}
@@ -329,7 +329,7 @@ func TestVerifyChecksum_AssetNotFound(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := verifyChecksum([]byte("data"), "redmine-linux-amd64.tar.gz", ts.URL)
+	err := verifyChecksum(context.Background(), []byte("data"), "redmine-linux-amd64.tar.gz", ts.URL)
 	if err == nil {
 		t.Fatal("expected error for missing asset, got nil")
 	}
@@ -341,9 +341,96 @@ func TestVerifyChecksum_ServerError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := verifyChecksum([]byte("data"), "redmine-linux-amd64.tar.gz", ts.URL)
+	err := verifyChecksum(context.Background(), []byte("data"), "redmine-linux-amd64.tar.gz", ts.URL)
 	if err == nil {
 		t.Fatal("expected error for server error, got nil")
+	}
+}
+
+func TestVerifyChecksum_RejectsOversizedFile(t *testing.T) {
+	data := []byte("hello world")
+	hash := sha256.Sum256(data)
+	line := hex.EncodeToString(hash[:]) + "  redmine-linux-amd64.tar.gz\n"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The matching line comes first: the cap must apply to the whole
+		// response, not only to the part scanned before a match.
+		_, _ = io.WriteString(w, line)
+		_, _ = w.Write(bytes.Repeat([]byte("x"), maxChecksumsBytes))
+	}))
+	defer ts.Close()
+
+	err := verifyChecksum(context.Background(), data, "redmine-linux-amd64.tar.gz", ts.URL)
+	var tooLarge *responseTooLargeError
+	if !errors.As(err, &tooLarge) {
+		t.Fatalf("verifyChecksum() error = %v, want responseTooLargeError", err)
+	}
+}
+
+// --- downloadBytes ---
+
+func TestDownloadBytes_Limit(t *testing.T) {
+	const limit = 1024
+	tests := []struct {
+		name      string
+		size      int
+		chunked   bool
+		wantError bool
+	}{
+		{name: "at the limit", size: limit},
+		{name: "declared length over the limit", size: limit + 1, wantError: true},
+		{name: "chunked body over the limit", size: limit + 1, chunked: true, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.chunked {
+					// Flushing before the body forces chunked encoding,
+					// so no Content-Length reveals the size up front.
+					w.(http.Flusher).Flush()
+				}
+				_, _ = w.Write(bytes.Repeat([]byte("a"), tt.size))
+			}))
+			defer ts.Close()
+
+			data, err := downloadBytes(context.Background(), ts.URL, limit)
+			if tt.wantError {
+				var tooLarge *responseTooLargeError
+				if !errors.As(err, &tooLarge) {
+					t.Fatalf("downloadBytes() error = %v, want responseTooLargeError", err)
+				}
+				return
+			}
+			if err != nil || len(data) != tt.size {
+				t.Fatalf("downloadBytes() = %d bytes, %v; want %d bytes", len(data), err, tt.size)
+			}
+		})
+	}
+}
+
+func TestDownloadBytes_HonorsContext(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("archive"))
+	}))
+	defer ts.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := downloadBytes(ctx, ts.URL, maxArchiveBytes); !errors.Is(err, context.Canceled) {
+		t.Fatalf("downloadBytes() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestReleaseHTTPClientHasTimeouts(t *testing.T) {
+	if releaseHTTPClient.Timeout <= 0 {
+		t.Error("releaseHTTPClient has no overall timeout")
+	}
+	transport, ok := releaseHTTPClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("releaseHTTPClient.Transport = %T, want *http.Transport", releaseHTTPClient.Transport)
+	}
+	if transport.ResponseHeaderTimeout <= 0 || transport.TLSHandshakeTimeout <= 0 {
+		t.Errorf("transport timeouts: response header %v, TLS handshake %v; want both set",
+			transport.ResponseHeaderTimeout, transport.TLSHandshakeTimeout)
 	}
 }
 

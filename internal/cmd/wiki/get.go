@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -36,7 +35,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine wiki get WikiStart --project myproject --include attachments`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {

@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-func evalJQ(t *testing.T, expr string, v any, indent bool) (string, error) {
+func evalJQ(t *testing.T, expr string, v any, terminal bool) (string, error) {
 	t.Helper()
 	q, err := CompileJQ(expr)
 	if err != nil {
 		t.Fatalf("CompileJQ(%q): %v", expr, err)
 	}
 	var buf bytes.Buffer
-	err = q.Evaluate(&buf, v, indent)
+	err = q.Evaluate(&buf, v, terminal)
 	return buf.String(), err
 }
 
@@ -84,6 +84,83 @@ func TestJQFilter_IndentPrettyPrintsContainersOnly(t *testing.T) {
 	want := "{\n  \"id\": 7\n}\nNew\n7\n"
 	if got != want {
 		t.Fatalf("Evaluate = %q, want %q", got, want)
+	}
+}
+
+// hostileSubject is server-controlled text with an OSC 52 clipboard write, a
+// CSI sequence, a bare CR, a C1 CSI and a bidi override.
+const hostileSubject = "a\x1b]52;c;ZXZpbA==\x07b\x1b[2Jc\rd\u009be\u202ef"
+
+func TestJQFilter_RawStringsOnTerminalAreNeutralized(t *testing.T) {
+	issue := jqTestIssue{ID: 7, Subject: hostileSubject}
+	list := []jqTestIssue{issue, {ID: 8, Subject: "plain, \"quoted\""}}
+	tests := []struct {
+		name  string
+		expr  string
+		input any
+		want  string
+	}{
+		{"raw string", ".subject", issue, "a^[]52;c;ZXZpbA==^Gb^[[2Jc^Md\\u009bef\n"},
+		{"@csv", ".[] | [.id, .subject] | @csv", list,
+			"7,\"a^[]52;c;ZXZpbA==^Gb^[[2Jc^Md\\u009bef\"\n8,\"plain, \"\"quoted\"\"\"\n"},
+		// @tsv escapes CR itself; ESC and the rest still need neutralizing.
+		{"@tsv", ".[] | [.id, .subject] | @tsv", list[:1], "7\ta^[]52;c;ZXZpbA==^Gb^[[2Jc\\rd\\u009bef\n"},
+		{"newlines and tabs are kept", `"x\ny\tz"`, issue, "x\ny\tz\n"},
+		{"ordinary text is unchanged", `"Grüße 你好 🎉"`, issue, "Grüße 你好 🎉\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := evalJQ(t, tt.expr, tt.input, true)
+			if err != nil {
+				t.Fatalf("Evaluate: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("Evaluate(%q) = %q, want %q", tt.expr, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestJQFilter_RawStringsWhenPipedAreByteIdentical(t *testing.T) {
+	issue := jqTestIssue{ID: 7, Subject: hostileSubject + "\xff"}
+	got, err := evalJQ(t, ".subject", issue, false)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	// json.Marshal turns the invalid byte into U+FFFD before jq sees it;
+	// everything else, control characters included, is written as is.
+	if want := hostileSubject + "�\n"; got != want {
+		t.Fatalf("Evaluate = %q, want %q", got, want)
+	}
+
+	got, err = evalJQ(t, "[.id, .subject] | @csv", jqTestIssue{ID: 7, Subject: hostileSubject}, false)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if want := "7,\"" + hostileSubject + "\"\n"; got != want {
+		t.Fatalf("Evaluate(@csv) = %q, want %q", got, want)
+	}
+}
+
+func TestStdPrinter_JQSanitizesRawStringsOnlyOnTTY(t *testing.T) {
+	q, err := CompileJQ(".subject")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		isTTY bool
+		want  string
+	}{
+		{true, "a^[]52;c;ZXZpbA==^Gb^[[2Jc^Md\\u009bef\n"},
+		{false, hostileSubject + "\n"},
+	} {
+		var out, errOut bytes.Buffer
+		p := NewStdPrinter(&out, &errOut, tt.isTTY, true, FormatJSON)
+		p.SetJQ(q, func(err error) { t.Fatalf("unexpected jq error: %v", err) })
+		p.JSON(jqTestIssue{ID: 7, Subject: hostileSubject})
+		if got := out.String(); got != tt.want {
+			t.Errorf("isTTY=%v: stdout = %q, want %q", tt.isTTY, got, tt.want)
+		}
 	}
 }
 
@@ -242,5 +319,38 @@ func TestStdPrinter_JQRuntimeErrorReported(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("expected empty stdout, got %q", out.String())
+	}
+}
+
+func TestJQFilter_EnvAccess(t *testing.T) {
+	t.Setenv("REDMINE_JQ_TEST_SECRET", "s3cret")
+
+	tests := []struct {
+		name     string
+		noEnvVar string
+		want     string
+	}{
+		{name: "env is readable by default", want: "s3cret\n"},
+		{name: "REDMINE_JQ_NO_ENV=0 keeps env", noEnvVar: "0", want: "s3cret\n"},
+		{name: "REDMINE_JQ_NO_ENV=1 hides env", noEnvVar: "1", want: "null\n"},
+		{name: "REDMINE_JQ_NO_ENV=true hides env", noEnvVar: "true", want: "null\n"},
+	}
+	for _, tt := range tests {
+		for _, expr := range []string{"env.REDMINE_JQ_TEST_SECRET", "$ENV.REDMINE_JQ_TEST_SECRET"} {
+			t.Run(tt.name+"/"+expr, func(t *testing.T) {
+				t.Setenv(JQNoEnvVar, tt.noEnvVar)
+				q, err := CompileJQ(expr)
+				if err != nil {
+					t.Fatalf("CompileJQ(%q): %v", expr, err)
+				}
+				var buf bytes.Buffer
+				if err := q.Evaluate(&buf, map[string]any{}, false); err != nil {
+					t.Fatalf("Evaluate: %v", err)
+				}
+				if buf.String() != tt.want {
+					t.Errorf("Evaluate(%q) = %q, want %q", expr, buf.String(), tt.want)
+				}
+			})
+		}
 	}
 }

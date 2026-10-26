@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // SearchFunc performs a search and returns results.
@@ -28,13 +29,14 @@ type searchTickMsg struct {
 	query string
 }
 
-// searchItem implements list.Item for the search browser.
+// searchItem implements list.Item for the search browser. Every method
+// returns server data, so it is sanitized for the terminal.
 type searchItem struct {
 	result models.SearchResult
 }
 
 func (i searchItem) Title() string {
-	return i.result.Title
+	return output.SanitizeTerminal(i.result.Title)
 }
 
 func (i searchItem) Description() string {
@@ -42,11 +44,11 @@ func (i searchItem) Description() string {
 	if len(date) >= 10 {
 		date = date[:10]
 	}
-	return fmt.Sprintf("%s | %s", i.result.Type, date)
+	return output.SanitizeTerminal(fmt.Sprintf("%s | %s", i.result.Type, date))
 }
 
 func (i searchItem) FilterValue() string {
-	return i.result.Title
+	return output.SanitizeTerminal(i.result.Title)
 }
 
 var (

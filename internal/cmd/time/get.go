@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -29,7 +28,7 @@ func newCmdTimeGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			entry, err := ops.GetTimeEntry(context.Background(), client, ops.GetTimeEntryInput{ID: id})
+			entry, err := ops.GetTimeEntry(cmdutil.Context(cmd), client, ops.GetTimeEntryInput{ID: id})
 			if err != nil {
 				return err
 			}

@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ func newCmdArchive(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			if _, err := ops.ArchiveProject(context.Background(), client, ops.ArchiveProjectInput{Identifier: identifier}); err != nil {
+			if _, err := ops.ArchiveProject(cmdutil.Context(cmd), client, ops.ArchiveProjectInput{Identifier: identifier}); err != nil {
 				return err
 			}
 

@@ -1,7 +1,6 @@
 package customfield
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ func newCmdCustomFieldList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching custom fields...")
-			result, err := ops.ListCustomFields(context.Background(), client, struct{}{})
+			result, err := ops.ListCustomFields(cmdutil.Context(cmd), client, struct{}{})
 			stop()
 			if err != nil {
 				return err
@@ -40,11 +39,8 @@ func newCmdCustomFieldList(f *cmdutil.Factory) *cobra.Command {
 				printer,
 				result.CustomFields,
 				[]string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple"},
-				func(cf models.CustomField, styled bool) []string {
-					id := fmt.Sprintf("%d", cf.ID)
-					if styled {
-						id = output.StyleID.Render(id)
-					}
+				func(cf models.CustomField) []string {
+					id := output.StyleID.Render(fmt.Sprintf("%d", cf.ID))
 					return []string{
 						id,
 						cf.Name,

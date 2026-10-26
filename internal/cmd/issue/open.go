@@ -2,32 +2,18 @@ package issue
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/browser"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 // openBrowser is a package-level variable so tests can stub it.
-var openBrowser = func(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "linux":
-		cmd = exec.Command("xdg-open", url)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", url)
-	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
-	return cmd.Run()
-}
+var openBrowser = browser.Open
 
 // NewCmdOpen creates the issues open command.
 func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
@@ -49,7 +35,6 @@ func NewCmdOpen(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			url := fmt.Sprintf("%s/issues/%d", strings.TrimRight(cfg.Server, "/"), id)
-
 			if err := openBrowser(url); err != nil {
 				return fmt.Errorf("failed to open browser: %w", err)
 			}

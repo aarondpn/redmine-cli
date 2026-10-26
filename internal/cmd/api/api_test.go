@@ -1,12 +1,16 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -222,6 +226,64 @@ func TestIncludeHeaders(t *testing.T) {
 	}
 	if !strings.Contains(out, "X-Custom: value") {
 		t.Errorf("expected X-Custom header, got:\n%s", out)
+	}
+}
+
+// rawHTTPServer answers every connection with response verbatim, so a test
+// can send a status line or header that net/http's server would not write.
+func rawHTTPServer(t *testing.T, response string) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				_, _ = http.ReadRequest(bufio.NewReader(conn))
+				_, _ = io.WriteString(conn, response)
+			}()
+		}
+	}()
+	return "http://" + ln.Addr().String()
+}
+
+// TestIncludeHeaders_SanitizesMetadata: the status line and header values are
+// server-controlled metadata and are neutralized for the terminal, while the
+// body is still written byte for byte.
+func TestIncludeHeaders_SanitizesMetadata(t *testing.T) {
+	body := "{\"raw\":\"\x1b[31m\"}"
+	server := rawHTTPServer(t, "HTTP/1.1 200 OK\x1b]52;c;ZXZpbA==\x07\r\n"+
+		// net/http rejects C0 controls in header values but passes C1
+		// controls, raw 8-bit bytes (\x9b is an 8-bit CSI) and bidi marks.
+		"X-Evil: a\u009b2Jb\x9b2Jc\u202Ed\r\n"+
+		"Content-Length: "+strconv.Itoa(len(body))+"\r\n"+
+		"Connection: close\r\n\r\n"+body)
+
+	f := testutil.NewFactory(t, server)
+	cmd := NewCmdAPI(f)
+	cmd.SetArgs([]string{"/test.json", "-i"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	head, gotBody, _ := strings.Cut(testutil.Stdout(f), "\n\n")
+	if strings.ContainsAny(head, "\x1b\x07\u009b\u202E") || strings.Contains(head, "\x9b") {
+		t.Errorf("status line or headers contain raw control characters:\n%q", head)
+	}
+	if !strings.Contains(head, "200 OK^[]52;c;ZXZpbA==^G") {
+		t.Errorf("expected the sanitized status line, got:\n%q", head)
+	}
+	if !strings.Contains(head, `X-Evil: a\u009b2Jb`+"\uFFFD"+`2Jcd`) {
+		t.Errorf("expected the sanitized header value, got:\n%q", head)
+	}
+	if gotBody != body {
+		t.Errorf("body = %q, want it unchanged %q", gotBody, body)
 	}
 }
 

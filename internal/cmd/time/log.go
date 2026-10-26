@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -36,7 +35,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			// When logging against a specific issue, Redmine derives the project
 			// from the issue. Applying the configured default project would inject

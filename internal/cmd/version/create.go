@@ -1,7 +1,6 @@
 package version
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -39,7 +38,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			project, err = cmdutil.RequireProjectIdentifier(context.Background(), f, project)
+			project, err = cmdutil.RequireProjectIdentifier(cmdutil.Context(cmd), f, project)
 			if err != nil {
 				return err
 			}
@@ -62,7 +61,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer(format)
-			version, err := ops.CreateVersion(context.Background(), client, input)
+			version, err := ops.CreateVersion(cmdutil.Context(cmd), client, input)
 			if err != nil {
 				return err
 			}

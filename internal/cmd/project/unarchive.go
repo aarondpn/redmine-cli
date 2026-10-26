@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -26,7 +25,7 @@ func newCmdUnarchive(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer("")
 			identifier := args[0]
 
-			if _, err := ops.UnarchiveProject(context.Background(), client, ops.UnarchiveProjectInput{Identifier: identifier}); err != nil {
+			if _, err := ops.UnarchiveProject(cmdutil.Context(cmd), client, ops.UnarchiveProjectInput{Identifier: identifier}); err != nil {
 				return err
 			}
 

@@ -1,7 +1,6 @@
 package wiki
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +34,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
   # Paginate results
   redmine wiki list --project myproject --limit 10 --offset 20`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
 			if err != nil {
@@ -64,12 +63,8 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex, styled bool) []string {
-				title := p.Title
-				if styled {
-					title = output.StyleID.Render(title)
-				}
-				return []string{title, p.UpdatedOn}
+			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex) []string {
+				return []string{output.StyleID.Render(p.Title), p.UpdatedOn}
 			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{

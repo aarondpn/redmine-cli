@@ -112,7 +112,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			var notice string
-			project, notice, err = resolveSearchProject(context.Background(), f, project, scope)
+			project, notice, err = resolveSearchProject(cmdutil.Context(cmd), f, project, scope)
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Searching...")
-			results, total, err := client.Search.Search(context.Background(), params)
+			results, total, err := client.Search.Search(cmdutil.Context(cmd), params)
 			stop()
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
@@ -185,16 +185,13 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 
 // printResults renders search results using the printer.
 func printResults(printer output.Printer, results []models.SearchResult, total, limit, offset int) {
-	cmdutil.RenderCollection(printer, results, []string{"ID", "Type", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
-		id := fmt.Sprintf("%d", r.ID)
-		typ := r.Type
-		date := r.DateTime
-		if styled {
-			id = output.StyleID.Render(fmt.Sprintf("%d", r.ID))
-			typ = typeStyle(r.Type).Render(r.Type)
-			date = formatDate(r.DateTime)
+	cmdutil.RenderCollection(printer, results, []string{"ID", "Type", "Title", "Date"}, func(r models.SearchResult) []string {
+		return []string{
+			output.StyleID.Render(fmt.Sprintf("%d", r.ID)),
+			typeStyle(r.Type).Render(r.Type),
+			r.Title,
+			formatDate(r.DateTime),
 		}
-		return []string{id, typ, r.Title, date}
 	})
 
 	cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
@@ -203,26 +200,26 @@ func printResults(printer output.Printer, results []models.SearchResult, total, 
 }
 
 // typeStyle returns a color style based on the result type.
-func typeStyle(t string) lipgloss.Style {
+func typeStyle(t string) output.Style {
 	switch strings.ToLower(t) {
 	case "issue":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("12")))
 	case "issue-closed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("8")))
 	case "news":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("11")))
 	case "wiki-page":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("13"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("13")))
 	case "changeset":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("10")))
 	case "message":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("14")))
 	case "project":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("6")))
 	case "document":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+		return output.NewStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("3")))
 	default:
-		return lipgloss.NewStyle()
+		return output.NewStyle(lipgloss.NewStyle())
 	}
 }
 

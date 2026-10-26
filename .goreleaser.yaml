@@ -95,11 +95,11 @@ homebrew_casks:
       zsh: completions/redmine.zsh
       fish: completions/redmine.fish
     # Homebrew 7.0.4 deprecated `postflight` in favour of `postflight_steps`.
-    # GoReleaser < 2.19 can only emit the old stanza via `hooks`, so the new
-    # stanza is written through `custom_block`. The rendered cask is passed
-    # through Go templating, so Homebrew's `{{staged_path}}` token has to be
-    # escaped. Once GoReleaser 2.19 is out this can move to
-    # `hooks.post.install_steps` with `{{ .StagedPath }}`.
+    # The stanza is written through `custom_block`. GoReleaser 2.19+ can also
+    # emit it via `hooks.post.install_steps` with `{{ .StagedPath }}`; moving
+    # there would need a check of the rendered cask. The rendered cask is
+    # passed through Go templating, so Homebrew's `{{staged_path}}` token has
+    # to be escaped.
     custom_block: |
       postflight_steps do
         run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/redmine"]
@@ -115,3 +115,6 @@ release:
   github:
     owner: aarondpn
     name: redmine-cli
+  # Tags with a pre-release suffix (v2.15.0-rc.1) become GitHub prereleases,
+  # which /releases/latest, `redmine update` and install.sh never pick.
+  prerelease: auto

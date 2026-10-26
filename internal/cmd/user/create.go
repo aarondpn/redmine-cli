@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -71,7 +70,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Creating user...")
-			user, err := ops.CreateUser(context.Background(), client, input)
+			user, err := ops.CreateUser(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
 				return err

@@ -127,54 +127,6 @@ func TestTimeList_NoPaginationWarningJSON(t *testing.T) {
 	}
 }
 
-func TestTimeList_CSV(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"time_entries":[` + timeEntryJSON + `],"total_count":1}`))
-	}))
-	defer srv.Close()
-
-	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdTimeList(f)
-	cmd.SetArgs([]string{"--output", "csv"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	stdout := testutil.Stdout(f)
-	// CSV should contain headers and data
-	for _, want := range []string{"ID", "Hours", "42", "2.50"} {
-		if !strings.Contains(stdout, want) {
-			t.Errorf("csv output missing %q:\n%s", want, stdout)
-		}
-	}
-}
-
-func TestTimeList_EmptyCSVPrintsHeaders(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(emptyTimeListHandler))
-	defer srv.Close()
-
-	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdTimeList(f)
-	cmd.SetArgs([]string{"--output", "csv"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := testutil.Stderr(f); got != "" {
-		t.Fatalf("stderr = %q, want empty", got)
-	}
-
-	stdout := testutil.Stdout(f)
-	if strings.Contains(stdout, "\x1b[") {
-		t.Fatalf("csv output contains ANSI escapes:\n%q", stdout)
-	}
-	if got := stdout; got != "ID,Date,Project,Issue,Hours,Activity,User,Comments\n" {
-		t.Fatalf("stdout = %q, want csv headers only", got)
-	}
-}
-
 // TestTimeList_IssueScopeIgnoresDefaultProject pins that filtering by --issue
 // does not inject the configured default project's project_id, which would
 // change Redmine's authorization scope and can surface as a 403. See issue #123.

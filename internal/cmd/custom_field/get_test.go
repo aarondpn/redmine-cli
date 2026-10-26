@@ -1,11 +1,8 @@
 package customfield
 
 import (
-	"bytes"
-	"encoding/csv"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 
@@ -77,40 +74,6 @@ func TestCustomFieldGet_TableByID(t *testing.T) {
 	}
 }
 
-func TestCustomFieldGet_CSV(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(detailFixture))
-	}))
-	defer srv.Close()
-
-	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdCustomFieldGet(f)
-	cmd.SetArgs([]string{"1", "--output", "csv"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-
-	rows, err := csv.NewReader(bytes.NewBufferString(testutil.Stdout(f))).ReadAll()
-	if err != nil {
-		t.Fatalf("decode CSV: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("CSV rows = %d, want 2", len(rows))
-	}
-
-	wantHeaders := []string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple", "Default", "Possible Values", "Trackers", "Roles", "For All", "Projects"}
-	if !slices.Equal(rows[0], wantHeaders) {
-		t.Fatalf("CSV header mismatch:\n got: %v\nwant: %v", rows[0], wantHeaders)
-	}
-
-	wantRow := []string{"1", "Severity", "issue", "list", "yes", "yes", "yes", "no", "Low", "Low, High", "Bug (ID: 1)", "Manager (ID: 3)", "", ""}
-	if !slices.Equal(rows[1], wantRow) {
-		t.Fatalf("CSV row mismatch:\n got: %v\nwant: %v", rows[1], wantRow)
-	}
-}
-
 // TestCustomFieldGet_Redmine7Fields covers the Redmine 7.0 additions to
 // /custom_fields.json and the tri-state handling of is_for_all, which older
 // servers omit entirely.
@@ -164,36 +127,6 @@ func TestCustomFieldGet_Redmine7Fields(t *testing.T) {
 			if !strings.Contains(stdout, want) {
 				t.Errorf("detail output missing %q:\n%s", want, stdout)
 			}
-		}
-	})
-
-	t.Run("csv carries scope columns", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(redmine7Fixture))
-		}))
-		defer srv.Close()
-
-		f := testutil.NewFactory(t, srv.URL)
-		cmd := newCmdCustomFieldGet(f)
-		cmd.SetArgs([]string{"1", "--output", "csv"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatal(err)
-		}
-
-		rows, err := csv.NewReader(bytes.NewBufferString(testutil.Stdout(f))).ReadAll()
-		if err != nil {
-			t.Fatalf("decode CSV: %v", err)
-		}
-		if len(rows) != 2 {
-			t.Fatalf("CSV rows = %d, want 2", len(rows))
-		}
-		if got := rows[1][len(rows[1])-2]; got != "no" {
-			t.Errorf("For All column = %q, want %q", got, "no")
-		}
-		if got := rows[1][len(rows[1])-1]; got != "Apollo (ID: 7)" {
-			t.Errorf("Projects column = %q, want %q", got, "Apollo (ID: 7)")
 		}
 	})
 

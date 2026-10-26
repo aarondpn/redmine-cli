@@ -10,15 +10,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -32,10 +35,35 @@ const (
 	ReleaseURL = "https://api.github.com/repos/" + RepoOwner + "/" + RepoName + "/releases/latest"
 )
 
+const (
+	// maxArchiveBytes bounds the release archive download. Release archives
+	// are a few MiB; a response this large is not a real release.
+	maxArchiveBytes = 200 << 20
+	// maxChecksumsBytes bounds the checksums file, which has one short line
+	// per release asset.
+	maxChecksumsBytes = 1 << 20
+	// releaseHTTPTimeout bounds each release metadata, checksums and archive
+	// request end to end, including reading the body.
+	releaseHTTPTimeout = 5 * time.Minute
+)
+
+// releaseHTTPClient fetches release metadata, archives and checksums. Like
+// the attestation client it never waits forever: the server must start
+// answering within attestationHTTPTimeout, and a whole request (body
+// included) may take at most releaseHTTPTimeout.
+var releaseHTTPClient = newReleaseHTTPClient()
+
+func newReleaseHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = attestationHTTPTimeout
+	return &http.Client{Transport: transport, Timeout: releaseHTTPTimeout}
+}
+
 // GithubRelease represents a GitHub release.
 type GithubRelease struct {
-	TagName string        `json:"tag_name"`
-	Assets  []GithubAsset `json:"assets"`
+	TagName     string        `json:"tag_name"`
+	PublishedAt time.Time     `json:"published_at"`
+	Assets      []GithubAsset `json:"assets"`
 }
 
 // GithubAsset represents a release asset.
@@ -44,20 +72,36 @@ type GithubAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+// updateOptions carries the security-relevant knobs of runUpdateWithFormat.
+type updateOptions struct {
+	// SkipAttestation downgrades verification to checksum-only.
+	SkipAttestation bool
+	// Warn prints a security warning. Required when SkipAttestation is set.
+	Warn func(msg string)
+}
+
 // NewCmdUpdate creates the update command.
 func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 	var format string
+	var opts updateOptions
 
 	cmd := &cobra.Command{
 		Use:   "update",
 		Args:  cobra.NoArgs,
 		Short: "Update redmine CLI to the latest version",
-		Long:  "Check GitHub releases for a newer version and replace the current binary.",
+		Long: "Check GitHub releases for a newer version and replace the current binary.\n\n" +
+			"The downloaded archive must match the release checksums and carry a valid\n" +
+			"GitHub artifact attestation (SLSA build provenance signed via Sigstore) from\n" +
+			"this repository's release workflow for the exact release tag. The update is\n" +
+			"refused if either check fails.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpdateWithFormat(version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format))
+			opts.Warn = f.Warn
+			return runUpdateWithFormat(cmdutil.Context(cmd), version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
 		},
 	}
 	cmdutil.AddOutputFlag(cmd, &format)
+	cmd.Flags().BoolVar(&opts.SkipAttestation, "skip-attestation", false,
+		"Install with checksum verification only, skipping the attestation check (not recommended)")
 	return cmd
 }
 
@@ -145,7 +189,10 @@ func defaultUpgradeHomebrew(stdout, stderr io.Writer) error {
 
 var fetchRelease = FetchLatestRelease
 
-func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printer output.Printer) error {
+// resolveInstallPath is a variable so tests can install into a temp file.
+var resolveInstallPath = installPath
+
+func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, stderr io.Writer, printer output.Printer, opts updateOptions) error {
 	if checkHomebrew() {
 		outdated, err := checkHomebrewOutdated()
 		if err != nil {
@@ -169,10 +216,15 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 		return nil
 	}
 
+	if opts.SkipAttestation {
+		msg := "--skip-attestation: the update will only be verified against the release checksums, which come from the same place as the archive; a tampered release would NOT be detected"
+		opts.Warn(msg)
+	}
+
 	logStep(printer, stderr, "Current version: %s\n", currentVersion)
 	logLine(printer, stderr, "Checking for updates...")
 
-	release, err := fetchRelease(context.Background())
+	release, err := fetchRelease(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check for updates: %w", err)
 	}
@@ -203,21 +255,29 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 		return fmt.Errorf("checksums asset %q not found in release %s; refusing to install unverified binary", checksumsName, release.TagName)
 	}
 
-	execPath, err := installPath()
+	execPath, err := resolveInstallPath(release.TagName)
 	if err != nil {
 		return err
 	}
 
 	logStep(printer, stderr, "Downloading %s...\n", release.TagName)
 
-	archiveData, err := downloadBytes(downloadURL)
+	archiveData, err := downloadBytes(ctx, downloadURL, maxArchiveBytes)
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
 	}
 
 	logLine(printer, stderr, "Verifying checksum...")
-	if err := verifyChecksum(archiveData, assetName, checksumsURL); err != nil {
+	if err := verifyChecksum(ctx, archiveData, assetName, checksumsURL); err != nil {
 		return fmt.Errorf("checksum verification failed: %w", err)
+	}
+
+	if !opts.SkipAttestation {
+		logLine(printer, stderr, "Verifying attestation...")
+		digest := sha256.Sum256(archiveData)
+		if err := verifyAttestation(ctx, digest[:], release); err != nil {
+			return err
+		}
 	}
 
 	binaryData, err := extractBinary(archiveData, assetName)
@@ -232,6 +292,46 @@ func runUpdateWithFormat(currentVersion string, stdout, stderr io.Writer, printe
 	printer.Action(output.ActionUpdated, "cli", release.TagName,
 		fmt.Sprintf("Updated successfully: %s -> %s", currentVersion, release.TagName))
 	return nil
+}
+
+// attestationGracePeriod is how long after publication a missing attestation
+// is reported as probably still pending: the release workflow publishes the
+// release first and attests its archives a few minutes later.
+const attestationGracePeriod = 30 * time.Minute
+
+// now is replaced by tests.
+var now = time.Now
+
+// publishedAgo renders the age of a fresh release for the pending message.
+func publishedAgo(age time.Duration) string {
+	if age < time.Minute {
+		return "less than a minute ago"
+	}
+	return age.Round(time.Minute).String() + " ago"
+}
+
+// verifyAttestation runs the attestation check and turns its outcome into the
+// user-facing error. Every failure refuses the install; only an unreachable
+// attestations API or TUF repository points at --skip-attestation.
+func verifyAttestation(ctx context.Context, digest []byte, release *GithubRelease) error {
+	tag := release.TagName
+	err := newAttestationVerifier().Verify(ctx, digest, tag)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errNoAttestation) && !release.PublishedAt.IsZero() {
+		if age := now().Sub(release.PublishedAt); age >= 0 && age < attestationGracePeriod {
+			return fmt.Errorf("%s was published %s and its attestation is not available yet; "+
+				"releases are attested a few minutes after publishing, so try again shortly", tag, publishedAgo(age))
+		}
+	}
+	var unavailable *attestationUnavailableError
+	if errors.As(err, &unavailable) {
+		return fmt.Errorf("attestation verification failed: %w\n\n"+
+			"Could not reach GitHub or the Sigstore TUF repository to verify the release attestation; refusing to install.\n"+
+			"Retry later, or re-run with --skip-attestation to install with checksum verification only (not recommended).", err)
+	}
+	return fmt.Errorf("attestation verification failed: %w; refusing to install %s", err, tag)
 }
 
 func logLine(printer output.Printer, w io.Writer, msg string) {
@@ -255,7 +355,7 @@ func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := releaseHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -286,33 +386,69 @@ func expectedChecksumsName(tag string) string {
 	return fmt.Sprintf("%s_%s_checksums.txt", RepoName, strings.TrimPrefix(tag, "v"))
 }
 
-func downloadBytes(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+// getLimited fetches url with releaseHTTPClient and returns the status code
+// and, for 200 OK, the body. It fails with a *responseTooLargeError instead
+// of reading more than limit bytes.
+func getLimited(ctx context.Context, url string, limit int64) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	resp, err := releaseHTTPClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return resp.StatusCode, nil, nil
+	}
+	if resp.ContentLength > limit {
+		return 0, nil, &responseTooLargeError{limit: limit}
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return 0, nil, err
+	}
+	if int64(len(data)) > limit {
+		return 0, nil, &responseTooLargeError{limit: limit}
+	}
+	return resp.StatusCode, data, nil
+}
+
+// responseTooLargeError reports a download that exceeded its size cap.
+type responseTooLargeError struct {
+	limit int64
+}
+
+func (e *responseTooLargeError) Error() string {
+	return fmt.Sprintf("response is larger than %d bytes; refusing to read it", e.limit)
+}
+
+// downloadBytes downloads url into memory, reading at most limit bytes.
+func downloadBytes(ctx context.Context, url string, limit int64) ([]byte, error) {
+	status, data, err := getLimited(ctx, url, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("download returned status %d", status)
 	}
-
-	return io.ReadAll(resp.Body)
+	return data, nil
 }
 
-func verifyChecksum(data []byte, assetName, checksumsURL string) error {
-	resp, err := http.Get(checksumsURL)
+func verifyChecksum(ctx context.Context, data []byte, assetName, checksumsURL string) error {
+	status, checksums, err := getLimited(ctx, checksumsURL, maxChecksumsBytes)
 	if err != nil {
 		return fmt.Errorf("downloading checksums: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("checksums download returned status %d", resp.StatusCode)
+	if status != http.StatusOK {
+		return fmt.Errorf("checksums download returned status %d", status)
 	}
 
 	var expectedHash string
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(bytes.NewReader(checksums))
+	scanner.Buffer(nil, maxChecksumsBytes)
 	for scanner.Scan() {
 		// GoReleaser format: "<hash>  <filename>"
 		fields := strings.Fields(scanner.Text())
@@ -387,8 +523,9 @@ func extractFromZipReader(r io.ReaderAt, size int64) ([]byte, error) {
 }
 
 // installPath returns the resolved path of the current binary, or an error
-// if the directory is not writable by the current user.
-func installPath() (string, error) {
+// if the directory is not writable by the current user. tag selects the
+// install.sh revision suggested in that error.
+func installPath(tag string) (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("failed to find current executable: %w", err)
@@ -401,19 +538,38 @@ func installPath() (string, error) {
 	dir := filepath.Dir(execPath)
 	tmp, err := os.CreateTemp(dir, ".redmine-write-test-*")
 	if err != nil {
-		return "", fmt.Errorf(
-			"cannot update: %s is not writable\n\n"+
-				"Reinstall to a user-writable location:\n"+
-				"  curl -fsSL https://raw.githubusercontent.com/%s/%s/main/install.sh | bash\n\n"+
-				"Or download manually from:\n"+
-				"  https://github.com/%s/%s/releases/latest",
-			dir, RepoOwner, RepoName, RepoOwner, RepoName,
-		)
+		return "", notWritableError(dir, tag)
 	}
 	tmp.Close()
 	os.Remove(tmp.Name())
 
 	return execPath, nil
+}
+
+// safeTagPattern matches release tags that are safe to embed in a suggested
+// shell command and URL path.
+var safeTagPattern = regexp.MustCompile(`^v` + releaseTagPattern + `$`)
+
+// notWritableError explains how to reinstall when the binary's directory is
+// not writable. The suggested install.sh is pinned to the release tag rather
+// than the mutable main branch.
+func notWritableError(dir, tag string) error {
+	if !safeTagPattern.MatchString(tag) {
+		return fmt.Errorf(
+			"cannot update: %s is not writable\n\n"+
+				"Reinstall to a user-writable location by downloading from:\n"+
+				"  https://github.com/%s/%s/releases/latest",
+			dir, RepoOwner, RepoName,
+		)
+	}
+	return fmt.Errorf(
+		"cannot update: %s is not writable\n\n"+
+			"Reinstall to a user-writable location:\n"+
+			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash\n\n"+
+			"Or download manually from:\n"+
+			"  https://github.com/%s/%s/releases/tag/%s",
+		dir, RepoOwner, RepoName, tag, tag, RepoOwner, RepoName, tag,
+	)
 }
 
 func replaceBinary(execPath string, newBinary []byte) error {

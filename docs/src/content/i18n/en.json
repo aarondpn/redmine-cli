@@ -28,7 +28,7 @@
 	"capability.names.desc": "Use human names instead of numeric IDs for trackers, statuses, users.",
 	"capability.names.anchor": "#name-resolution",
 	"capability.formats.title": "Output Formats",
-	"capability.formats.desc": "Table, wide, JSON and CSV — equally suited for reading or scripting.",
+	"capability.formats.desc": "Table and JSON, with built-in jq for filtering and CSV export — equally suited for reading or scripting.",
 	"capability.agents.title": "AI Agent Ready",
 	"capability.agents.desc": "Bundled skill and built-in MCP server, works with any compatible agent or host.",
 	"banner.translationNotice": "",

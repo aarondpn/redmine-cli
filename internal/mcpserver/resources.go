@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
@@ -27,17 +28,26 @@ type resourceTemplateDefinition struct {
 	// of Options, the resource template is skipped so a wiki-disabled server
 	// does not advertise redmine://wiki URIs.
 	Group Group
+	// Tools names the tools that expose the same data as the resource. The
+	// template is registered only when at least one of them passes the
+	// --enable-tools / --disable-tools filter, so a resource can never be
+	// used to read what the per-tool filter hides.
+	Tools []string
 	Read  func(context.Context, *api.Client, string) (*mcp.ReadResourceResult, error)
 }
 
 // registerResources wires the read-only URI templates. Resources are exposed
 // regardless of EnableWrites because they do not mutate state, but they are
-// still gated by the same group filter as tools so a server configured to
-// only expose `issues` does not advertise wiki resources.
+// still gated by the same group and per-tool filters as tools, so a server
+// configured to only expose `issues` does not advertise wiki resources, and
+// `--disable-tools get_issue` also hides redmine://issue/{id}.
 func registerResources(s *mcp.Server, client *api.Client, opts Options) {
-	for _, def := range resourceTemplateDefinitions() {
+	for _, def := range resourceTemplateDefinitions(opts) {
 		definition := def
 		if definition.Group != "" && !opts.groupEnabled(definition.Group) {
+			continue
+		}
+		if !opts.anyToolEnabled(definition.Tools) {
 			continue
 		}
 		s.AddResourceTemplate(definition.Template, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
@@ -46,7 +56,11 @@ func registerResources(s *mcp.Server, client *api.Client, opts Options) {
 	}
 }
 
-func resourceTemplateDefinitions() []resourceTemplateDefinition {
+// resourceTemplateDefinitions lists every resource template. opts is only
+// used by readers that serve URIs backed by more than one tool (the user
+// resource answers both "me" and numeric IDs) to refuse the URIs whose tool
+// is filtered out.
+func resourceTemplateDefinitions(opts Options) []resourceTemplateDefinition {
 	return []resourceTemplateDefinition{
 		{
 			Template: &mcp.ResourceTemplate{
@@ -56,6 +70,7 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeJSON,
 			},
 			Group: GroupIssues,
+			Tools: []string{"get_issue"},
 			Read:  readIssueResource,
 		},
 		{
@@ -66,6 +81,7 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeJSON,
 			},
 			Group: GroupProjects,
+			Tools: []string{"get_project"},
 			Read:  readProjectResource,
 		},
 		{
@@ -76,7 +92,8 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeJSON,
 			},
 			Group: GroupUsers,
-			Read:  readUserResource,
+			Tools: []string{toolGetUser, toolMe},
+			Read:  userResourceReader(opts.toolEnabled(toolMe), opts.toolEnabled(toolGetUser)),
 		},
 		{
 			Template: &mcp.ResourceTemplate{
@@ -86,6 +103,7 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeJSON,
 			},
 			Group: GroupTime,
+			Tools: []string{"get_time_entry"},
 			Read:  readTimeEntryResource,
 		},
 		{
@@ -96,6 +114,7 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeWikiText,
 			},
 			Group: GroupWiki,
+			Tools: []string{"get_wiki_page"},
 			Read:  readWikiResource,
 		},
 		{
@@ -106,6 +125,7 @@ func resourceTemplateDefinitions() []resourceTemplateDefinition {
 				MIMEType:    mimeJSON,
 			},
 			Group: GroupMeta,
+			Tools: []string{"get_version"},
 			Read:  readVersionResource,
 		},
 	}
@@ -147,7 +167,23 @@ func readProjectResource(ctx context.Context, client *api.Client, uri string) (*
 	return jsonContent(uri, project)
 }
 
-func readUserResource(ctx context.Context, client *api.Client, uri string) (*mcp.ReadResourceResult, error) {
+// Tool names backing the user resource: "me" serves redmine://user/me and
+// get_user serves numeric IDs.
+const (
+	toolMe      = "me"
+	toolGetUser = "get_user"
+)
+
+// userResourceReader returns the reader for redmine://user/{id}. The template
+// is registered when either backing tool is enabled; allowMe and allowID then
+// refuse the half of the URI space whose tool is filtered out.
+func userResourceReader(allowMe, allowID bool) func(context.Context, *api.Client, string) (*mcp.ReadResourceResult, error) {
+	return func(ctx context.Context, client *api.Client, uri string) (*mcp.ReadResourceResult, error) {
+		return readUserResource(ctx, client, uri, allowMe, allowID)
+	}
+}
+
+func readUserResource(ctx context.Context, client *api.Client, uri string, allowMe, allowID bool) (*mcp.ReadResourceResult, error) {
 	_, parts, err := parseRedmineURI(uri)
 	if err != nil {
 		return nil, err
@@ -157,6 +193,9 @@ func readUserResource(ctx context.Context, client *api.Client, uri string) (*mcp
 		return nil, err
 	}
 	if segment == "me" {
+		if !allowMe {
+			return nil, toolDisabledResourceError(uri, toolMe)
+		}
 		user, err := ops.GetCurrentUserForResource(ctx, client)
 		if err != nil {
 			return nil, resourceError(uri, err)
@@ -167,11 +206,27 @@ func readUserResource(ctx context.Context, client *api.Client, uri string) (*mcp
 	if err != nil {
 		return nil, err
 	}
+	if !allowID {
+		return nil, toolDisabledResourceError(uri, toolGetUser)
+	}
 	user, err := ops.GetUserForResource(ctx, client, id)
 	if err != nil {
 		return nil, resourceError(uri, err)
 	}
 	return jsonContent(uri, user)
+}
+
+// toolDisabledResourceError refuses a URI whose backing tool is filtered out.
+// It is the SDK's "Resource not found" error, which the server also returns
+// for URIs of templates that are not registered at all, with the reason added
+// to the message.
+func toolDisabledResourceError(uri, tool string) error {
+	err := mcp.ResourceNotFoundError(uri)
+	var rpcErr *jsonrpc.Error
+	if errors.As(err, &rpcErr) {
+		rpcErr.Message = fmt.Sprintf("Resource not found: %s is disabled because the %q tool is not enabled on this server", uri, tool)
+	}
+	return err
 }
 
 func readTimeEntryResource(ctx context.Context, client *api.Client, uri string) (*mcp.ReadResourceResult, error) {
@@ -235,8 +290,11 @@ func readVersionResource(ctx context.Context, client *api.Client, uri string) (*
 	return jsonContent(uri, version)
 }
 
-// jsonContent marshals v into a single JSON ResourceContents entry.
+// jsonContent marshals v into a single JSON ResourceContents entry. Like
+// toolResult for tools, it redacts secrets first so no resource can return an
+// API key.
 func jsonContent(uri string, v any) (*mcp.ReadResourceResult, error) {
+	redactSecrets(&v)
 	body, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("encoding resource %s: %w", uri, err)

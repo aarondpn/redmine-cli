@@ -1,7 +1,6 @@
 package query
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -38,7 +37,7 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching saved queries...")
-			result, err := ops.ListQueries(context.Background(), client, ops.ListQueriesInput{
+			result, err := ops.ListQueries(cmdutil.Context(cmd), client, ops.ListQueriesInput{
 				Limit:  cmdutil.OpsLimit(limit),
 				Offset: offset,
 			})
@@ -52,11 +51,8 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, queries, []string{"ID", "Name", "Visibility", "Scope"}, func(q models.SavedQuery, styled bool) []string {
-				id := fmt.Sprintf("%d", q.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, queries, []string{"ID", "Name", "Visibility", "Scope"}, func(q models.SavedQuery) []string {
+				id := output.StyleID.Render(fmt.Sprintf("%d", q.ID))
 				return []string{id, q.Name, queryVisibility(q), queryScope(q)}
 			})
 

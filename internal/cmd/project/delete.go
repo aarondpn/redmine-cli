@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ func newCmdDelete(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			if _, err := ops.DeleteProject(context.Background(), client, ops.DeleteProjectInput{Identifier: identifier}); err != nil {
+			if _, err := ops.DeleteProject(cmdutil.Context(cmd), client, ops.DeleteProjectInput{Identifier: identifier}); err != nil {
 				return err
 			}
 

@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -45,7 +44,7 @@ Redmine's "Allow issue assignment to groups" setting.`,
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			printer := f.Printer("")
 
 			if resolver.IsNone(args[1]) {

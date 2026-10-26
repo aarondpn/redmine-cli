@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -46,7 +45,7 @@ func NewCmdReopen(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer("")
 			stop := printer.Spinner("Reopening issue...")
-			result, err := ops.ReopenIssue(context.Background(), client, ops.ReopenIssueInput{
+			result, err := ops.ReopenIssue(cmdutil.Context(cmd), client, ops.ReopenIssueInput{
 				ID:    id,
 				Notes: note,
 			})

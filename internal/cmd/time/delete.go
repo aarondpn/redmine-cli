@@ -1,7 +1,6 @@
 package time
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -41,7 +40,7 @@ func newCmdTimeDelete(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			if _, err := ops.DeleteTimeEntry(context.Background(), client, ops.DeleteTimeEntryInput{ID: id}); err != nil {
+			if _, err := ops.DeleteTimeEntry(cmdutil.Context(cmd), client, ops.DeleteTimeEntryInput{ID: id}); err != nil {
 				return err
 			}
 

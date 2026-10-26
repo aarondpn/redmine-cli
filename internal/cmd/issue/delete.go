@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -44,7 +43,7 @@ func NewCmdDelete(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Deleting issue...")
-			_, err = ops.DeleteIssue(context.Background(), client, ops.DeleteIssueInput{ID: id})
+			_, err = ops.DeleteIssue(cmdutil.Context(cmd), client, ops.DeleteIssueInput{ID: id})
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to delete issue #%d: %w", id, err)

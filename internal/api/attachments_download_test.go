@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -117,6 +118,28 @@ func TestAttachmentDownload_FallsBackToCanonicalPath(t *testing.T) {
 	}
 }
 
+// A traversal filename from the server must not change which endpoint the
+// canonical download path reaches, even before a normalizing proxy.
+func TestAttachmentDownload_UnsafeFilenameUsesIDOnlyPath(t *testing.T) {
+	var gotRawPath string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawPath = r.URL.EscapedPath()
+		_, _ = w.Write([]byte("content"))
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Attachments = &AttachmentService{client: c}
+
+	att := &models.Attachment{ID: 9, Filename: "../../../users/1.json"}
+	if _, err := c.Attachments.Download(context.Background(), att, &bytes.Buffer{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotRawPath != "/attachments/download/9" {
+		t.Errorf("download path = %q, want /attachments/download/9", gotRawPath)
+	}
+}
+
 func TestAttachmentDownload_ErrorStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -165,6 +188,19 @@ func TestAttachmentDownloadURL(t *testing.T) {
 			att:  &models.Attachment{ID: 4, Filename: "my file (1).png"},
 			want: "https://redmine.example.com/redmine/attachments/download/4/my%20file%20%281%29.png",
 		},
+	}
+	// A filename that is not a safe single path segment is left out rather
+	// than escaped, so it can never steer the request to another path.
+	for i, name := range []string{"", ".", "..", "../../users/2.json", "a/b.png", `a\b.png`, "x?y=1", "x#frag", "%2e%2e", "line\nbreak"} {
+		cases = append(cases, struct {
+			name string
+			att  *models.Attachment
+			want string
+		}{
+			name: fmt.Sprintf("unsafe filename %q is dropped", name),
+			att:  &models.Attachment{ID: 10 + i, Filename: name},
+			want: fmt.Sprintf("https://redmine.example.com/redmine/attachments/download/%d", 10+i),
+		})
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,7 +1,6 @@
 package search
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -35,7 +34,7 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 
 			printer := f.Printer(format)
 			stop := printer.Spinner("Searching projects...")
-			result, err := ops.Search(context.Background(), client, ops.SearchInput{
+			result, err := ops.Search(cmdutil.Context(cmd), client, ops.SearchInput{
 				Query:      query,
 				Scope:      scope,
 				AllWords:   allWords,

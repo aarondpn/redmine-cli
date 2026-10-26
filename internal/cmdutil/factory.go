@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"io"
 	"os"
+	"sync"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
@@ -30,6 +31,10 @@ type Factory struct {
 	APIKeyOverride  string
 	NoColorOverride bool
 
+	// APIKeyFile is the --api-key-file path ("-" reads stdin). Its contents
+	// are used like APIKeyOverride, without exposing the key in argv.
+	APIKeyFile string
+
 	// ReadOnly, when non-nil, is the --read-only flag value and overrides
 	// both REDMINE_READ_ONLY and the per-profile config (highest precedence).
 	ReadOnly *bool
@@ -47,11 +52,18 @@ type Factory struct {
 	// document a Printer emits is filtered through it.
 	JQ *output.JQFilter
 
-	jqErr     error
-	config    *config.Config
-	client    *api.Client
-	debugLog  *debug.Logger
-	IOStreams *IOStreams
+	jqErr error
+	// warnMu guards warned, so Warn can be called from any goroutine.
+	warnMu sync.Mutex
+	warned map[string]bool
+	// csvFallback records that the configured output_format named the
+	// removed CSV format and Config replaced it with the table format.
+	csvFallback    bool
+	apiKeyFromFile string
+	config         *config.Config
+	client         *api.Client
+	debugLog       *debug.Logger
+	IOStreams      *IOStreams
 }
 
 // NewFactory creates a new Factory with default I/O streams.
@@ -82,25 +94,50 @@ func (f *Factory) DebugLogger() *debug.Logger {
 
 // Config returns the loaded configuration (cached after first call).
 // CLI flag overrides carry the highest precedence: ServerOverride and
-// APIKeyOverride are resolved inside Load (before any keyring lookup), while
-// NoColorOverride is applied afterward.
+// APIKeyOverride (or the contents of APIKeyFile) are resolved inside Load
+// (before any keyring lookup), while NoColorOverride is applied afterward.
 func (f *Factory) Config() (*config.Config, error) {
 	if f.config != nil {
 		return f.config, nil
 	}
+	apiKey, err := f.apiKeyOverride()
+	if err != nil {
+		return nil, err
+	}
 	var cfg *config.Config
-	var err error
-	if f.ServerOverride != "" || f.APIKeyOverride != "" {
+	if f.ServerOverride != "" || apiKey != "" {
 		// Overrides resolve inside Load, before any keyring lookup.
 		cfg, err = config.LoadWithOverrides(f.ConfigPath, f.ProfileOverride, config.Overrides{
 			Server: f.ServerOverride,
-			APIKey: f.APIKeyOverride,
+			APIKey: apiKey,
 		}, f.DebugLogger())
 	} else {
 		cfg, err = config.Load(f.ConfigPath, f.ProfileOverride, f.DebugLogger())
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// A stored secret is bound to the server it was saved for; following a
+	// --server / REDMINE_SERVER override elsewhere hands it to another host.
+	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, cfg.Server) {
+		f.Warn(storedCredentialOverrideMessage(cfg, profile, server))
+	}
+	// Profile headers can hold proxy tokens bound to the same server; only
+	// those not replaced by a --header on this invocation are checked.
+	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, cfg.Server) {
+		if names := profileHeadersInUse(cfg.Headers, f.Headers); len(names) > 0 {
+			f.Warn(profileHeadersOverrideMessage(cfg, profile, server, names))
+		}
+	}
+
+	// A profile or REDMINE_OUTPUT_FORMAT that still selects the removed CSV
+	// format falls back to the table, so existing setups keep working.
+	// Printer warns once a command actually renders with that fallback, not
+	// when -o/--output or --jq picks the format anyway.
+	if isRemovedFormat(cfg.OutputFormat) {
+		cfg.OutputFormat = output.FormatTable
+		f.csvFallback = true
 	}
 
 	if f.NoColorOverride {
@@ -146,10 +183,16 @@ func (f *Factory) Printer(format string) output.Printer {
 		// can see the effective format.
 		f.OutputFormat = format
 	}
-	if cfg, err := f.Config(); err == nil {
+	// A config error is surfaced by the command itself; the printer then
+	// falls back to the defaults (cfg is nil on error).
+	cfg, _ := f.Config()
+	if cfg != nil {
 		noColor = noColor || cfg.NoColor
 		if format == "" {
 			format = cfg.OutputFormat
+			if f.csvFallback {
+				f.Warn(csvFallbackWarning)
+			}
 			if f.OutputFormat == "" {
 				f.OutputFormat = format
 			}

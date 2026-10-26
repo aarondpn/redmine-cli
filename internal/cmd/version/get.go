@@ -1,7 +1,6 @@
 package version
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -29,7 +28,7 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			ctx := context.Background()
+			ctx := cmdutil.Context(cmd)
 			id, err := resolveVersionID(ctx, f, client, args[0], project)
 			if err != nil {
 				return err

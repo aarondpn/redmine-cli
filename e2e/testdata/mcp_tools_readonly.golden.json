@@ -25,7 +25,7 @@
   },
   {
     "name": "get_my_account",
-    "description": "Fetch the authenticated user's account via /my/account.json. Includes api_key and custom_fields."
+    "description": "Fetch the authenticated user's account via /my/account.json. Includes custom_fields."
   },
   {
     "name": "get_project",

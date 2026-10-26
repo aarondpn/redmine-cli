@@ -89,7 +89,11 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]mode
 
 	path := "/search.json"
 	if params.ProjectID != "" {
-		path = "/projects/" + url.PathEscape(params.ProjectID) + "/search.json"
+		seg, err := projectSegment(params.ProjectID)
+		if err != nil {
+			return nil, 0, err
+		}
+		path = "/projects/" + seg + "/search.json"
 	}
 
 	var resp models.SearchResponse

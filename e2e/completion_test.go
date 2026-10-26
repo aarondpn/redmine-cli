@@ -24,7 +24,9 @@ func TestCompletion_Generates(t *testing.T) {
 		shell   string
 		markers []string
 	}{
-		{"bash", []string{"__start_redmine", "_redmine_issues", "_redmine_projects"}},
+		// The V2 script resolves subcommands at runtime via `redmine __complete`
+		// instead of emitting one function per command.
+		{"bash", []string{"# bash completion V2 for redmine", "__start_redmine", "__redmine_get_completion_results"}},
 		{"zsh", []string{"#compdef redmine", "_redmine"}},
 		{"fish", []string{"complete -c redmine", "issues"}},
 		{"powershell", []string{"Register-ArgumentCompleter", "redmine"}},

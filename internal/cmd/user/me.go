@@ -1,8 +1,6 @@
 package user
 
 import (
-	"context"
-
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -31,7 +29,7 @@ func newCmdUserMe(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching current user...")
-			user, err := ops.GetCurrentUser(context.Background(), client, ops.GetCurrentUserInput{Includes: includes})
+			user, err := ops.GetCurrentUser(cmdutil.Context(cmd), client, ops.GetCurrentUserInput{Includes: includes})
 			stop()
 			if err != nil {
 				return err

@@ -1,7 +1,6 @@
 package myaccount
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/user"
@@ -29,7 +28,7 @@ func newCmdMyAccountGet(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			stop := printer.Spinner("Fetching account...")
-			u, err := ops.GetMyAccount(context.Background(), client, ops.GetMyAccountInput{})
+			u, err := ops.GetMyAccount(cmdutil.Context(cmd), client, ops.GetMyAccountInput{})
 			stop()
 			if err != nil {
 				return err

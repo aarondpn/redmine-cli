@@ -52,7 +52,7 @@ redmine issues list [flags]
 | `--relations`            | Shorthand for `--include relations` |
 | `--limit`                | Maximum number of results (0 for all) |
 | `--offset`               | Result offset for pagination |
-| `-o, --output`           | Output format: `table`, `json`, `csv` |
+| `-o, --output`           | Output format: `table`, `json` |
 
 <Aside type="tip">
   `--filter` is an escape hatch for Redmine's filter operator syntax. Examples:
@@ -121,7 +121,13 @@ Aliases: `show`, `view`.
 | `--relations`              | Shorthand for `--include relations` |
 | `--attachments`            | List the issue's attachments (id, filename, size, content type) |
 | `--download-attachments`   | Download every attachment of the issue into the given directory |
+| `--clobber`                | With `--download-attachments`, overwrite files that already exist in the directory |
+| `--allow-hidden`           | With `--download-attachments`, allow saving attachments whose filename starts with `.` |
 | `-o, --output`             | Output format |
+
+`--download-attachments` never overwrites a file that already exists in the directory unless you pass `--clobber`, and refuses server-supplied names starting with `.` (such as `.bashrc` or `.envrc`) unless you pass `--allow-hidden`. Every destination is checked before anything is downloaded, so a conflict aborts the command without writing any file. The same rules as [`attachments download`](/commands/attachments/#existing-files-and---clobber) apply: symlinks are never followed, directories are never replaced, and a failed download leaves no partial file.
+
+Attachments of the same issue often share a filename (for example several `screenshot.png`). They are all kept: the newest (the one with the highest attachment ID, usually a corrected re-upload) keeps its name and older ones get their attachment ID added, such as `screenshot (attachment-71).png`. Names that differ only in case are treated as the same name on every platform, because macOS and Windows filesystems usually cannot hold both. Each confirmation on stderr shows the path the attachment was saved to. This renaming only covers names within one download; `--clobber` covers files that were already there.
 
 <Tabs syncKey="issues-get">
   <TabItem label="Attachments">
@@ -134,6 +140,9 @@ Aliases: `show`, `view`.
     ```bash
     # Pull every attachment into ./issue-123
     redmine issues get 123 --download-attachments ./issue-123
+
+    # Refresh an earlier download, replacing the existing files
+    redmine issues get 123 --download-attachments ./issue-123 --clobber
     ```
   </TabItem>
   <TabItem label="Read fully">
@@ -453,6 +462,8 @@ Constructs the issue URL from your configured Redmine server and opens it in you
 ```bash
 redmine issues open 123   # → https://redmine.example.com/issues/123
 ```
+
+The URL must be an absolute `http` or `https` URL; anything else is refused. The browser is launched with `open` (macOS), `xdg-open` (Linux and BSD) or `rundll32 url.dll,FileProtocolHandler` (Windows), never through a shell.
 
 ## browse
 

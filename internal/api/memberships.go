@@ -16,12 +16,16 @@ type MembershipService struct {
 
 // List retrieves memberships for a project.
 func (s *MembershipService) List(ctx context.Context, projectID string, limit, offset int) ([]models.Membership, int, error) {
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, 0, err
+	}
 	var params url.Values
 	if offset > 0 {
 		params = url.Values{}
 		params.Set("offset", strconv.Itoa(offset))
 	}
-	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", projectID), params, "memberships", limit)
+	return FetchAll[models.Membership](ctx, s.client, fmt.Sprintf("/projects/%s/memberships.json", seg), params, "memberships", limit)
 }
 
 // Get retrieves a single membership by ID.
@@ -37,11 +41,15 @@ func (s *MembershipService) Get(ctx context.Context, id int) (*models.Membership
 
 // Create creates a new membership in a project.
 func (s *MembershipService) Create(ctx context.Context, projectID string, membership models.MembershipCreate) (*models.Membership, error) {
+	seg, err := projectSegment(projectID)
+	if err != nil {
+		return nil, err
+	}
 	body := map[string]interface{}{"membership": membership}
 	var resp struct {
 		Membership models.Membership `json:"membership"`
 	}
-	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/memberships.json", projectID), body, &resp); err != nil {
+	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/memberships.json", seg), body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Membership, nil

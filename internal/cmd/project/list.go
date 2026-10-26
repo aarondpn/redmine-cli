@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer(format)
 
-			result, err := ops.ListProjects(context.Background(), client, ops.ListProjectsInput{
+			result, err := ops.ListProjects(cmdutil.Context(cmd), client, ops.ListProjectsInput{
 				Limit:    cmdutil.OpsLimit(limit),
 				Offset:   offset,
 				Includes: includes,
@@ -52,11 +51,8 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			cmdutil.RenderCollection(printer, projects, []string{"ID", "Identifier", "Name", "Status", "Public"},
-				func(p models.Project, styled bool) []string {
-					id := strconv.Itoa(p.ID)
-					if styled {
-						id = output.StyleID.Render(id)
-					}
+				func(p models.Project) []string {
+					id := output.StyleID.Render(strconv.Itoa(p.ID))
 					return []string{id, p.Identifier, p.Name, projectStatusLabel(p.Status), formatBool(p.IsPublic)}
 				},
 			)

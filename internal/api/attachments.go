@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -40,9 +41,15 @@ func (s *AttachmentService) Get(ctx context.Context, id int) (*models.Attachment
 // The download URL is resolved from the attachment's content_url when that URL
 // is hosted on the configured Redmine server (so subdirectory installs keep
 // working), and otherwise falls back to the canonical
-// /attachments/download/:id/:filename path built from the base URL. This guard
+// /attachments/download/:id/:filename path built from the base URL (see
+// downloadURL for unsafe filenames). This guard
 // ensures the API key (added to every request by authTransport) is never sent
 // to a host other than the configured server.
+//
+// Redirects are restricted by redirectPolicy: they may stay on the
+// configured server, or go to a public destination (object storage) without
+// credentials; https->http downgrades and non-public addresses are refused. The body is streamed and not
+// size-limited.
 func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment, w io.Writer) (int64, error) {
 	u := s.downloadURL(att)
 
@@ -55,6 +62,7 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 	resp, err := s.client.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
+		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return 0, fmt.Errorf("download request failed: %w", err)
 	}
@@ -74,12 +82,19 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 }
 
 // downloadURL returns the absolute URL to stream the attachment bytes from.
-// See Download for the host-matching rationale.
+// See Download for the host-matching rationale. The server-supplied filename
+// only decorates the built path, so one that is not a safe single path
+// segment (empty, a dot segment, or containing separators) is dropped:
+// Redmine serves /attachments/download/:id without a filename as well.
 func (s *AttachmentService) downloadURL(att *models.Attachment) string {
 	if att.ContentURL != "" && strings.HasPrefix(att.ContentURL, s.client.baseURL+"/") {
 		return att.ContentURL
 	}
-	return s.client.baseURL + "/attachments/download/" + strconv.Itoa(att.ID) + "/" + url.PathEscape(att.Filename)
+	u := s.client.baseURL + "/attachments/download/" + strconv.Itoa(att.ID)
+	if name, err := pathSegment("attachment filename", att.Filename); err == nil {
+		u += "/" + name
+	}
+	return u
 }
 
 // Upload streams body (of known size) to Redmine's /uploads.json endpoint and
@@ -104,6 +119,7 @@ func (s *AttachmentService) Upload(ctx context.Context, filename string, body io
 	resp, err := s.client.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
+		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
 		return "", fmt.Errorf("upload request failed: %w", err)
 	}
@@ -120,7 +136,11 @@ func (s *AttachmentService) Upload(ctx context.Context, filename string, body io
 			Token string `json:"token"`
 		} `json:"upload"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	data, err := readLimited(resp.Body, maxJSONResponseBytes)
+	if err != nil {
+		return "", fmt.Errorf("reading upload response: %w", err)
+	}
+	if err := json.NewDecoder(bytes.NewReader(data)).Decode(&out); err != nil {
 		return "", fmt.Errorf("decoding upload response: %w", err)
 	}
 	if out.Upload.Token == "" {
