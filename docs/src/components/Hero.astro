@@ -1,8 +1,8 @@
 ---
 // Custom Starlight Hero override. Reads `hero` frontmatter from the current route
 // and renders a full-bleed red poster hero: oversized headline on the left, pitch
-// and actions on the right, the install bar below them, and the terminal demo
-// straddling the bottom edge.
+// and actions on the right, and the terminal demo straddling the bottom edge with
+// the install command as its first line.
 import Terminal from './Terminal.astro';
 import StatusBar from './StatusBar.astro';
 import InstallBar from './InstallBar.astro';
@@ -51,14 +51,14 @@ const actions = hero?.actions ?? [];
           )}
         </div>
       </div>
-
-      <InstallBar />
     </div>
   </div>
 
   <div class="rc-hero__console rc-bleed">
     <div class="rc-hero__inner">
-      <Terminal />
+      <Terminal>
+        <InstallBar slot="bar" />
+      </Terminal>
     </div>
   </div>
 </section>

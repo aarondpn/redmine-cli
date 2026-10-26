@@ -310,18 +310,25 @@ body:has(.rc-bleed) {
 	.rc-hero__console .terminal-demo { font-size: 0.74rem; }
 }
 
-/* --- Install bar (ink block inside the red hero, same in both themes) --- */
+/* --- Install bar: title bar + first line of the hero terminal --- */
 .rc-install {
-	margin-top: 2.5rem;
-	background: var(--rc-ink);
+	background: var(--rc-terminal-bar);
 	color: #f5f1e8;
 	font-family: 'JetBrains Mono', monospace;
-	animation: rc-fade-in 0.6s ease both;
-	animation-delay: 0.3s;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rc-install__dots {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 0 1.1rem 0 1.25rem;
+	border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .rc-install__tabs {
 	display: flex;
+	overflow-x: auto;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -338,6 +345,7 @@ body:has(.rc-bleed) {
 	font-weight: 600;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
+	white-space: nowrap;
 	cursor: pointer;
 }
 
@@ -354,7 +362,8 @@ body:has(.rc-bleed) {
 	display: flex;
 	align-items: center;
 	gap: 1rem;
-	padding: 0.9rem 0.9rem 0.9rem 1.25rem;
+	padding: 0.75rem 0.9rem 0.75rem 1.6rem;
+	background: var(--rc-terminal-bg);
 }
 
 .rc-install__row[hidden] {
@@ -400,6 +409,9 @@ body:has(.rc-bleed) {
 
 @media (max-width: 640px) {
 	.rc-install__code { font-size: 0.8rem; }
+	.rc-install__dots { padding: 0 0.75rem 0 1rem; }
+	.rc-install__tab { padding: 0.6rem 0.7rem; }
+	.rc-install__row { padding-left: 1rem; }
 }
 
 @keyframes rc-slide-in {

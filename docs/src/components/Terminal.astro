@@ -13,11 +13,13 @@ const lines = [
 ---
 
 <div class="terminal-demo">
-  <div class="terminal-bar">
-    <span class="terminal-dot red"></span>
-    <span class="terminal-dot yellow"></span>
-    <span class="terminal-dot green"></span>
-  </div>
+  <slot name="bar">
+    <div class="terminal-bar">
+      <span class="terminal-dot red"></span>
+      <span class="terminal-dot yellow"></span>
+      <span class="terminal-dot green"></span>
+    </div>
+  </slot>
   <div class="terminal-body">
     {lines.map((line) => {
       if (line.type === 'blank') return <div class="terminal-line separator"></div>;

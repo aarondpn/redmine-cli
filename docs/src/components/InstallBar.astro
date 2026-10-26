@@ -1,5 +1,6 @@
 ---
-// Install command bar attached under the hero terminal, with one tab per installer.
+// Install command shown as the first line of the hero terminal: replaces the
+// terminal's title bar with one tab per installer.
 const t = Astro.locals.t;
 
 const installers = [
@@ -15,6 +16,11 @@ const installers = [
 
 <div class="rc-install" data-copied-label={t('install.copied')}>
   <div class="rc-install__tabs" role="tablist" aria-label={t('install.label')}>
+    <span class="rc-install__dots" aria-hidden="true">
+      <span class="terminal-dot red"></span>
+      <span class="terminal-dot yellow"></span>
+      <span class="terminal-dot green"></span>
+    </span>
     {installers.map((inst, i) => (
       <button
         type="button"
