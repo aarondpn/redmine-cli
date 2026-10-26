@@ -283,3 +283,54 @@ func TestNewCmdUpdate_SkipAttestationWarns(t *testing.T) {
 		})
 	}
 }
+
+func TestNotWritableError(t *testing.T) {
+	tests := []struct {
+		name    string
+		tag     string
+		want    []string
+		wantNot []string
+	}{
+		{
+			name: "pins install.sh to the release tag",
+			tag:  "v9.8.7",
+			want: []string{
+				"curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/v9.8.7/install.sh | REDMINE_CLI_VERSION=v9.8.7 bash",
+				"https://github.com/aarondpn/redmine-cli/releases/tag/v9.8.7",
+			},
+			wantNot: []string{"/main/install.sh"},
+		},
+		{
+			name:    "prerelease tag",
+			tag:     "v3.0.0-rc.1",
+			want:    []string{"/v3.0.0-rc.1/install.sh", "REDMINE_CLI_VERSION=v3.0.0-rc.1 bash"},
+			wantNot: []string{"/main/install.sh"},
+		},
+		{
+			// The tag comes from the GitHub API; never paste an unexpected
+			// value into a command the user may copy into a shell.
+			name:    "unsafe tag falls back to the releases page",
+			tag:     "v1;touch /tmp/pwned",
+			want:    []string{"https://github.com/aarondpn/redmine-cli/releases/latest"},
+			wantNot: []string{"curl", "touch", "/main/install.sh"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := notWritableError("/usr/local/bin", tt.tag).Error()
+			if !strings.HasPrefix(msg, "cannot update: /usr/local/bin is not writable") {
+				t.Errorf("unexpected prefix:\n%s", msg)
+			}
+			for _, s := range tt.want {
+				if !strings.Contains(msg, s) {
+					t.Errorf("expected message to contain %q, got:\n%s", s, msg)
+				}
+			}
+			for _, s := range tt.wantNot {
+				if strings.Contains(msg, s) {
+					t.Errorf("expected message not to contain %q, got:\n%s", s, msg)
+				}
+			}
+		})
+	}
+}
