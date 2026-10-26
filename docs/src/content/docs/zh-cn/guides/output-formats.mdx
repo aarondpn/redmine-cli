@@ -5,7 +5,7 @@ description: 控制 redmine-cli 的数据显示方式。
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-每个命令都支持 `-o` / `--output` 来控制输出格式。该标志在全局注册，因此读取、写入、删除以及其他所有子命令都会一致地遵循它。根据实际用途选择合适的格式：阅读、脚本编写或数据导出。
+每个命令都支持 `-o` / `--output` 来控制输出格式。该标志在全局注册，因此读取、写入、删除以及其他所有子命令都会一致地遵循它。根据实际用途选择合适的格式：阅读或脚本编写。如需用于电子表格，请参阅 [CSV 导出](#csv-导出)。
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
@@ -41,20 +41,6 @@ import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starli
     ]
     ```
   </TabItem>
-
-  <TabItem label="csv">
-    逗号分隔值格式，适用于电子表格和数据分析。
-
-    ```bash
-    redmine issues list --project myproject -o csv
-    ```
-
-    ```
-    ID,Tracker,Status,Priority,Subject
-    123,Bug,Open,High,Fix login timeout
-    124,Feature,Open,Normal,Add dark mode
-    ```
-  </TabItem>
 </Tabs>
 
 ## 与 JSON 配合使用
@@ -74,6 +60,23 @@ redmine issues list --project myproject -o json \
 <Aside type="note">
   在 `-o json` 模式下，CLI 仅向 `stdout` 输出 JSON。人类可读的分页提示会被抑制，因此通过管道传给 `jq` 是安全的。如需捕获实际错误，请将 `stderr` 分开处理。
 </Aside>
+
+### CSV 导出
+
+CLI 不再提供 `csv` 输出格式。请改用内置 `--jq` 的 `@csv` 从 JSON 输出生成 CSV，这样还可以自行选择列：
+
+```bash
+# ID and subject of every issue, one CSV row each
+redmine issues list --project myproject -o json --jq '.[] | [.id, .subject] | @csv'
+
+# With a header row, nested fields, and all pages
+redmine issues list --project myproject --limit 0 -o json \
+  --jq '["ID", "Status", "Subject"], (.[] | [.id, .status.name, .subject]) | @csv'
+```
+
+`@csv` 会为字符串加引号并转义其中的双引号；数字原样输出，`null` 变为空字段。如需制表符分隔，请使用 `@tsv`。值不会被修改，因此以 `=`、`+`、`-` 或 `@` 开头的单元格在电子表格应用中打开时可能被当作公式执行。
+
+`-o csv` 会在发送任何请求之前报错，并提示改用 `@csv`。配置文件中的 `output_format: csv` 或 `REDMINE_OUTPUT_FORMAT=csv` 会回退为表格格式并打印一条警告；如果命令通过 `-o` 或 `--jq` 指定了格式，则使用该格式且不打印警告。`csv` 不区分大小写。
 
 ## JSON 输出结构
 
@@ -115,7 +118,7 @@ redmine issues list --project myproject -o json \
 
 ## stdout 与 stderr
 
-- 机器可读输出（JSON、CSV、表格行）始终写入 `stdout`。
+- 机器可读输出（JSON、表格行）始终写入 `stdout`。
 - 面向人的信息（非 JSON 模式下的成功确认、警告、进度 spinner、更新检查提示）始终写入 `stderr`。
 - 错误始终写入 `stderr`：普通模式下为 `Error: ...` 文本，JSON 模式下为 JSON 错误信封。失败时 `stdout` 为空。
 - 例外：`redmine api` 遇到 4xx 或 5xx 响应时，会把响应（响应体，使用 `-i` 时还包括状态和响应头）打印到 `stdout` 并以退出码 `1` 退出；设置 `--silent` 时不输出任何内容，但同样以退出码 `1` 退出。只有在 JSON 模式且未使用 `-i` 或 `--silent` 时，失败才会作为错误信封写入 `stderr`。

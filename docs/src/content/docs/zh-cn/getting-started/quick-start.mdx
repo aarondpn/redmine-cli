@@ -109,7 +109,7 @@ redmine issues list --assignee me
 ```bash
 redmine issues list          # table (default)
 redmine issues list -o json  # machine-readable / scripting
-redmine issues list -o csv   # spreadsheets
+redmine issues list -o json --jq '.[] | [.id, .subject] | @csv'  # CSV for spreadsheets
 ```
 
 ## 下一步
@@ -128,7 +128,7 @@ redmine issues list -o csv   # spreadsheets
   <LinkCard
     title="输出格式"
     href="/zh-cn/guides/output-formats/"
-    description="使用 JSON 和 CSV 进行脚本编写的技巧。"
+    description="使用 JSON、jq 进行脚本编写以及导出 CSV 的技巧。"
   />
   <LinkCard
     title="AI 代理集成"
