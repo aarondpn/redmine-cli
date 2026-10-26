@@ -103,10 +103,12 @@ Logging in again for a profile that already uses the keyring keeps the keyring b
 
 The MCP server's bearer token (`mcp.auth_token`, see [AI agents](/guides/ai-agents/)) is kept in the keyring too. A keyring profile that still has a plaintext `mcp.auth_token` keeps working: the value in the file is used, and it is moved into the keyring and removed from the file the next time the CLI saves the config (for example on `redmine auth login` or `redmine auth switch`). If the keyring is unavailable at that point, the token stays in the file and the save still succeeds. To rotate the token, write the new value into `mcp.auth_token`; `REDMINE_MCP_AUTH_TOKEN` and `--auth-token` still take precedence. Switching the profile back to plaintext moves the token back into the file, and `redmine auth logout` removes it from the keyring.
 
-Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is consulted, so an explicit API key or password means the keyring is not read at all. The MCP token is only read from the keyring by `redmine mcp serve --http`, and only when no flag, environment variable, or `mcp.auth_token` supplies one.
+Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is consulted, so an explicit API key or password means that secret is not read from the keyring.
+
+The MCP token is a separate lookup: on a keyring profile, `redmine mcp serve --http` reads it from the keyring whenever `--auth-token-file`, `--auth-token`, `REDMINE_MCP_AUTH_TOKEN` and `mcp.auth_token` all leave it unset, even if the API key came from a flag or environment variable. If that read fails (for example a locked keychain over SSH), or `REDMINE_NO_KEYRING=1` disables it, the server refuses to start rather than serve without a token that may exist.
 
 <Aside type="tip" title="CI and headless environments">
-  Keep using environment variables (`REDMINE_API_KEY`, `REDMINE_PASSWORD`) in CI. Set `REDMINE_NO_KEYRING=1` to hard-disable all keyring reads and writes on runners that have no usable keyring, so nothing ever stalls on a keyring prompt.
+  Keep using environment variables (`REDMINE_API_KEY`, `REDMINE_PASSWORD`) in CI. Set `REDMINE_NO_KEYRING=1` to hard-disable all keyring reads and writes on runners that have no usable keyring, so nothing ever stalls on a keyring prompt. To run `redmine mcp serve --http` there with a keyring profile, also supply the token with `REDMINE_MCP_AUTH_TOKEN` or `--auth-token-file`, or pass `--no-auth` if serving without authentication is what you want; otherwise the server refuses to start.
 </Aside>
 
 ## Environment variables
