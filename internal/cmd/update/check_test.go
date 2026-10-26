@@ -41,9 +41,9 @@ func TestShouldCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isTerminal = func() bool { return tt.tty }
 
-			if tt.env != "" {
-				t.Setenv("REDMINE_NO_UPDATE_CHECK", tt.env)
-			}
+			// Always set it, so a REDMINE_NO_UPDATE_CHECK=1 in the
+			// test environment can't leak into the cases without one.
+			t.Setenv("REDMINE_NO_UPDATE_CHECK", tt.env)
 			got := ShouldCheck(tt.version, tt.args)
 			if got != tt.want {
 				t.Errorf("ShouldCheck(%q, %v) = %v, want %v", tt.version, tt.args, got, tt.want)
