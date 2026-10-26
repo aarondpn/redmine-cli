@@ -1,6 +1,8 @@
 ---
 // Full-bleed "humans and agents" band: headline on the left, a diagram of agent
 // hosts feeding into redmine-cli on the right, and the install tabs in the slot.
+// The host boxes double as the tabs of the slotted InstallTabs, whose own row of
+// triggers is hidden in this band.
 import { Image } from 'astro:assets';
 import anyIcon from '../assets/logos/any.svg';
 import claudeIcon from '../assets/logos/claude.svg';
@@ -23,11 +25,11 @@ const slotHtml = (await Astro.slots.render('default')).replaceAll(
 );
 
 const hosts = [
-  { label: labels.any ?? 'Any agent', icon: anyIcon, monochrome: true },
-  { label: 'Claude Code', icon: claudeIcon, monochrome: false },
-  { label: 'Codex CLI', icon: codexIcon, monochrome: true },
-  { label: 'Gemini CLI', icon: geminiIcon, monochrome: false },
-  { label: labels.mcp ?? 'MCP host', icon: mcpIcon, monochrome: true },
+  { id: 'any', label: labels.any ?? 'Any agent', icon: anyIcon, monochrome: true },
+  { id: 'claude', label: 'Claude Code', icon: claudeIcon, monochrome: false },
+  { id: 'codex', label: 'Codex CLI', icon: codexIcon, monochrome: true },
+  { id: 'gemini', label: 'Gemini CLI', icon: geminiIcon, monochrome: false },
+  { id: 'mcp', label: labels.mcp ?? 'MCP host', icon: mcpIcon, monochrome: true },
 ];
 ---
 
@@ -43,27 +45,35 @@ const hosts = [
     </div>
 
     <div class="rc-agents__body">
-      <div class="rc-flow" aria-hidden="true">
+      <div class="rc-flow">
         <ul class="rc-flow__hosts">
-          {hosts.map((h) => (
-            <li class="rc-flow__host">
-              <Image
-                src={h.icon}
-                alt=""
-                width={22}
-                height={22}
-                class:list={['rc-flow__icon', h.monochrome && 'is-monochrome']}
-              />
-              <span>{h.label}</span>
+          {hosts.map((h, i) => (
+            <li>
+              <button
+                type="button"
+                class:list={['rc-flow__host', i === 0 && 'is-active']}
+                data-tab={h.id}
+                aria-controls={`install-panel-${h.id}`}
+                aria-pressed={i === 0 ? 'true' : 'false'}
+              >
+                <Image
+                  src={h.icon}
+                  alt=""
+                  width={22}
+                  height={22}
+                  class:list={['rc-flow__icon', h.monochrome && 'is-monochrome']}
+                />
+                <span>{h.label}</span>
+              </button>
             </li>
           ))}
         </ul>
-        <svg class="rc-flow__wires" viewBox="0 0 500 56" preserveAspectRatio="none">
+        <svg aria-hidden="true" class="rc-flow__wires" viewBox="0 0 500 56" preserveAspectRatio="none">
           {[50, 150, 250, 350, 450].map((x) => (
             <path d={`M${x} 0 C ${x} 30, 250 26, 250 56`} vector-effect="non-scaling-stroke"></path>
           ))}
         </svg>
-        <div class="rc-flow__hub"><span class="rc-flow__hub-glyph">&gt;_</span> redmine-cli</div>
+        <div class="rc-flow__hub" aria-hidden="true"><span class="rc-flow__hub-glyph">&gt;_</span> redmine-cli</div>
       </div>
 
       <div class="rc-agents__slot">
@@ -72,3 +82,19 @@ const hosts = [
     </div>
   </div>
 </section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.rc-agents').forEach((root) => {
+    const hosts = root.querySelectorAll<HTMLButtonElement>('.rc-flow__host');
+    hosts.forEach((host) => {
+      host.addEventListener('click', () => {
+        root.querySelector<HTMLButtonElement>(`.install-tabs__trigger[data-tab="${host.dataset.tab}"]`)?.click();
+        hosts.forEach((other) => {
+          const active = other === host;
+          other.classList.toggle('is-active', active);
+          other.setAttribute('aria-pressed', String(active));
+        });
+      });
+    });
+  });
+</script>

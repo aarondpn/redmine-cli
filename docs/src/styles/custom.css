@@ -769,8 +769,17 @@ body:has(.rc-bleed) {
 	gap: 0.5rem;
 }
 
-.rc-flow__host {
+.rc-flow__hosts > li {
 	margin: 0 !important;
+}
+
+.rc-flow__host {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	background: transparent;
+	cursor: pointer;
+	transition: border-color 0.2s, background 0.2s;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -782,6 +791,19 @@ body:has(.rc-bleed) {
 	font-weight: 600;
 	text-align: center;
 	color: #f5f1e8;
+}
+
+.rc-flow__host:hover {
+	border-color: rgba(255, 255, 255, 0.5);
+}
+
+.rc-flow__host.is-active {
+	border-color: #ef3b33;
+	background: rgba(239, 59, 51, 0.12);
+}
+
+.rc-agents .install-tabs__triggers {
+	display: none;
 }
 
 .rc-flow__icon {
