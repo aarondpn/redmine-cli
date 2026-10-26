@@ -51,7 +51,7 @@ bash、zsh、fish 用のシェル補完も同時にインストールされま�
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-OS とアーキテクチャを自動検出し、チェックサム検証付きで最新リリースをダウンロードして `~/.local/bin` にインストールします。
+OS とアーキテクチャを自動検出し、チェックサム検証付きで最新リリースをダウンロードして `~/.local/bin` にインストールします。新しめの [GitHub CLI](https://cli.github.com) がインストール済みでログインしている場合は、`gh attestation verify` でリリースのビルド attestation も検証し、失敗した場合はインストールを中止します。そのような `gh` がない場合はチェックサム検証のみでインストールし、警告と、リリースを自分で検証するためのコマンドを表示します。特定のリリースをインストールするには `REDMINE_CLI_VERSION=<tag>` を設定します。v2.11.2 より前のリリースには attestation がないため、ログイン済みの `gh` がある環境でそれらを指定する場合は `REDMINE_CLI_SKIP_ATTESTATION=1` も必要です。詳細は[インストールのドキュメント](https://redmine-cli.dev/getting-started/installation/)を参照してください。
 
 ### Go でインストール
 
@@ -77,7 +77,7 @@ go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
 redmine update
 ```
 
-最新リリースをダウンロードして SHA256 チェックサムで検証した後、バイナリを置き換えます。
+最新リリースをダウンロードし、SHA256 チェックサムと GitHub artifact attestation（このリポジトリのリリースワークフローによる SLSA provenance。Sigstore で検証）を確認してからバイナリを置き換えます。いずれかの検証に失敗するとアップデートは拒否されます。`--skip-attestation` を指定すると、警告を表示したうえでチェックサム検証のみで続行します。
 
 ## はじめに
 
