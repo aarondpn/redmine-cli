@@ -54,8 +54,11 @@ type Factory struct {
 
 	jqErr error
 	// warnMu guards warned, so Warn can be called from any goroutine.
-	warnMu         sync.Mutex
-	warned         map[string]bool
+	warnMu sync.Mutex
+	warned map[string]bool
+	// csvFallback records that the configured output_format named the
+	// removed CSV format and Config replaced it with the table format.
+	csvFallback    bool
 	apiKeyFromFile string
 	config         *config.Config
 	client         *api.Client
@@ -130,9 +133,11 @@ func (f *Factory) Config() (*config.Config, error) {
 
 	// A profile or REDMINE_OUTPUT_FORMAT that still selects the removed CSV
 	// format falls back to the table, so existing setups keep working.
-	if cfg.OutputFormat == removedFormatCSV {
+	// Printer warns once a command actually renders with that fallback, not
+	// when -o/--output or --jq picks the format anyway.
+	if isRemovedFormat(cfg.OutputFormat) {
 		cfg.OutputFormat = output.FormatTable
-		f.Warn("CSV output was removed, so output_format csv (profile or REDMINE_OUTPUT_FORMAT) falls back to table; " + csvReplacementHint)
+		f.csvFallback = true
 	}
 
 	if f.NoColorOverride {
@@ -185,6 +190,9 @@ func (f *Factory) Printer(format string) output.Printer {
 		noColor = noColor || cfg.NoColor
 		if format == "" {
 			format = cfg.OutputFormat
+			if f.csvFallback {
+				f.Warn(csvFallbackWarning)
+			}
 			if f.OutputFormat == "" {
 				f.OutputFormat = format
 			}

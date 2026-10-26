@@ -65,9 +65,14 @@ func clearRedmineEnv(t *testing.T) {
 // throwaway config and returns stdout, stderr, and the execution error.
 func runRootWithJQ(t *testing.T, serverURL string, args ...string) (string, string, error) {
 	t.Helper()
+	return runRootWithConfig(t, "server: "+serverURL+"\napi_key: test\nauth_method: apikey\n", args...)
+}
+
+// runRootWithConfig is runRootWithJQ with the given config file contents.
+func runRootWithConfig(t *testing.T, cfg string, args ...string) (string, string, error) {
+	t.Helper()
 	clearRedmineEnv(t)
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
-	cfg := "server: " + serverURL + "\napi_key: test\nauth_method: apikey\n"
 	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -186,9 +191,9 @@ func TestJQ_RejectsNonJSONOutput(t *testing.T) {
 	}
 }
 
-// TestRemovedCSVOutput pins that an explicit --output csv fails before any
-// request, wherever the flag is given, and that the jq expression its error
-// suggests produces CSV from the real issues list JSON.
+// TestRemovedCSVOutput pins that an explicit --output csv, in any letter
+// case, fails before any request, wherever the flag is given, and that the jq
+// expression its error suggests produces CSV from the real issues list JSON.
 func TestRemovedCSVOutput(t *testing.T) {
 	const issues = `{"issues":[` +
 		`{"id":1,"subject":"Crash, \"save\""},` +
@@ -199,10 +204,13 @@ func TestRemovedCSVOutput(t *testing.T) {
 	var errMsg string
 	for _, args := range [][]string{
 		{"-o", "csv", "issues", "list"},
+		{"-o", "CSV", "issues", "list"},
 		{"issues", "list", "--output", "csv"},
+		{"issues", "list", "--output", "Csv"},
 		{"--output", "csv", "issues", "list", "--jq", ".[].id"},
 		// api registers its own local --output, which shadows the root flag.
 		{"api", "/issues.json", "-o", "csv"},
+		{"api", "/issues.json", "-o", "CSV"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			_, _, err := runRootWithJQ(t, srv.URL, args...)
@@ -227,6 +235,52 @@ func TestRemovedCSVOutput(t *testing.T) {
 	}
 	if want := "1,\"Crash, \"\"save\"\"\"\n2,\"=SUM(A1)\"\n"; stdout != want {
 		t.Fatalf("suggested --jq %q printed %q, want %q", expr, stdout, want)
+	}
+}
+
+// TestRemovedCSVOutputFormatConfig pins that output_format: csv, in any
+// letter case, falls back to the table with one warning, and that the
+// warning only appears when the fallback is used: -o/--output and --jq pick
+// the format themselves.
+func TestRemovedCSVOutputFormatConfig(t *testing.T) {
+	srv, _ := jqTestServer(t, twoIssues)
+	const warning = "warning: CSV output was removed, so output_format csv (profile or REDMINE_OUTPUT_FORMAT) falls back to table"
+
+	tests := []struct {
+		name     string
+		format   string
+		args     []string
+		wantWarn bool
+		wantOut  string
+	}{
+		{name: "fallback", format: "csv", args: []string{"issues", "list"}, wantWarn: true, wantOut: "First"},
+		{name: "fallback upper case", format: "CSV", args: []string{"issues", "list"}, wantWarn: true, wantOut: "First"},
+		{name: "-o json", format: "csv", args: []string{"issues", "list", "-o", "json"}, wantOut: `"subject": "First"`},
+		{name: "--output table", format: "csv", args: []string{"issues", "list", "--output", "table"}, wantOut: "First"},
+		{name: "--jq", format: "csv", args: []string{"issues", "list", "--jq", ".[0].id"}, wantOut: "1\n"},
+		{name: "api -o json", format: "csv", args: []string{"api", "/issues/1.json", "-o", "json"}, wantOut: `"First"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := "server: " + srv.URL + "\napi_key: test\nauth_method: apikey\noutput_format: " + tt.format + "\n"
+			stdout, stderr, err := runRootWithConfig(t, cfg, tt.args...)
+			if err != nil {
+				t.Fatalf("err = %v (stderr %q)", err, stderr)
+			}
+			if !strings.Contains(stdout, tt.wantOut) {
+				t.Fatalf("stdout = %q, want it to contain %q", stdout, tt.wantOut)
+			}
+			if tt.wantWarn {
+				if strings.Count(stderr, warning) != 1 || !strings.Contains(stderr, "@csv") {
+					t.Fatalf("stderr = %q, want one CSV fallback warning with the @csv hint", stderr)
+				}
+				if strings.Contains(stdout, "1,First") {
+					t.Fatalf("stdout is CSV, want a table:\n%s", stdout)
+				}
+			} else if stderr != "" {
+				t.Fatalf("stderr = %q, want no warning", stderr)
+			}
+		})
 	}
 }
 

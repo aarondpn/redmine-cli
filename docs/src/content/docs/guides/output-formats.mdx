@@ -137,7 +137,9 @@ spreadsheet app.
 
 `-o csv` fails before any request is sent, with a hint to use `@csv`. A
 profile with `output_format: csv` or `REDMINE_OUTPUT_FORMAT=csv` falls back
-to the table format and prints a warning.
+to the table format and prints a warning; a command that picks its format
+with `-o` or `--jq` uses that format and prints no warning. The value `csv`
+is matched in any letter case.
 
 ## JSON output shapes
 

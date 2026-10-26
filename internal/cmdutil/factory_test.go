@@ -262,7 +262,7 @@ output_format: json
 }
 
 // CSV output was removed; a profile or REDMINE_OUTPUT_FORMAT that still asks
-// for it falls back to the table with a single warning.
+// for it, in any letter case, falls back to the table with a single warning.
 func TestFactory_Config_RemovedCSVOutputFormatFallsBack(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -270,7 +270,9 @@ func TestFactory_Config_RemovedCSVOutputFormatFallsBack(t *testing.T) {
 		env    string
 	}{
 		{name: "profile", config: "server: https://example.com\napi_key: k\noutput_format: csv\n"},
+		{name: "profile upper case", config: "server: https://example.com\napi_key: k\noutput_format: CSV\n"},
 		{name: "REDMINE_OUTPUT_FORMAT", config: "server: https://example.com\napi_key: k\n", env: "csv"},
+		{name: "REDMINE_OUTPUT_FORMAT mixed case", config: "server: https://example.com\napi_key: k\n", env: "Csv"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -286,6 +288,40 @@ func TestFactory_Config_RemovedCSVOutputFormatFallsBack(t *testing.T) {
 			want := "warning: CSV output was removed, so output_format csv (profile or REDMINE_OUTPUT_FORMAT) falls back to table; " + csvReplacementHint + "\n"
 			if errOut != want {
 				t.Fatalf("stderr = %q, want %q", errOut, want)
+			}
+		})
+	}
+}
+
+// The CSV fallback warning is only printed when the table fallback is used:
+// an explicit format, given to Printer by a leaf command's --output or set
+// on the factory by the root -o/--output or --jq, needs no fallback.
+func TestFactory_Config_RemovedCSVOutputFormatSilentWithExplicitFormat(t *testing.T) {
+	tests := []struct {
+		name          string
+		factoryFormat string // root -o/--output or --jq
+		printerFormat string // leaf --output
+	}{
+		{name: "leaf json", printerFormat: output.FormatJSON},
+		{name: "leaf table", printerFormat: output.FormatTable},
+		{name: "root json", factoryFormat: output.FormatJSON},
+		{name: "root table", factoryFormat: output.FormatTable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("REDMINE_OUTPUT_FORMAT", "")
+			f := testFactoryWithConfig(t, "server: https://example.com\napi_key: k\noutput_format: csv\n")
+			f.OutputFormat = tt.factoryFormat
+
+			if _, err := f.ApiClient(); err != nil {
+				t.Fatal(err)
+			}
+			want := tt.printerFormat + tt.factoryFormat
+			if got := f.Printer(tt.printerFormat).Format(); got != want {
+				t.Fatalf("Format() = %q, want %q", got, want)
+			}
+			if errOut := f.IOStreams.ErrOut.(*bytes.Buffer).String(); errOut != "" {
+				t.Fatalf("stderr = %q, want no warning", errOut)
 			}
 		})
 	}
