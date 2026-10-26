@@ -360,7 +360,7 @@ func TestRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
 			}
 			prev := httptest.NewRequest(http.MethodGet, tt.server+"/attachments/download/1", nil)
 			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
-			err = redirectPolicy(server)(req, []*http.Request{prev})
+			err = redirectPolicy(server, nil)(req, []*http.Request{prev})
 			if tt.allowed && err != nil {
 				t.Fatalf("redirect refused: %v", err)
 			}

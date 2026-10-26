@@ -245,7 +245,7 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 	}
 
 	c := &Client{
-		httpClient: &http.Client{Transport: transport, CheckRedirect: redirectPolicy(serverURL)},
+		httpClient: &http.Client{Transport: transport, CheckRedirect: redirectPolicy(serverURL, base.Proxy)},
 		dialer:     dialer,
 		baseURL:    baseURL,
 		debugLog:   log,

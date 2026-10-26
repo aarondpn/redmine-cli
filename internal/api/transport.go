@@ -133,9 +133,12 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 //     origin either way.
 //
 // Literal IPs are checked here; host names are re-checked against the IP
-// actually dialed by guardedDialer, which defeats DNS rebinding. (net/http
-// reports the refused target URL alongside these errors.)
-func redirectPolicy(server *url.URL) func(*http.Request, []*http.Request) error {
+// actually dialed by guardedDialer, which defeats DNS rebinding. A redirect
+// that proxy sends through a proxy never reaches guardedDialer with its own
+// address, so its host name is resolved here instead (see
+// checkProxiedRedirect). (net/http reports the refused target URL alongside
+// these errors.)
+func redirectPolicy(server *url.URL, proxy func(*http.Request) (*url.URL, error)) func(*http.Request, []*http.Request) error {
 	serverOrigin := config.OriginOf(server)
 	return func(req *http.Request, via []*http.Request) error {
 		if err := checkRedirect(req, via); err != nil {
@@ -144,11 +147,43 @@ func redirectPolicy(server *url.URL) func(*http.Request, []*http.Request) error 
 		if isServerOrigin(serverOrigin, config.OriginOf(req.URL)) {
 			return nil
 		}
-		if ip := net.ParseIP(req.URL.Hostname()); ip != nil && isBlockedIP(ip) {
-			return fmt.Errorf("refusing redirect: %s is a local, private or otherwise non-public address", ip)
+		host := req.URL.Hostname()
+		if ip := net.ParseIP(host); ip != nil {
+			if isBlockedIP(ip) {
+				return fmt.Errorf("refusing redirect: %s is a local, private or otherwise non-public address", ip)
+			}
+			return nil
+		}
+		if proxy != nil {
+			if p, err := proxy(req); err == nil && p != nil {
+				return checkProxiedRedirect(req.Context(), host)
+			}
 		}
 		return nil
 	}
+}
+
+// lookupIPAddr resolves host names for checkProxiedRedirect; tests replace it.
+var lookupIPAddr = net.DefaultResolver.LookupIPAddr
+
+// checkProxiedRedirect refuses a redirect to host when host resolves to a
+// non-public address. The proxy connects to the target itself, so the
+// connect-time check in guardedDialer only ever sees the proxy. Resolving
+// locally is best effort: the proxy may resolve the name differently, and a
+// name this machine cannot resolve (proxy-only DNS, common in corporate
+// networks) is left to the proxy, since refusing it would break ordinary
+// object-storage redirects there.
+func checkProxiedRedirect(ctx context.Context, host string) error {
+	addrs, err := lookupIPAddr(ctx, host)
+	if err != nil {
+		return nil
+	}
+	for _, a := range addrs {
+		if isBlockedIP(a.IP) {
+			return fmt.Errorf("refusing redirect: %s resolves to %s, a local, private or otherwise non-public address", host, a.IP)
+		}
+	}
+	return nil
 }
 
 // blockedPrefixes are non-public IPv4 ranges that the net/netip predicates in
