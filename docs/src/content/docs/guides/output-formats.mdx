@@ -82,6 +82,9 @@ How it behaves:
   envelopes, and `redmine api` response bodies.
 - String results are printed raw, without quotes. Numbers, booleans, `null`,
   objects and arrays are printed as JSON. Each result goes on its own line.
+  When `stdout` is a terminal, control characters in string results are
+  neutralized (see [Security hardening](#security-hardening)); piped output
+  is written byte for byte.
 - Objects and arrays are compact (one per line) when `stdout` is piped, and
   indented when it is a terminal.
 - An empty or invalid expression fails with error code `jq_invalid` before
@@ -131,9 +134,11 @@ redmine issues list --project myproject --limit 0 -o json \
 
 `@csv` quotes strings and doubles embedded quotes; numbers are written as
 they are and `null` becomes an empty field. Use `@tsv` for tab-separated
-values. The values are not altered, so a cell that starts with `=`, `+`, `-`
-or `@` may be evaluated as a formula when the file is opened in a
-spreadsheet app.
+values. Written to a file or pipe, the values are not altered, so a cell
+that starts with `=`, `+`, `-` or `@` may be evaluated as a formula when the
+file is opened in a spreadsheet app. Rows printed straight to a terminal have
+their control characters neutralized (see
+[Security hardening](#security-hardening)).
 
 `-o csv` fails before any request is sent, with a hint to use `@csv`. A
 profile with `output_format: csv` or `REDMINE_OUTPUT_FORMAT=csv` falls back
@@ -299,8 +304,11 @@ of what the CLI prints. The output layer treats that text as untrusted:
   return as `^M`), C1 controls as `\u009b`-style escapes, and invisible bidi
   override characters are removed, so a crafted subject cannot set your
   clipboard, plant hyperlinks, move the cursor or overwrite lines. Regular
-  Unicode (accents, CJK, emoji) is unaffected. JSON, `--jq` results,
-  `redmine api` bodies and attachment downloads are written byte for byte.
+  Unicode (accents, CJK, emoji) is unaffected. JSON, `redmine api` bodies
+  and attachment downloads are written byte for byte. So are `--jq` results
+  when `stdout` is piped or redirected; on a terminal, string results
+  (including `@csv` and `@tsv` rows) are neutralized the same way, while
+  JSON results are not.
   Error messages from Redmine get the same treatment wherever they appear,
   including the `details` of JSON error envelopes and MCP tool errors.
 - **`--jq` and the environment.** `env` / `$ENV` work by default.
