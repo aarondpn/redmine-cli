@@ -1,9 +1,8 @@
 {
-	"contributors.roster": "名单",
-	"contributors.commits": "提交",
 	"contributors.count_one": "{{count}} 位贡献者",
 	"contributors.count_other": "{{count}} 位贡献者",
-	"contributors.commitsUnit": "次提交",
+	"contributors.commitCount_one": "{{count}} 次提交",
+	"contributors.commitCount_other": "{{count}} 次提交",
 	"contributors.emptyBefore": "无法在构建时获取贡献者清单。请查看 ",
 	"contributors.emptyLink": "GitHub 贡献者页面",
 	"hero.statusAriaLabel": "项目状态",
@@ -38,6 +37,9 @@
 	"agents.headline1": "人的速度。",
 	"agents.headline2": "代理的规模。",
 	"agents.lede": "在你偏好的代理中使用内置的 skill 或 MCP 服务器。",
+	"home.quickstart": "几分钟内即可上手。",
+	"home.contributors": "开源共建。",
+	"home.contribute": "在 GitHub 上参与贡献",
 	"banner.translationNotice": "本文档由 AI 辅助翻译，可能存在不准确之处。如发现问题或有改进建议，欢迎在 <a href=\"https://github.com/aarondpn/redmine-cli/issues/new\">GitHub 上提交 issue</a>。",
 	"banner.dismissLabel": "关闭"
 }

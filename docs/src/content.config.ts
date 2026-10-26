@@ -9,11 +9,10 @@ export const collections = {
 		loader: i18nLoader(),
 		schema: i18nSchema({
 			extend: z.object({
-				'contributors.roster': z.string(),
-				'contributors.commits': z.string(),
 				'contributors.count_one': z.string(),
 				'contributors.count_other': z.string(),
-				'contributors.commitsUnit': z.string(),
+				'contributors.commitCount_one': z.string(),
+				'contributors.commitCount_other': z.string(),
 				'contributors.emptyBefore': z.string(),
 				'contributors.emptyLink': z.string(),
 				'hero.statusAriaLabel': z.string(),
@@ -48,6 +47,9 @@ export const collections = {
 				'agents.headline1': z.string(),
 				'agents.headline2': z.string(),
 				'agents.lede': z.string(),
+				'home.quickstart': z.string(),
+				'home.contributors': z.string(),
+				'home.contribute': z.string(),
 				'banner.translationNotice': z.string(),
 				'banner.dismissLabel': z.string(),
 			}),

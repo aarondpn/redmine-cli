@@ -1,0 +1,18 @@
+---
+// Poster-style section heading: oversized condensed title with an optional link
+// aligned to the right on wide screens.
+interface Props {
+  title: string;
+  link?: { text: string; href: string };
+}
+const { title, link } = Astro.props;
+---
+
+<div class="rc-section-head not-content">
+  <h2 class="rc-section-head__title">{title}</h2>
+  {link && (
+    <a class="rc-section-head__link" href={link.href}>
+      {link.text}<span aria-hidden="true">→</span>
+    </a>
+  )}
+</div>

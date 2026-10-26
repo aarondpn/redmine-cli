@@ -1,9 +1,8 @@
 {
-	"contributors.roster": "ROSTER",
-	"contributors.commits": "COMMITS",
 	"contributors.count_one": "{{count}} contributor",
 	"contributors.count_other": "{{count}} contributors",
-	"contributors.commitsUnit": "commits",
+	"contributors.commitCount_one": "{{count}} commit",
+	"contributors.commitCount_other": "{{count}} commits",
 	"contributors.emptyBefore": "Contributor manifest unavailable at build time. See the ",
 	"contributors.emptyLink": "GitHub contributors page",
 	"hero.statusAriaLabel": "Project status",
@@ -38,6 +37,9 @@
 	"agents.headline1": "Human speed.",
 	"agents.headline2": "Agent scale.",
 	"agents.lede": "Use the bundled skill or the built-in MCP server with your preferred agent.",
+	"home.quickstart": "Up and running in minutes.",
+	"home.contributors": "Built in the open.",
+	"home.contribute": "Contribute on GitHub",
 	"banner.translationNotice": "",
 	"banner.dismissLabel": "Dismiss"
 }

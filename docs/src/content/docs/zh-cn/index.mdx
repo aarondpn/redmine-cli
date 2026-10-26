@@ -13,8 +13,7 @@ hero:
       variant: minimal
 ---
 
-import { LinkCard, CardGrid } from '@astrojs/starlight/components';
-import SectionRule from '../../../components/SectionRule.astro';
+import QuickLinks from '../../../components/QuickLinks.astro';
 import FeatureRows from '../../../components/FeatureRows.astro';
 import AgentSection from '../../../components/AgentSection.astro';
 import Contributors from '../../../components/Contributors.astro';
@@ -32,31 +31,13 @@ Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
 
 </AgentSection>
 
-<SectionRule index="01" label="快速开始" />
-
-<CardGrid>
-  <LinkCard
-    title="安装"
-    href="/zh-cn/getting-started/installation/"
-    description="通过 Homebrew、安装脚本、go install 或手动下载安装。"
-  />
-  <LinkCard
-    title="配置"
-    href="/zh-cn/getting-started/configuration/"
-    description="介绍配置文件、环境变量与全局标志。"
-  />
-  <LinkCard
-    title="第一个命令"
-    href="/zh-cn/getting-started/quick-start/"
-    description="工单、工时记录、搜索——几分钟内快速上手。"
-  />
-  <LinkCard
-    title="AI 代理集成"
-    href="/zh-cn/guides/ai-agents/"
-    description="安装 skill 或运行内建的 MCP 服务器。"
-  />
-</CardGrid>
-
-<SectionRule index="02" label="贡献者" />
+<QuickLinks
+  items={[
+    { title: '安装', href: '/zh-cn/getting-started/installation/', description: '通过 Homebrew、安装脚本、go install 或手动下载安装。' },
+    { title: '配置', href: '/zh-cn/getting-started/configuration/', description: '介绍配置文件、环境变量与全局标志。' },
+    { title: '第一个命令', href: '/zh-cn/getting-started/quick-start/', description: '工单、工时记录、搜索——几分钟内快速上手。' },
+    { title: 'AI 代理集成', href: '/zh-cn/guides/ai-agents/', description: '安装 skill 或运行内建的 MCP 服务器。' },
+  ]}
+/>
 
 <Contributors />
