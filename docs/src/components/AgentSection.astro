@@ -1,0 +1,74 @@
+---
+// Full-bleed "humans and agents" band: headline on the left, a diagram of agent
+// hosts feeding into redmine-cli on the right, and the install tabs in the slot.
+import { Image } from 'astro:assets';
+import anyIcon from '../assets/logos/any.svg';
+import claudeIcon from '../assets/logos/claude.svg';
+import codexIcon from '../assets/logos/codex.svg';
+import geminiIcon from '../assets/logos/gemini.svg';
+import mcpIcon from '../assets/logos/mcp.svg';
+
+interface Props {
+  labels?: { any?: string; mcp?: string };
+}
+
+const { labels = {} } = Astro.props;
+const t = Astro.locals.t;
+
+// The band is dark in both site themes, so pin Expressive Code blocks in the slot
+// to their dark theme (it only honours data-theme on the block itself).
+const slotHtml = (await Astro.slots.render('default')).replaceAll(
+  '<div class="expressive-code',
+  '<div data-theme="dark" class="expressive-code',
+);
+
+const hosts = [
+  { label: labels.any ?? 'Any agent', icon: anyIcon, monochrome: true },
+  { label: 'Claude Code', icon: claudeIcon, monochrome: false },
+  { label: 'Codex CLI', icon: codexIcon, monochrome: true },
+  { label: 'Gemini CLI', icon: geminiIcon, monochrome: false },
+  { label: labels.mcp ?? 'MCP host', icon: mcpIcon, monochrome: true },
+];
+---
+
+<section class="rc-agents rc-bleed not-content" aria-labelledby="rc-agents-title">
+  <div class="rc-agents__inner">
+    <div class="rc-agents__head">
+      <span class="rc-agents__glyph" aria-hidden="true">&gt;_</span>
+      <h2 id="rc-agents-title" class="rc-agents__title">
+        <span>{t('agents.headline1')}</span>
+        <span>{t('agents.headline2')}</span>
+      </h2>
+      <p class="rc-agents__lede">{t('agents.lede')}</p>
+    </div>
+
+    <div class="rc-agents__body">
+      <div class="rc-flow" aria-hidden="true">
+        <ul class="rc-flow__hosts">
+          {hosts.map((h) => (
+            <li class="rc-flow__host">
+              <Image
+                src={h.icon}
+                alt=""
+                width={22}
+                height={22}
+                class:list={['rc-flow__icon', h.monochrome && 'is-monochrome']}
+              />
+              <span>{h.label}</span>
+            </li>
+          ))}
+        </ul>
+        <svg class="rc-flow__wires" viewBox="0 0 500 56" preserveAspectRatio="none">
+          {[50, 150, 250, 350, 450].map((x) => (
+            <path d={`M${x} 0 C ${x} 30, 250 26, 250 56`} vector-effect="non-scaling-stroke"></path>
+          ))}
+        </svg>
+        <div class="rc-flow__hub"><span class="rc-flow__hub-glyph">&gt;_</span> redmine-cli</div>
+      </div>
+
+      <div class="rc-agents__slot">
+        <Fragment set:html={slotHtml} />
+      </div>
+    </div>
+  </div>
+</section>

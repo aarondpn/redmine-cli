@@ -15,15 +15,14 @@ hero:
 
 import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 import SectionRule from '../../../components/SectionRule.astro';
-import CapabilityMatrix from '../../../components/CapabilityMatrix.astro';
+import FeatureRows from '../../../components/FeatureRows.astro';
+import AgentSection from '../../../components/AgentSection.astro';
 import Contributors from '../../../components/Contributors.astro';
 import InstallTabs from '../../../components/InstallTabs.astro';
 
-<SectionRule index="01" label="功能" />
+<FeatureRows />
 
-<CapabilityMatrix />
-
-<SectionRule index="02" label="接入你的代理" />
+<AgentSection labels={{ any: '任意代理', mcp: 'MCP 宿主' }}>
 
 Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
 
@@ -31,7 +30,9 @@ Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
 
 开放标准：[Agent Skills](https://agentskills.io)（35+ 代理支持）+ [Model Context Protocol](https://modelcontextprotocol.io)。完整的宿主代码片段见 [AI 代理集成指南](/zh-cn/guides/ai-agents/)。
 
-<SectionRule index="03" label="快速开始" />
+</AgentSection>
+
+<SectionRule index="01" label="快速开始" />
 
 <CardGrid>
   <LinkCard
@@ -56,6 +57,6 @@ Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
   />
 </CardGrid>
 
-<SectionRule index="04" label="贡献者" />
+<SectionRule index="02" label="贡献者" />
 
 <Contributors />

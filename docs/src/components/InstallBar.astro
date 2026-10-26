@@ -1,0 +1,75 @@
+---
+// Install command bar attached under the hero terminal, with one tab per installer.
+const t = Astro.locals.t;
+
+const installers = [
+  { id: 'brew', label: 'Homebrew', code: 'brew install aarondpn/tap/redmine' },
+  {
+    id: 'script',
+    label: t('install.script'),
+    code: 'curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash',
+  },
+  { id: 'go', label: 'Go', code: 'go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest' },
+];
+---
+
+<div class="rc-install" data-copied-label={t('install.copied')}>
+  <div class="rc-install__tabs" role="tablist" aria-label={t('install.label')}>
+    {installers.map((inst, i) => (
+      <button
+        type="button"
+        role="tab"
+        class:list={['rc-install__tab', i === 0 && 'is-active']}
+        aria-selected={i === 0 ? 'true' : 'false'}
+        aria-controls={`rc-install-${inst.id}`}
+        data-tab={inst.id}
+      >
+        {inst.label}
+      </button>
+    ))}
+  </div>
+  {installers.map((inst, i) => (
+    <div
+      class="rc-install__row"
+      id={`rc-install-${inst.id}`}
+      role="tabpanel"
+      data-panel={inst.id}
+      hidden={i !== 0}
+    >
+      <code class="rc-install__code"><span class="rc-install__prompt" aria-hidden="true">$</span> {inst.code}</code>
+      <button type="button" class="rc-install__copy" data-code={inst.code} aria-label={t('install.copy')}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
+          <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"></path>
+        </svg>
+      </button>
+    </div>
+  ))}
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.rc-install').forEach((root) => {
+    const tabs = root.querySelectorAll<HTMLButtonElement>('.rc-install__tab');
+    const panels = root.querySelectorAll<HTMLElement>('.rc-install__row');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((other) => {
+          const active = other === tab;
+          other.classList.toggle('is-active', active);
+          other.setAttribute('aria-selected', String(active));
+        });
+        panels.forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>('.rc-install__copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.code ?? '');
+          btn.classList.add('is-copied');
+          btn.title = root.dataset.copiedLabel ?? '';
+          setTimeout(() => btn.classList.remove('is-copied'), 1500);
+        } catch {}
+      });
+    });
+  });
+</script>
