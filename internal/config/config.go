@@ -176,7 +176,7 @@ func ResolveMCPAuthToken(cfg *Config, log *debug.Logger) (string, error) {
 		return cfg.MCP.AuthToken, nil
 	}
 	if secrets.Disabled() {
-		return "", errors.New("the profile keeps its MCP auth token in the system keyring, but REDMINE_NO_KEYRING disables keyring access")
+		return "", errors.New("a keyring profile may keep its MCP auth token in the system keyring, but REDMINE_NO_KEYRING disables keyring access")
 	}
 	token, ok, err := secrets.Default.Get(cfg.KeyringID, secrets.FieldMCPToken)
 	if err != nil {

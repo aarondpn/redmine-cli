@@ -284,7 +284,7 @@ func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config,
 			// serve without it unless --no-auth asks for exactly that.
 			token, err = config.ResolveMCPAuthToken(cfg, f.DebugLogger())
 			if err != nil && !resolveNoAuth(cmd, flags.NoAuth, cfg) {
-				return "", false, fmt.Errorf("%w; refusing to serve without the profile's token. Set REDMINE_MCP_AUTH_TOKEN or --auth-token-file, or pass --no-auth to serve without authentication", err)
+				return "", false, fmt.Errorf("%w; refusing to serve without a token that may exist. Set REDMINE_MCP_AUTH_TOKEN or --auth-token-file, or pass --no-auth to serve without authentication", err)
 			}
 		}
 	}
