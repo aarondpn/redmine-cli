@@ -172,7 +172,7 @@ gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli
   --source-ref refs/tags/<tag>
 ```
 
-The checksums come from the same place as the archive, so only the attestation proves the binary was built by the project's release pipeline. The update is refused if the attestation is missing, invalid, or signed by any other identity.
+The checksums come from the same place as the archive, so only the attestation proves the binary was built by the project's release pipeline. The update is refused if the attestation is missing, invalid, or signed by any other identity. A release is attested a few minutes after it is published; if you update within the first 30 minutes and its attestation is not there yet, `redmine update` says so and asks you to try again shortly instead of reporting a failed verification.
 
 When installed via Homebrew, delegates to `brew upgrade`.
 

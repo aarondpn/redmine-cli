@@ -61,8 +61,9 @@ func newReleaseHTTPClient() *http.Client {
 
 // GithubRelease represents a GitHub release.
 type GithubRelease struct {
-	TagName string        `json:"tag_name"`
-	Assets  []GithubAsset `json:"assets"`
+	TagName     string        `json:"tag_name"`
+	PublishedAt time.Time     `json:"published_at"`
+	Assets      []GithubAsset `json:"assets"`
 }
 
 // GithubAsset represents a release asset.
@@ -274,7 +275,7 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 	if !opts.SkipAttestation {
 		logLine(printer, stderr, "Verifying attestation...")
 		digest := sha256.Sum256(archiveData)
-		if err := verifyAttestation(ctx, digest[:], release.TagName); err != nil {
+		if err := verifyAttestation(ctx, digest[:], release); err != nil {
 			return err
 		}
 	}
@@ -293,13 +294,36 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 	return nil
 }
 
+// attestationGracePeriod is how long after publication a missing attestation
+// is reported as probably still pending: the release workflow publishes the
+// release first and attests its archives a few minutes later.
+const attestationGracePeriod = 30 * time.Minute
+
+// now is replaced by tests.
+var now = time.Now
+
+// publishedAgo renders the age of a fresh release for the pending message.
+func publishedAgo(age time.Duration) string {
+	if age < time.Minute {
+		return "less than a minute ago"
+	}
+	return age.Round(time.Minute).String() + " ago"
+}
+
 // verifyAttestation runs the attestation check and turns its outcome into the
 // user-facing error. Every failure refuses the install; only an unreachable
 // attestations API or TUF repository points at --skip-attestation.
-func verifyAttestation(ctx context.Context, digest []byte, tag string) error {
+func verifyAttestation(ctx context.Context, digest []byte, release *GithubRelease) error {
+	tag := release.TagName
 	err := newAttestationVerifier().Verify(ctx, digest, tag)
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, errNoAttestation) && !release.PublishedAt.IsZero() {
+		if age := now().Sub(release.PublishedAt); age >= 0 && age < attestationGracePeriod {
+			return fmt.Errorf("%s was published %s and its attestation is not available yet; "+
+				"releases are attested a few minutes after publishing, so try again shortly", tag, publishedAgo(age))
+		}
 	}
 	var unavailable *attestationUnavailableError
 	if errors.As(err, &unavailable) {

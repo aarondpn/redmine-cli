@@ -163,7 +163,7 @@ gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli
   --source-ref refs/tags/<tag>
 ```
 
-校验和与归档文件来自同一位置，因此只有证明才能证实二进制文件确实由本项目的发布流水线构建。如果证明缺失、无效或由其他身份签名，更新会被拒绝。
+校验和与归档文件来自同一位置，因此只有证明才能证实二进制文件确实由本项目的发布流水线构建。如果证明缺失、无效或由其他身份签名，更新会被拒绝。版本发布后几分钟才会生成证明；如果在发布后 30 分钟内更新而证明尚未生成，`redmine update` 会说明这一点并提示稍后重试，而不会报告验证失败。
 
 通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
 

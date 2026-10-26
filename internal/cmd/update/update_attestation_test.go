@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -330,6 +331,45 @@ func TestNotWritableError(t *testing.T) {
 				if strings.Contains(msg, s) {
 					t.Errorf("expected message not to contain %q, got:\n%s", s, msg)
 				}
+			}
+		})
+	}
+}
+
+func TestVerifyAttestation_PendingAfterPublication(t *testing.T) {
+	published := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	origNow := now
+	t.Cleanup(func() { now = origNow })
+
+	tests := []struct {
+		name        string
+		verifyErr   error
+		publishedAt time.Time
+		age         time.Duration
+		wantPending bool
+	}{
+		{name: "missing attestation right after publishing", verifyErr: errNoAttestation, publishedAt: published, age: 20 * time.Second, wantPending: true},
+		{name: "missing attestation minutes after publishing", verifyErr: errNoAttestation, publishedAt: published, age: 7 * time.Minute, wantPending: true},
+		{name: "missing attestation long after publishing", verifyErr: errNoAttestation, publishedAt: published, age: 2 * time.Hour},
+		{name: "missing attestation without a publication time", verifyErr: errNoAttestation, age: time.Minute},
+		{name: "publication time in the future", verifyErr: errNoAttestation, publishedAt: published, age: -5 * time.Minute},
+		{name: "invalid attestation right after publishing", verifyErr: errors.New("certificate identity mismatch"), publishedAt: published, age: time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now = func() time.Time { return published.Add(tt.age) }
+			stubAttestationVerifier(t, &fakeAttestationVerifier{err: tt.verifyErr})
+
+			err := verifyAttestation(context.Background(), []byte{1}, &GithubRelease{TagName: "v99.0.0", PublishedAt: tt.publishedAt})
+			if err == nil {
+				t.Fatal("verifyAttestation succeeded, want a refusal")
+			}
+			pending := strings.Contains(err.Error(), "not available yet")
+			if pending != tt.wantPending {
+				t.Fatalf("pending message = %v, want %v: %v", pending, tt.wantPending, err)
+			}
+			if !pending && !strings.Contains(err.Error(), "refusing to install v99.0.0") {
+				t.Fatalf("err = %v, want the regular refusal", err)
 			}
 		})
 	}
