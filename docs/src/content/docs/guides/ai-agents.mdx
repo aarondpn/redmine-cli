@@ -161,10 +161,13 @@ redmine mcp serve --http :8080
 # Explicit loopback (equivalent)
 redmine mcp serve --http 127.0.0.1:8080
 
-# Listen on every interface -- always pair with a token
-openssl rand -hex 32 > ~/.redmine-mcp-token && chmod 600 ~/.redmine-mcp-token
+# Listen on every interface -- always pair with a token.
+# umask 077 creates the token file readable only by you from the start.
+(umask 077; openssl rand -hex 32 > ~/.redmine-mcp-token)
 redmine mcp serve --http 0.0.0.0:8080 --auth-token-file ~/.redmine-mcp-token
 ```
+
+The umask only applies when the file is created. If the token file already exists, run `chmod 600 ~/.redmine-mcp-token` before writing a new token into it.
 
 When a non-loopback bind is detected without a token, the server generates a random token for that run and prints it to stderr. Pass `--no-auth` (or `REDMINE_MCP_NO_AUTH=1`) only if something in front of the server, such as an authenticating reverse proxy, already checks clients; the CLI then prints a warning and serves without a token.
 
