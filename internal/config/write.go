@@ -54,7 +54,7 @@ var renameFile = os.Rename
 // existing ones are left alone. An existing file that cannot be replaced by a
 // rename (its directory is not writable, or it is a mount point such as a
 // config bind-mounted into a container) is overwritten in place, as before.
-func writeFileAtomic(path string, data []byte) (err error) {
+func writeFileAtomic(path string, data []byte) error {
 	info, statErr := os.Stat(path)
 	exists := statErr == nil
 	// A rename would replace a file the user made read-only; keep refusing
@@ -77,25 +77,22 @@ func writeFileAtomic(path string, data []byte) (err error) {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer func() {
-		if err != nil {
-			_ = tmp.Close()
-			_ = os.Remove(tmpName)
-		}
-	}()
+	// After a successful rename both are no-ops: the file is already closed
+	// and nothing is left at tmpName.
+	defer func() { _ = os.Remove(tmpName) }()
+	defer func() { _ = tmp.Close() }()
 
-	if _, err = tmp.Write(data); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		return err
 	}
-	if err = tmp.Sync(); err != nil {
+	if err := tmp.Sync(); err != nil {
 		return err
 	}
-	if err = tmp.Close(); err != nil {
+	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err = renameFile(tmpName, path); err != nil {
+	if err := renameFile(tmpName, path); err != nil {
 		if exists && (errors.Is(err, syscall.EBUSY) || errors.Is(err, syscall.EXDEV)) {
-			_ = os.Remove(tmpName)
 			return writeFileInPlace(path, data)
 		}
 		return err
