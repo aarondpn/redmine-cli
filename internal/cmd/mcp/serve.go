@@ -279,8 +279,13 @@ func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config,
 		token = resolveAuthToken(cmd, flags.Token, cfg)
 		if token == "" && !cmd.Flags().Changed("auth-token") {
 			// A keyring profile keeps mcp.auth_token in the keyring, and
-			// config loading leaves it there until it is needed.
-			token = config.ResolveMCPAuthToken(cfg, f.DebugLogger())
+			// config loading leaves it there until it is needed. If the
+			// keyring can't be read, a saved token may exist, so refuse to
+			// serve without it unless --no-auth asks for exactly that.
+			token, err = config.ResolveMCPAuthToken(cfg, f.DebugLogger())
+			if err != nil && !resolveNoAuth(cmd, flags.NoAuth, cfg) {
+				return "", false, fmt.Errorf("%w; refusing to serve without the profile's token. Set REDMINE_MCP_AUTH_TOKEN or --auth-token-file, or pass --no-auth to serve without authentication", err)
+			}
 		}
 	}
 	noAuth := resolveNoAuth(cmd, flags.NoAuth, cfg)

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -499,6 +500,37 @@ func TestResolveHTTPAuth_KeyringToken(t *testing.T) {
 		}
 		if stderr.Len() != 0 {
 			t.Errorf("unexpected stderr output: %q", stderr.String())
+		}
+	})
+
+	t.Run("keyring failure refuses to serve without the token", func(t *testing.T) {
+		for _, loopback := range []bool{true, false} {
+			cfg := loadKeyringProfile(t)
+			keyring.MockInitWithError(errors.New("keychain locked"))
+			cmd, stderr := newHTTPAuthCmd()
+			token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, loopback, httpAuthFlags{})
+			if err == nil || !strings.Contains(err.Error(), "keychain locked") || !strings.Contains(err.Error(), "--no-auth") {
+				t.Fatalf("loopback=%v: err = %v, want the keyring error with the --no-auth hint", loopback, err)
+			}
+			if token != "" || generated {
+				t.Fatalf("loopback=%v: token = %q (generated=%v), want none on error", loopback, token, generated)
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("loopback=%v: unexpected stderr output: %q", loopback, stderr.String())
+			}
+		}
+	})
+
+	t.Run("keyring failure with --no-auth serves without a token", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		keyring.MockInitWithError(errors.New("keychain locked"))
+		cmd, _ := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("no-auth", "true"); err != nil {
+			t.Fatal(err)
+		}
+		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{NoAuth: true})
+		if err != nil || token != "" || generated {
+			t.Fatalf("token = %q (generated=%v), err = %v; want an explicit --no-auth to serve", token, generated, err)
 		}
 	})
 

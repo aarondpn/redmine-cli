@@ -47,7 +47,7 @@ func TestKeyringProfileStoresMCPTokenInKeyring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "MCP_BEARER_SECRET" {
+	if got := mustResolveMCPAuthToken(t, loaded); got != "MCP_BEARER_SECRET" {
 		t.Fatalf("ResolveMCPAuthToken = %q, want keyring value", got)
 	}
 }
@@ -64,12 +64,12 @@ func TestKeyringProfileWithoutMCPTokenLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load error = %v, want nil (the MCP token is optional)", err)
 	}
-	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "" {
+	if got := mustResolveMCPAuthToken(t, loaded); got != "" {
 		t.Fatalf("ResolveMCPAuthToken = %q, want empty", got)
 	}
 }
 
-func TestKeyringMCPTokenLookupFailureIsNotFatal(t *testing.T) {
+func TestKeyringMCPTokenLookupFailureReturnsError(t *testing.T) {
 	keyring.MockInitWithError(errors.New("keychain locked"))
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: work
@@ -89,8 +89,12 @@ profiles:
 	if err != nil {
 		t.Fatalf("Load error = %v, want nil", err)
 	}
-	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "" {
-		t.Fatalf("ResolveMCPAuthToken = %q, want empty", got)
+	got, err := ResolveMCPAuthToken(loaded, debug.New(nil))
+	if err == nil || !strings.Contains(err.Error(), "keychain locked") {
+		t.Fatalf("ResolveMCPAuthToken = %q, %v; want the keyring error, since a saved token may exist", got, err)
+	}
+	if got != "" {
+		t.Fatalf("ResolveMCPAuthToken = %q on error, want empty", got)
 	}
 }
 
@@ -133,7 +137,7 @@ profiles:
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != tc.want {
+			if got := mustResolveMCPAuthToken(t, loaded); got != tc.want {
 				t.Fatalf("ResolveMCPAuthToken = %q, want %q", got, tc.want)
 			}
 		})
@@ -182,7 +186,7 @@ profiles:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "legacy-token" {
+	if got := mustResolveMCPAuthToken(t, loaded); got != "legacy-token" {
 		t.Fatalf("ResolveMCPAuthToken after migration = %q", got)
 	}
 }
@@ -236,7 +240,7 @@ func TestReloginKeepsMCPSettingsAndKeyringToken(t *testing.T) {
 	if loaded.APIKey != "new-key" {
 		t.Fatalf("APIKey = %q, want %q", loaded.APIKey, "new-key")
 	}
-	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "tok" {
+	if got := mustResolveMCPAuthToken(t, loaded); got != "tok" {
 		t.Fatalf("ResolveMCPAuthToken = %q, want keyring token kept across re-login", got)
 	}
 	if len(loaded.MCP.EnableGroups) != 1 || loaded.MCP.EnableGroups[0] != "issues" {
@@ -401,9 +405,20 @@ func TestResolveMCPAuthTokenSkipsKeyringWhenNotNeeded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := ResolveMCPAuthToken(tc.cfg, debug.New(nil)); got != tc.want {
+			if got := mustResolveMCPAuthToken(t, tc.cfg); got != tc.want {
 				t.Fatalf("ResolveMCPAuthToken = %q, want %q", got, tc.want)
 			}
 		})
 	}
+}
+
+// mustResolveMCPAuthToken resolves cfg's MCP token and fails the test on a
+// keyring error.
+func mustResolveMCPAuthToken(t *testing.T, cfg *Config) string {
+	t.Helper()
+	token, err := ResolveMCPAuthToken(cfg, debug.New(nil))
+	if err != nil {
+		t.Fatalf("ResolveMCPAuthToken: %v", err)
+	}
+	return token
 }

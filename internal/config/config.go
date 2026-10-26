@@ -164,25 +164,26 @@ func storedSecretInUse(cfg *Config, ov Overrides) bool {
 // the config file nor REDMINE_MCP_AUTH_TOKEN supplied one, a keyring profile's
 // token is read from the system keyring and stored in cfg.MCP.AuthToken. Load
 // leaves this lookup out, so only callers that need the token (mcp serve
-// --http) touch the keyring for it. The token is optional: a missing entry or
-// a failed lookup is logged and yields "".
-func ResolveMCPAuthToken(cfg *Config, log *debug.Logger) string {
+// --http) touch the keyring for it. The token is optional, so a missing entry
+// yields "". A failed lookup is returned as an error instead: a token saved
+// to the keyring may exist, and serving without it would drop authentication.
+func ResolveMCPAuthToken(cfg *Config, log *debug.Logger) (string, error) {
 	if cfg == nil {
-		return ""
+		return "", nil
 	}
 	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" || cfg.MCP.AuthToken != "" {
-		return cfg.MCP.AuthToken
+		return cfg.MCP.AuthToken, nil
 	}
 	token, ok, err := secrets.Default.Get(cfg.KeyringID, secrets.FieldMCPToken)
 	if err != nil {
 		log.Printf("Config: keyring lookup for %s failed: %v", secrets.FieldMCPToken, err)
-		return ""
+		return "", fmt.Errorf("reading the MCP auth token from the system keyring: %w", err)
 	}
 	if ok {
 		cfg.MCP.AuthToken = token
 		log.Printf("Config: loaded %s from system keyring", secrets.FieldMCPToken)
 	}
-	return cfg.MCP.AuthToken
+	return cfg.MCP.AuthToken, nil
 }
 
 // applyOverrides applies CLI-flag credential values onto cfg. Empty overrides
