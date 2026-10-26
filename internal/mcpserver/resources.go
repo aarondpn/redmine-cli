@@ -200,7 +200,7 @@ func readUserResource(ctx context.Context, client *api.Client, uri string, allow
 		if err != nil {
 			return nil, resourceError(uri, err)
 		}
-		return jsonContent(uri, ops.RedactUser(user))
+		return jsonContent(uri, user)
 	}
 	id, err := parseIntID(segment)
 	if err != nil {
@@ -213,7 +213,7 @@ func readUserResource(ctx context.Context, client *api.Client, uri string, allow
 	if err != nil {
 		return nil, resourceError(uri, err)
 	}
-	return jsonContent(uri, ops.RedactUser(user))
+	return jsonContent(uri, user)
 }
 
 // toolDisabledResourceError refuses a URI whose backing tool is filtered out.

@@ -16,8 +16,10 @@ var secretJSONFields = map[string]bool{
 
 // redactSecrets clears every secret field reachable from v in place. v must
 // be a pointer; anything else is left untouched. It is the last step before
-// a tool result or resource body is serialized, so a tool added later cannot
-// leak a key even if its ops function forgets to redact explicitly.
+// a tool result or resource body is serialized, and the only place MCP output
+// is redacted: the ops functions return users unchanged because the CLI shows
+// the key to its owner, so every tool and resource, including ones added
+// later, is covered here.
 //
 // String and *string struct fields whose JSON name is in secretJSONFields are
 // zeroed (they are all omitempty, so the key disappears from the output), and

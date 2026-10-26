@@ -16,19 +16,11 @@ type UpdateMyAccountInput struct {
 	MailNotification *string `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
 }
 
-// GetMyAccount fetches /my/account.json, api_key included. The CLI calls it
-// directly (`redmine my-account get`); the get_my_account MCP tool goes
-// through GetMyAccountRedacted so the key never reaches an MCP client.
-func GetMyAccount(ctx context.Context, client *api.Client, _ GetMyAccountInput) (*models.User, error) {
-	return client.MyAccount.Get(ctx)
-}
-
 //mcpgen:tool get_my_account
 //mcpgen:description Fetch the authenticated user's account via /my/account.json. Includes custom_fields.
 //mcpgen:category my_account
-func GetMyAccountRedacted(ctx context.Context, client *api.Client, input GetMyAccountInput) (*models.User, error) {
-	user, err := GetMyAccount(ctx, client, input)
-	return RedactUser(user), err
+func GetMyAccount(ctx context.Context, client *api.Client, _ GetMyAccountInput) (*models.User, error) {
+	return client.MyAccount.Get(ctx)
 }
 
 //mcpgen:tool update_my_account

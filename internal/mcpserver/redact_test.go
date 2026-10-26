@@ -90,10 +90,9 @@ func TestRedactSecrets_NonPointerAndNil(t *testing.T) {
 	redactSecrets((*models.User)(nil))
 }
 
-// TestRedactSecrets_ToolAndResourceExits pins the backstop wiring: toolResult
-// and jsonContent must redact on their own, independently of the explicit
-// RedactUser calls in the user ops, so a future tool or resource that returns
-// a user cannot leak its key.
+// TestRedactSecrets_ToolAndResourceExits pins the wiring: toolResult and
+// jsonContent are the only place user results are redacted, so a tool or
+// resource that returns a user cannot leak its key.
 func TestRedactSecrets_ToolAndResourceExits(t *testing.T) {
 	type result struct {
 		Users []models.User `json:"users"`

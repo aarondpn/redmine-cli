@@ -62,8 +62,9 @@ type DeleteUserInput struct {
 	ID int `json:"id" jsonschema:"Numeric user ID to delete. Destructive."`
 }
 
-// ListUsers lists users matching the filter. The CLI calls it directly; the
-// list_users MCP tool goes through ListUsersRedacted.
+//mcpgen:tool list_users
+//mcpgen:description List Redmine users matching the given filter.
+//mcpgen:category users
 func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (UsersListResult, error) {
 	users, total, err := client.Users.List(ctx, models.UserFilter{
 		Status:  input.Status,
@@ -78,67 +79,24 @@ func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (U
 	return UsersListResult{Users: users, Count: len(users), TotalCount: total}, nil
 }
 
-// GetUser fetches a single user. The CLI calls it directly; the get_user MCP
-// tool goes through GetUserRedacted.
-func GetUser(ctx context.Context, client *api.Client, input GetUserInput) (*models.User, error) {
-	return client.Users.Get(ctx, input.ID, input.Includes)
-}
-
-// GetCurrentUser fetches the authenticated user. The CLI calls it directly;
-// the me MCP tool goes through GetCurrentUserRedacted.
-func GetCurrentUser(ctx context.Context, client *api.Client, input GetCurrentUserInput) (*models.User, error) {
-	return client.Users.Current(ctx, input.Includes)
-}
-
-// RedactUser clears credential fields (the API key) from u in place and
-// returns it. Every MCP-facing user operation calls it: neither the key the
-// server runs with nor another user's key returned to an admin caller may
-// reach an MCP client. A nil u is returned unchanged.
-func RedactUser(u *models.User) *models.User {
-	if u != nil {
-		u.APIKey = ""
-	}
-	return u
-}
-
-//mcpgen:tool list_users
-//mcpgen:description List Redmine users matching the given filter.
-//mcpgen:category users
-func ListUsersRedacted(ctx context.Context, client *api.Client, input ListUsersInput) (UsersListResult, error) {
-	result, err := ListUsers(ctx, client, input)
-	for i := range result.Users {
-		RedactUser(&result.Users[i])
-	}
-	return result, err
-}
-
 //mcpgen:tool get_user
 //mcpgen:description Fetch a single Redmine user by numeric ID. Supports memberships and groups includes.
 //mcpgen:category users
-func GetUserRedacted(ctx context.Context, client *api.Client, input GetUserInput) (*models.User, error) {
-	user, err := GetUser(ctx, client, input)
-	return RedactUser(user), err
+func GetUser(ctx context.Context, client *api.Client, input GetUserInput) (*models.User, error) {
+	return client.Users.Get(ctx, input.ID, input.Includes)
 }
 
 //mcpgen:tool me
 //mcpgen:description Return the currently authenticated Redmine user. Supports memberships and groups includes.
 //mcpgen:category users
-func GetCurrentUserRedacted(ctx context.Context, client *api.Client, input GetCurrentUserInput) (*models.User, error) {
-	user, err := GetCurrentUser(ctx, client, input)
-	return RedactUser(user), err
+func GetCurrentUser(ctx context.Context, client *api.Client, input GetCurrentUserInput) (*models.User, error) {
+	return client.Users.Current(ctx, input.Includes)
 }
 
 //mcpgen:tool create_user
 //mcpgen:description Create a new Redmine user. Requires --enable-writes and admin privileges.
 //mcpgen:category users
 //mcpgen:writes
-func CreateUserRedacted(ctx context.Context, client *api.Client, input CreateUserInput) (*models.User, error) {
-	user, err := CreateUser(ctx, client, input)
-	return RedactUser(user), err
-}
-
-// CreateUser creates a user. The CLI calls it directly; the create_user MCP
-// tool goes through CreateUserRedacted.
 func CreateUser(ctx context.Context, client *api.Client, input CreateUserInput) (*models.User, error) {
 	return client.Users.Create(ctx, models.UserCreate{
 		Login:            input.Login,

@@ -287,7 +287,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Name:        "get_my_account",
 		Description: "Fetch the authenticated user's account via /my/account.json. Includes custom_fields.",
 		Category:    "my_account",
-		Call:        ops.GetMyAccountRedacted,
+		Call:        ops.GetMyAccount,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateMyAccountInput, ops.MessageResult]{
 		Name:        "update_my_account",
@@ -405,7 +405,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "Create a new Redmine user. Requires --enable-writes and admin privileges.",
 		Category:    "users",
 		Writes:      true,
-		Call:        ops.CreateUserRedacted,
+		Call:        ops.CreateUser,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.DeleteUserInput, ops.MessageResult]{
 		Name:        "delete_user",
@@ -418,19 +418,19 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Name:        "get_user",
 		Description: "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes.",
 		Category:    "users",
-		Call:        ops.GetUserRedacted,
+		Call:        ops.GetUser,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListUsersInput, ops.UsersListResult]{
 		Name:        "list_users",
 		Description: "List Redmine users matching the given filter.",
 		Category:    "users",
-		Call:        ops.ListUsersRedacted,
+		Call:        ops.ListUsers,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetCurrentUserInput, *models.User]{
 		Name:        "me",
 		Description: "Return the currently authenticated Redmine user. Supports memberships and groups includes.",
 		Category:    "users",
-		Call:        ops.GetCurrentUserRedacted,
+		Call:        ops.GetCurrentUser,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateUserInput, ops.MessageResult]{
 		Name:        "update_user",
