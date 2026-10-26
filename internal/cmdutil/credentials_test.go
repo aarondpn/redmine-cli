@@ -2,7 +2,6 @@ package cmdutil
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -104,7 +103,7 @@ func TestFactoryConfig_StoredCredentialOverrideWarning(t *testing.T) {
 			f.APIKeyOverride = tc.apiKey
 
 			if _, err := f.Config(); err != nil {
-				t.Fatalf("Config() error = %v, want nil outside strict mode", err)
+				t.Fatalf("Config() error = %v, want nil", err)
 			}
 			got := errOut.String()
 			if tc.wantWarning == "" {
@@ -120,56 +119,10 @@ func TestFactoryConfig_StoredCredentialOverrideWarning(t *testing.T) {
 	}
 }
 
-func TestFactoryConfig_StoredCredentialOverrideStrict(t *testing.T) {
-	for _, strictSource := range []string{"env", "profile"} {
-		t.Run(strictSource, func(t *testing.T) {
-			f, errOut := newOverrideTestFactory(t)
-			if strictSource == "env" {
-				t.Setenv("REDMINE_STRICT", "1")
-			} else {
-				f.ConfigPath = writeConfigFile(t, strings.Replace(overrideTestConfig, "    keyring_id: factory-kr-id\n", "    keyring_id: factory-kr-id\n    strict: true\n", 1))
-			}
-			f.ServerOverride = "https://attacker.example"
-
-			cfg, err := f.Config()
-			var strictErr *StrictModeError
-			if !errors.As(err, &strictErr) {
-				t.Fatalf("Config() = %v, %v; want *StrictModeError", cfg, err)
-			}
-			if !strings.Contains(err.Error(), "https://attacker.example") {
-				t.Fatalf("error %q does not name the override target", err)
-			}
-			// The hint must name a channel strict mode accepts.
-			if !strings.Contains(err.Error(), "pass --api-key-file or REDMINE_API_KEY") || strings.Contains(err.Error(), "--api-key/") {
-				t.Fatalf("error %q should point at --api-key-file or REDMINE_API_KEY, not --api-key", err)
-			}
-			if errOut.Len() != 0 {
-				t.Fatalf("strict mode also printed a warning: %q", errOut.String())
-			}
-		})
-	}
-}
-
-func TestFactoryConfig_StrictAllowsExplicitKeyOverride(t *testing.T) {
-	f, _ := newOverrideTestFactory(t)
-	t.Setenv("REDMINE_STRICT", "1")
-	t.Setenv("REDMINE_API_KEY", "env-key")
-	f.ServerOverride = "https://other.example.com"
-
-	cfg, err := f.Config()
-	if err != nil {
-		t.Fatalf("Config() error = %v, want nil with an explicit key", err)
-	}
-	if cfg.APIKey != "env-key" {
-		t.Fatalf("APIKey = %q, want %q", cfg.APIKey, "env-key")
-	}
-}
-
-// The warning's hint has to work in strict mode too: --api-key-file silences
-// the override check there, while --api-key is refused.
-func TestFactoryConfig_StrictAllowsAPIKeyFileOverride(t *testing.T) {
-	f, _ := newOverrideTestFactory(t)
-	t.Setenv("REDMINE_STRICT", "1")
+// The warning's hint names --api-key-file; following it silences the
+// override check.
+func TestFactoryConfig_APIKeyFileSilencesOverrideWarning(t *testing.T) {
+	f, errOut := newOverrideTestFactory(t)
 	f.ServerOverride = "https://other.example.com"
 	f.APIKeyFile = "-"
 	f.IOStreams.In = strings.NewReader("file-key\n")
@@ -180,6 +133,9 @@ func TestFactoryConfig_StrictAllowsAPIKeyFileOverride(t *testing.T) {
 	}
 	if cfg.APIKey != "file-key" {
 		t.Fatalf("APIKey = %q, want %q", cfg.APIKey, "file-key")
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("unexpected warning with --api-key-file: %q", errOut.String())
 	}
 }
 
@@ -280,37 +236,14 @@ func TestReadSecretFile(t *testing.T) {
 	}
 }
 
-func TestFactoryConfig_StrictRejectsAPIKeyFlag(t *testing.T) {
-	t.Setenv("REDMINE_STRICT", "1")
-
-	f, _ := newOverrideTestFactory(t)
-	f.APIKeyOverride = "flag-key"
-	_, err := f.Config()
-	var strictErr *StrictModeError
-	if !errors.As(err, &strictErr) || !strings.Contains(err.Error(), "--api-key-file") {
-		t.Fatalf("Config() error = %v, want *StrictModeError pointing at --api-key-file", err)
-	}
-
-	f, _ = newOverrideTestFactory(t)
-	f.APIKeyFile = "-"
-	f.IOStreams.In = strings.NewReader("stdin-key\n")
-	cfg, err := f.Config()
-	if err != nil {
-		t.Fatalf("Config() with --api-key-file in strict mode = %v, want nil", err)
-	}
-	if cfg.APIKey != "stdin-key" {
-		t.Fatalf("APIKey = %q, want %q", cfg.APIKey, "stdin-key")
-	}
-}
-
-func TestFactoryConfig_APIKeyFlagSilentWhenNotStrict(t *testing.T) {
+func TestFactoryConfig_APIKeyFlagSilent(t *testing.T) {
 	f, errOut := newOverrideTestFactory(t)
 	f.APIKeyOverride = "flag-key"
 	if _, err := f.Config(); err != nil {
 		t.Fatal(err)
 	}
 	if errOut.Len() != 0 {
-		t.Fatalf("--api-key printed a warning outside strict mode: %q", errOut.String())
+		t.Fatalf("--api-key printed a warning: %q", errOut.String())
 	}
 }
 
@@ -362,7 +295,7 @@ func TestFactoryConfig_ProfileHeadersOverrideWarning(t *testing.T) {
 				IOStreams:       &IOStreams{In: strings.NewReader(""), Out: &bytes.Buffer{}, ErrOut: &errOut},
 			}
 			if _, err := f.Config(); err != nil {
-				t.Fatalf("Config() error = %v, want nil outside strict mode", err)
+				t.Fatalf("Config() error = %v, want nil", err)
 			}
 			got := errOut.String()
 			if strings.Contains(got, "PROXY_SECRET") || strings.Contains(got, "Mozilla") {
@@ -378,30 +311,5 @@ func TestFactoryConfig_ProfileHeadersOverrideWarning(t *testing.T) {
 				t.Fatalf("stderr = %q, want it to contain %q", got, tc.wantWarning)
 			}
 		})
-	}
-}
-
-func TestFactoryConfig_ProfileHeadersOverrideStrict(t *testing.T) {
-	t.Setenv("REDMINE_STRICT", "1")
-	t.Setenv("REDMINE_API_KEY", "env-key")
-	f := &Factory{
-		ConfigPath:     writeConfigFile(t, headerOverrideTestConfig),
-		ServerOverride: "https://attacker.example",
-		IOStreams:      &IOStreams{In: strings.NewReader(""), Out: &bytes.Buffer{}, ErrOut: &bytes.Buffer{}},
-	}
-	_, err := f.Config()
-	var strictErr *StrictModeError
-	if !errors.As(err, &strictErr) || !strings.Contains(err.Error(), "X-Proxy-Token") {
-		t.Fatalf("Config() error = %v, want *StrictModeError naming X-Proxy-Token", err)
-	}
-
-	// Replacing every profile header explicitly is accepted.
-	f.Headers = []string{"X-Proxy-Token: other", "User-Agent: curl"}
-	cfg, err := f.Config()
-	if err != nil {
-		t.Fatalf("Config() with explicit --header values = %v, want nil", err)
-	}
-	if got := cfg.Headers["X-Proxy-Token"]; got != "other" {
-		t.Fatalf("X-Proxy-Token = %q, want the --header value", got)
 	}
 }

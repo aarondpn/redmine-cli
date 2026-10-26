@@ -77,7 +77,7 @@ Grab the latest release for your platform from [GitHub Releases](https://github.
 redmine update
 ```
 
-Downloads the latest release and verifies its SHA256 checksum and its GitHub artifact attestation (SLSA provenance from this repository's release workflow, verified via Sigstore) before replacing the binary. The update is refused if either check fails; `--skip-attestation` falls back to checksum-only verification with a warning (rejected in strict mode).
+Downloads the latest release and verifies its SHA256 checksum and its GitHub artifact attestation (SLSA provenance from this repository's release workflow, verified via Sigstore) before replacing the binary. The update is refused if either check fails; `--skip-attestation` falls back to checksum-only verification with a warning.
 
 ## Getting Started
 

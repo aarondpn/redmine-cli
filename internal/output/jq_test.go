@@ -251,12 +251,10 @@ func TestJQFilter_EnvAccess(t *testing.T) {
 	tests := []struct {
 		name     string
 		noEnvVar string
-		without  bool
 		want     string
 	}{
 		{name: "env is readable by default", want: "s3cret\n"},
 		{name: "REDMINE_JQ_NO_ENV=0 keeps env", noEnvVar: "0", want: "s3cret\n"},
-		{name: "WithoutEnv hides env", without: true, want: "null\n"},
 		{name: "REDMINE_JQ_NO_ENV=1 hides env", noEnvVar: "1", want: "null\n"},
 		{name: "REDMINE_JQ_NO_ENV=true hides env", noEnvVar: "true", want: "null\n"},
 	}
@@ -267,9 +265,6 @@ func TestJQFilter_EnvAccess(t *testing.T) {
 				q, err := CompileJQ(expr)
 				if err != nil {
 					t.Fatalf("CompileJQ(%q): %v", expr, err)
-				}
-				if tt.without {
-					q = q.WithoutEnv()
 				}
 				var buf bytes.Buffer
 				if err := q.Evaluate(&buf, map[string]any{}, false); err != nil {

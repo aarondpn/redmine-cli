@@ -8,7 +8,7 @@ import (
 
 // CSVFormulaWarning is the warning printed when a CSV export contains cells
 // that spreadsheet applications may evaluate as formulas.
-const CSVFormulaWarning = "CSV output contains cells starting with =, +, -, @, tab or carriage return that spreadsheet apps may evaluate as formulas; enable strict mode (strict: true or REDMINE_STRICT=1) to neutralize them with a leading single quote"
+const CSVFormulaWarning = "CSV output contains cells starting with =, +, -, @, tab or carriage return that spreadsheet apps may evaluate as formulas; check the data before opening it in a spreadsheet"
 
 // plainNumber matches cells such as "-1.5" or "+3" that start with a formula
 // trigger but are ordinary numbers, which spreadsheets import as values.
@@ -53,20 +53,4 @@ func HasFormulaCells(rows [][]string) bool {
 		}
 	}
 	return false
-}
-
-// NeutralizeFormulaCells returns a copy of rows in which every formula cell
-// is prefixed with a single quote, so spreadsheets treat it as text.
-func NeutralizeFormulaCells(rows [][]string) [][]string {
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = make([]string, len(row))
-		for j, cell := range row {
-			if IsFormulaCell(cell) {
-				cell = "'" + cell
-			}
-			out[i][j] = cell
-		}
-	}
-	return out
 }

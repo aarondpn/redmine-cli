@@ -25,14 +25,11 @@ const jqBufferLimit = 1 << 20
 // goes on its own line.
 type JQFilter struct {
 	code *gojq.Code
-	// noEnvCode is the same program compiled without the environment
-	// loader, so `env` and `$ENV` evaluate to {}.
-	noEnvCode *gojq.Code
 }
 
 // JQNoEnvVar is the environment variable that, when set to a true value,
 // hides the process environment from --jq expressions (`env` and `$ENV`
-// evaluate to {}). Strict mode has the same effect.
+// evaluate to {}).
 const JQNoEnvVar = "REDMINE_JQ_NO_ENV"
 
 // jqEnvDisabled reports whether REDMINE_JQ_NO_ENV asks to hide the
@@ -73,7 +70,7 @@ func (e *JQCompileError) Unwrap() error { return e.Err }
 // Failures are returned as *JQCompileError.
 //
 // The expression can read the process environment through `env` and `$ENV`
-// unless REDMINE_JQ_NO_ENV is set; see also WithoutEnv.
+// unless REDMINE_JQ_NO_ENV is set.
 func CompileJQ(expr string) (*JQFilter, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, &JQCompileError{Err: errors.New("expression is empty")}
@@ -82,25 +79,15 @@ func CompileJQ(expr string) (*JQFilter, error) {
 	if err != nil {
 		return nil, &JQCompileError{Err: err}
 	}
-	noEnvCode, err := gojq.Compile(query)
+	var opts []gojq.CompilerOption
+	if !jqEnvDisabled() {
+		opts = append(opts, gojq.WithEnvironLoader(os.Environ))
+	}
+	code, err := gojq.Compile(query, opts...)
 	if err != nil {
 		return nil, &JQCompileError{Err: err}
 	}
-	if jqEnvDisabled() {
-		return &JQFilter{code: noEnvCode, noEnvCode: noEnvCode}, nil
-	}
-	code, err := gojq.Compile(query, gojq.WithEnvironLoader(os.Environ))
-	if err != nil {
-		return nil, &JQCompileError{Err: err}
-	}
-	return &JQFilter{code: code, noEnvCode: noEnvCode}, nil
-}
-
-// WithoutEnv returns the filter with the process environment hidden: `env`
-// and `$ENV` evaluate to {}. Strict mode uses it so a --jq expression cannot
-// read secrets such as REDMINE_API_KEY from the environment.
-func (q *JQFilter) WithoutEnv() *JQFilter {
-	return &JQFilter{code: q.noEnvCode, noEnvCode: q.noEnvCode}
+	return &JQFilter{code: code}, nil
 }
 
 // Evaluate runs the filter against the JSON encoding of v and writes the

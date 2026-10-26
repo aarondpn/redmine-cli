@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -76,10 +75,8 @@ type GithubAsset struct {
 type updateOptions struct {
 	// SkipAttestation downgrades verification to checksum-only.
 	SkipAttestation bool
-	// SecurityCheck reports a security-relevant condition: it warns and
-	// returns nil by default, or returns an error in strict mode. Required
-	// when SkipAttestation is set; see factorySecurityCheck.
-	SecurityCheck func(msg string) error
+	// Warn prints a security warning. Required when SkipAttestation is set.
+	Warn func(msg string)
 }
 
 // NewCmdUpdate creates the update command.
@@ -97,24 +94,14 @@ func NewCmdUpdate(f *cmdutil.Factory, version string) *cobra.Command {
 			"this repository's release workflow for the exact release tag. The update is\n" +
 			"refused if either check fails.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.SecurityCheck = factorySecurityCheck(f)
+			opts.Warn = f.Warn
 			return runUpdateWithFormat(cmdutil.Context(cmd), version, cmd.OutOrStdout(), cmd.ErrOrStderr(), f.Printer(format), opts)
 		},
 	}
 	cmdutil.AddOutputFlag(cmd, &format)
 	cmd.Flags().BoolVar(&opts.SkipAttestation, "skip-attestation", false,
-		"Install with checksum verification only, skipping the attestation check (not recommended; rejected in strict mode)")
+		"Install with checksum verification only, skipping the attestation check (not recommended)")
 	return cmd
-}
-
-// factorySecurityCheck reports security conditions through f, in strict mode
-// if the selected profile or REDMINE_STRICT enables it. StrictMode needs no
-// credentials: Config can fail on a strict profile precisely because strict
-// mode refused something, which must not downgrade the check to a warning.
-func factorySecurityCheck(f *cmdutil.Factory) func(msg string) error {
-	return func(msg string) error {
-		return f.SecurityCheck(&config.Config{Strict: f.StrictMode()}, msg)
-	}
 }
 
 // checkHomebrew and upgradeHomebrew are package-level functions to allow
@@ -230,9 +217,7 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 
 	if opts.SkipAttestation {
 		msg := "--skip-attestation: the update will only be verified against the release checksums, which come from the same place as the archive; a tampered release would NOT be detected"
-		if err := opts.SecurityCheck(msg); err != nil {
-			return err
-		}
+		opts.Warn(msg)
 	}
 
 	logStep(printer, stderr, "Current version: %s\n", currentVersion)
@@ -320,7 +305,7 @@ func verifyAttestation(ctx context.Context, digest []byte, tag string) error {
 	if errors.As(err, &unavailable) {
 		return fmt.Errorf("attestation verification failed: %w\n\n"+
 			"Could not reach GitHub or the Sigstore TUF repository to verify the release attestation; refusing to install.\n"+
-			"Retry later, or re-run with --skip-attestation to install with checksum verification only (not recommended; rejected in strict mode).", err)
+			"Retry later, or re-run with --skip-attestation to install with checksum verification only (not recommended).", err)
 	}
 	return fmt.Errorf("attestation verification failed: %w; refusing to install %s", err, tag)
 }

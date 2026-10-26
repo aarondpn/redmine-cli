@@ -53,10 +53,9 @@ type Factory struct {
 	JQ *output.JQFilter
 
 	jqErr error
-	// securityMu guards securityWarned, so SecurityCheck can be called from
-	// any goroutine.
-	securityMu     sync.Mutex
-	securityWarned map[string]bool
+	// warnMu guards warned, so Warn can be called from any goroutine.
+	warnMu         sync.Mutex
+	warned         map[string]bool
 	apiKeyFromFile string
 	config         *config.Config
 	client         *api.Client
@@ -116,26 +115,16 @@ func (f *Factory) Config() (*config.Config, error) {
 		return nil, err
 	}
 
-	// A key on the command line is visible in process listings and shell
-	// history; strict mode insists on a channel that is not.
-	if f.APIKeyOverride != "" && cfg.Strict {
-		return nil, &StrictModeError{Msg: "--api-key exposes the API key in process listings and shell history; use --api-key-file, REDMINE_API_KEY, or a keyring profile (redmine auth login --keyring) instead"}
-	}
-
 	// A stored secret is bound to the server it was saved for; following a
 	// --server / REDMINE_SERVER override elsewhere hands it to another host.
 	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, cfg.Server) {
-		if err := f.SecurityCheck(cfg, storedCredentialOverrideMessage(cfg, profile, server)); err != nil {
-			return nil, err
-		}
+		f.Warn(storedCredentialOverrideMessage(cfg, profile, server))
 	}
 	// Profile headers can hold proxy tokens bound to the same server; only
 	// those not replaced by a --header on this invocation are checked.
 	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, cfg.Server) {
 		if names := profileHeadersInUse(cfg.Headers, f.Headers); len(names) > 0 {
-			if err := f.SecurityCheck(cfg, profileHeadersOverrideMessage(cfg, profile, server, names)); err != nil {
-				return nil, err
-			}
+			f.Warn(profileHeadersOverrideMessage(cfg, profile, server, names))
 		}
 	}
 
@@ -153,9 +142,7 @@ func (f *Factory) Config() (*config.Config, error) {
 	return cfg, nil
 }
 
-// ApiClient returns an API client (cached after first call). A plain http://
-// server on a non-loopback host triggers a cleartext-credentials security
-// warning, which is an error in strict mode.
+// ApiClient returns an API client (cached after first call).
 func (f *Factory) ApiClient() (*api.Client, error) {
 	if f.client != nil {
 		return f.client, nil
@@ -163,11 +150,6 @@ func (f *Factory) ApiClient() (*api.Client, error) {
 	cfg, err := f.Config()
 	if err != nil {
 		return nil, err
-	}
-	if api.IsCleartextServer(cfg.Server) {
-		if err := f.SecurityCheck(cfg, api.CleartextServerWarning(cfg.Server)); err != nil {
-			return nil, err
-		}
 	}
 	client, err := api.NewClient(cfg, f.DebugLogger())
 	if err != nil {
@@ -204,19 +186,11 @@ func (f *Factory) Printer(format string) output.Printer {
 	if noColor {
 		os.Setenv("NO_COLOR", "1")
 	}
-	strict := cfg != nil && cfg.Strict
 	p := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
-	// Strict mode neutralizes CSV formula cells; otherwise they are written
-	// verbatim with a one-time warning.
-	p.SetCSVFormulaGuard(strict, func(msg string) {
-		_ = f.SecurityCheck(cfg, msg)
-	})
+	// CSV formula cells are written verbatim with a one-time warning.
+	p.SetCSVFormulaWarn(f.Warn)
 	if f.JQ != nil && p.Format() == output.FormatJSON {
-		q := f.JQ
-		if strict {
-			q = q.WithoutEnv()
-		}
-		p.SetJQ(q, f.recordJQError)
+		p.SetJQ(f.JQ, f.recordJQError)
 	}
 	return p
 }

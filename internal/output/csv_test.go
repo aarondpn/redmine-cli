@@ -3,7 +3,6 @@ package output
 import (
 	"bytes"
 	"io"
-	"reflect"
 	"testing"
 )
 
@@ -42,47 +41,22 @@ func TestIsFormulaCell(t *testing.T) {
 	}
 }
 
-func TestNeutralizeFormulaCells(t *testing.T) {
-	rows := [][]string{
-		{"1", "=1+1", "-1.5"},
-		{"2", "@cmd", "plain"},
-	}
-	want := [][]string{
-		{"1", "'=1+1", "-1.5"},
-		{"2", "'@cmd", "plain"},
-	}
-	got := NeutralizeFormulaCells(rows)
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("NeutralizeFormulaCells = %q, want %q", got, want)
-	}
-	if rows[0][1] != "=1+1" {
-		t.Errorf("input rows were modified: %q", rows)
-	}
-}
-
 func TestPrinterCSV_FormulaGuard(t *testing.T) {
 	headers := []string{"=ID", "SUBJECT", "HOURS"}
 	evilRows := [][]string{{"1", "=HYPERLINK(\"http://evil.example\")", "-1.5"}}
 	safeRows := [][]string{{"1", "Crash on save", "-1.5"}}
 
 	tests := []struct {
-		name       string
-		neutralize bool
-		rows       [][]string
-		wantOut    string
-		wantWarn   bool
+		name     string
+		rows     [][]string
+		wantOut  string
+		wantWarn bool
 	}{
 		{
-			name:     "default keeps output verbatim and warns",
+			name:     "keeps output verbatim and warns",
 			rows:     evilRows,
 			wantOut:  "=ID,SUBJECT,HOURS\n1,\"=HYPERLINK(\"\"http://evil.example\"\")\",-1.5\n",
 			wantWarn: true,
-		},
-		{
-			name:       "strict neutralizes",
-			neutralize: true,
-			rows:       evilRows,
-			wantOut:    "=ID,SUBJECT,HOURS\n1,\"'=HYPERLINK(\"\"http://evil.example\"\")\",-1.5\n",
 		},
 		{
 			name:    "no formula cells, no warning",
@@ -95,7 +69,7 @@ func TestPrinterCSV_FormulaGuard(t *testing.T) {
 			var out bytes.Buffer
 			var warnings []string
 			p := NewStdPrinter(&out, io.Discard, false, true, FormatCSV)
-			p.SetCSVFormulaGuard(tt.neutralize, func(msg string) { warnings = append(warnings, msg) })
+			p.SetCSVFormulaWarn(func(msg string) { warnings = append(warnings, msg) })
 			p.CSV(headers, tt.rows)
 			if out.String() != tt.wantOut {
 				t.Errorf("CSV output = %q, want %q", out.String(), tt.wantOut)

@@ -97,7 +97,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&server, "server", "s", "", "Redmine server URL")
-	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication (visible in process listings; prefer --api-key-file or REDMINE_API_KEY)")
+	cmd.PersistentFlags().StringVarP(&apiKey, "api-key", "k", "", "API key for authentication (visible in process listings; prefer --api-key-file, REDMINE_API_KEY, or a keyring profile)")
 	cmd.PersistentFlags().StringVar(&apiKeyFile, "api-key-file", "", `Read the API key from a file ("-" for stdin) instead of passing it on the command line`)
 	cmd.MarkFlagsMutuallyExclusive("api-key", "api-key-file")
 	cmd.PersistentFlags().StringVar(&profile, "profile", "", "Use a specific auth profile")
@@ -205,7 +205,6 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 					"default_project": cfg.DefaultProject,
 					"output_format":   cfg.OutputFormat,
 					"read_only":       strconv.FormatBool(cfg.ReadOnly),
-					"strict":          strconv.FormatBool(cfg.Strict),
 					"headers":         strings.Join(headerNames, ", "),
 				})
 				return nil
@@ -217,7 +216,6 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Default Project", Value: cfg.DefaultProject},
 				{Key: "Output Format", Value: cfg.OutputFormat},
 				{Key: "Read Only", Value: strconv.FormatBool(cfg.ReadOnly)},
-				{Key: "Strict", Value: strconv.FormatBool(cfg.Strict)},
 				{Key: "Headers", Value: strings.Join(headerNames, ", ")},
 			})
 			return nil

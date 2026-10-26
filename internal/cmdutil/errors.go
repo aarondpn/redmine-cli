@@ -173,10 +173,6 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 	if errors.As(err, &existsErr) {
 		env.Error.Code = output.ErrCodeAlreadyExists
 	}
-	var strictErr *StrictModeError
-	if errors.As(err, &strictErr) {
-		env.Error.Code = output.ErrCodeStrictMode
-	}
 
 	return env
 }

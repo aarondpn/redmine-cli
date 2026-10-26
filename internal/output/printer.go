@@ -47,10 +47,8 @@ type StdPrinter struct {
 	jq        *JQFilter
 	onJQError func(error)
 
-	// neutralizeFormulas prefixes CSV formula cells with a single quote;
-	// otherwise onFormulaCells is told about them and output stays verbatim.
-	neutralizeFormulas bool
-	onFormulaCells     func(msg string)
+	// onFormulaCells is told about CSV formula cells; output stays verbatim.
+	onFormulaCells func(msg string)
 }
 
 // NewStdPrinter creates a new StdPrinter.
@@ -83,12 +81,10 @@ func (p *StdPrinter) SetJQ(q *JQFilter, onErr func(error)) {
 	p.onJQError = onErr
 }
 
-// SetCSVFormulaGuard configures how CSV output handles cells that
-// spreadsheet apps may evaluate as formulas (see IsFormulaCell). With
-// neutralize the cells are prefixed with a single quote; otherwise the
-// output is written verbatim and warn, if set, receives CSVFormulaWarning.
-func (p *StdPrinter) SetCSVFormulaGuard(neutralize bool, warn func(msg string)) {
-	p.neutralizeFormulas = neutralize
+// SetCSVFormulaWarn sets the function that receives CSVFormulaWarning when
+// CSV output contains cells spreadsheet apps may evaluate as formulas (see
+// IsFormulaCell). The output itself is written verbatim.
+func (p *StdPrinter) SetCSVFormulaWarn(warn func(msg string)) {
 	p.onFormulaCells = warn
 }
 
@@ -133,12 +129,8 @@ func (p *StdPrinter) JSON(v interface{}) {
 }
 
 func (p *StdPrinter) CSV(headers []string, rows [][]string) {
-	if HasFormulaCells(rows) {
-		if p.neutralizeFormulas {
-			rows = NeutralizeFormulaCells(rows)
-		} else if p.onFormulaCells != nil {
-			p.onFormulaCells(CSVFormulaWarning)
-		}
+	if p.onFormulaCells != nil && HasFormulaCells(rows) {
+		p.onFormulaCells(CSVFormulaWarning)
 	}
 	RenderCSV(p.out, headers, rows)
 }

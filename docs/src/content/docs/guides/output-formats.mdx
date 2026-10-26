@@ -119,8 +119,7 @@ How it behaves:
 - Errors are never filtered: a failed command writes its error envelope to
   `stderr` as-is.
 - The expression can read the process environment through `env` and `$ENV`.
-  In [strict mode](/getting-started/configuration/#strict-mode) (`strict: true` or `REDMINE_STRICT=1`),
-  or with `REDMINE_JQ_NO_ENV=1`, both evaluate to `{}` instead. Set
+  With `REDMINE_JQ_NO_ENV=1`, both evaluate to `{}` instead. Set
   `REDMINE_JQ_NO_ENV=1` in wrappers that pass jq expressions from an
   untrusted source, so they cannot read secrets such as `REDMINE_API_KEY`.
 
@@ -189,7 +188,7 @@ come before it:
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
-`jq_failed`, `status_not_applied`, `timeout`, `already_exists`, `strict_mode`,
+`jq_failed`, `status_not_applied`, `timeout`, `already_exists`,
 `unknown`. Validation and conflict errors include a `details`
 array with the individual messages from Redmine. `validation_failed` is also
 used, without `details`, when the CLI rejects an argument before sending
@@ -202,9 +201,7 @@ response (see above). `timeout` means connecting to the server, or waiting
 for its response, timed out (see
 [timeouts](/getting-started/configuration/#timeouts-and-limits));
 `already_exists` means a download target already exists and `--clobber` was
-not given; `strict_mode` means
-[strict mode](/getting-started/configuration/#strict-mode) refused something
-that is otherwise only a warning.
+not given.
 
 `status_not_applied` means Redmine accepted an issue update but silently kept
 the old status (see
@@ -296,22 +293,16 @@ of what the CLI prints. The output layer treats that text as untrusted:
   including the `details` of JSON error envelopes and MCP tool errors.
 - **CSV.** Cells that start with `=`, `+`, `-`, `@`, a tab or a carriage
   return may be evaluated as formulas when the file is opened in a
-  spreadsheet app. By default the CSV stays unchanged and a single warning is
-  printed to `stderr`; in strict mode those cells are prefixed with a single
-  quote (`'`) so spreadsheets treat them as text. Plain numbers such as
-  `-1.5` are never flagged or changed.
-- **`--jq` and the environment.** `env` / `$ENV` work by default. Strict mode
-  or `REDMINE_JQ_NO_ENV=1` hides the environment from the expression.
+  spreadsheet app. The CSV stays unchanged and a single warning is printed
+  to `stderr`. Plain numbers such as `-1.5` are never flagged.
+- **`--jq` and the environment.** `env` / `$ENV` work by default.
+  `REDMINE_JQ_NO_ENV=1` hides the environment from the expression.
 - **Opening links.** `issues open` and the open key in the interactive
   browsers only launch absolute `http`/`https` URLs, never strings starting
   with `-`, and never through a shell (Windows uses
   `rundll32 url.dll,FileProtocolHandler`). Issue search results are opened
   on your configured server. A link to any other host is shown in full in
   the status line and only opened when you press `o` a second time.
-
-Strict mode is enabled per profile with `strict: true` in the config file, or
-for a single shell with `REDMINE_STRICT=1`. See
-[Strict mode](/getting-started/configuration/#strict-mode) for everything it changes.
 
 ## Related
 

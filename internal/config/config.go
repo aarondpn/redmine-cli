@@ -511,7 +511,6 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
-	entry.Strict = old.Strict
 	// auth login never sets the mcp block. A token kept in the keyring stays
 	// there under the reused KeyringID.
 	if reflect.ValueOf(entry.MCP).IsZero() {
@@ -679,12 +678,6 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		cfg.ReadOnly = ParseBoolEnv(val)
 	}
 
-	// The environment may enable strict mode but never disable it, so a
-	// profile with strict: true stays strict whatever REDMINE_STRICT says.
-	if ParseBoolEnv(os.Getenv("REDMINE_STRICT")) {
-		cfg.Strict = true
-	}
-
 	mcpListEnv := map[string]*[]string{
 		"REDMINE_MCP_ENABLE_GROUPS":  &cfg.MCP.EnableGroups,
 		"REDMINE_MCP_DISABLE_GROUPS": &cfg.MCP.DisableGroups,
@@ -730,17 +723,6 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
-}
-
-// StrictEnv reports the REDMINE_STRICT setting; set is false when the variable
-// is unset or empty. For callers that need strict mode without loading a
-// profile (e.g. auth login).
-func StrictEnv() (strict, set bool) {
-	val := os.Getenv("REDMINE_STRICT")
-	if val == "" {
-		return false, false
-	}
-	return ParseBoolEnv(val), true
 }
 
 // parseBoolEnv treats common falsy values as false; everything else is true.

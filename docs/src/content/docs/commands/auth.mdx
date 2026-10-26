@@ -31,9 +31,9 @@ redmine auth login --header "User-Agent: Mozilla/5.0"   # server behind a picky 
 | `--keyring` | Store credentials in the system keyring instead of the plaintext config file. See [Configuration](/getting-started/configuration/#system-keyring-optional). |
 | `--header` | Global flag. Headers are used for the connection test and saved to the profile. See [Custom HTTP headers](/getting-started/configuration/#custom-http-headers). |
 
-The API key and password prompts are masked. If the server URL uses `http://` and the host is not loopback, the wizard prints the same cleartext warning as every other command (see [Connection security](/getting-started/configuration/#connection-security)). In [strict mode](/getting-started/configuration/#strict-mode) it refuses such a URL before asking for credentials.
+The API key and password prompts are masked. If the server URL uses `http://` and the host is not loopback, the wizard points out once, before asking for credentials, that they will be sent unencrypted; plain `http://` is still accepted (see [Connection security](/getting-started/configuration/#connection-security)).
 
-Logging in again keeps the profile's `read_only`, `strict`, and `mcp` settings.
+Logging in again keeps the profile's `read_only` and `mcp` settings.
 
 <Aside type="tip">
   Run `redmine auth login` again at any time to add another profile — the wizard never overwrites an existing one without confirmation.

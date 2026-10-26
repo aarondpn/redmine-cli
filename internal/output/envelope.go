@@ -57,8 +57,6 @@ const (
 	// ErrCodeAlreadyExists: a download target exists and --clobber was not
 	// given.
 	ErrCodeAlreadyExists = "already_exists"
-	// ErrCodeStrictMode: strict mode turned a security warning into an error.
-	ErrCodeStrictMode = "strict_mode"
 )
 
 // Action actions exposed by no-body mutators. Keep the vocabulary small.

@@ -111,20 +111,11 @@ func (fx *updateFixture) installed(t *testing.T) string {
 	return string(data)
 }
 
-// testSecurityCheck returns the security check NewCmdUpdate wires up, for a
-// Factory without a config file that writes warnings to errOut.
-func testSecurityCheck(t *testing.T, errOut *bytes.Buffer, strict bool) func(string) error {
-	t.Helper()
-	if strict {
-		t.Setenv("REDMINE_STRICT", "1")
-	} else {
-		t.Setenv("REDMINE_STRICT", "")
-	}
-	f := &cmdutil.Factory{
-		ConfigPath: filepath.Join(t.TempDir(), "missing.yaml"),
-		IOStreams:  &cmdutil.IOStreams{Out: io.Discard, ErrOut: errOut},
-	}
-	return factorySecurityCheck(f)
+// testWarn returns the warning function NewCmdUpdate wires up, for a
+// Factory that writes warnings to errOut.
+func testWarn(errOut *bytes.Buffer) func(string) {
+	f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{Out: io.Discard, ErrOut: errOut}}
+	return f.Warn
 }
 
 func TestRunUpdate_AttestationDecision(t *testing.T) {
@@ -132,7 +123,6 @@ func TestRunUpdate_AttestationDecision(t *testing.T) {
 		name            string
 		verifyErr       error
 		opts            updateOptions
-		strict          bool
 		wantErr         bool
 		wantErrContains []string
 		wantErrNot      []string
@@ -178,16 +168,6 @@ func TestRunUpdate_AttestationDecision(t *testing.T) {
 			wantInstalled:   true,
 			wantStderr:      "warning: --skip-attestation",
 		},
-		{
-			name:            "skip flag rejected in strict mode",
-			verifyErr:       errors.New("must not be called"),
-			opts:            updateOptions{SkipAttestation: true},
-			strict:          true,
-			wantErr:         true,
-			wantErrContains: []string{"strict mode"},
-			wantVerifyCalls: 0,
-			wantNoDownload:  true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -197,7 +177,7 @@ func TestRunUpdate_AttestationDecision(t *testing.T) {
 
 			var out, errOut bytes.Buffer
 			opts := tt.opts
-			opts.SecurityCheck = testSecurityCheck(t, &errOut, tt.strict)
+			opts.Warn = testWarn(&errOut)
 			err := runUpdateWithFormat(context.Background(), "1.0.0", &out, &errOut,
 				output.NewStdPrinter(&out, &errOut, false, true, output.FormatTable), opts)
 
@@ -249,34 +229,22 @@ func TestRunUpdate_AttestationDecision(t *testing.T) {
 	}
 }
 
-// TestNewCmdUpdate_SkipAttestationStrict exercises the real Factory wiring:
-// REDMINE_STRICT=1 must reject --skip-attestation even without a config file,
-// and a strict profile must reject it even when the config cannot be loaded.
-func TestNewCmdUpdate_SkipAttestationStrict(t *testing.T) {
-	const strictProfile = "profiles:\n  work:\n    server: https://redmine.example.com\n    api_key: stored\n    strict: true\n"
+// TestNewCmdUpdate_SkipAttestationWarns exercises the real Factory wiring:
+// --skip-attestation warns and installs, whatever state the config is in.
+func TestNewCmdUpdate_SkipAttestationWarns(t *testing.T) {
 	tests := []struct {
-		name          string
-		strict        string
-		configYAML    string // empty: no config file
-		apiKey        string // --api-key
-		wantErr       bool
-		wantInstalled bool
+		name       string
+		configYAML string // empty: no config file
+		apiKey     string // --api-key
 	}{
-		{name: "strict rejects", strict: "1", wantErr: true},
-		{name: "non-strict warns", strict: "", wantInstalled: true},
-		{name: "strict profile rejects", configYAML: strictProfile, wantErr: true},
-		// Config() fails here: strict mode refuses --api-key.
-		{name: "strict profile rejects when --api-key breaks the config", configYAML: strictProfile, apiKey: "X", wantErr: true},
-		{name: "strict profile rejects when the keyring secret is missing", configYAML: "profiles:\n  work:\n    server: https://redmine.example.com\n    credential_store: keyring\n    keyring_id: missing\n    strict: true\n", wantErr: true},
-		{name: "REDMINE_STRICT=0 cannot lower a strict profile", strict: "0", configYAML: strictProfile, wantErr: true},
-		{name: "unparsable config fails closed", configYAML: "profiles: [", wantErr: true},
-		{name: "non-strict profile warns", configYAML: "profiles:\n  work:\n    server: https://redmine.example.com\n    api_key: stored\n", apiKey: "X", wantInstalled: true},
+		{name: "no config file"},
+		{name: "unparsable config", configYAML: "profiles: ["},
+		{name: "profile with --api-key", configYAML: "profiles:\n  work:\n    server: https://redmine.example.com\n    api_key: stored\n", apiKey: "X"},
 	}
 	// Keep keyring lookups away from the real system keyring.
 	keyring.MockInit()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("REDMINE_STRICT", tt.strict)
 			t.Setenv("REDMINE_API_KEY", "")
 			fx := newUpdateFixture(t)
 			fake := &fakeAttestationVerifier{err: errors.New("must not be called")}
@@ -300,80 +268,17 @@ func TestNewCmdUpdate_SkipAttestationStrict(t *testing.T) {
 			cmd.SetErr(&errOut)
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
-			err := cmd.Execute()
-
-			if tt.wantErr {
-				var strictErr *cmdutil.StrictModeError
-				if !errors.As(err, &strictErr) {
-					t.Fatalf("expected StrictModeError, got: %v", err)
-				}
-				if fx.downloads != 0 {
-					t.Errorf("expected no download in strict mode, got %d", fx.downloads)
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
-				if !strings.Contains(errOut.String(), "warning: --skip-attestation") {
-					t.Errorf("expected skip warning on stderr, got %q", errOut.String())
-				}
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := strings.Count(errOut.String(), "warning: --skip-attestation"); got != 1 {
+				t.Errorf("expected one skip warning on stderr, got %q", errOut.String())
 			}
 			if fake.calls != 0 {
 				t.Errorf("verifier must not run with --skip-attestation, got %d calls", fake.calls)
 			}
-			if got := fx.installed(t); tt.wantInstalled != (got == fixtureNewBinary) {
-				t.Errorf("installed binary = %q, wantInstalled %v", got, tt.wantInstalled)
-			}
-		})
-	}
-}
-
-func TestNotWritableError(t *testing.T) {
-	tests := []struct {
-		name    string
-		tag     string
-		want    []string
-		wantNot []string
-	}{
-		{
-			name: "pins install.sh to the release tag",
-			tag:  "v9.8.7",
-			want: []string{
-				"curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/v9.8.7/install.sh | REDMINE_CLI_VERSION=v9.8.7 bash",
-				"https://github.com/aarondpn/redmine-cli/releases/tag/v9.8.7",
-			},
-			wantNot: []string{"/main/install.sh"},
-		},
-		{
-			name:    "prerelease tag",
-			tag:     "v3.0.0-rc.1",
-			want:    []string{"/v3.0.0-rc.1/install.sh", "REDMINE_CLI_VERSION=v3.0.0-rc.1 bash"},
-			wantNot: []string{"/main/install.sh"},
-		},
-		{
-			// The tag comes from the GitHub API; never paste an unexpected
-			// value into a command the user may copy into a shell.
-			name:    "unsafe tag falls back to the releases page",
-			tag:     "v1;touch /tmp/pwned",
-			want:    []string{"https://github.com/aarondpn/redmine-cli/releases/latest"},
-			wantNot: []string{"curl", "touch", "/main/install.sh"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			msg := notWritableError("/usr/local/bin", tt.tag).Error()
-			if !strings.HasPrefix(msg, "cannot update: /usr/local/bin is not writable") {
-				t.Errorf("unexpected prefix:\n%s", msg)
-			}
-			for _, s := range tt.want {
-				if !strings.Contains(msg, s) {
-					t.Errorf("expected message to contain %q, got:\n%s", s, msg)
-				}
-			}
-			for _, s := range tt.wantNot {
-				if strings.Contains(msg, s) {
-					t.Errorf("expected message not to contain %q, got:\n%s", s, msg)
-				}
+			if got := fx.installed(t); got != fixtureNewBinary {
+				t.Errorf("installed binary = %q, want the new binary", got)
 			}
 		})
 	}

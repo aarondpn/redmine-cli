@@ -127,7 +127,6 @@ func TestBuildErrorEnvelope_FailuresWithoutHTTPStatus(t *testing.T) {
 		{"other request failure", fmt.Errorf("request failed: %w", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: errors.New("connection refused")}), output.ErrCodeUnknown},
 		{"cancelled request", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: context.Canceled}, output.ErrCodeUnknown},
 		{"download target exists", fmt.Errorf("attachment 7: %w", &DestinationExistsError{Path: "report.pdf"}), output.ErrCodeAlreadyExists},
-		{"strict mode", fmt.Errorf("checking server: %w", &StrictModeError{Msg: "server uses plain http://"}), output.ErrCodeStrictMode},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

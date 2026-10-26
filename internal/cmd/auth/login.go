@@ -117,11 +117,8 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 		}
 	}
 
-	// Checked before the credentials are entered, so strict mode refuses
-	// before anything secret is typed.
-	if err := checkCleartextServer(f, server, profileName); err != nil {
-		return err
-	}
+	// Pointed out before the credentials are entered.
+	warnCleartextServer(f, server)
 
 	// Step 3: Credentials
 	if authMethod == "apikey" {
@@ -298,16 +295,13 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 	return confirm, nil
 }
 
-// checkCleartextServer warns, or refuses in strict mode, when the server URL
-// would send the credentials in cleartext. It uses the same check and warning
-// as every other command (api.IsCleartextServer). Strict mode comes from
-// profileName, the profile being created or replaced, or REDMINE_STRICT.
-func checkCleartextServer(f *cmdutil.Factory, server, profileName string) error {
-	if !api.IsCleartextServer(server) {
-		return nil
+// warnCleartextServer warns when the server URL would send the credentials
+// in cleartext (api.IsCleartextServer). Plain http:// is supported, so this
+// is the only place the CLI points it out.
+func warnCleartextServer(f *cmdutil.Factory, server string) {
+	if api.IsCleartextServer(server) {
+		f.Warn(api.CleartextServerWarning(server))
 	}
-	cfg := &config.Config{Strict: f.ProfileStrictMode(profileName)}
-	return f.SecurityCheck(cfg, api.CleartextServerWarning(server))
 }
 
 // loginProxyHint replaces the generic forbidden hint for the login probe. A

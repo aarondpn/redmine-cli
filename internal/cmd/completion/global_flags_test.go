@@ -35,7 +35,7 @@ func trackerServer(t *testing.T, name string) (*httptest.Server, *bool) {
 // ~/.redmine-cli.yaml. It returns the temporary home directory.
 func isolateEnv(t *testing.T) string {
 	t.Helper()
-	for _, env := range []string{"REDMINE_SERVER", "REDMINE_API_KEY", "REDMINE_PROFILE", "REDMINE_STRICT"} {
+	for _, env := range []string{"REDMINE_SERVER", "REDMINE_API_KEY", "REDMINE_PROFILE"} {
 		t.Setenv(env, "")
 	}
 	home := t.TempDir()

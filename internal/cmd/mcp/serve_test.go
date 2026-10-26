@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -224,10 +223,10 @@ func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
 	}
 }
 
-func TestServeHelp_AuthTokenMentionsStrictLoopback(t *testing.T) {
+func TestServeHelp_AuthTokenHintsAtSaferChannels(t *testing.T) {
 	usage := newCmdServe(cmdutil.NewFactory()).Flags().Lookup("auth-token").Usage
-	if !strings.Contains(usage, "in strict mode for loopback binds too") {
-		t.Fatalf("--auth-token help should say strict mode also generates a token on loopback: %q", usage)
+	if !strings.Contains(usage, "prefer --auth-token-file, REDMINE_MCP_AUTH_TOKEN, or mcp.auth_token") {
+		t.Fatalf("--auth-token help should point at --auth-token-file, REDMINE_MCP_AUTH_TOKEN and mcp.auth_token: %q", usage)
 	}
 }
 
@@ -243,7 +242,7 @@ func newHTTPAuthCmd() (*cobra.Command, *bytes.Buffer) {
 }
 
 // newHTTPAuthFactory returns a Factory whose streams are the command's, so
-// SecurityCheck warnings land in the same buffer as cmd.ErrOrStderr().
+// Warn output lands in the same buffer as cmd.ErrOrStderr().
 func newHTTPAuthFactory(cmd *cobra.Command) *cmdutil.Factory {
 	return &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{
 		In:     cmd.InOrStdin(),
@@ -286,31 +285,6 @@ func TestResolveHTTPAuth_LoopbackWithoutTokenStaysOpen(t *testing.T) {
 	}
 }
 
-// TestResolveHTTPAuth_LoopbackStrictGeneratesToken pins L-09: strict mode
-// does not refuse an unauthenticated loopback bind, it closes it by
-// generating a token exactly like the non-loopback path.
-func TestResolveHTTPAuth_LoopbackStrictGeneratesToken(t *testing.T) {
-	cmd, stderr := newHTTPAuthCmd()
-	cfg := &config.Config{Strict: true}
-
-	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{})
-	if err != nil {
-		t.Fatalf("resolveHTTPAuth: %v", err)
-	}
-	if !generated || len(token) != 64 {
-		t.Fatalf("generated token = %q (generated=%v), want 64 hex chars", token, generated)
-	}
-	if stderr.Len() != 0 {
-		t.Errorf("token must only be printed after the listener is up, got %q", stderr.String())
-	}
-
-	var out bytes.Buffer
-	printGeneratedToken(&out, token, true)
-	if !strings.Contains(out.String(), token) || !strings.Contains(out.String(), "strict mode") {
-		t.Errorf("printGeneratedToken output = %q, want the token and the strict-mode reason", out.String())
-	}
-}
-
 func TestResolveHTTPAuth_LoopbackWithTokenOrNoAuthIsSilent(t *testing.T) {
 	tests := []struct {
 		name string
@@ -318,7 +292,6 @@ func TestResolveHTTPAuth_LoopbackWithTokenOrNoAuthIsSilent(t *testing.T) {
 	}{
 		{"configured token", &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}},
 		{"explicit no-auth", &config.Config{MCP: config.MCPConfig{NoAuth: true}}},
-		{"explicit no-auth in strict mode", &config.Config{Strict: true, MCP: config.MCPConfig{NoAuth: true}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -337,66 +310,24 @@ func TestResolveHTTPAuth_LoopbackWithTokenOrNoAuthIsSilent(t *testing.T) {
 	}
 }
 
-// TestResolveHTTPAuth_AuthTokenFlag covers the L-07 half for MCP: a token on
-// the command line still works but warns, and strict mode refuses it.
+// TestResolveHTTPAuth_AuthTokenFlag pins that a token on the command line is
+// used as is, without a warning (like --api-key); the flag help points at
+// the channels that keep it out of the process list.
 func TestResolveHTTPAuth_AuthTokenFlag(t *testing.T) {
-	t.Run("warns by default", func(t *testing.T) {
-		cmd, stderr := newHTTPAuthCmd()
-		if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
-			t.Fatalf("Set: %v", err)
-		}
-		token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{Token: "from-flag"})
-		if err != nil {
-			t.Fatalf("resolveHTTPAuth: %v", err)
-		}
-		if token != "from-flag" {
-			t.Errorf("token = %q, want from-flag", token)
-		}
-		if !strings.Contains(stderr.String(), "warning: --auth-token puts the MCP bearer token in the process list") {
-			t.Errorf("expected an --auth-token warning, got %q", stderr.String())
-		}
-		if strings.Contains(stderr.String(), "from-flag") {
-			t.Errorf("warning must not echo the token: %q", stderr.String())
-		}
-	})
-
-	t.Run("strict mode refuses", func(t *testing.T) {
-		cmd, _ := newHTTPAuthCmd()
-		if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
-			t.Fatalf("Set: %v", err)
-		}
-		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, &config.Config{Strict: true}, false, httpAuthFlags{Token: "from-flag"})
-		var strictErr *cmdutil.StrictModeError
-		if !errors.As(err, &strictErr) {
-			t.Fatalf("err = %v, want *cmdutil.StrictModeError", err)
-		}
-	})
-
-	t.Run("strict mode accepts config and env tokens", func(t *testing.T) {
-		cmd, stderr := newHTTPAuthCmd()
-		cfg := &config.Config{Strict: true, MCP: config.MCPConfig{AuthToken: "from-env"}}
-		token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
-		if err != nil {
-			t.Fatalf("resolveHTTPAuth: %v", err)
-		}
-		if token != "from-env" || stderr.Len() != 0 {
-			t.Errorf("token = %q, stderr = %q; want from-env and no warning", token, stderr.String())
-		}
-	})
-
-	t.Run("explicitly empty flag is not a secret", func(t *testing.T) {
-		cmd, stderr := newHTTPAuthCmd()
-		if err := cmd.Flags().Set("auth-token", ""); err != nil {
-			t.Fatalf("Set: %v", err)
-		}
-		cfg := &config.Config{Strict: true}
-		if _, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{}); err != nil {
-			t.Fatalf("resolveHTTPAuth: %v", err)
-		}
-		if strings.Contains(stderr.String(), "--auth-token puts") {
-			t.Errorf("empty --auth-token should not warn: %q", stderr.String())
-		}
-	})
+	cmd, stderr := newHTTPAuthCmd()
+	if err := cmd.Flags().Set("auth-token", "from-flag"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{Token: "from-flag"})
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if token != "from-flag" || generated {
+		t.Errorf("token = %q (generated=%v), want from-flag", token, generated)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("unexpected stderr output: %q", stderr.String())
+	}
 }
 
 func TestResolveHTTPAuth_AuthTokenFile(t *testing.T) {
@@ -421,7 +352,6 @@ func TestResolveHTTPAuth_AuthTokenFile(t *testing.T) {
 		{name: "file, trailing newline trimmed", path: good, want: "file-token"},
 		{name: "stdin", path: "-", stdin: "stdin-token\n", want: "stdin-token"},
 		{name: "file beats config token", path: good, cfg: &config.Config{MCP: config.MCPConfig{AuthToken: "from-config"}}, want: "file-token"},
-		{name: "allowed in strict mode", path: good, cfg: &config.Config{Strict: true}, want: "file-token"},
 		{name: "empty file", path: write("empty", "\n\n"), wantError: "is empty"},
 		{name: "empty stdin", path: "-", wantError: "standard input is empty"},
 		{name: "whitespace inside", path: write("two", "a b\n"), wantError: "must not contain whitespace"},
@@ -482,7 +412,7 @@ func TestResolveHTTPAuth_NonLoopbackGeneratesToken(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	printGeneratedToken(&out, token, false)
+	printGeneratedToken(&out, token)
 	if !strings.Contains(out.String(), token) {
 		t.Errorf("printGeneratedToken output misses the token: %q", out.String())
 	}
@@ -557,16 +487,18 @@ func TestResolveHTTPAuth_KeyringToken(t *testing.T) {
 		}
 	})
 
-	t.Run("also on loopback in strict mode", func(t *testing.T) {
+	t.Run("also on loopback", func(t *testing.T) {
 		cfg := loadKeyringProfile(t)
-		cfg.Strict = true
-		cmd, _ := newHTTPAuthCmd()
+		cmd, stderr := newHTTPAuthCmd()
 		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{})
 		if err != nil {
 			t.Fatalf("resolveHTTPAuth: %v", err)
 		}
 		if token != "keyring-token" || generated {
 			t.Errorf("token = %q (generated=%v), want the keyring token", token, generated)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("unexpected stderr output: %q", stderr.String())
 		}
 	})
 
@@ -618,33 +550,22 @@ func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {
 	}
 }
 
-// A non-loopback --no-auth bind (flag, mcp.no_auth or REDMINE_MCP_NO_AUTH)
-// leaves the server open to the network, so strict mode refuses it.
-func TestResolveHTTPAuth_NoAuthNonLoopbackStrict(t *testing.T) {
-	t.Run("config", func(t *testing.T) {
-		cmd, stderr := newHTTPAuthCmd()
-		cfg := &config.Config{Strict: true, MCP: config.MCPConfig{NoAuth: true}}
-		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
-		var strictErr *cmdutil.StrictModeError
-		if !errors.As(err, &strictErr) || !strings.Contains(err.Error(), "--no-auth") {
-			t.Fatalf("resolveHTTPAuth() error = %v, want a StrictModeError about --no-auth", err)
-		}
-		if stderr.Len() != 0 {
-			t.Errorf("strict mode should fail instead of warning, got %q", stderr.String())
-		}
-	})
-	t.Run("flag", func(t *testing.T) {
-		cmd, _ := newHTTPAuthCmd()
-		if err := cmd.Flags().Set("no-auth", "true"); err != nil {
-			t.Fatalf("Set: %v", err)
-		}
-		cfg := &config.Config{Strict: true}
-		_, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{NoAuth: true})
-		var strictErr *cmdutil.StrictModeError
-		if !errors.As(err, &strictErr) {
-			t.Fatalf("resolveHTTPAuth() error = %v, want a StrictModeError", err)
-		}
-	})
+// A non-loopback --no-auth flag serves unauthenticated, with a warning.
+func TestResolveHTTPAuth_NoAuthFlagNonLoopback(t *testing.T) {
+	cmd, stderr := newHTTPAuthCmd()
+	if err := cmd.Flags().Set("no-auth", "true"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, nil, false, httpAuthFlags{NoAuth: true})
+	if err != nil {
+		t.Fatalf("resolveHTTPAuth: %v", err)
+	}
+	if token != "" || generated {
+		t.Errorf("token = %q (generated=%v), want none", token, generated)
+	}
+	if want := "warning: " + publicNoAuthWarning + "\n"; stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
 }
 
 func TestResolveHTTPAuth_NoAuthWarnsOnce(t *testing.T) {
