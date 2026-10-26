@@ -521,6 +521,19 @@ func TestResolveHTTPAuth_KeyringToken(t *testing.T) {
 		}
 	})
 
+	t.Run("REDMINE_NO_KEYRING refuses to serve without the token", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		t.Setenv("REDMINE_NO_KEYRING", "1")
+		cmd, _ := newHTTPAuthCmd()
+		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{})
+		if err == nil || !strings.Contains(err.Error(), "REDMINE_NO_KEYRING") || !strings.Contains(err.Error(), "--no-auth") {
+			t.Fatalf("err = %v, want the disabled-keyring error with the --no-auth hint", err)
+		}
+		if token != "" || generated {
+			t.Fatalf("token = %q (generated=%v), want none on error", token, generated)
+		}
+	})
+
 	t.Run("keyring failure with --no-auth serves without a token", func(t *testing.T) {
 		cfg := loadKeyringProfile(t)
 		keyring.MockInitWithError(errors.New("keychain locked"))

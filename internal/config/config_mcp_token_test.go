@@ -98,6 +98,23 @@ profiles:
 	}
 }
 
+func TestKeyringMCPTokenWithKeyringDisabledReturnsError(t *testing.T) {
+	keyring.MockInit()
+	cfg := &Config{CredentialStore: CredentialStoreKeyring, KeyringID: "nokr-id"}
+	t.Setenv("REDMINE_NO_KEYRING", "1")
+
+	got, err := ResolveMCPAuthToken(cfg, debug.New(nil))
+	if err == nil || !strings.Contains(err.Error(), "REDMINE_NO_KEYRING") {
+		t.Fatalf("ResolveMCPAuthToken = %q, %v; want an error, since a saved token may exist", got, err)
+	}
+
+	// A token from the YAML or REDMINE_MCP_AUTH_TOKEN needs no keyring.
+	cfg.MCP.AuthToken = "yaml-token"
+	if got := mustResolveMCPAuthToken(t, cfg); got != "yaml-token" {
+		t.Fatalf("ResolveMCPAuthToken = %q, want yaml-token", got)
+	}
+}
+
 func TestKeyringMCPTokenPrecedence(t *testing.T) {
 	keyring.MockInit()
 	if err := secrets.Default.Set("tok-id", secrets.FieldAPIKey, "kr-key"); err != nil {

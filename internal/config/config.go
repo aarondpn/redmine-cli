@@ -165,14 +165,18 @@ func storedSecretInUse(cfg *Config, ov Overrides) bool {
 // token is read from the system keyring and stored in cfg.MCP.AuthToken. Load
 // leaves this lookup out, so only callers that need the token (mcp serve
 // --http) touch the keyring for it. The token is optional, so a missing entry
-// yields "". A failed lookup is returned as an error instead: a token saved
-// to the keyring may exist, and serving without it would drop authentication.
+// yields "". A failed lookup, or a keyring disabled with REDMINE_NO_KEYRING,
+// is returned as an error instead: a token saved to the keyring may exist,
+// and serving without it would drop authentication.
 func ResolveMCPAuthToken(cfg *Config, log *debug.Logger) (string, error) {
 	if cfg == nil {
 		return "", nil
 	}
 	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" || cfg.MCP.AuthToken != "" {
 		return cfg.MCP.AuthToken, nil
+	}
+	if secrets.Disabled() {
+		return "", errors.New("the profile keeps its MCP auth token in the system keyring, but REDMINE_NO_KEYRING disables keyring access")
 	}
 	token, ok, err := secrets.Default.Get(cfg.KeyringID, secrets.FieldMCPToken)
 	if err != nil {
