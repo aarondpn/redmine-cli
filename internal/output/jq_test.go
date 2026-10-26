@@ -89,7 +89,7 @@ func TestJQFilter_IndentPrettyPrintsContainersOnly(t *testing.T) {
 
 // hostileSubject is server-controlled text with an OSC 52 clipboard write, a
 // CSI sequence, a bare CR, a C1 CSI and a bidi override.
-const hostileSubject = "a\x1b]52;c;ZXZpbA==\x07b\x1b[2Jc\rd\u009be‮f"
+const hostileSubject = "a\x1b]52;c;ZXZpbA==\x07b\x1b[2Jc\rd\u009be\u202ef"
 
 func TestJQFilter_RawStringsOnTerminalAreNeutralized(t *testing.T) {
 	issue := jqTestIssue{ID: 7, Subject: hostileSubject}
