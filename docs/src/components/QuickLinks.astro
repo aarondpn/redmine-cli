@@ -1,0 +1,24 @@
+---
+// Numbered link tiles for the homepage quickstart.
+import SectionHead from './SectionHead.astro';
+
+interface Props {
+  items: { title: string; href: string; description: string }[];
+}
+const { items } = Astro.props;
+const t = Astro.locals.t;
+---
+
+<SectionHead title={t('home.quickstart')} />
+
+<ul class="rc-quick not-content">
+  {items.map((item, i) => (
+    <li>
+      <a class="rc-quick__item" href={item.href}>
+        <span class="rc-quick__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+        <span class="rc-quick__title">{item.title}<span class="rc-quick__arrow" aria-hidden="true">→</span></span>
+        <span class="rc-quick__desc">{item.description}</span>
+      </a>
+    </li>
+  ))}
+</ul>

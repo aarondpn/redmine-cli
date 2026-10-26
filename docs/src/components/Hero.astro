@@ -1,8 +1,11 @@
 ---
 // Custom Starlight Hero override. Reads `hero` frontmatter from the current route
-// and renders an asymmetric "ops console" layout with the terminal demo on the right.
+// and renders a full-bleed red poster hero: oversized headline on the left, pitch
+// and actions on the right, and the terminal demo straddling the bottom edge with
+// the install command as its first line.
 import Terminal from './Terminal.astro';
 import StatusBar from './StatusBar.astro';
+import InstallBar from './InstallBar.astro';
 
 const { hero, title } = Astro.locals.starlightRoute.entry.data as {
   hero?: {
@@ -12,48 +15,63 @@ const { hero, title } = Astro.locals.starlightRoute.entry.data as {
   title: string;
 };
 
+// Other splash pages with a hero (the 404 page) get their own title and no demo.
+const locale = Astro.locals.starlightRoute.locale;
+const isHome = Astro.url.pathname.replace(/\/+$/, '') === (locale ? `/${locale}` : '');
+
 const t = Astro.locals.t;
 const tagline = hero?.tagline ?? '';
 const actions = hero?.actions ?? [];
 ---
 
 <section class="rc-hero not-content" aria-labelledby="rc-hero-title">
-  <StatusBar />
+  <div class="rc-hero__poster rc-bleed">
+    <div class="rc-hero__inner">
+      <StatusBar />
 
-  <div class="rc-hero__stack">
-    <h1 id="rc-hero-title" class="rc-hero__title">
-      <span class="rc-hero__title-word">redmine</span><span
-        class="rc-hero__title-word rc-hero__title-word--accent">.cli</span>
-    </h1>
+      <div class="rc-hero__grid">
+        <h1 id="rc-hero-title" class="rc-hero__title">
+          {isHome ? (
+            <>
+              <span>{t('hero.headline1')}</span>
+              <span>{t('hero.headline2')}</span>
+            </>
+          ) : (
+            <span>{title}</span>
+          )}
+        </h1>
 
-    <p class="rc-hero__tagline">
-      <span class="rc-comment" aria-hidden="true">{'//'}</span>
-      {tagline || t('hero.fallbackTagline')}
-    </p>
+        <div class="rc-hero__side">
+          {isHome && <p class="rc-hero__lede">{t('hero.lede')}</p>}
+          <p class="rc-hero__tagline">{tagline || t('hero.fallbackTagline')}</p>
 
-    {actions.length > 0 && (
-      <div class="rc-hero__actions">
-        {actions.map((a, i) => (
-          <a
-            href={a.link}
-            class={`rc-btn ${a.variant === 'minimal' ? 'rc-btn--ghost' : 'rc-btn--primary'}`}
-          >
-            {a.variant !== 'minimal' && (
-              <span class="rc-btn__index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-            )}
-            <span class="rc-btn__label">{a.text}</span>
-            <span class="rc-btn__arrow" aria-hidden="true">
-              {a.variant === 'minimal' ? '↗' : '→'}
-            </span>
-          </a>
-        ))}
+          {actions.length > 0 && (
+            <div class="rc-hero__actions">
+              {actions.map((a) => (
+                <a
+                  href={a.link}
+                  class={`rc-btn ${a.variant === 'minimal' ? 'rc-btn--ghost' : 'rc-btn--primary'}`}
+                >
+                  <span class="rc-btn__label">{a.text}</span>
+                  <span class="rc-btn__arrow" aria-hidden="true">
+                    {a.variant === 'minimal' ? '↗' : '→'}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    )}
-
-    <div class="rc-hero__panel">
-      <Terminal />
     </div>
   </div>
 
-  <div class="rc-hero__scanlines" aria-hidden="true"></div>
+  {isHome && (
+    <div class="rc-hero__console rc-bleed">
+      <div class="rc-hero__inner">
+        <Terminal>
+          <InstallBar slot="bar" />
+        </Terminal>
+      </div>
+    </div>
+  )}
 </section>

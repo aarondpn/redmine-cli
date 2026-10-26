@@ -13,17 +13,15 @@ hero:
       variant: minimal
 ---
 
-import { LinkCard, CardGrid } from '@astrojs/starlight/components';
-import SectionRule from '../../components/SectionRule.astro';
-import CapabilityMatrix from '../../components/CapabilityMatrix.astro';
+import QuickLinks from '../../components/QuickLinks.astro';
+import FeatureRows from '../../components/FeatureRows.astro';
+import AgentSection from '../../components/AgentSection.astro';
 import Contributors from '../../components/Contributors.astro';
 import InstallTabs from '../../components/InstallTabs.astro';
 
-<SectionRule index="01" label="CAPABILITIES" />
+<FeatureRows />
 
-<CapabilityMatrix />
-
-<SectionRule index="02" label="DROP INTO YOUR AGENT" />
+<AgentSection>
 
 Skill plus MCP server, vendor-neutral. Pick your host:
 
@@ -31,31 +29,15 @@ Skill plus MCP server, vendor-neutral. Pick your host:
 
 Open standards: [Agent Skills](https://agentskills.io) (35+ agents) + [Model Context Protocol](https://modelcontextprotocol.io). Full host snippets in the [AI agent guide](/guides/ai-agents/).
 
-<SectionRule index="03" label="QUICKSTART" />
+</AgentSection>
 
-<CardGrid>
-  <LinkCard
-    title="Install"
-    href="/getting-started/installation/"
-    description="Homebrew, install script, go install, or manual download."
-  />
-  <LinkCard
-    title="Configure"
-    href="/getting-started/configuration/"
-    description="Profiles, env vars, and global flags explained."
-  />
-  <LinkCard
-    title="First commands"
-    href="/getting-started/quick-start/"
-    description="Issues, time tracking, search — up and running in minutes."
-  />
-  <LinkCard
-    title="AI agent integration"
-    href="/guides/ai-agents/"
-    description="Install the skill or run the built-in MCP server."
-  />
-</CardGrid>
-
-<SectionRule index="04" label="CREW" />
+<QuickLinks
+  items={[
+    { title: 'Install', href: '/getting-started/installation/', description: 'Homebrew, install script, go install, or manual download.' },
+    { title: 'Configure', href: '/getting-started/configuration/', description: 'Profiles, env vars, and global flags explained.' },
+    { title: 'First commands', href: '/getting-started/quick-start/', description: 'Issues, time tracking, search — up and running in minutes.' },
+    { title: 'AI agent integration', href: '/guides/ai-agents/', description: 'Install the skill or run the built-in MCP server.' },
+  ]}
+/>
 
 <Contributors />

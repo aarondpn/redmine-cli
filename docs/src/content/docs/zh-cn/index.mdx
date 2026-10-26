@@ -13,17 +13,15 @@ hero:
       variant: minimal
 ---
 
-import { LinkCard, CardGrid } from '@astrojs/starlight/components';
-import SectionRule from '../../../components/SectionRule.astro';
-import CapabilityMatrix from '../../../components/CapabilityMatrix.astro';
+import QuickLinks from '../../../components/QuickLinks.astro';
+import FeatureRows from '../../../components/FeatureRows.astro';
+import AgentSection from '../../../components/AgentSection.astro';
 import Contributors from '../../../components/Contributors.astro';
 import InstallTabs from '../../../components/InstallTabs.astro';
 
-<SectionRule index="01" label="功能" />
+<FeatureRows />
 
-<CapabilityMatrix />
-
-<SectionRule index="02" label="接入你的代理" />
+<AgentSection labels={{ any: '任意代理', mcp: 'MCP 宿主' }}>
 
 Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
 
@@ -31,31 +29,15 @@ Skill 加 MCP 服务器，与厂商无关。选择你的宿主：
 
 开放标准：[Agent Skills](https://agentskills.io)（35+ 代理支持）+ [Model Context Protocol](https://modelcontextprotocol.io)。完整的宿主代码片段见 [AI 代理集成指南](/zh-cn/guides/ai-agents/)。
 
-<SectionRule index="03" label="快速开始" />
+</AgentSection>
 
-<CardGrid>
-  <LinkCard
-    title="安装"
-    href="/zh-cn/getting-started/installation/"
-    description="通过 Homebrew、安装脚本、go install 或手动下载安装。"
-  />
-  <LinkCard
-    title="配置"
-    href="/zh-cn/getting-started/configuration/"
-    description="介绍配置文件、环境变量与全局标志。"
-  />
-  <LinkCard
-    title="第一个命令"
-    href="/zh-cn/getting-started/quick-start/"
-    description="工单、工时记录、搜索——几分钟内快速上手。"
-  />
-  <LinkCard
-    title="AI 代理集成"
-    href="/zh-cn/guides/ai-agents/"
-    description="安装 skill 或运行内建的 MCP 服务器。"
-  />
-</CardGrid>
-
-<SectionRule index="04" label="贡献者" />
+<QuickLinks
+  items={[
+    { title: '安装', href: '/zh-cn/getting-started/installation/', description: '通过 Homebrew、安装脚本、go install 或手动下载安装。' },
+    { title: '配置', href: '/zh-cn/getting-started/configuration/', description: '介绍配置文件、环境变量与全局标志。' },
+    { title: '第一个命令', href: '/zh-cn/getting-started/quick-start/', description: '工单、工时记录、搜索——几分钟内快速上手。' },
+    { title: 'AI 代理集成', href: '/zh-cn/guides/ai-agents/', description: '安装 skill 或运行内建的 MCP 服务器。' },
+  ]}
+/>
 
 <Contributors />

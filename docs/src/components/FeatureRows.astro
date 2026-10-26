@@ -1,0 +1,91 @@
+---
+// Numbered feature rows: big index, title and blurb, plus a short terminal session
+// showing the commands in action.
+const t = Astro.locals.t;
+const locale = Astro.locals.starlightRoute.locale;
+const base = locale ? `/${locale}` : '';
+
+type Line = { cmd?: string; out?: string; ok?: string; head?: string };
+
+const features: { title: string; desc: string; href: string; lines: Line[] }[] = [
+  {
+    title: t('capability.issues.title'),
+    desc: t('capability.issues.desc'),
+    href: `${base}/commands/issues/`,
+    lines: [
+      { cmd: 'redmine issues list --assignee me --status open' },
+      { head: 'ID   TRACKER  STATUS       SUBJECT' },
+      { out: `312  Bug      In Progress  ${t('terminal.subject1')}` },
+      { out: `298  Feature  Open         ${t('terminal.subject2')}` },
+      { cmd: 'redmine issues update 312 --status Resolved' },
+      { ok: t('features.issueUpdated', { id: '312' }) },
+    ],
+  },
+  {
+    title: t('capability.time.title'),
+    desc: t('capability.time.desc'),
+    href: `${base}/commands/time/`,
+    lines: [
+      { cmd: 'redmine time log --issue 312 --hours 1.5' },
+      { ok: t('features.timeLogged', { hours: '1.5', id: '312' }) },
+      { cmd: 'redmine time summary --user me' },
+      { head: 'PROJECT   ACTIVITY      HOURS' },
+      { out: 'api       Development    12.5' },
+      { out: 'platform  Review          3.0' },
+    ],
+  },
+  {
+    title: t('capability.projects.title'),
+    desc: t('capability.projects.desc'),
+    href: `${base}/commands/projects/`,
+    lines: [
+      { cmd: 'redmine projects list' },
+      { head: 'ID  IDENTIFIER  NAME' },
+      { out: '1   platform    Platform' },
+      { out: '2   api         API' },
+      { cmd: 'redmine versions list --project api' },
+      { head: 'VERSION  STATUS' },
+      { out: '2.1.3    open' },
+    ],
+  },
+  {
+    title: t('capability.formats.title'),
+    desc: t('capability.formats.desc'),
+    href: `${base}/guides/output-formats/`,
+    lines: [
+      { cmd: "redmine issues list --tracker Bug --jq '.[].id'" },
+      { out: '312' },
+      { out: '305' },
+      { cmd: 'redmine issues get 312 -o json' },
+      { out: `{ "id": 312, "status": { "name": "In Progress" }, … }` },
+    ],
+  },
+];
+---
+
+<ol class="rc-features not-content">
+  {features.map((f, i) => (
+    <li class="rc-feature">
+      <span class="rc-feature__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+      <div class="rc-feature__text">
+        <h3 class="rc-feature__title">
+          <a href={f.href}>{f.title}<span class="rc-feature__arrow" aria-hidden="true">→</span></a>
+        </h3>
+        <p class="rc-feature__desc">{f.desc}</p>
+      </div>
+      <div class="rc-feature__term">
+        {f.lines.map((l) =>
+          l.cmd ? (
+            <div class="rc-feature__line"><span class="prompt">$</span> <span class="bin">redmine</span>{l.cmd.slice('redmine'.length)}</div>
+          ) : l.head ? (
+            <div class="rc-feature__line header-line">{l.head}</div>
+          ) : l.ok ? (
+            <div class="rc-feature__line"><span class="success">✓</span> <span class="success">{l.ok}</span></div>
+          ) : (
+            <div class="rc-feature__line output">{l.out}</div>
+          )
+        )}
+      </div>
+    </li>
+  ))}
+</ol>
