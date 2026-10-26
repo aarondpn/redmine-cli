@@ -164,7 +164,7 @@ Checks GitHub for the latest release, downloads it, and replaces the current bin
 1. **Checksum** — the archive's SHA256 must match the release's checksums file.
 2. **Attestation** — the archive's SHA256 must have a [GitHub artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) (SLSA build provenance, signed through Sigstore and recorded in its transparency log) issued by this repository's `release.yml` workflow for exactly the release tag being installed.
 
-Besides the repository, the built-in check pins the signer workflow and the source ref, so it is stricter than `gh attestation verify --repo aarondpn/redmine-cli` alone. The equivalent `gh` command, which `install.sh` also runs, is (Windows archives end in `.zip`):
+Besides the repository, the built-in check pins the signer workflow and the source ref, so it is stricter than `gh attestation verify --repo aarondpn/redmine-cli` alone. The equivalent `gh` command is below (Windows archives end in `.zip`). `install.sh` runs it when a recent `gh` is installed and logged in; otherwise the script installs after the checksum check only and prints the command so you can run it yourself (see [Installation](/getting-started/installation/)):
 
 ```bash
 gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli \
