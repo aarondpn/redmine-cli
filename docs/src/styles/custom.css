@@ -150,7 +150,7 @@ body:has(.rc-bleed) {
 }
 
 .status-key {
-	color: rgba(11, 12, 17, 0.6);
+	color: rgba(11, 12, 17, 0.72);
 	font-weight: 500;
 }
 

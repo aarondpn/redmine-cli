@@ -7,12 +7,17 @@ import Terminal from './Terminal.astro';
 import StatusBar from './StatusBar.astro';
 import InstallBar from './InstallBar.astro';
 
-const { hero } = Astro.locals.starlightRoute.entry.data as {
+const { hero, title } = Astro.locals.starlightRoute.entry.data as {
   hero?: {
     tagline?: string;
     actions?: { text: string; link: string; variant?: string; icon?: string }[];
   };
+  title: string;
 };
+
+// Other splash pages with a hero (the 404 page) get their own title and no demo.
+const locale = Astro.locals.starlightRoute.locale;
+const isHome = Astro.url.pathname.replace(/\/+$/, '') === (locale ? `/${locale}` : '');
 
 const t = Astro.locals.t;
 const tagline = hero?.tagline ?? '';
@@ -26,12 +31,18 @@ const actions = hero?.actions ?? [];
 
       <div class="rc-hero__grid">
         <h1 id="rc-hero-title" class="rc-hero__title">
-          <span>{t('hero.headline1')}</span>
-          <span>{t('hero.headline2')}</span>
+          {isHome ? (
+            <>
+              <span>{t('hero.headline1')}</span>
+              <span>{t('hero.headline2')}</span>
+            </>
+          ) : (
+            <span>{title}</span>
+          )}
         </h1>
 
         <div class="rc-hero__side">
-          <p class="rc-hero__lede">{t('hero.lede')}</p>
+          {isHome && <p class="rc-hero__lede">{t('hero.lede')}</p>}
           <p class="rc-hero__tagline">{tagline || t('hero.fallbackTagline')}</p>
 
           {actions.length > 0 && (
@@ -54,11 +65,13 @@ const actions = hero?.actions ?? [];
     </div>
   </div>
 
-  <div class="rc-hero__console rc-bleed">
-    <div class="rc-hero__inner">
-      <Terminal>
-        <InstallBar slot="bar" />
-      </Terminal>
+  {isHome && (
+    <div class="rc-hero__console rc-bleed">
+      <div class="rc-hero__inner">
+        <Terminal>
+          <InstallBar slot="bar" />
+        </Terminal>
+      </div>
     </div>
-  </div>
+  )}
 </section>

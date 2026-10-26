@@ -48,7 +48,7 @@ const t = Astro.locals.t;
       <ul class="rc-crew__grid">
         {contributors.map((c) => (
           <li class="rc-crew__item">
-            <a class="rc-crew__link" href={c.html_url} target="_blank" rel="noopener" title={`@${c.login} — ${c.contributions} commits`}>
+            <a class="rc-crew__link" href={c.html_url} target="_blank" rel="noopener" title={`@${c.login} — ${t('contributors.commitCount', { count: c.contributions })}`}>
               <img
                 class="rc-crew__avatar"
                 src={`${c.avatar_url}&s=128`}

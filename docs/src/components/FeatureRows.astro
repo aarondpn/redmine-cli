@@ -73,7 +73,7 @@ const features: { title: string; desc: string; href: string; lines: Line[] }[] =
         </h3>
         <p class="rc-feature__desc">{f.desc}</p>
       </div>
-      <div class="rc-feature__term" aria-label={f.title}>
+      <div class="rc-feature__term">
         {f.lines.map((l) =>
           l.cmd ? (
             <div class="rc-feature__line"><span class="prompt">$</span> <span class="bin">redmine</span>{l.cmd.slice('redmine'.length)}</div>
