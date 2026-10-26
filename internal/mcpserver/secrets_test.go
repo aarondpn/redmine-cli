@@ -111,3 +111,57 @@ func TestGetMyAccountDescriptionDoesNotAdvertiseAPIKey(t *testing.T) {
 		}
 	}
 }
+
+// TestToolOutputSchemasDoNotAdvertiseAPIKey keeps the output schemas in line
+// with the redacted results: no schema may declare a field toolResult always
+// clears.
+func TestToolOutputSchemasDoNotAdvertiseAPIKey(t *testing.T) {
+	apiClient, closeTS := newTestAPIClient(t, apiKeyLeakingRedmine(t))
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0", EnableWrites: true})
+	defer cleanup()
+
+	res, err := cs.ListTools(context.Background(), &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	userTools := map[string]bool{"get_my_account": false, "me": false, "get_user": false, "list_users": false, "create_user": false}
+	for _, tool := range res.Tools {
+		raw, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("marshal %s output schema: %v", tool.Name, err)
+		}
+		if strings.Contains(string(raw), `"api_key"`) {
+			t.Errorf("tool %s output schema declares api_key: %s", tool.Name, raw)
+		}
+		if _, ok := userTools[tool.Name]; ok {
+			userTools[tool.Name] = strings.Contains(string(raw), `"login"`)
+		}
+	}
+	for name, hasLogin := range userTools {
+		if !hasLogin {
+			t.Errorf("tool %s output schema lost the other user fields", name)
+		}
+	}
+}
+
+// TestTrimmedOutputSchemaToolErrorsStayToolErrors guards the error path of
+// tools whose output schema is set explicitly: a failed call returns a typed
+// nil *models.User, which must reach the client as an error result, not as an
+// output validation failure.
+func TestTrimmedOutputSchemaToolErrorsStayToolErrors(t *testing.T) {
+	apiClient, closeTS := newTestAPIClient(t, http.NotFoundHandler())
+	defer closeTS()
+
+	cs, cleanup := newConnectedSession(t, apiClient, Options{Version: "v0"})
+	defer cleanup()
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_user", Arguments: map[string]any{"id": 1}})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("get_user against a 404 succeeded: %+v", res.Content)
+	}
+}
