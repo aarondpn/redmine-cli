@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
@@ -225,7 +224,7 @@ func verifyAttestationBundles(trusted root.TrustedMaterial, bundles []*bundle.Bu
 // releaseCertificateIdentity pins the signing identity to the release
 // workflow of this repository, running for exactly tag.
 func releaseCertificateIdentity(tag string) (verify.CertificateIdentity, error) {
-	san, err := verify.NewSANMatcher("", "^"+regexp.QuoteMeta(attestationWorkflowSAN+"refs/tags/"+tag)+"$")
+	san, err := verify.NewSANMatcher(attestationWorkflowSAN+"refs/tags/"+tag, "")
 	if err != nil {
 		return verify.CertificateIdentity{}, err
 	}
