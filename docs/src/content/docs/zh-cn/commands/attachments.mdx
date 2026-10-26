@@ -55,9 +55,41 @@ redmine attachments download <id> [flags]
 |------|------|
 | `-d, --dir`    | 保存到的目录，使用附件的真实文件名（目录不存在时自动创建） |
 | `--path`       | 精确的目标文件路径。使用 `-` 可流式输出到 stdout |
+| `--clobber`    | 覆盖目标位置已存在的文件 |
+| `--allow-hidden` | 允许使用服务器提供的、以 `.` 开头的文件名保存（适用于 `--dir` 或默认目标） |
 | `-o, --output` | 确认信息的格式：`json` 打印结果对象；否则向 stderr 写入一行可读信息 |
 
 若不指定目标标志，文件会以 `./<文件名>` 保存到当前目录。
+
+### 已有文件与 `--clobber`
+
+除非传入 `--clobber`，下载永远不会覆盖已存在的文件。这一规则适用于 `--path`、`--dir` 以及默认的当前目录。未传入时，命令会在下载前报错并给出路径：
+
+```text
+failed to download attachment 42: logo.png already exists; use --clobber to overwrite it
+```
+
+字节会先流式写入目标目录中的临时文件，下载完成后才移动到最终位置。因此：
+
+- 下载失败或被中断时，已有文件保持不变，目标位置也不会留下不完整的文件。按一次 Ctrl-C 会停止下载并删除临时文件；若进程被直接终止（第二次 Ctrl-C、`kill -9`），目标目录中可能残留一个隐藏的 `.redmine-download-*.tmp` 文件，可以放心删除。
+- 永远不会跟随目标位置上的符号链接。不加 `--clobber` 时，符号链接（即使是悬空链接）也算作已存在的文件；加上 `--clobber` 时，被替换的是链接本身，链接指向的文件保持不变。
+- 目标位置是目录时总是报错，即使加了 `--clobber`。其他非普通文件同样如此；唯一的例外是：`--path` 指向（或链接到）字符设备或命名管道（例如 `/dev/null` 或 FIFO）时，会直接写入，无需 `--clobber`。（当 stdout 是终端或管道时，`/dev/stdout` 也属于这种情况；要写到 stdout，建议使用 `--path -`。）使用 `--dir` 或默认目标时，这类条目会像目录一样被拒绝。
+- 新文件的权限与你创建的其他文件相同（在常见的 umask `022` 下为 `0644`）。使用 `--clobber` 替换普通文件时，会保留其原有权限。
+
+不加 `--clobber` 时，最后一步使用硬链接；如果下载期间目标位置出现了文件，该操作会原子地失败。在不支持硬链接的文件系统上，CLI 会退回到先重新检查目标位置、再重命名的方式，检查与重命名之间存在一个很小的时间窗口。
+
+<Aside type="caution" title="行为变更">
+  早期版本会静默截断目标位置的已有文件，并且会跟随符号链接写入。
+  重复下载到同一位置的脚本现在需要加上 `--clobber`。
+</Aside>
+
+使用 `--dir` 或默认目标时，文件名来自服务器。文件名会被缩减为其基本名称，因此永远无法逃逸出目标目录。以 `.` 开头的文件名（例如 `.bashrc`、`.envrc` 或 `.npmrc`）可能会植入或遮蔽配置文件，因此会被拒绝，除非传入 `--allow-hidden`：
+
+```text
+failed to download attachment 42: refusing to save the hidden filename ".bashrc" as downloads/.bashrc; pass --allow-hidden to save it anyway
+```
+
+用 `--path` 自行指定文件名不受此限制，`--path -`（stdout）同样不受影响。
 
 <Aside>
   与大多数命令不同，这里的 `-o/--output` 仅控制**确认信息**的输出，而不决定字节写到哪里 -
@@ -80,6 +112,12 @@ redmine attachments download <id> [flags]
   <TabItem label="精确路径">
     ```bash
     redmine attachments download 42 --path ./logo.png
+    ```
+  </TabItem>
+  <TabItem label="覆盖">
+    ```bash
+    # 替换之前下载留下的副本
+    redmine attachments download 42 --dir ./downloads --clobber
     ```
   </TabItem>
   <TabItem label="管道到 stdout">

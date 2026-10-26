@@ -97,7 +97,13 @@ redmine issues get <id> [flags]
 | `--relations`              | `--include relations` 的简写 |
 | `--attachments`            | 列出工单的附件（id、文件名、大小、内容类型） |
 | `--download-attachments`   | 将工单的所有附件下载到指定目录 |
+| `--clobber`                | 与 `--download-attachments` 一起使用时，覆盖目录中已存在的文件 |
+| `--allow-hidden`           | 与 `--download-attachments` 一起使用时，允许保存文件名以 `.` 开头的附件 |
 | `-o, --output`             | 输出格式 |
+
+除非传入 `--clobber`，`--download-attachments` 永远不会覆盖目录中已存在的文件；服务器提供的以 `.` 开头的文件名（例如 `.bashrc` 或 `.envrc`）会被拒绝，除非传入 `--allow-hidden`。所有目标路径都会在下载任何内容之前检查，因此一旦发生冲突，命令会直接中止，不会写入任何文件。其余规则与 [`attachments download`](/zh-cn/commands/attachments/#download) 相同：永远不跟随符号链接，永远不替换目录，下载失败也不会留下不完整的文件。
+
+同一工单的附件经常重名（例如多个 `screenshot.png`）。它们都会被保留：最新的一个（附件 ID 最大，通常是修正后重新上传的版本）保留原名，较旧的会在文件名中加上附件 ID，例如 `screenshot (attachment-71).png`。仅大小写不同的文件名在所有平台上都视为同名，因为 macOS 和 Windows 的文件系统通常无法同时容纳两者。stderr 上的每条确认信息都会显示附件实际保存的路径。这种重命名只针对同一次下载中的文件名；对于目录中原本就存在的文件，请使用 `--clobber`。
 
 <Tabs syncKey="issues-get">
   <TabItem label="附件">
@@ -110,6 +116,9 @@ redmine issues get <id> [flags]
     ```bash
     # 将所有附件下载到 ./issue-123
     redmine issues get 123 --download-attachments ./issue-123
+
+    # 刷新之前的下载，替换已存在的文件
+    redmine issues get 123 --download-attachments ./issue-123 --clobber
     ```
   </TabItem>
 </Tabs>

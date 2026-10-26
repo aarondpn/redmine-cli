@@ -140,15 +140,44 @@ redmine custom-fields get 7 --output json
   通过 Homebrew 安装时会自动附带补全脚本——仅当通过安装脚本、`go install` 或手动下载安装时才需运行上述命令。
 </Aside>
 
+跟踪器、版本、类别和成员名称等补全候选项来自服务器。bash 脚本会在 bash 看到它们之前先加引号，因此像 `$(cmd)` 这样的名称只会作为文本给出，绝不会被执行；包含换行的候选项会被丢弃，控制字符会被中和。旧版本生成的 bash 脚本会把候选项不加引号地交给 bash：如果你把 `redmine completion bash` 的输出保存到了文件中，升级后请重新生成该文件。
+
 ## 自动更新
 
-<Badge text="已验证校验和" variant="success" />
+<Badge text="已验证校验和" variant="success" /> <Badge text="已验证证明" variant="success" />
 
 ```bash
 redmine update
 ```
 
-检查 GitHub 是否有最新版本，下载并验证 SHA256 校验和，然后替换当前二进制文件。通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
+检查 GitHub 是否有最新版本并下载，只有通过以下两项检查后才会替换当前二进制文件：
+
+1. **校验和**：归档文件的 SHA256 必须与该版本的校验和文件一致。
+2. **证明（attestation）**：归档文件的 SHA256 必须具有 [GitHub artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations)（SLSA 构建来源证明，经 Sigstore 签名并记录在其透明日志中），且由本仓库的 `release.yml` 工作流针对正在安装的这个版本标签签发。
+
+除仓库外，内置检查还会固定签名工作流和源引用，因此比单独运行 `gh attestation verify --repo aarondpn/redmine-cli` 更严格。等效的 `gh` 命令如下（Windows 归档文件以 `.zip` 结尾）。安装了较新且已登录的 `gh` 时，`install.sh` 会运行该命令；否则脚本只校验校验和后即安装，并打印该命令供你自行验证（参见[安装](/zh-cn/getting-started/installation/)）：
+
+```bash
+gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli \
+  --signer-workflow aarondpn/redmine-cli/.github/workflows/release.yml \
+  --source-ref refs/tags/<tag>
+```
+
+校验和与归档文件来自同一位置，因此只有证明才能证实二进制文件确实由本项目的发布流水线构建。如果证明缺失、无效或由其他身份签名，更新会被拒绝。
+
+通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
+
+| 标志 | 描述 |
+|------|------|
+| `--skip-attestation` | 仅校验校验和后安装，并打印警告。 |
+
+验证需要访问 `api.github.com`（attestations API）和 `tuf-repo-cdn.sigstore.dev`（Sigstore 信任根，在用户缓存目录中缓存一天）。任一地址无法访问时，`redmine update` 会拒绝安装并建议使用 `--skip-attestation`。设置 `GITHUB_TOKEN` 或 `GH_TOKEN` 可避免 GitHub API 速率限制；该令牌只会发送给 `api.github.com`。
+
+<Aside type="caution" title="验证失败时不要跳过">
+  `--skip-attestation` 仅适用于屏蔽了验证端点的网络环境。如果验证*失败*（而不是无法访问），请不要绕过，而应将其作为安全问题报告。[安装脚本](/zh-cn/getting-started/installation/)中的等效开关 `REDMINE_CLI_SKIP_ATTESTATION=1` 同样如此。
+</Aside>
+
+如果二进制文件所在目录不可写，错误信息会建议使用同一版本标签下的 `install.sh` 重新安装，而不是使用 `main` 分支上的脚本。
 
 ### 启动时更新检查
 
@@ -160,11 +189,13 @@ https://github.com/aarondpn/redmine-cli/releases/tag/v1.3.0
 Run "redmine update" to upgrade
 ```
 
-检查在独立协程中运行，超时时间为 3 秒，不会影响 CLI 的响应速度。以下情况下会自动跳过检查：
+检查与命令同时在后台启动，并在启动 2 秒后放弃。只有命令成功时才会打印结果；命令失败时会立即退出。如果命令结束时检查仍在进行，CLI 会等待它，最多等到这个 2 秒的截止时间；等待超过 200 毫秒时会向 stderr 打印 `Checking for updates...`。有效的缓存结果（见下文）会立即返回，因此只有需要询问 GitHub 时才会出现这种延迟：成功检查后每天一次，但在检查失败或超时期间则每次运行都会发生（失败结果不会被缓存）。以下情况下会自动跳过检查：
 
 - 当前命令本身是 `redmine update`；
 - stderr 不是 TTY（管道输出或 CI 环境）；
 - `REDMINE_NO_UPDATE_CHECK` 的值为 `1` 或 `true`。
+
+检查结果会在 `~/.redmine-cli-update-check.json` 中缓存 24 小时（仅你本人可读）。如果缓存条目中的版本 URL 不是 `https://github.com/aarondpn/redmine-cli/releases/tag/` 下的版本页面，该条目会被忽略，因此被篡改的缓存无法向提示信息中注入链接。
 
 如需永久禁用：
 
