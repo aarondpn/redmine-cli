@@ -58,9 +58,11 @@ func TestRootAPIKeyFileFlag(t *testing.T) {
 	}
 }
 
+// TestRootAPIKeyAndFileAreMutuallyExclusive pins that cobra itself rejects the
+// combination on subcommands, which is why the Factory does not check it.
 func TestRootAPIKeyAndFileAreMutuallyExclusive(t *testing.T) {
 	_, err := runRootForAPIKey(t, "", "--api-key", "k", "--api-key-file", "-", "config")
-	if err == nil || !strings.Contains(err.Error(), "api-key-file") {
-		t.Fatalf("Execute error = %v, want mutually exclusive flag error", err)
+	if err == nil || !strings.Contains(err.Error(), "[api-key api-key-file]") || !strings.Contains(err.Error(), "none of the others can be") {
+		t.Fatalf("Execute error = %v, want cobra's mutually exclusive flag error", err)
 	}
 }

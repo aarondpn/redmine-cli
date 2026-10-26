@@ -47,8 +47,8 @@ func TestKeyringProfileStoresMCPTokenInKeyring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.MCP.AuthToken != "MCP_BEARER_SECRET" {
-		t.Fatalf("loaded MCP.AuthToken = %q, want keyring value", loaded.MCP.AuthToken)
+	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "MCP_BEARER_SECRET" {
+		t.Fatalf("ResolveMCPAuthToken = %q, want keyring value", got)
 	}
 }
 
@@ -64,8 +64,8 @@ func TestKeyringProfileWithoutMCPTokenLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load error = %v, want nil (the MCP token is optional)", err)
 	}
-	if loaded.MCP.AuthToken != "" {
-		t.Fatalf("MCP.AuthToken = %q, want empty", loaded.MCP.AuthToken)
+	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "" {
+		t.Fatalf("ResolveMCPAuthToken = %q, want empty", got)
 	}
 }
 
@@ -89,8 +89,8 @@ profiles:
 	if err != nil {
 		t.Fatalf("Load error = %v, want nil", err)
 	}
-	if loaded.MCP.AuthToken != "" {
-		t.Fatalf("MCP.AuthToken = %q, want empty", loaded.MCP.AuthToken)
+	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "" {
+		t.Fatalf("ResolveMCPAuthToken = %q, want empty", got)
 	}
 }
 
@@ -133,8 +133,8 @@ profiles:
 			if err != nil {
 				t.Fatal(err)
 			}
-			if loaded.MCP.AuthToken != tc.want {
-				t.Fatalf("MCP.AuthToken = %q, want %q", loaded.MCP.AuthToken, tc.want)
+			if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != tc.want {
+				t.Fatalf("ResolveMCPAuthToken = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -182,8 +182,8 @@ profiles:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.MCP.AuthToken != "legacy-token" {
-		t.Fatalf("MCP.AuthToken after migration = %q", loaded.MCP.AuthToken)
+	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "legacy-token" {
+		t.Fatalf("ResolveMCPAuthToken after migration = %q", got)
 	}
 }
 
@@ -236,8 +236,8 @@ func TestReloginKeepsMCPSettingsAndKeyringToken(t *testing.T) {
 	if loaded.APIKey != "new-key" {
 		t.Fatalf("APIKey = %q, want %q", loaded.APIKey, "new-key")
 	}
-	if loaded.MCP.AuthToken != "tok" {
-		t.Fatalf("MCP.AuthToken = %q, want keyring token kept across re-login", loaded.MCP.AuthToken)
+	if got := ResolveMCPAuthToken(loaded, debug.New(nil)); got != "tok" {
+		t.Fatalf("ResolveMCPAuthToken = %q, want keyring token kept across re-login", got)
 	}
 	if len(loaded.MCP.EnableGroups) != 1 || loaded.MCP.EnableGroups[0] != "issues" {
 		t.Fatalf("MCP.EnableGroups = %v, want [issues]", loaded.MCP.EnableGroups)
@@ -337,6 +337,72 @@ profiles:
 			}
 			if got := pc.Profiles["work"].MCP.AuthToken; got != "legacy-token" {
 				t.Fatalf("plaintext MCP token = %q, want it kept in the file", got)
+			}
+		})
+	}
+}
+
+// mcpTokenFatalStore serves the API key but fails the test on any MCP token
+// access, so it pins that loading a keyring profile leaves the token alone.
+type mcpTokenFatalStore struct{ fatalStore }
+
+func (s mcpTokenFatalStore) Get(profile, field string) (string, bool, error) {
+	if field == secrets.FieldAPIKey {
+		return "kr-key", true, nil
+	}
+	return s.fatalStore.Get(profile, field)
+}
+
+func TestLoadDoesNotReadKeyringMCPToken(t *testing.T) {
+	orig := secrets.Default
+	secrets.Default = mcpTokenFatalStore{fatalStore{t}}
+	t.Cleanup(func() { secrets.Default = orig })
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    credential_store: keyring
+    keyring_id: lazy-id
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.APIKey != "kr-key" {
+		t.Fatalf("APIKey = %q, want the keyring value", loaded.APIKey)
+	}
+	if loaded.MCP.AuthToken != "" {
+		t.Fatalf("MCP.AuthToken = %q, want it left unresolved by Load", loaded.MCP.AuthToken)
+	}
+}
+
+func TestResolveMCPAuthTokenSkipsKeyringWhenNotNeeded(t *testing.T) {
+	orig := secrets.Default
+	secrets.Default = fatalStore{t}
+	t.Cleanup(func() { secrets.Default = orig })
+
+	cases := []struct {
+		name string
+		cfg  *Config
+		want string
+	}{
+		{name: "nil config"},
+		{name: "plaintext profile", cfg: &Config{MCP: MCPConfig{AuthToken: "plain"}}, want: "plain"},
+		{name: "plaintext profile without token", cfg: &Config{}},
+		{name: "keyring profile with file or env token", cfg: &Config{CredentialStore: CredentialStoreKeyring, KeyringID: "id", MCP: MCPConfig{AuthToken: "set"}}, want: "set"},
+		{name: "keyring profile without id", cfg: &Config{CredentialStore: CredentialStoreKeyring}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ResolveMCPAuthToken(tc.cfg, debug.New(nil)); got != tc.want {
+				t.Fatalf("ResolveMCPAuthToken = %q, want %q", got, tc.want)
 			}
 		})
 	}

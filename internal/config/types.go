@@ -19,11 +19,11 @@ type Config struct {
 	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
 	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
 	ReadOnly       bool   `mapstructure:"read_only" yaml:"read_only,omitempty"`
-	// Strict turns security warnings into hard errors: plaintext http://
-	// servers, keyring secrets sent to an overridden server, unneutralized
-	// CSV formulas, and an unauthenticated loopback MCP transport. Off by
-	// default so existing setups keep working; set via `strict: true` or
-	// REDMINE_STRICT.
+	// Strict turns security warnings into hard errors or safer behavior; the
+	// complete list is the "Strict mode" table in
+	// docs/src/content/docs/getting-started/configuration.mdx. Off by default
+	// so existing setups keep working; set via `strict: true` or
+	// REDMINE_STRICT, which can enable it but never disable it.
 	Strict bool `mapstructure:"strict" yaml:"strict,omitempty"`
 	// Headers are extra HTTP headers sent with every request to the configured
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
@@ -45,6 +45,16 @@ type Config struct {
 // set, or the profile records no server.
 func (c *Config) StoredCredentialServer() (profile, server string, ok bool) {
 	if c == nil || !c.storedSecret || c.profileServer == "" {
+		return "", "", false
+	}
+	return c.profileName, c.profileServer, true
+}
+
+// ProfileServer reports the selected profile and the server it was saved
+// with, before any --server / REDMINE_SERVER override. ok is false when no
+// profile was selected or the profile records no server.
+func (c *Config) ProfileServer() (profile, server string, ok bool) {
+	if c == nil || c.profileName == "" || c.profileServer == "" {
 		return "", "", false
 	}
 	return c.profileName, c.profileServer, true

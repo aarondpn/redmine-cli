@@ -12,10 +12,12 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/zalando/go-keyring"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/mcpserver"
+	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 )
 
 func TestNewCmdMCP_HasServe(t *testing.T) {
@@ -222,6 +224,13 @@ func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
 	}
 }
 
+func TestServeHelp_AuthTokenMentionsStrictLoopback(t *testing.T) {
+	usage := newCmdServe(cmdutil.NewFactory()).Flags().Lookup("auth-token").Usage
+	if !strings.Contains(usage, "in strict mode for loopback binds too") {
+		t.Fatalf("--auth-token help should say strict mode also generates a token on loopback: %q", usage)
+	}
+}
+
 func newHTTPAuthCmd() (*cobra.Command, *bytes.Buffer) {
 	cmd := &cobra.Command{}
 	cmd.Flags().String("http", "", "")
@@ -415,10 +424,10 @@ func TestResolveHTTPAuth_AuthTokenFile(t *testing.T) {
 		{name: "allowed in strict mode", path: good, cfg: &config.Config{Strict: true}, want: "file-token"},
 		{name: "empty file", path: write("empty", "\n\n"), wantError: "is empty"},
 		{name: "empty stdin", path: "-", wantError: "standard input is empty"},
-		{name: "whitespace inside", path: write("two", "a b\n"), wantError: "without whitespace"},
+		{name: "whitespace inside", path: write("two", "a b\n"), wantError: "must not contain whitespace"},
 		{name: "missing file", path: filepath.Join(dir, "missing"), wantError: "--auth-token-file"},
 		{name: "empty path", path: "", wantError: "file path is empty"},
-		{name: "too large", path: write("big", strings.Repeat("a", maxAuthTokenFileSize+1)), wantError: "larger than"},
+		{name: "too large", path: write("big", strings.Repeat("a", 64<<10+1)), wantError: "larger than"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -501,6 +510,96 @@ func TestResolveHTTPAuth_ConfiguredTokenIsKept(t *testing.T) {
 	if stderr.Len() != 0 {
 		t.Errorf("configured token should not be echoed, got %q", stderr.String())
 	}
+}
+
+// loadKeyringProfile writes a keyring profile whose API key and MCP token
+// live in the mocked keyring and loads it like the CLI does.
+func loadKeyringProfile(t *testing.T) *config.Config {
+	t.Helper()
+	keyring.MockInit()
+	if err := secrets.Default.Set("serve-id", secrets.FieldAPIKey, "kr-key"); err != nil {
+		t.Fatal(err)
+	}
+	if err := secrets.Default.Set("serve-id", secrets.FieldMCPToken, "keyring-token"); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "profiles:\n  work:\n    server: https://work.example.com\n    auth_method: apikey\n    credential_store: keyring\n    keyring_id: serve-id\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cfgPath, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+// TestResolveHTTPAuth_KeyringToken pins the lazy lookup: config loading leaves
+// a keyring profile's mcp.auth_token in the keyring, and serve --http reads it
+// only when no flag, file, environment variable or YAML value supplies one.
+func TestResolveHTTPAuth_KeyringToken(t *testing.T) {
+	t.Run("used when nothing else is set", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		if cfg.MCP.AuthToken != "" {
+			t.Fatalf("Load resolved MCP.AuthToken = %q, want it left in the keyring", cfg.MCP.AuthToken)
+		}
+		cmd, stderr := newHTTPAuthCmd()
+		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token != "keyring-token" || generated {
+			t.Errorf("token = %q (generated=%v), want the keyring token", token, generated)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("unexpected stderr output: %q", stderr.String())
+		}
+	})
+
+	t.Run("also on loopback in strict mode", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		cfg.Strict = true
+		cmd, _ := newHTTPAuthCmd()
+		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, true, httpAuthFlags{})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token != "keyring-token" || generated {
+			t.Errorf("token = %q (generated=%v), want the keyring token", token, generated)
+		}
+	})
+
+	t.Run("token file wins", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		cmd, _ := newHTTPAuthCmd()
+		cmd.SetIn(strings.NewReader("file-token\n"))
+		if err := cmd.Flags().Set("auth-token-file", "-"); err != nil {
+			t.Fatal(err)
+		}
+		token, _, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{TokenFile: "-"})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token != "file-token" {
+			t.Errorf("token = %q, want file-token", token)
+		}
+	})
+
+	t.Run("explicitly empty flag skips it", func(t *testing.T) {
+		cfg := loadKeyringProfile(t)
+		cmd, _ := newHTTPAuthCmd()
+		if err := cmd.Flags().Set("auth-token", ""); err != nil {
+			t.Fatal(err)
+		}
+		token, generated, err := resolveHTTPAuth(newHTTPAuthFactory(cmd), cmd, cfg, false, httpAuthFlags{})
+		if err != nil {
+			t.Fatalf("resolveHTTPAuth: %v", err)
+		}
+		if token == "keyring-token" || !generated {
+			t.Errorf("token = %q (generated=%v), want a generated token", token, generated)
+		}
+	})
 }
 
 func TestResolveHTTPAuth_NoAuthOptOut(t *testing.T) {

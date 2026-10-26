@@ -54,7 +54,7 @@ The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarond
   | `redmine://wiki/{project}/{page}` | `get_wiki_page` |
   | `redmine://version/{id}` | `get_version` |
 
-  With no `--enable-tools` / `--disable-tools` filter, every resource in the enabled groups stays available.
+  With no `--enable-tools` / `--disable-tools` filter, every resource in the enabled groups stays available. A resource whose tool is filtered out answers with the standard "Resource not found" error (JSON-RPC code `-32602`); for `redmine://user/{id}` that also applies to the half whose tool is disabled, for example `redmine://user/me` when only `get_user` is enabled.
 
 <Aside type="caution">
   Write tools are destructive. Prefer leaving them disabled unless the host surfaces a per-call approval UI you trust.

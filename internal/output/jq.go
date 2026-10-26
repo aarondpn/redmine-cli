@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
 // jqBufferLimit is how much filtered output Evaluate holds back before it
@@ -37,11 +39,7 @@ const JQNoEnvVar = "REDMINE_JQ_NO_ENV"
 // environment from jq. Like the other boolean REDMINE_* variables, any value
 // other than "", 0, false, no and off counts as true.
 func jqEnvDisabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(JQNoEnvVar))) {
-	case "", "0", "false", "no", "off":
-		return false
-	}
-	return true
+	return config.ParseBoolEnv(os.Getenv(JQNoEnvVar))
 }
 
 // JQRuntimeError reports that a --jq expression failed while filtering the

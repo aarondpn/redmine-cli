@@ -186,6 +186,54 @@ headers:
 	}
 }
 
+func TestConfigCommandShowsStrict(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "profiles:\n  plain:\n    server: https://plain.example.com\n    api_key: k\n  strict:\n    server: https://strict.example.com\n    api_key: k\n    strict: true\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_STRICT", "")
+
+	cases := []struct {
+		profile, format, want string
+	}{
+		{"plain", "table", "false"},
+		{"strict", "table", "true"},
+		{"plain", "json", `"strict": "false"`},
+		{"strict", "json", `"strict": "true"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.profile+"_"+tc.format, func(t *testing.T) {
+			out := &strings.Builder{}
+			f := &cmdutil.Factory{
+				ConfigPath:      cfgPath,
+				ProfileOverride: tc.profile,
+				OutputFormat:    tc.format,
+				IOStreams:       &cmdutil.IOStreams{In: strings.NewReader(""), Out: out, ErrOut: &strings.Builder{}},
+			}
+			if err := newCmdConfig(f).Execute(); err != nil {
+				t.Fatal(err)
+			}
+			got := out.String()
+			if tc.format == "table" {
+				var line string
+				for _, l := range strings.Split(got, "\n") {
+					if strings.HasPrefix(strings.TrimSpace(l), "Strict") {
+						line = l
+					}
+				}
+				if !strings.Contains(line, tc.want) {
+					t.Fatalf("Strict row = %q, want %q; output:\n%s", line, tc.want, got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("output does not contain %s:\n%s", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestRootRejectsMalformedHeaderFlag(t *testing.T) {
 	root, _ := NewRootCmdWithFactory("test")
 	if err := root.PersistentFlags().Set("header", "no-colon"); err != nil {

@@ -103,7 +103,7 @@ Logging in again for a profile that already uses the keyring keeps the keyring b
 
 The MCP server's bearer token (`mcp.auth_token`, see [AI agents](/guides/ai-agents/)) is kept in the keyring too. A keyring profile that still has a plaintext `mcp.auth_token` keeps working: the value in the file is used, and it is moved into the keyring and removed from the file the next time the CLI saves the config (for example on `redmine auth login` or `redmine auth switch`). If the keyring is unavailable at that point, the token stays in the file and the save still succeeds. To rotate the token, write the new value into `mcp.auth_token`; `REDMINE_MCP_AUTH_TOKEN` and `--auth-token` still take precedence. Switching the profile back to plaintext moves the token back into the file, and `redmine auth logout` removes it from the keyring.
 
-Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is consulted for the API key or password.
+Resolution order is CLI flag, then environment variable, then keyring, then the plaintext file field. Environment variables and flags are resolved before the keyring is consulted, so an explicit API key or password means the keyring is not read at all. The MCP token is only read from the keyring by `redmine mcp serve --http`, and only when no flag, environment variable, or `mcp.auth_token` supplies one.
 
 <Aside type="tip" title="CI and headless environments">
   Keep using environment variables (`REDMINE_API_KEY`, `REDMINE_PASSWORD`) in CI. Set `REDMINE_NO_KEYRING=1` to hard-disable all keyring reads and writes on runners that have no usable keyring, so nothing ever stalls on a keyring prompt.
@@ -174,10 +174,18 @@ redmine auth login --keyring                               # system keyring
 A profile's stored secret (in the config file or the system keyring) belongs to the server the profile was saved with. If `--server` or `REDMINE_SERVER` points the profile at a different origin (scheme, host, or port), the CLI still sends that secret, but prints a warning first:
 
 ```text
-warning: sending the stored credentials of profile "work" (for https://redmine.work.com) to https://other.example.com; pass --api-key/REDMINE_API_KEY explicitly to silence this
+warning: sending the stored credentials of profile "work" (for https://redmine.work.com) to https://other.example.com; pass --api-key-file or REDMINE_API_KEY explicitly to silence this
 ```
 
-Supply the key for the other server explicitly (`--api-key-file`, `--api-key`, `REDMINE_API_KEY`, or `REDMINE_PASSWORD` for basic auth) to silence the warning. In [strict mode](#strict-mode) the command is refused instead.
+Supply the key for the other server explicitly (`--api-key-file`, `REDMINE_API_KEY`, or `REDMINE_PASSWORD` for basic auth) to silence the warning. In [strict mode](#strict-mode) the command is refused instead.
+
+A profile's [custom headers](#custom-http-headers) can carry tokens for the same server, so they get the same check. The warning names the headers, never their values:
+
+```text
+warning: sending the configured headers of profile "work" (for https://redmine.work.com) to https://other.example.com: X-Proxy-Token; pass the headers meant for that server with --header to silence this
+```
+
+A header given with `--header` on the same command is not checked, since it replaces the profile header of that name.
 
 ## Strict mode
 
@@ -191,8 +199,10 @@ profiles:
 ```
 
 ```bash
-export REDMINE_STRICT=1   # REDMINE_STRICT=0 turns it off for a profile with strict: true
+export REDMINE_STRICT=1
 ```
+
+`REDMINE_STRICT` can only turn strict mode on. A falsy value such as `REDMINE_STRICT=0` leaves a profile's `strict: true` in force; to turn strict mode off, remove `strict` from the profile.
 
 This is the complete list of what strict mode changes:
 
@@ -200,7 +210,7 @@ This is the complete list of what strict mode changes:
 |-----------|---------|-------------|
 | Server URL uses `http://` on a non-loopback host (see [Connection security](#connection-security)) | Warns, then sends credentials in cleartext | Refuses the command before any request |
 | `redmine auth login` with a non-loopback `http://` URL | Warns | Refuses before asking for credentials |
-| A profile's stored credentials would go to a different origin given with `--server` / `REDMINE_SERVER` (see [above](#server-overrides-and-stored-credentials)) | Warns, then sends them | Refuses the command |
+| A profile's stored credentials or custom headers would go to a different origin given with `--server` / `REDMINE_SERVER` (see [above](#server-overrides-and-stored-credentials)) | Warns, then sends them | Refuses the command |
 | API key passed with `--api-key` | Accepted | Refused; use `--api-key-file`, `REDMINE_API_KEY`, or the keyring |
 | `mcp serve --auth-token` on the command line | Warns | Refuses to start; use `--auth-token-file`, `REDMINE_MCP_AUTH_TOKEN`, or `mcp.auth_token` |
 | `mcp serve --http` on loopback without a token | Warns, serves without authentication | Generates a token and prints it once |
@@ -290,7 +300,7 @@ API responses are capped at 256 MiB, and at most 1 MiB of an error response is r
 redmine config
 ```
 
-Prints the active profile, server, auth method, default project, output format, read-only state, and the names of configured headers (values are hidden).
+Prints the active profile, server, auth method, default project, output format, read-only state, whether [strict mode](#strict-mode) is on, and the names of configured headers (values are hidden).
 
 ## Next
 

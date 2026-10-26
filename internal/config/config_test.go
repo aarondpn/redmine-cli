@@ -788,3 +788,37 @@ func TestStrictEnvOverride(t *testing.T) {
 		t.Fatal("expected Strict=true from REDMINE_STRICT=1")
 	}
 }
+
+// TestStrictEnvCannotDisableProfileStrict pins that REDMINE_STRICT only
+// raises strict mode: a falsy value leaves a profile's strict: true in force.
+func TestStrictEnvCannotDisableProfileStrict(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("profiles:\n  default:\n    server: https://x\n    api_key: k\n    strict: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, val := range []string{"0", "false", "no", "off"} {
+		t.Run(val, func(t *testing.T) {
+			t.Setenv("REDMINE_STRICT", val)
+			cfg, err := Load(cfgPath, "default", debug.New(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.Strict {
+				t.Fatalf("REDMINE_STRICT=%s disabled the profile's strict: true", val)
+			}
+		})
+	}
+}
+
+func TestParseBoolEnv(t *testing.T) {
+	for _, v := range []string{"", "0", "false", "FALSE", "no", "Off", " off "} {
+		if ParseBoolEnv(v) {
+			t.Errorf("ParseBoolEnv(%q) = true, want false", v)
+		}
+	}
+	for _, v := range []string{"1", "true", "yes", "on", "TRUE", "anything"} {
+		if !ParseBoolEnv(v) {
+			t.Errorf("ParseBoolEnv(%q) = false, want true", v)
+		}
+	}
+}

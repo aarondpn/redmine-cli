@@ -19,11 +19,13 @@ func (e *StrictModeError) Error() string {
 // SecurityCheck reports a security-relevant condition. With cfg.Strict it
 // returns a *StrictModeError so the command aborts; otherwise it prints the
 // message as a warning to stderr (once per distinct message) and returns nil.
-// A nil cfg is treated as non-strict.
+// A nil cfg is treated as non-strict. It is safe for concurrent use.
 func (f *Factory) SecurityCheck(cfg *config.Config, msg string) error {
 	if cfg != nil && cfg.Strict {
 		return &StrictModeError{Msg: msg}
 	}
+	f.securityMu.Lock()
+	defer f.securityMu.Unlock()
 	if f.securityWarned == nil {
 		f.securityWarned = make(map[string]bool)
 	}

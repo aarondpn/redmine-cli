@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/url"
-	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -302,34 +299,18 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 }
 
 // checkCleartextServer warns, or refuses in strict mode, when the server URL
-// would send the credentials in cleartext. Strict mode comes from the profile
-// being replaced or REDMINE_STRICT.
+// would send the credentials in cleartext. It uses the same check and warning
+// as every other command (api.IsCleartextServer). Strict mode comes from the
+// profile being replaced or REDMINE_STRICT.
 func checkCleartextServer(f *cmdutil.Factory, server string, existing *config.Config) error {
-	if !isCleartextServer(server) {
+	if !api.IsCleartextServer(server) {
 		return nil
 	}
 	cfg := &config.Config{Strict: existing != nil && existing.Strict}
 	if strict, set := config.StrictEnv(); set {
 		cfg.Strict = strict
 	}
-	return f.SecurityCheck(cfg, fmt.Sprintf("%s uses http://, so your credentials will be sent in cleartext; use https:// if the server supports it", server))
-}
-
-// isCleartextServer reports whether server is a non-loopback http:// URL.
-// Loopback hosts (localhost, 127.0.0.0/8, ::1) never leave the machine.
-func isCleartextServer(server string) bool {
-	u, err := url.Parse(strings.TrimSpace(server))
-	if err != nil || !strings.EqualFold(u.Scheme, "http") {
-		return false
-	}
-	host := u.Hostname()
-	if strings.EqualFold(host, "localhost") {
-		return false
-	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return false
-	}
-	return true
+	return f.SecurityCheck(cfg, api.CleartextServerWarning(server))
 }
 
 // loginProxyHint replaces the generic forbidden hint for the login probe. A

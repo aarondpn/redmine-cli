@@ -224,6 +224,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 					"default_project": cfg.DefaultProject,
 					"output_format":   cfg.OutputFormat,
 					"read_only":       strconv.FormatBool(cfg.ReadOnly),
+					"strict":          strconv.FormatBool(cfg.Strict),
 					"headers":         strings.Join(headerNames, ", "),
 				})
 				return nil
@@ -235,6 +236,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Default Project", Value: cfg.DefaultProject},
 				{Key: "Output Format", Value: cfg.OutputFormat},
 				{Key: "Read Only", Value: strconv.FormatBool(cfg.ReadOnly)},
+				{Key: "Strict", Value: strconv.FormatBool(cfg.Strict)},
 				{Key: "Headers", Value: strings.Join(headerNames, ", ")},
 			})
 			return nil

@@ -2,10 +2,12 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -142,6 +144,23 @@ func TestUserResourceRejectsFilteredHalf(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.disable) {
 				t.Errorf("error should name the disabled tool %q: %v", tt.disable, err)
+			}
+			// Same JSON-RPC error as for a resource the server does not
+			// register at all, not a generic error with code 0.
+			var rpcErr *jsonrpc.Error
+			if !errors.As(err, &rpcErr) {
+				t.Fatalf("error %v (%T) is not a JSON-RPC error", err, err)
+			}
+			_, unregistered := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "redmine://unregistered/1"})
+			var wantErr *jsonrpc.Error
+			if !errors.As(unregistered, &wantErr) {
+				t.Fatalf("unregistered resource error %v (%T) is not a JSON-RPC error", unregistered, unregistered)
+			}
+			if rpcErr.Code != wantErr.Code || rpcErr.Code != jsonrpc.CodeInvalidParams {
+				t.Errorf("error code = %d, want %d (the SDK's resource-not-found code)", rpcErr.Code, wantErr.Code)
+			}
+			if !strings.Contains(string(rpcErr.Data), tt.denied) {
+				t.Errorf("error data = %s, want the URI %s", rpcErr.Data, tt.denied)
 			}
 		})
 	}

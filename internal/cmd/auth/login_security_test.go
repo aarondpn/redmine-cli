@@ -6,11 +6,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
-func TestIsCleartextServer(t *testing.T) {
+// TestCheckCleartextServerMatchesCommands pins that auth login judges a
+// server and words the warning exactly like every other command
+// (api.IsCleartextServer / api.CleartextServerWarning), including the
+// userinfo scrubbing and the *.localhost exemption.
+func TestCheckCleartextServerMatchesCommands(t *testing.T) {
 	cases := []struct {
 		server string
 		want   bool
@@ -18,18 +23,38 @@ func TestIsCleartextServer(t *testing.T) {
 		{"http://redmine.example.com", true},
 		{"HTTP://redmine.example.com:8080/redmine", true},
 		{"http://10.0.0.5", true},
+		{"http://user:hunter2@redmine.example.com", true},
 		{"https://redmine.example.com", false},
 		{"redmine.example.com", false},
 		{"http://localhost:3000", false},
 		{"http://LOCALHOST", false},
+		{"http://redmine.localhost:3000", false},
 		{"http://127.0.0.1:3000", false},
 		{"http://127.1.2.3", false},
 		{"http://[::1]:3000", false},
 	}
 	for _, tc := range cases {
-		if got := isCleartextServer(tc.server); got != tc.want {
-			t.Errorf("isCleartextServer(%q) = %v, want %v", tc.server, got, tc.want)
-		}
+		t.Run(tc.server, func(t *testing.T) {
+			t.Setenv("REDMINE_STRICT", "")
+			var errOut bytes.Buffer
+			f := &cmdutil.Factory{IOStreams: &cmdutil.IOStreams{ErrOut: &errOut}}
+			if err := checkCleartextServer(f, tc.server, nil); err != nil {
+				t.Fatalf("checkCleartextServer error = %v, want nil outside strict mode", err)
+			}
+			if got := api.IsCleartextServer(tc.server); got != tc.want {
+				t.Fatalf("api.IsCleartextServer(%q) = %v, want %v", tc.server, got, tc.want)
+			}
+			want := ""
+			if tc.want {
+				want = "warning: " + api.CleartextServerWarning(tc.server) + "\n"
+			}
+			if errOut.String() != want {
+				t.Fatalf("stderr = %q, want %q", errOut.String(), want)
+			}
+			if strings.Contains(errOut.String(), "hunter2") {
+				t.Fatalf("warning leaks the URL password: %q", errOut.String())
+			}
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"io"
 	"os"
+	"sync"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
@@ -51,7 +52,10 @@ type Factory struct {
 	// document a Printer emits is filtered through it.
 	JQ *output.JQFilter
 
-	jqErr          error
+	jqErr error
+	// securityMu guards securityWarned, so SecurityCheck can be called from
+	// any goroutine.
+	securityMu     sync.Mutex
 	securityWarned map[string]bool
 	apiKeyFromFile string
 	config         *config.Config
@@ -123,6 +127,15 @@ func (f *Factory) Config() (*config.Config, error) {
 	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, cfg.Server) {
 		if err := f.SecurityCheck(cfg, storedCredentialOverrideMessage(cfg, profile, server)); err != nil {
 			return nil, err
+		}
+	}
+	// Profile headers can hold proxy tokens bound to the same server; only
+	// those not replaced by a --header on this invocation are checked.
+	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, cfg.Server) {
+		if names := profileHeadersInUse(cfg.Headers, f.Headers); len(names) > 0 {
+			if err := f.SecurityCheck(cfg, profileHeadersOverrideMessage(cfg, profile, server, names)); err != nil {
+				return nil, err
+			}
 		}
 	}
 

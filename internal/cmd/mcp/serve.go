@@ -9,9 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -82,11 +80,12 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 			opts = mcpserver.ResolveOptions(opts, spec)
 
-			// main already cancels cmd.Context() on the first signal; this
-			// keeps serve shutting down cleanly when it runs without main
-			// (tests, embedding).
-			ctx, stop := signal.NotifyContext(cmdutil.Context(cmd), os.Interrupt, syscall.SIGTERM)
-			defer stop()
+			// main cancels this context on the first SIGINT/SIGTERM, which
+			// shuts both transports down cleanly, and restores default
+			// signal handling so a second Ctrl-C still kills the process.
+			// Serve must not catch signals itself, or it would swallow that
+			// second Ctrl-C while shutting down.
+			ctx := cmdutil.Context(cmd)
 
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
 			if httpAddr != "" {
@@ -132,7 +131,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().BoolVar(&enableWrites, "enable-writes", false, "Register tools that create, update, or delete Redmine data")
 	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (e.g. :8080 binds 127.0.0.1; pass 0.0.0.0:8080 to expose externally). Also settable via REDMINE_MCP_HTTP.")
-	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When --http binds outside of loopback and no token is set, one is generated at startup. Visible in the process list; prefer --auth-token-file or REDMINE_MCP_AUTH_TOKEN.")
+	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When no token is set, one is generated at startup for an --http bind outside of loopback, and in strict mode for loopback binds too. Visible in the process list (rejected in strict mode); prefer --auth-token-file or REDMINE_MCP_AUTH_TOKEN.")
 	cmd.Flags().StringVar(&authTokenFile, "auth-token-file", "", "Read the --auth-token value from a file, or from standard input with \"-\", so it never appears in the process list.")
 	cmd.MarkFlagsMutuallyExclusive("auth-token", "auth-token-file")
 	cmd.Flags().BoolVar(&noAuth, "no-auth", false, "Serve a non-loopback --http bind without a bearer token instead of generating one. Only use behind an authenticating proxy; rejected in strict mode.")
@@ -288,6 +287,11 @@ func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config,
 			}
 		}
 		token = resolveAuthToken(cmd, flags.Token, cfg)
+		if token == "" && !cmd.Flags().Changed("auth-token") {
+			// A keyring profile keeps mcp.auth_token in the keyring, and
+			// config loading leaves it there until it is needed.
+			token = config.ResolveMCPAuthToken(cfg, f.DebugLogger())
+		}
 	}
 	noAuth := resolveNoAuth(cmd, flags.NoAuth, cfg)
 	strict := cfg != nil && cfg.Strict
@@ -320,56 +324,22 @@ func resolveHTTPAuth(f *cmdutil.Factory, cmd *cobra.Command, cfg *config.Config,
 	return token, true, nil
 }
 
-// maxAuthTokenFileSize bounds how much --auth-token-file reads, so pointing
-// it at the wrong file (or an endless stream) fails fast.
-const maxAuthTokenFileSize = 64 << 10
-
 // readAuthTokenFile reads the bearer token from path, or from stdin when path
-// is "-". Surrounding whitespace (such as the trailing newline of `echo` or an
-// editor) is trimmed; an empty token or one containing whitespace is rejected
-// because it could never match an "Authorization: Bearer <token>" header.
+// is "-" (os.Stdin when stdin is nil). A token containing whitespace is
+// rejected because it could never match an "Authorization: Bearer <token>"
+// header.
 func readAuthTokenFile(path string, stdin io.Reader) (string, error) {
 	if stdin == nil {
 		stdin = os.Stdin
 	}
-	var (
-		data []byte
-		err  error
-	)
-	switch path {
-	case "":
-		return "", errors.New("--auth-token-file: file path is empty (use \"-\" to read from standard input)")
-	case "-":
-		data, err = io.ReadAll(io.LimitReader(stdin, maxAuthTokenFileSize+1))
-	default:
-		var file *os.File
-		file, err = os.Open(path)
-		if err == nil {
-			data, err = io.ReadAll(io.LimitReader(file, maxAuthTokenFileSize+1))
-			_ = file.Close()
-		}
-	}
+	token, err := cmdutil.ReadSecretFile("--auth-token-file", path, stdin)
 	if err != nil {
-		return "", fmt.Errorf("--auth-token-file: %w", err)
-	}
-	if len(data) > maxAuthTokenFileSize {
-		return "", fmt.Errorf("--auth-token-file: %s is larger than %d bytes", authTokenSource(path), maxAuthTokenFileSize)
-	}
-	token := strings.TrimSpace(string(data))
-	if token == "" {
-		return "", fmt.Errorf("--auth-token-file: %s is empty", authTokenSource(path))
+		return "", err
 	}
 	if strings.ContainsAny(token, " \t\r\n") {
-		return "", fmt.Errorf("--auth-token-file: %s must contain a single token without whitespace", authTokenSource(path))
+		return "", errors.New("--auth-token-file: the token must not contain whitespace")
 	}
 	return token, nil
-}
-
-func authTokenSource(path string) string {
-	if path == "-" {
-		return "standard input"
-	}
-	return path
 }
 
 // printGeneratedToken tells the operator which token clients must present.

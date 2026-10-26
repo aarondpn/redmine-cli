@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
@@ -193,7 +194,7 @@ func readUserResource(ctx context.Context, client *api.Client, uri string, allow
 	}
 	if segment == "me" {
 		if !allowMe {
-			return nil, fmt.Errorf("%s: disabled because the %q tool is not enabled on this server", uri, toolMe)
+			return nil, toolDisabledResourceError(uri, toolMe)
 		}
 		user, err := ops.GetCurrentUserForResource(ctx, client)
 		if err != nil {
@@ -206,13 +207,26 @@ func readUserResource(ctx context.Context, client *api.Client, uri string, allow
 		return nil, err
 	}
 	if !allowID {
-		return nil, fmt.Errorf("%s: disabled because the %q tool is not enabled on this server", uri, toolGetUser)
+		return nil, toolDisabledResourceError(uri, toolGetUser)
 	}
 	user, err := ops.GetUserForResource(ctx, client, id)
 	if err != nil {
 		return nil, resourceError(uri, err)
 	}
 	return jsonContent(uri, ops.RedactUser(user))
+}
+
+// toolDisabledResourceError refuses a URI whose backing tool is filtered out.
+// It is the SDK's "Resource not found" error, which the server also returns
+// for URIs of templates that are not registered at all, with the reason added
+// to the message.
+func toolDisabledResourceError(uri, tool string) error {
+	err := mcp.ResourceNotFoundError(uri)
+	var rpcErr *jsonrpc.Error
+	if errors.As(err, &rpcErr) {
+		rpcErr.Message = fmt.Sprintf("Resource not found: %s is disabled because the %q tool is not enabled on this server", uri, tool)
+	}
+	return err
 }
 
 func readTimeEntryResource(ctx context.Context, client *api.Client, uri string) (*mcp.ReadResourceResult, error) {

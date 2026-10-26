@@ -24,8 +24,7 @@ var errNoActiveProfile = errors.New("multiple profiles exist but no active profi
 
 // Overrides carries CLI-flag credential values that outrank both the config
 // file and the keyring. They are resolved before any keyring lookup so an
-// explicit --api-key never triggers a keyring read of the API key or password
-// (the optional MCP token of a keyring profile is still looked up).
+// explicit --api-key never triggers a keyring read.
 type Overrides struct {
 	Server string
 	APIKey string
@@ -143,8 +142,6 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field)
 	}
 
-	resolveKeyringMCPToken(&cfg, log)
-
 	if selectedName != "" {
 		cfg.profileName = selectedName
 		cfg.profileServer = profileServer
@@ -163,22 +160,29 @@ func storedSecretInUse(cfg *Config, ov Overrides) bool {
 	return cfg.APIKey != "" && ov.APIKey == "" && os.Getenv("REDMINE_API_KEY") == ""
 }
 
-// resolveKeyringMCPToken fills mcp.auth_token from the keyring when neither the
-// config file nor REDMINE_MCP_AUTH_TOKEN supplied it. The token is optional,
-// so a missing entry or a failed lookup is logged, never fatal.
-func resolveKeyringMCPToken(cfg *Config, log *debug.Logger) {
+// ResolveMCPAuthToken returns the profile's MCP bearer token. When neither
+// the config file nor REDMINE_MCP_AUTH_TOKEN supplied one, a keyring profile's
+// token is read from the system keyring and stored in cfg.MCP.AuthToken. Load
+// leaves this lookup out, so only callers that need the token (mcp serve
+// --http) touch the keyring for it. The token is optional: a missing entry or
+// a failed lookup is logged and yields "".
+func ResolveMCPAuthToken(cfg *Config, log *debug.Logger) string {
+	if cfg == nil {
+		return ""
+	}
 	if cfg.CredentialStore != CredentialStoreKeyring || cfg.KeyringID == "" || cfg.MCP.AuthToken != "" {
-		return
+		return cfg.MCP.AuthToken
 	}
 	token, ok, err := secrets.Default.Get(cfg.KeyringID, secrets.FieldMCPToken)
 	if err != nil {
 		log.Printf("Config: keyring lookup for %s failed: %v", secrets.FieldMCPToken, err)
-		return
+		return ""
 	}
 	if ok {
 		cfg.MCP.AuthToken = token
 		log.Printf("Config: loaded %s from system keyring", secrets.FieldMCPToken)
 	}
+	return cfg.MCP.AuthToken
 }
 
 // applyOverrides applies CLI-flag credential values onto cfg. Empty overrides
@@ -672,11 +676,13 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 	}
 
 	if val := os.Getenv("REDMINE_READ_ONLY"); val != "" {
-		cfg.ReadOnly = parseBoolEnv(val)
+		cfg.ReadOnly = ParseBoolEnv(val)
 	}
 
-	if val := os.Getenv("REDMINE_STRICT"); val != "" {
-		cfg.Strict = parseBoolEnv(val)
+	// The environment may enable strict mode but never disable it, so a
+	// profile with strict: true stays strict whatever REDMINE_STRICT says.
+	if ParseBoolEnv(os.Getenv("REDMINE_STRICT")) {
+		cfg.Strict = true
 	}
 
 	mcpListEnv := map[string]*[]string{
@@ -693,7 +699,7 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 	}
 
 	if val := os.Getenv("REDMINE_MCP_ENABLE_WRITES"); val != "" {
-		enable := parseBoolEnv(val)
+		enable := ParseBoolEnv(val)
 		cfg.MCP.EnableWrites = &enable
 		log.Printf("Config: env override REDMINE_MCP_ENABLE_WRITES is set")
 	}
@@ -709,7 +715,7 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 	}
 
 	if val := os.Getenv("REDMINE_MCP_NO_AUTH"); val != "" {
-		cfg.MCP.NoAuth = parseBoolEnv(val)
+		cfg.MCP.NoAuth = ParseBoolEnv(val)
 		log.Printf("Config: env override REDMINE_MCP_NO_AUTH is set")
 	}
 }
@@ -734,11 +740,11 @@ func StrictEnv() (strict, set bool) {
 	if val == "" {
 		return false, false
 	}
-	return parseBoolEnv(val), true
+	return ParseBoolEnv(val), true
 }
 
 // parseBoolEnv treats common falsy values as false; everything else is true.
-func parseBoolEnv(s string) bool {
+func ParseBoolEnv(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "0", "false", "no", "off", "":
 		return false

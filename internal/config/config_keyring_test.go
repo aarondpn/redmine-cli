@@ -135,17 +135,6 @@ func (s fatalStore) Delete(profile, field string) error {
 	return nil
 }
 
-// credentialFatalStore fails on any access to the API key or password but
-// answers the optional MCP token lookup with "not stored".
-type credentialFatalStore struct{ fatalStore }
-
-func (s credentialFatalStore) Get(profile, field string) (string, bool, error) {
-	if field == secrets.FieldMCPToken {
-		return "", false, nil
-	}
-	return s.fatalStore.Get(profile, field)
-}
-
 func (s fatalStore) Available() bool { return false }
 
 func TestLegacyPlaintextProfileUnaffected(t *testing.T) {
@@ -254,7 +243,7 @@ profiles:
 
 func TestAPIKeyOverrideBypassesKeyring(t *testing.T) {
 	orig := secrets.Default
-	secrets.Default = credentialFatalStore{fatalStore{t}}
+	secrets.Default = fatalStore{t}
 	t.Cleanup(func() { secrets.Default = orig })
 
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
@@ -276,6 +265,34 @@ profiles:
 	}
 	if loaded.APIKey != "flag-key" {
 		t.Fatalf("loaded APIKey = %q, want flag value %q", loaded.APIKey, "flag-key")
+	}
+}
+
+func TestAPIKeyEnvBypassesKeyring(t *testing.T) {
+	orig := secrets.Default
+	secrets.Default = fatalStore{t}
+	t.Cleanup(func() { secrets.Default = orig })
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    credential_store: keyring
+    keyring_id: env-id
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_API_KEY", "env-key")
+
+	loaded, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatalf("Load error = %v, want nil (env supplies the key)", err)
+	}
+	if loaded.APIKey != "env-key" {
+		t.Fatalf("loaded APIKey = %q, want env value %q", loaded.APIKey, "env-key")
 	}
 }
 
