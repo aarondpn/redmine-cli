@@ -5,7 +5,7 @@ description: Controlling how redmine-cli displays data.
 
 import { Tabs, TabItem, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
-Every command accepts `-o` / `--output` to control the output format. The flag is registered globally, so read, write, delete, and every other subcommand honour it uniformly. Pick the one that matches what you're doing: reading, scripting, or exporting.
+Every command accepts `-o` / `--output` to control the output format. The flag is registered globally, so read, write, delete, and every other subcommand honour it uniformly. Pick the one that matches what you're doing: reading or scripting. For spreadsheets, see [CSV export](#csv-export).
 
 <Tabs syncKey="output-format">
   <TabItem label="table">
@@ -41,20 +41,6 @@ Every command accepts `-o` / `--output` to control the output format. The flag i
     ]
     ```
   </TabItem>
-
-  <TabItem label="csv">
-    Comma-separated values for spreadsheets and data analysis.
-
-    ```bash
-    redmine issues list --project myproject -o csv
-    ```
-
-    ```
-    ID,Tracker,Status,Priority,Subject
-    123,Bug,Open,High,Fix login timeout
-    124,Feature,Open,Normal,Add dark mode
-    ```
-  </TabItem>
 </Tabs>
 
 ## Filtering with `--jq`
@@ -85,8 +71,8 @@ redmine api /users/current.json --jq '.user.login'
 
 How it behaves:
 
-- `--jq` implies `-o json`. Combining it with an explicit `-o table` or
-  `-o csv` is an error.
+- `--jq` implies `-o json`. Combining it with an explicit `-o table` is an
+  error.
 - Commands that never print JSON reject `--jq`: `completion`, `mcp serve`,
   `mcp tools`, `attachments download --path -` (raw file bytes) and the
   interactive commands (`auth login`, `auth logout`, `auth switch` without a
@@ -128,6 +114,30 @@ How it behaves:
   CLI writes only the result to `stdout`; pagination hints are suppressed and
   errors go to `stderr`, so piping is safe.
 </Aside>
+
+### CSV export
+
+There is no `csv` output format. Build CSV from the JSON output with jq's
+`@csv` instead, which also lets you pick the columns:
+
+```bash
+# ID and subject of every issue, one CSV row each
+redmine issues list --project myproject -o json --jq '.[] | [.id, .subject] | @csv'
+
+# With a header row, nested fields, and all pages
+redmine issues list --project myproject --limit 0 -o json \
+  --jq '["ID", "Status", "Subject"], (.[] | [.id, .status.name, .subject]) | @csv'
+```
+
+`@csv` quotes strings and doubles embedded quotes; numbers are written as
+they are and `null` becomes an empty field. Use `@tsv` for tab-separated
+values. The values are not altered, so a cell that starts with `=`, `+`, `-`
+or `@` may be evaluated as a formula when the file is opened in a
+spreadsheet app.
+
+`-o csv` fails before any request is sent, with a hint to use `@csv`. A
+profile with `output_format: csv` or `REDMINE_OUTPUT_FORMAT=csv` falls back
+to the table format and prints a warning.
 
 ## JSON output shapes
 
@@ -249,7 +259,7 @@ Redmine's messages are localized; branch on `code`, not on `message`.
 
 ## stdout vs stderr
 
-- Machine-readable output (JSON, CSV, table rows) always goes to `stdout`.
+- Machine-readable output (JSON, table rows) always goes to `stdout`.
 - Human-oriented messages (success confirmations in non-JSON mode,
   warnings, progress spinners, update-check hints) always go to `stderr`.
 - Errors always go to `stderr`, as `Error: ...` text or, in JSON mode, as the
@@ -287,14 +297,10 @@ of what the CLI prints. The output layer treats that text as untrusted:
   return as `^M`), C1 controls as `\u009b`-style escapes, and invisible bidi
   override characters are removed, so a crafted subject cannot set your
   clipboard, plant hyperlinks, move the cursor or overwrite lines. Regular
-  Unicode (accents, CJK, emoji) is unaffected. JSON, CSV, `--jq` results,
+  Unicode (accents, CJK, emoji) is unaffected. JSON, `--jq` results,
   `redmine api` bodies and attachment downloads are written byte for byte.
   Error messages from Redmine get the same treatment wherever they appear,
   including the `details` of JSON error envelopes and MCP tool errors.
-- **CSV.** Cells that start with `=`, `+`, `-`, `@`, a tab or a carriage
-  return may be evaluated as formulas when the file is opened in a
-  spreadsheet app. The CSV stays unchanged and a single warning is printed
-  to `stderr`. Plain numbers such as `-1.5` are never flagged.
 - **`--jq` and the environment.** `env` / `$ENV` work by default.
   `REDMINE_JQ_NO_ENV=1` hides the environment from the expression.
 - **Opening links.** `issues open` and the open key in the interactive

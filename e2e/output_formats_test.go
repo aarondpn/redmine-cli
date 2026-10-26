@@ -11,99 +11,43 @@ import (
 	"testing"
 )
 
-// TestOutput_CSV_IssuesList creates a project with two issues, then asks
-// `issues list` for CSV output. The test confirms the headers exposed by
-// internal/cmd/issue/list.go and that both issues land as data rows so a
-// future column rename or row-renderer regression fails CI.
-func TestOutput_CSV_IssuesList(t *testing.T) {
+// TestOutput_CSVViaJQ_IssuesList creates a project with two issues and runs
+// the replacement for the removed CSV format that `-o csv` suggests: JSON
+// output piped through jq's @csv. Both issues must come back as CSV rows,
+// and `-o csv` itself must fail with that hint.
+func TestOutput_CSVViaJQ_IssuesList(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	proj := createTestProject(t, r)
 
-	subjectA := "CSV row A " + uniqueShortSuffix(t)
-	subjectB := "CSV row B " + uniqueShortSuffix(t)
-	createTestIssueWithSubject(t, r, proj.Identifier, subjectA)
-	createTestIssueWithSubject(t, r, proj.Identifier, subjectB)
+	subjectA := "CSV row A, " + uniqueShortSuffix(t)
+	subjectB := "CSV row \"B\" " + uniqueShortSuffix(t)
+	issueA := createTestIssueWithSubject(t, r, proj.Identifier, subjectA)
+	issueB := createTestIssueWithSubject(t, r, proj.Identifier, subjectB)
 
 	stdout := r.run(t, "issues", "list",
 		"--project", proj.Identifier,
 		"--status", "*",
-		"--output", "csv",
-		"--limit", "10")
+		"--limit", "10",
+		"--output", "json",
+		"--jq", ".[] | [.id, .subject] | @csv")
 
 	rows, err := csv.NewReader(bytes.NewReader(stdout)).ReadAll()
 	if err != nil {
 		t.Fatalf("decode CSV: %v\nstdout:\n%s", err, stdout)
 	}
-	if len(rows) < 3 {
-		t.Fatalf("expected header + 2 data rows, got %d rows\nstdout:\n%s", len(rows), stdout)
-	}
-
-	wantHeaders := []string{"ID", "Tracker", "Status", "Priority", "Subject", "Assignee", "Version"}
-	if !slices.Equal(rows[0], wantHeaders) {
-		t.Fatalf("CSV header mismatch:\n got: %v\nwant: %v", rows[0], wantHeaders)
-	}
-
-	subjectIdx := slices.Index(wantHeaders, "Subject")
-	subjects := make([]string, 0, len(rows)-1)
-	for _, row := range rows[1:] {
-		if subjectIdx < len(row) {
-			subjects = append(subjects, row[subjectIdx])
+	for _, want := range [][]string{
+		{strconv.Itoa(issueA.ID), subjectA},
+		{strconv.Itoa(issueB.ID), subjectB},
+	} {
+		if !slices.ContainsFunc(rows, func(row []string) bool { return slices.Equal(row, want) }) {
+			t.Errorf("CSV output missing row %q\nstdout:\n%s", want, stdout)
 		}
 	}
-	for _, want := range []string{subjectA, subjectB} {
-		if !slices.Contains(subjects, want) {
-			t.Errorf("CSV output missing issue subject %q\nstdout:\n%s", want, stdout)
-		}
-	}
-}
 
-// TestOutput_CSV_TimeList logs a single time entry then verifies the CSV
-// shape produced by `time list`. We assert headers, row count, and that the
-// known hours value round-trips through the CSV renderer.
-func TestOutput_CSV_TimeList(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-	proj := createTestProject(t, r)
-	issue := createTestIssue(t, r, proj.Identifier)
-	activity := firstActivityName(t, r)
-
-	var logged struct {
-		ID    int     `json:"id"`
-		Hours float64 `json:"hours"`
-	}
-	r.runJSON(t, &logged, "time", "log",
-		"--issue", strconv.Itoa(issue.ID),
-		"--hours", "0.75",
-		"--activity", activity,
-		"--comment", "csv shape check")
-
-	stdout := r.run(t, "time", "list",
-		"--issue", strconv.Itoa(issue.ID),
-		"--output", "csv")
-
-	rows, err := csv.NewReader(bytes.NewReader(stdout)).ReadAll()
-	if err != nil {
-		t.Fatalf("decode CSV: %v\nstdout:\n%s", err, stdout)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("expected header + 1 data row, got %d rows\nstdout:\n%s", len(rows), stdout)
-	}
-
-	wantHeaders := []string{"ID", "Date", "Project", "Issue", "Hours", "Activity", "User", "Comments"}
-	if !slices.Equal(rows[0], wantHeaders) {
-		t.Fatalf("CSV header mismatch:\n got: %v\nwant: %v", rows[0], wantHeaders)
-	}
-
-	row := rows[1]
-	if got, want := row[slices.Index(wantHeaders, "ID")], strconv.Itoa(logged.ID); got != want {
-		t.Errorf("CSV ID = %q, want %q", got, want)
-	}
-	if got, want := row[slices.Index(wantHeaders, "Hours")], "0.75"; got != want {
-		t.Errorf("CSV Hours = %q, want %q", got, want)
-	}
-	if got, want := row[slices.Index(wantHeaders, "Issue")], strconv.Itoa(issue.ID); got != want {
-		t.Errorf("CSV Issue = %q, want %q", got, want)
+	_, stderr := r.runExpectError(t, "issues", "list", "--project", proj.Identifier, "--output", "csv")
+	if !bytes.Contains(stderr, []byte("CSV output was removed")) || !bytes.Contains(stderr, []byte("@csv")) {
+		t.Errorf("-o csv stderr = %q, want the CSV removal error with the @csv hint", stderr)
 	}
 }
 

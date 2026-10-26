@@ -84,6 +84,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 			if err := cmdutil.ApplyGlobalFlags(f, cmd); err != nil {
 				return err
 			}
+			if err := cmdutil.CheckOutputFlag(cmd); err != nil {
+				return err
+			}
 			return applyJQFlag(cmd, f, jqExpr, cmd.Flags().Changed("jq"))
 		},
 		// Printer methods have no error return, so a --jq runtime failure
@@ -104,7 +107,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file path (default ~/.redmine-cli.yaml)")
-	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json, csv")
+	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format: table, json")
 	cmd.PersistentFlags().BoolVar(&readOnly, "read-only", false, "Refuse all requests that modify data on the server")
 	cmd.PersistentFlags().StringArrayVar(&headers, "header", nil, `Extra HTTP header sent to the server, as "Name: value" (repeatable)`)
 	cmd.PersistentFlags().StringVarP(&jqExpr, "jq", "q", "", "Filter JSON output using a jq expression (implies --output json)")

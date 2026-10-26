@@ -63,12 +63,8 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex, styled bool) []string {
-				title := p.Title
-				if styled {
-					title = output.StyleID.Render(title)
-				}
-				return []string{title, p.UpdatedOn}
+			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex) []string {
+				return []string{output.StyleID.Render(p.Title), p.UpdatedOn}
 			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{

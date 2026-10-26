@@ -44,18 +44,16 @@ func newCmdStatusList(f *cmdutil.Factory) *cobra.Command {
 			}
 			statuses := result.Statuses
 
-			cmdutil.RenderCollection(printer, statuses, []string{"ID", "Name", "Closed"}, func(s models.IssueStatus, styled bool) []string {
-				id := fmt.Sprintf("%d", s.ID)
-				name := s.Name
+			cmdutil.RenderCollection(printer, statuses, []string{"ID", "Name", "Closed"}, func(s models.IssueStatus) []string {
 				closed := "no"
 				if s.IsClosed {
 					closed = "yes"
 				}
-				if styled {
-					id = output.StyleID.Render(id)
-					name = output.StatusStyle(s.Name).Render(s.Name)
+				return []string{
+					output.StyleID.Render(fmt.Sprintf("%d", s.ID)),
+					output.StatusStyle(s.Name).Render(s.Name),
+					closed,
 				}
-				return []string{id, name, closed}
 			})
 			return nil
 		},

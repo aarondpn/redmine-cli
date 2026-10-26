@@ -39,11 +39,8 @@ func newCmdCustomFieldList(f *cmdutil.Factory) *cobra.Command {
 				printer,
 				result.CustomFields,
 				[]string{"ID", "Name", "Type", "Format", "Required", "Filter", "Searchable", "Multiple"},
-				func(cf models.CustomField, styled bool) []string {
-					id := fmt.Sprintf("%d", cf.ID)
-					if styled {
-						id = output.StyleID.Render(id)
-					}
+				func(cf models.CustomField) []string {
+					id := output.StyleID.Render(fmt.Sprintf("%d", cf.ID))
 					return []string{
 						id,
 						cf.Name,

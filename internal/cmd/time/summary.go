@@ -119,14 +119,6 @@ func newCmdTimeSummary(f *cmdutil.Factory) *cobra.Command {
 				}
 				printer.JSON(rows)
 				return nil
-			case output.FormatCSV:
-				headers := []string{"Group", "Total Hours"}
-				rows := make([][]string, len(keys))
-				for i, k := range keys {
-					rows[i] = []string{k, fmt.Sprintf("%.2f", totals[k])}
-				}
-				printer.CSV(headers, rows)
-				return nil
 			}
 
 			headers := []string{"Group", "Total Hours"}

@@ -10,7 +10,6 @@ import (
 const (
 	FormatTable = "table"
 	FormatJSON  = "json"
-	FormatCSV   = "csv"
 )
 
 // IsTerminal checks if stdout is a terminal.

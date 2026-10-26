@@ -88,7 +88,6 @@ func CompleteOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]st
 	return filterCompletions([]string{
 		"table\tDefault tabular output",
 		"json\tJSON output",
-		"csv\tCSV output",
 	}, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 

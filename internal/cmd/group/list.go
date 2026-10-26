@@ -40,11 +40,8 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 			}
 			groups, total := result.Groups, result.TotalCount
 
-			cmdutil.RenderCollection(printer, groups, []string{"ID", "Name"}, func(g models.Group, styled bool) []string {
-				id := fmt.Sprintf("%d", g.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, groups, []string{"ID", "Name"}, func(g models.Group) []string {
+				id := output.StyleID.Render(fmt.Sprintf("%d", g.ID))
 				return []string{id, g.Name}
 			})
 

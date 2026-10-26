@@ -56,18 +56,13 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 			users, total := result.Users, result.TotalCount
 
 			cmdutil.RenderCollection(printer, users, []string{"ID", "Login", "Name", "Email", "Admin", "Status"},
-				func(u models.User, styled bool) []string {
-					id := fmt.Sprintf("%d", u.ID)
-					admin := fmt.Sprintf("%t", u.Admin)
-					if styled {
-						id = output.StyleID.Render(id)
-						admin = ""
-						if u.Admin {
-							admin = "yes"
-						}
+				func(u models.User) []string {
+					admin := ""
+					if u.Admin {
+						admin = "yes"
 					}
 					return []string{
-						id,
+						output.StyleID.Render(fmt.Sprintf("%d", u.ID)),
 						u.Login,
 						u.FirstName + " " + u.LastName,
 						u.Mail,

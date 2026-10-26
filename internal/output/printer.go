@@ -10,7 +10,6 @@ type Printer interface {
 	Table(headers []string, rows [][]string)
 	Detail(pairs []KeyValue)
 	JSON(v interface{})
-	CSV(headers []string, rows [][]string)
 	Success(msg string)
 	Error(msg string)
 	Warning(msg string)
@@ -46,9 +45,6 @@ type StdPrinter struct {
 	// jq, when set, filters every JSON document before it reaches out.
 	jq        *JQFilter
 	onJQError func(error)
-
-	// onFormulaCells is told about CSV formula cells; output stays verbatim.
-	onFormulaCells func(msg string)
 }
 
 // NewStdPrinter creates a new StdPrinter.
@@ -79,13 +75,6 @@ func (p *StdPrinter) Format() string {
 func (p *StdPrinter) SetJQ(q *JQFilter, onErr func(error)) {
 	p.jq = q
 	p.onJQError = onErr
-}
-
-// SetCSVFormulaWarn sets the function that receives CSVFormulaWarning when
-// CSV output contains cells spreadsheet apps may evaluate as formulas (see
-// IsFormulaCell). The output itself is written verbatim.
-func (p *StdPrinter) SetCSVFormulaWarn(warn func(msg string)) {
-	p.onFormulaCells = warn
 }
 
 // writeJSON is the single point where JSON output reaches stdout.
@@ -126,13 +115,6 @@ func (p *StdPrinter) Detail(pairs []KeyValue) {
 
 func (p *StdPrinter) JSON(v interface{}) {
 	p.writeJSON(v)
-}
-
-func (p *StdPrinter) CSV(headers []string, rows [][]string) {
-	if p.onFormulaCells != nil && HasFormulaCells(rows) {
-		p.onFormulaCells(CSVFormulaWarning)
-	}
-	RenderCSV(p.out, headers, rows)
 }
 
 func (p *StdPrinter) Success(msg string) {

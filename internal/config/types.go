@@ -16,7 +16,7 @@ type Config struct {
 	// entries unique across config files and stable across profile renames.
 	KeyringID      string `mapstructure:"keyring_id" yaml:"keyring_id,omitempty"`
 	DefaultProject string `mapstructure:"default_project" yaml:"default_project,omitempty"`
-	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table", "json", "csv"
+	OutputFormat   string `mapstructure:"output_format" yaml:"output_format,omitempty"` // "table" or "json"
 	NoColor        bool   `mapstructure:"no_color" yaml:"no_color,omitempty"`
 	ReadOnly       bool   `mapstructure:"read_only" yaml:"read_only,omitempty"`
 	// Headers are extra HTTP headers sent with every request to the configured

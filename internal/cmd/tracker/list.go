@@ -49,11 +49,8 @@ func newCmdTrackerList(f *cmdutil.Factory) *cobra.Command {
 			}
 			trackers := result.Trackers
 
-			cmdutil.RenderCollection(printer, trackers, []string{"ID", "Name", "Default Status", "Description"}, func(t models.Tracker, styled bool) []string {
-				id := fmt.Sprintf("%d", t.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, trackers, []string{"ID", "Name", "Default Status", "Description"}, func(t models.Tracker) []string {
+				id := output.StyleID.Render(fmt.Sprintf("%d", t.ID))
 				return []string{id, t.Name, trackerDefaultStatus(t), t.Description}
 			})
 			return nil
@@ -98,20 +95,6 @@ func newCmdTrackerGet(f *cmdutil.Factory) *cobra.Command {
 				printer.JSON(tracker)
 				return nil
 			}
-			if printer.Format() == output.FormatCSV {
-				printer.CSV(
-					[]string{"ID", "Name", "Default Status", "Description", "Enabled Standard Fields"},
-					[][]string{{
-						fmt.Sprintf("%d", tracker.ID),
-						tracker.Name,
-						trackerDefaultStatusDetail(*tracker),
-						tracker.Description,
-						trackerStandardFields(*tracker),
-					}},
-				)
-				return nil
-			}
-
 			details := []output.KeyValue{
 				{Key: "ID", Value: fmt.Sprintf("%d", tracker.ID)},
 				{Key: "Name", Value: tracker.Name},

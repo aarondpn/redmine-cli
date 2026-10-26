@@ -33,11 +33,8 @@ func newCmdRoleList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			cmdutil.RenderCollection(printer, result.Roles, []string{"ID", "Name", "Assignable", "Builtin"}, func(r models.Role, styled bool) []string {
-				id := fmt.Sprintf("%d", r.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, result.Roles, []string{"ID", "Name", "Assignable", "Builtin"}, func(r models.Role) []string {
+				id := output.StyleID.Render(fmt.Sprintf("%d", r.ID))
 				return []string{id, r.Name, optionalBoolLabel(r.Assignable), optionalBoolLabel(builtinPtr(r))}
 			})
 			return nil

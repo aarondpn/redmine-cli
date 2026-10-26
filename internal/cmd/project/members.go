@@ -51,28 +51,15 @@ func newCmdMembers(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			headers := []string{"ID", "User/Group", "Roles"}
-			if printer.Format() == output.FormatCSV {
-				rows := make([][]string, 0, len(members))
-				for _, m := range members {
-					rows = append(rows, []string{
-						strconv.Itoa(m.ID),
-						memberName(m),
-						formatRoles(m.Roles),
-					})
-				}
-				printer.CSV(headers, rows)
-			} else {
-				rows := make([][]string, 0, len(members))
-				for _, m := range members {
-					rows = append(rows, []string{
-						output.StyleID.Render(strconv.Itoa(m.ID)),
-						memberName(m),
-						formatRoles(m.Roles),
-					})
-				}
-				printer.Table(headers, rows)
+			rows := make([][]string, 0, len(members))
+			for _, m := range members {
+				rows = append(rows, []string{
+					output.StyleID.Render(strconv.Itoa(m.ID)),
+					memberName(m),
+					formatRoles(m.Roles),
+				})
 			}
+			printer.Table([]string{"ID", "User/Group", "Roles"}, rows)
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
 				Shown: len(members), Total: total, Limit: limit, Offset: offset, Noun: "members",

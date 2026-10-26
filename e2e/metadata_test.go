@@ -3,32 +3,8 @@
 package e2e
 
 import (
-	"bytes"
-	"encoding/csv"
-	"slices"
 	"testing"
 )
-
-// TestMetadata_TrackersListCSV verifies the CSV output shape of `trackers
-// list` since the existing `firstTrackerName` helper already covers the JSON
-// path. Pinning the headers protects renames in the CSV column layout.
-func TestMetadata_TrackersListCSV(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-
-	stdout := r.run(t, "trackers", "list", "--output", "csv")
-	rows, err := csv.NewReader(bytes.NewReader(stdout)).ReadAll()
-	if err != nil {
-		t.Fatalf("decode trackers CSV: %v\nstdout:\n%s", err, stdout)
-	}
-	if len(rows) < 2 {
-		t.Fatalf("expected header + at least 1 tracker row, got %d rows\nstdout:\n%s", len(rows), stdout)
-	}
-	wantHeaders := []string{"ID", "Name", "Default Status", "Description"}
-	if !slices.Equal(rows[0], wantHeaders) {
-		t.Fatalf("trackers CSV header mismatch:\n got: %v\nwant: %v", rows[0], wantHeaders)
-	}
-}
 
 func TestMetadata_TrackerGetJSON(t *testing.T) {
 	requireE2E(t)

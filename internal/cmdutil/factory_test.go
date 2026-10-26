@@ -47,10 +47,10 @@ func TestPrinterRecordsConfiguredOutputFormatOnFactory(t *testing.T) {
 func TestPrinterExplicitFormatOverridesConfig(t *testing.T) {
 	f := testFactoryWithConfig(t, "output_format: json\n")
 
-	printer := f.Printer("csv")
+	printer := f.Printer("table")
 
-	if got := printer.Format(); got != "csv" {
-		t.Fatalf("Format() = %q, want %q", got, "csv")
+	if got := printer.Format(); got != "table" {
+		t.Fatalf("Format() = %q, want %q", got, "table")
 	}
 }
 
@@ -230,7 +230,7 @@ func TestFactory_Config_PrecedenceOrder(t *testing.T) {
 server: https://file.example.com
 api_key: file-key
 auth_method: basic
-output_format: csv
+output_format: json
 `)
 	t.Setenv("REDMINE_SERVER", "https://env.example.com")
 	t.Setenv("REDMINE_API_KEY", "env-key")
@@ -256,8 +256,38 @@ output_format: csv
 	if cfg.AuthMethod != "basic" {
 		t.Errorf("auth_method: expected file value 'basic', got %q", cfg.AuthMethod)
 	}
-	if cfg.OutputFormat != "csv" {
-		t.Errorf("output_format: expected file value 'csv', got %q", cfg.OutputFormat)
+	if cfg.OutputFormat != "json" {
+		t.Errorf("output_format: expected file value 'json', got %q", cfg.OutputFormat)
+	}
+}
+
+// CSV output was removed; a profile or REDMINE_OUTPUT_FORMAT that still asks
+// for it falls back to the table with a single warning.
+func TestFactory_Config_RemovedCSVOutputFormatFallsBack(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		env    string
+	}{
+		{name: "profile", config: "server: https://example.com\napi_key: k\noutput_format: csv\n"},
+		{name: "REDMINE_OUTPUT_FORMAT", config: "server: https://example.com\napi_key: k\n", env: "csv"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("REDMINE_OUTPUT_FORMAT", tt.env)
+			f := testFactoryWithConfig(t, tt.config)
+
+			for range 2 {
+				if got := f.Printer("").Format(); got != output.FormatTable {
+					t.Fatalf("Printer(\"\").Format() = %q, want %q", got, output.FormatTable)
+				}
+			}
+			errOut := f.IOStreams.ErrOut.(*bytes.Buffer).String()
+			want := "warning: CSV output was removed, so output_format csv (profile or REDMINE_OUTPUT_FORMAT) falls back to table; " + csvReplacementHint + "\n"
+			if errOut != want {
+				t.Fatalf("stderr = %q, want %q", errOut, want)
+			}
+		})
 	}
 }
 
@@ -293,20 +323,20 @@ func TestFactory_Printer_NoCacheTrap(t *testing.T) {
 	}
 
 	p1 := f.Printer(output.FormatJSON)
-	p2 := f.Printer(output.FormatCSV)
+	p2 := f.Printer(output.FormatTable)
 
 	if p1.Format() != output.FormatJSON {
 		t.Errorf("first printer: expected format %q, got %q", output.FormatJSON, p1.Format())
 	}
-	if p2.Format() != output.FormatCSV {
-		t.Errorf("second printer: expected format %q, got %q", output.FormatCSV, p2.Format())
+	if p2.Format() != output.FormatTable {
+		t.Errorf("second printer: expected format %q, got %q", output.FormatTable, p2.Format())
 	}
 }
 
 func TestFactory_Printer_ReturnsRequestedFormat(t *testing.T) {
 	cfgPath := writeConfigFile(t, "server: https://example.com\napi_key: test-key\n")
 
-	formats := []string{output.FormatJSON, output.FormatCSV, output.FormatTable}
+	formats := []string{output.FormatJSON, output.FormatTable}
 	for _, format := range formats {
 		f := &Factory{
 			ConfigPath: cfgPath,

@@ -185,16 +185,13 @@ func NewCmdSearch(f *cmdutil.Factory) *cobra.Command {
 
 // printResults renders search results using the printer.
 func printResults(printer output.Printer, results []models.SearchResult, total, limit, offset int) {
-	cmdutil.RenderCollection(printer, results, []string{"ID", "Type", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
-		id := fmt.Sprintf("%d", r.ID)
-		typ := r.Type
-		date := r.DateTime
-		if styled {
-			id = output.StyleID.Render(fmt.Sprintf("%d", r.ID))
-			typ = typeStyle(r.Type).Render(r.Type)
-			date = formatDate(r.DateTime)
+	cmdutil.RenderCollection(printer, results, []string{"ID", "Type", "Title", "Date"}, func(r models.SearchResult) []string {
+		return []string{
+			output.StyleID.Render(fmt.Sprintf("%d", r.ID)),
+			typeStyle(r.Type).Render(r.Type),
+			r.Title,
+			formatDate(r.DateTime),
 		}
-		return []string{id, typ, r.Title, date}
 	})
 
 	cmdutil.WarnPagination(printer, cmdutil.PaginationResult{

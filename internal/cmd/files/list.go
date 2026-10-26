@@ -69,11 +69,8 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			cmdutil.RenderCollection(
 				printer, fileList,
 				[]string{"ID", "Filename", "Size", "Version", "Author", "Created"},
-				func(file models.ProjectFile, styled bool) []string {
-					id := strconv.Itoa(file.ID)
-					if styled {
-						id = output.StyleID.Render(id)
-					}
+				func(file models.ProjectFile) []string {
+					id := output.StyleID.Render(strconv.Itoa(file.ID))
 					version := ""
 					if file.Version != nil {
 						version = file.Version.Name

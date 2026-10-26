@@ -9,7 +9,7 @@ import (
 
 // SanitizeTerminal neutralizes characters in untrusted text (anything that
 // came from the Redmine server) that a terminal would interpret instead of
-// display. It is applied to every human-readable output path; JSON, CSV,
+// display. It is applied to every human-readable output path; JSON,
 // --jq results and raw response bodies are left untouched. See
 // textsafe.Terminal for the rules.
 func SanitizeTerminal(s string) string {

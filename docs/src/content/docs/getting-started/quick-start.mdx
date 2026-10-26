@@ -112,7 +112,7 @@ User and group names given to `--assignee` are matched against the project's mem
 redmine issues list                # table (default)
 redmine issues list -o json        # machine-readable output
 redmine issues list --jq '.[].id'  # filter JSON (built-in jq)
-redmine issues list -o csv         # spreadsheets
+redmine issues list -o json --jq '.[] | [.id, .subject] | @csv'  # CSV for spreadsheets
 ```
 
 ## Where next
@@ -131,7 +131,7 @@ redmine issues list -o csv         # spreadsheets
   <LinkCard
     title="Output formats"
     href="/guides/output-formats/"
-    description="Tips for scripting with JSON and CSV."
+    description="Tips for scripting with JSON, jq, and CSV export."
   />
   <LinkCard
     title="AI agent integration"

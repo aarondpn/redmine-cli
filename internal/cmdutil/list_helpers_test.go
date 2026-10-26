@@ -22,7 +22,6 @@ func (s *spyPrinter) JSON(v interface{})                      { s.jsonCalls = ap
 func (s *spyPrinter) Warning(msg string)                      { s.warningCalls = append(s.warningCalls, msg) }
 func (s *spyPrinter) Table(headers []string, rows [][]string) {}
 func (s *spyPrinter) Detail(pairs []output.KeyValue)          {}
-func (s *spyPrinter) CSV(headers []string, rows [][]string)   {}
 func (s *spyPrinter) Success(msg string)                      {}
 func (s *spyPrinter) Error(msg string)                        {}
 func (s *spyPrinter) Outcome(ok bool, action, resource string, id any, humanMsg string) {
@@ -143,18 +142,6 @@ func TestHandleEmpty_EmptyTable(t *testing.T) {
 	}
 	if len(spy.jsonCalls) > 0 {
 		t.Error("HandleEmpty() should not emit JSON for table format")
-	}
-}
-
-func TestHandleEmpty_EmptyCSV(t *testing.T) {
-	spy := newSpyPrinter(output.FormatCSV)
-
-	var items []int
-	if !HandleEmpty(spy, items, "entries") {
-		t.Error("HandleEmpty() returned false for empty slice")
-	}
-	if len(spy.warningCalls) != 1 {
-		t.Fatalf("expected 1 warning call, got %d", len(spy.warningCalls))
 	}
 }
 

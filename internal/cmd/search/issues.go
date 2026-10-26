@@ -77,14 +77,8 @@ func newCmdSearchIssues(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, results, []string{"ID", "Title", "Date"}, func(r models.SearchResult, styled bool) []string {
-				id := fmt.Sprintf("%d", r.ID)
-				date := r.DateTime
-				if styled {
-					id = output.StyleID.Render(fmt.Sprintf("#%d", r.ID))
-					date = formatDate(r.DateTime)
-				}
-				return []string{id, r.Title, date}
+			cmdutil.RenderCollection(printer, results, []string{"ID", "Title", "Date"}, func(r models.SearchResult) []string {
+				return []string{output.StyleID.Render(fmt.Sprintf("#%d", r.ID)), r.Title, formatDate(r.DateTime)}
 			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{

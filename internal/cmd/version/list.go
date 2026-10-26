@@ -57,10 +57,7 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
   redmine versions list --project myproject --limit 25 --offset 25
 
   # Filter by status and output as JSON
-  redmine versions list --project myproject --open -o json
-
-  # Output as CSV
-  redmine versions list --project myproject --closed -o csv`,
+  redmine versions list --project myproject --open -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -132,20 +129,6 @@ func newCmdVersionList(f *cmdutil.Factory) *cobra.Command {
 			switch printer.Format() {
 			case output.FormatJSON:
 				printer.JSON(versions)
-			case output.FormatCSV:
-				headers := []string{"ID", "Name", "Status", "Due Date", "Sharing", "Description"}
-				rows := make([][]string, len(versions))
-				for i, v := range versions {
-					rows[i] = []string{
-						fmt.Sprintf("%d", v.ID),
-						v.Name,
-						v.Status,
-						v.DueDate,
-						v.Sharing,
-						v.Description,
-					}
-				}
-				printer.CSV(headers, rows)
 			default:
 				headers := []string{"ID", "Name", "Status", "Due Date", "Sharing", "Description"}
 				rows := make([][]string, len(versions))

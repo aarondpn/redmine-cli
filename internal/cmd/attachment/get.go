@@ -26,10 +26,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine attachments get 42
 
   # JSON output (for scripting)
-  redmine attachments get 42 -o json
-
-  # CSV output
-  redmine attachments get 42 -o csv`,
+  redmine attachments get 42 -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(args[0])
@@ -50,12 +47,9 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to get attachment %d: %w", id, err)
 			}
 
-			switch printer.Format() {
-			case output.FormatJSON:
+			if printer.Format() == output.FormatJSON {
 				printer.JSON(att)
-			case output.FormatCSV:
-				printer.CSV(attachmentHeaders, [][]string{attachmentRow(att)})
-			default:
+			} else {
 				renderAttachmentDetail(printer, att)
 			}
 			return nil
@@ -65,20 +59,6 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	return cmd
-}
-
-var attachmentHeaders = []string{"ID", "Filename", "Size", "Content-Type", "Author", "Created", "Description"}
-
-func attachmentRow(att *models.Attachment) []string {
-	return []string{
-		strconv.Itoa(att.ID),
-		att.Filename,
-		strconv.FormatInt(att.Filesize, 10),
-		att.ContentType,
-		att.Author.Name,
-		att.CreatedOn,
-		att.Description,
-	}
 }
 
 func renderAttachmentDetail(printer output.Printer, att *models.Attachment) {

@@ -64,16 +64,12 @@ func newCmdCategoryList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, categories, []string{"ID", "Name", "Assigned To"}, func(c models.IssueCategory, styled bool) []string {
-				id := fmt.Sprintf("%d", c.ID)
+			cmdutil.RenderCollection(printer, categories, []string{"ID", "Name", "Assigned To"}, func(c models.IssueCategory) []string {
 				assignee := ""
 				if c.AssignedTo != nil {
 					assignee = c.AssignedTo.Name
 				}
-				if styled {
-					id = output.StyleID.Render(id)
-				}
-				return []string{id, c.Name, assignee}
+				return []string{output.StyleID.Render(fmt.Sprintf("%d", c.ID)), c.Name, assignee}
 			})
 			return nil
 		},

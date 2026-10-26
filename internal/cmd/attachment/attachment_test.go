@@ -53,20 +53,16 @@ func TestCmdAttachmentGet_JSON(t *testing.T) {
 	}
 }
 
-func TestCmdAttachmentGet_TableAndCSV(t *testing.T) {
-	for _, format := range []string{"table", "csv"} {
-		t.Run(format, func(t *testing.T) {
-			srv := attachmentServer(t)
-			f := testutil.NewFactory(t, srv.URL)
-			cmd := newCmdGet(f)
-			cmd.SetArgs([]string{"55", "--output", format})
-			if err := cmd.Execute(); err != nil {
-				t.Fatal(err)
-			}
-			if out := testutil.Stdout(f); !strings.Contains(out, "logo.png") {
-				t.Fatalf("%s stdout = %q, want logo.png", format, out)
-			}
-		})
+func TestCmdAttachmentGet_Table(t *testing.T) {
+	srv := attachmentServer(t)
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdGet(f)
+	cmd.SetArgs([]string{"55", "--output", "table"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if out := testutil.Stdout(f); !strings.Contains(out, "logo.png") {
+		t.Fatalf("table stdout = %q, want logo.png", out)
 	}
 }
 

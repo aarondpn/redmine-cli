@@ -128,6 +128,13 @@ func (f *Factory) Config() (*config.Config, error) {
 		}
 	}
 
+	// A profile or REDMINE_OUTPUT_FORMAT that still selects the removed CSV
+	// format falls back to the table, so existing setups keep working.
+	if cfg.OutputFormat == removedFormatCSV {
+		cfg.OutputFormat = output.FormatTable
+		f.Warn("CSV output was removed, so output_format csv (profile or REDMINE_OUTPUT_FORMAT) falls back to table; " + csvReplacementHint)
+	}
+
 	if f.NoColorOverride {
 		cfg.NoColor = true
 	}
@@ -187,8 +194,6 @@ func (f *Factory) Printer(format string) output.Printer {
 		os.Setenv("NO_COLOR", "1")
 	}
 	p := output.NewStdPrinter(f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY, noColor, format)
-	// CSV formula cells are written verbatim with a one-time warning.
-	p.SetCSVFormulaWarn(f.Warn)
 	if f.JQ != nil && p.Format() == output.FormatJSON {
 		p.SetJQ(f.JQ, f.recordJQError)
 	}

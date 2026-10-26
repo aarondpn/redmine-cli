@@ -52,11 +52,8 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 			if cmdutil.HandleEmpty(printer, result.Watchers, "watchers") {
 				return nil
 			}
-			cmdutil.RenderCollection(printer, result.Watchers, []string{"ID", "Name"}, func(w models.IDName, styled bool) []string {
-				id := strconv.Itoa(w.ID)
-				if styled {
-					id = output.StyleID.Render(id)
-				}
+			cmdutil.RenderCollection(printer, result.Watchers, []string{"ID", "Name"}, func(w models.IDName) []string {
+				id := output.StyleID.Render(strconv.Itoa(w.ID))
 				return []string{id, w.Name}
 			})
 			return nil

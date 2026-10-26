@@ -62,11 +62,8 @@ func newCmdMembershipList(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			cmdutil.RenderCollection(printer, memberships, []string{"ID", "User/Group", "Roles"},
-				func(m models.Membership, styled bool) []string {
-					id := strconv.Itoa(m.ID)
-					if styled {
-						id = output.StyleID.Render(id)
-					}
+				func(m models.Membership) []string {
+					id := output.StyleID.Render(strconv.Itoa(m.ID))
 					return []string{id, memberName(m), formatRoles(m.Roles)}
 				},
 			)

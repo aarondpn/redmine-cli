@@ -28,7 +28,7 @@ Aliases: `show`, `view`, `metadata`. Fetches the attachment's ID, filename, size
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output` | Output format: `table`, `json`, `csv` |
+| `-o, --output` | Output format: `table`, `json` |
 
 <Tabs syncKey="attachments-get">
   <TabItem label="Table">
@@ -39,11 +39,6 @@ Aliases: `show`, `view`, `metadata`. Fetches the attachment's ID, filename, size
   <TabItem label="JSON">
     ```bash
     redmine attachments get 42 -o json
-    ```
-  </TabItem>
-  <TabItem label="CSV">
-    ```bash
-    redmine attachments get 42 -o csv
     ```
   </TabItem>
 </Tabs>

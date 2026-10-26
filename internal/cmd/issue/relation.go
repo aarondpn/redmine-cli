@@ -56,19 +56,14 @@ func newCmdRelationList(f *cmdutil.Factory) *cobra.Command {
 			}
 			cmdutil.RenderCollection(printer, result.Relations,
 				[]string{"ID", "Issue", "Related Issue", "Type", "Delay"},
-				func(r models.IssueRelation, styled bool) []string {
-					id := strconv.Itoa(r.ID)
-					from := fmt.Sprintf("#%d", r.IssueID)
-					to := fmt.Sprintf("#%d", r.IssueToID)
-					if styled {
-						id = output.StyleID.Render(id)
-						from = output.StyleID.Render(from)
-						to = output.StyleID.Render(to)
-					} else {
-						from = strconv.Itoa(r.IssueID)
-						to = strconv.Itoa(r.IssueToID)
+				func(r models.IssueRelation) []string {
+					return []string{
+						output.StyleID.Render(strconv.Itoa(r.ID)),
+						output.StyleID.Render(fmt.Sprintf("#%d", r.IssueID)),
+						output.StyleID.Render(fmt.Sprintf("#%d", r.IssueToID)),
+						r.RelationType,
+						formatDelay(r.Delay),
 					}
-					return []string{id, from, to, r.RelationType, formatDelay(r.Delay)}
 				})
 			return nil
 		},

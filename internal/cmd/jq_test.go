@@ -168,7 +168,6 @@ func TestJQ_RejectsNonJSONOutput(t *testing.T) {
 	srv, hits := jqTestServer(t, twoIssues)
 	for _, args := range [][]string{
 		{"issues", "list", "-o", "table", "--jq", ".[].id"},
-		{"--output", "csv", "issues", "list", "--jq", ".[].id"},
 		// api registers its own local --output, which shadows the root flag.
 		{"api", "/issues.json", "-o", "table", "--jq", ".issues"},
 	} {
@@ -184,6 +183,50 @@ func TestJQ_RejectsNonJSONOutput(t *testing.T) {
 	}
 	if n := hits.Load(); n != 0 {
 		t.Fatalf("expected no API requests, got %d", n)
+	}
+}
+
+// TestRemovedCSVOutput pins that an explicit --output csv fails before any
+// request, wherever the flag is given, and that the jq expression its error
+// suggests produces CSV from the real issues list JSON.
+func TestRemovedCSVOutput(t *testing.T) {
+	const issues = `{"issues":[` +
+		`{"id":1,"subject":"Crash, \"save\""},` +
+		`{"id":2,"subject":"=SUM(A1)"}` +
+		`],"total_count":2,"offset":0,"limit":100}`
+	srv, hits := jqTestServer(t, issues)
+
+	var errMsg string
+	for _, args := range [][]string{
+		{"-o", "csv", "issues", "list"},
+		{"issues", "list", "--output", "csv"},
+		{"--output", "csv", "issues", "list", "--jq", ".[].id"},
+		// api registers its own local --output, which shadows the root flag.
+		{"api", "/issues.json", "-o", "csv"},
+	} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			_, _, err := runRootWithJQ(t, srv.URL, args...)
+			if err == nil || !strings.HasPrefix(err.Error(), "CSV output was removed; use -o json with --jq and jq's @csv") {
+				t.Fatalf("err = %v, want the CSV removal error", err)
+			}
+			errMsg = err.Error()
+		})
+	}
+	if n := hits.Load(); n != 0 {
+		t.Fatalf("expected no API requests, got %d", n)
+	}
+
+	_, expr, ok := strings.Cut(errMsg, "--jq '")
+	expr, _, ok2 := strings.Cut(expr, "'")
+	if !ok || !ok2 {
+		t.Fatalf("error %q does not contain a --jq example", errMsg)
+	}
+	stdout, _, err := runRootWithJQ(t, srv.URL, "issues", "list", "-o", "json", "--jq", expr)
+	if err != nil {
+		t.Fatalf("suggested --jq %q: %v", expr, err)
+	}
+	if want := "1,\"Crash, \"\"save\"\"\"\n2,\"=SUM(A1)\"\n"; stdout != want {
+		t.Fatalf("suggested --jq %q printed %q, want %q", expr, stdout, want)
 	}
 }
 

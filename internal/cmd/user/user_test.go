@@ -76,28 +76,6 @@ func TestUserList_PaginationWarning(t *testing.T) {
 	}
 }
 
-func TestUserList_CSV(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"users":[` + userJSON + `],"total_count":1}`))
-	}))
-	defer srv.Close()
-
-	f := testutil.NewFactory(t, srv.URL)
-	cmd := newCmdUserList(f)
-	cmd.SetArgs([]string{"--output", "csv"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	stdout := testutil.Stdout(f)
-	for _, want := range []string{"ID", "Login", "admin", "John Doe"} {
-		if !strings.Contains(stdout, want) {
-			t.Errorf("csv output missing %q:\n%s", want, stdout)
-		}
-	}
-}
-
 // --- me ---
 
 func TestUserMe_Detail(t *testing.T) {
