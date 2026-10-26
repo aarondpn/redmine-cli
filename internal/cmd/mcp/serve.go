@@ -44,13 +44,15 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			"also register create/update/delete tools. Use --http to listen on " +
 			"an HTTP address such as :8080 instead of stdio. The HTTP transport " +
 			"defaults to a loopback bind (127.0.0.1); pass an explicit host to " +
-			"listen elsewhere. Every request must then carry a bearer token: set " +
-			"--auth-token-file (or REDMINE_MCP_AUTH_TOKEN), otherwise a random token " +
-			"is generated at startup and printed to stderr. Pass --no-auth only " +
-			"when something in front of the server (e.g. a reverse proxy) " +
-			"already authenticates clients. A loopback bind without a token " +
-			"stays open to every local user and process; the server warns about " +
-			"it.\n\n" +
+			"listen elsewhere. When a token is configured (--auth-token-file, " +
+			"REDMINE_MCP_AUTH_TOKEN or the profile's mcp.auth_token), every " +
+			"request must carry it as a bearer token, on any bind. On a " +
+			"non-loopback bind without a configured token, a random token is " +
+			"generated at startup and printed to stderr. A loopback bind " +
+			"without a token stays open to every local user and process; the " +
+			"server warns about it. Pass --no-auth only when something in front " +
+			"of the server (e.g. a reverse proxy) already authenticates " +
+			"clients.\n\n" +
 			"To narrow the set of tools exposed to MCP clients, use " +
 			"--enable-groups / --disable-groups (allow- and deny-list of tool " +
 			"groups) and --enable-tools / --disable-tools (per-tool overrides). " +
