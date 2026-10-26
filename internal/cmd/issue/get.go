@@ -41,7 +41,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 			"Existing files in <dir> are never overwritten unless --clobber is given, and\n" +
 			"attachments whose filename starts with \".\" (such as .bashrc) are refused\n" +
 			"unless --allow-hidden is given. Every name is checked before anything is\n" +
-			"downloaded.\n" +
+			"downloaded.\n\n" +
 			"Attachments of the same issue that share a filename (compared ignoring case)\n" +
 			"are all kept: the newest (highest attachment ID) keeps its name and older\n" +
 			"ones are saved as \"<name> (attachment-<id>).<ext>\".",
