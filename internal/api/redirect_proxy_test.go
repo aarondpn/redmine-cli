@@ -107,3 +107,23 @@ func TestRedirectPolicy_ResolvesOnlyProxiedHostNames(t *testing.T) {
 		t.Fatalf("redirect refused although no proxy was chosen: %v", err)
 	}
 }
+
+func TestRedirectPolicy_RefusesShorthandIPv4Hosts(t *testing.T) {
+	server, _ := url.Parse("https://redmine.example.com")
+	prev := httptest.NewRequest(http.MethodGet, "https://redmine.example.com/x", nil)
+	proxy := func(*http.Request) (*url.URL, error) { return url.Parse("http://proxy.example:3128") }
+	for _, host := range []string{"127.1", "2130706433", "10.1", "169.254.43518", "0x7f.1", "0x7f000001", "127.1."} {
+		for name, p := range map[string]func(*http.Request) (*url.URL, error){"direct": nil, "proxied": proxy} {
+			req := httptest.NewRequest(http.MethodGet, "https://"+host+"/x", nil)
+			err := redirectPolicy(server, p)(req, []*http.Request{prev})
+			if err == nil || !strings.Contains(err.Error(), "non-canonical IP address") {
+				t.Errorf("%s redirect to %s: err = %v, want refusal", name, host, err)
+			}
+		}
+	}
+	for _, host := range []string{"files.example.com", "s3.eu-west-1.amazonaws.com", "x1.example", "0xcafe.example.com", "123.example.org"} {
+		if looksNumericIPv4(host) {
+			t.Errorf("looksNumericIPv4(%q) = true, want false", host)
+		}
+	}
+}

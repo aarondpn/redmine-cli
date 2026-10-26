@@ -154,6 +154,12 @@ func redirectPolicy(server *url.URL, proxy func(*http.Request) (*url.URL, error)
 			}
 			return nil
 		}
+		if looksNumericIPv4(host) {
+			// Shorthand IPv4 forms such as 127.1 or 2130706433 are not
+			// canonical IPs to net.ParseIP, yet many resolvers and proxies
+			// map them to addresses; no real host name ends in a number.
+			return fmt.Errorf("refusing redirect: %s is a non-canonical IP address", host)
+		}
 		if proxy != nil {
 			if p, err := proxy(req); err == nil && p != nil {
 				return checkProxiedRedirect(req.Context(), host)
@@ -161,6 +167,35 @@ func redirectPolicy(server *url.URL, proxy func(*http.Request) (*url.URL, error)
 		}
 		return nil
 	}
+}
+
+// looksNumericIPv4 reports whether host's last dot-separated label is a
+// decimal or 0x-hex number, which WHATWG URL parsing treats as an IPv4
+// address (127.1, 2130706433, 0x7f.1, 10.1).
+func looksNumericIPv4(host string) bool {
+	label := strings.TrimSuffix(host, ".")
+	if i := strings.LastIndexByte(label, '.'); i >= 0 {
+		label = label[i+1:]
+	}
+	if label == "" {
+		return false
+	}
+	digits := label
+	if len(label) > 2 && (label[:2] == "0x" || label[:2] == "0X") {
+		digits = label[2:]
+		for _, c := range digits {
+			if !strings.ContainsRune("0123456789abcdefABCDEF", c) {
+				return false
+			}
+		}
+		return true
+	}
+	for _, c := range digits {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // lookupIPAddr resolves host names for checkProxiedRedirect; tests replace it.
