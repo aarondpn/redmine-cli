@@ -100,6 +100,16 @@ attestation_notice() {
   manual_verification_hint
 }
 
+# gh 2.49 added 'gh attestation', but --signer-workflow and --source-ref came
+# later. Without them a valid release would fail verification, so treat such a
+# gh like a missing one instead of reporting a security incident.
+gh_verify_supports_flags() {
+  local help
+  help=$(gh attestation verify --help 2>&1) || return 1
+  grep -Eq -- '^[[:space:]]*--signer-workflow[[:space:]]' <<<"$help" &&
+    grep -Eq -- '^[[:space:]]*--source-ref[[:space:]]' <<<"$help"
+}
+
 if [ -n "$SKIP_ATTESTATION" ]; then
   warn "REDMINE_CLI_SKIP_ATTESTATION is set; skipping attestation verification (not recommended)."
   warn "The archive was only checked against the release checksums, which come from the same place as the archive; a tampered release would NOT be detected."
@@ -110,13 +120,15 @@ elif ! gh attestation --help >/dev/null 2>&1; then
   attestation_notice "Installed GitHub CLI does not support 'gh attestation' (needs gh 2.49+)"
 elif [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ] && ! gh auth status >/dev/null 2>&1; then
   attestation_notice "GitHub CLI is not logged in (run 'gh auth login')"
+elif ! gh_verify_supports_flags; then
+  attestation_notice "Installed GitHub CLI's 'gh attestation verify' lacks --signer-workflow or --source-ref (update gh)"
 else
   info "Verifying attestation..."
   if ! gh attestation verify "${TMPDIR}/${ARCHIVE}" \
       --repo "$REPO" \
       --signer-workflow "${REPO}/.github/workflows/release.yml" \
       --source-ref "refs/tags/${TAG}" >/dev/null; then
-    printf "If gh could not reach GitHub or Sigstore (e.g. a proxy blocks them, or gh is logged in to\nGitHub Enterprise Server only), re-run with REDMINE_CLI_SKIP_ATTESTATION=1 to install with\nchecksum verification only (not recommended). If the attestation itself is invalid, do not\ninstall; report it as a security issue.\n" >&2
+    printf "If gh could not reach GitHub or Sigstore (e.g. a proxy blocks them, or gh is logged in to\nGitHub Enterprise Server only), re-run with REDMINE_CLI_SKIP_ATTESTATION=1 to install with\nchecksum verification only (not recommended). If the attestation itself is invalid, do not\ninstall; report it as a security issue. Releases older than v2.11.2 have no attestations;\ninstall those with REDMINE_CLI_SKIP_ATTESTATION=1.\n" >&2
     error "Attestation verification failed for ${ARCHIVE}; refusing to install"
   fi
   info "Attestation verified."

@@ -47,8 +47,17 @@ if [ -n "$out" ]; then cp "$src" "$out"; else cat "$src"; fi
 `
 
 // ghStub logs its arguments and exits with $GH_AUTH_EXIT for `auth status`
-// and $GH_VERIFY_EXIT for `attestation verify`.
+// and $GH_VERIFY_EXIT for `attestation verify`. `attestation verify --help`
+// lists the flags in $GH_VERIFY_FLAGS (default: both flags install.sh uses).
 const ghStub = `printf 'gh %s\n' "$*" >> "$STUB_LOG"
+if [ "$1 $2 $3" = "attestation verify --help" ]; then
+  printf 'Verify the integrity and provenance of an artifact.\n\n'
+  printf 'Use the --signer-workflow and --source-ref flags to pin the identity.\n\nFLAGS\n'
+  for f in ${GH_VERIFY_FLAGS-signer-workflow source-ref}; do
+    printf '      --%s string   description\n' "$f"
+  done
+  exit 0
+fi
 case "$1 $2" in
   "attestation --help") exit 0 ;;
   "auth status") exit "${GH_AUTH_EXIT:-0}" ;;
@@ -254,6 +263,43 @@ func TestInstallScript(t *testing.T) {
 			env:        map[string]string{"GH_VERIFY_EXIT": "1"},
 			wantErr:    true,
 			wantOutput: []string{"REDMINE_CLI_SKIP_ATTESTATION=1", "If the attestation itself is invalid, do not\ninstall"},
+		},
+		{
+			// Pinning a release from before attestations existed fails
+			// verification; the error must say how to install it anyway.
+			name:       "failed attestation mentions releases without attestations",
+			withGh:     true,
+			env:        map[string]string{"GH_VERIFY_EXIT": "1"},
+			wantErr:    true,
+			wantOutput: []string{"Releases older than v2.11.2 have no attestations"},
+		},
+		{
+			// gh 2.49 has `gh attestation` but not --source-ref; verifying
+			// with it would fail for a valid release.
+			name:          "gh without --source-ref falls back to manual verification",
+			withGh:        true,
+			env:           map[string]string{"GH_VERIFY_FLAGS": "signer-workflow", "GH_VERIFY_EXIT": "1"},
+			wantInstalled: true,
+			wantOutput:    []string{"lacks --signer-workflow or --source-ref", "gh attestation verify "},
+			wantLog:       []string{"gh attestation verify --help"},
+			wantLogNot:    []string{"tar.gz --repo"},
+		},
+		{
+			name:          "gh without --signer-workflow falls back to manual verification",
+			withGh:        true,
+			env:           map[string]string{"GH_VERIFY_FLAGS": "source-ref", "GH_VERIFY_EXIT": "1"},
+			wantInstalled: true,
+			wantOutput:    []string{"lacks --signer-workflow or --source-ref"},
+			wantLogNot:    []string{"tar.gz --repo"},
+		},
+		{
+			// Flag names mentioned only in the help prose do not count.
+			name:          "gh listing neither flag falls back to manual verification",
+			withGh:        true,
+			env:           map[string]string{"GH_VERIFY_FLAGS": "", "GH_VERIFY_EXIT": "1"},
+			wantInstalled: true,
+			wantOutput:    []string{"lacks --signer-workflow or --source-ref"},
+			wantLogNot:    []string{"tar.gz --repo"},
 		},
 		{
 			// Escape hatch for networks that block Sigstore or a gh logged
