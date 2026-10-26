@@ -1,6 +1,26 @@
 package debug
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
+
+func TestLoggerPrintf_SanitizesServerText(t *testing.T) {
+	var buf bytes.Buffer
+	New(&buf).Printf("Resolved project %q to %s (%d)", "x", "Evil\x1b]52;c;ZXZpbA==\x07\u202Egnp.exe\rFAKE", 7)
+	want := "[debug] Resolved project \"x\" to Evil^[]52;c;ZXZpbA==^Ggnp.exe^MFAKE (7)\n"
+	if got := buf.String(); got != want {
+		t.Errorf("log line = %q, want %q", got, want)
+	}
+}
+
+func TestLoggerPrintf_KeepsPlainLines(t *testing.T) {
+	var buf bytes.Buffer
+	New(&buf).Printf("HTTP %s %s -> %d (100%%)", "GET", "https://h/x?a=1", 200)
+	if got, want := buf.String(), "[debug] HTTP GET https://h/x?a=1 -> 200 (100%)\n"; got != want {
+		t.Errorf("log line = %q, want %q", got, want)
+	}
+}
 
 func TestScrubURL(t *testing.T) {
 	tests := []struct {

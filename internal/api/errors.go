@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/textsafe"
 )
 
 // APIError represents an error response from the Redmine API.
@@ -18,12 +19,24 @@ type APIError struct {
 	URL        string
 }
 
-// Error formats the error. Messages are sanitized and the URL scrubbed again
-// here because an APIError may also be built outside parseErrorResponse (for
-// example from a raw response by `redmine api`).
+// NewAPIError builds the APIError for a response with the given status from
+// the messages in its body. Server-provided messages are sanitized for the
+// terminal (see textsafe.Terminal) and rawURL is scrubbed of credentials.
+// parseErrorResponse uses it, and so should any caller that builds an
+// APIError from a raw response (such as `redmine api`).
+func NewAPIError(statusCode int, rawURL string, messages []string) *APIError {
+	apiErr := &APIError{StatusCode: statusCode, URL: debug.ScrubURL(rawURL)}
+	for _, msg := range messages {
+		apiErr.Errors = append(apiErr.Errors, textsafe.Terminal(msg))
+	}
+	return apiErr
+}
+
+// Error formats the error. The URL is scrubbed again here because an
+// APIError may also be built as a literal, without NewAPIError.
 func (e *APIError) Error() string {
 	if len(e.Errors) > 0 {
-		return fmt.Sprintf("API error %d: %s", e.StatusCode, sanitizeServerText(strings.Join(e.Errors, "; ")))
+		return fmt.Sprintf("API error %d: %s", e.StatusCode, strings.Join(e.Errors, "; "))
 	}
 	return fmt.Sprintf("API error %d for %s", e.StatusCode, debug.ScrubURL(e.URL))
 }
@@ -59,21 +72,18 @@ func (e *APIError) IsConflict() bool {
 // body that was cut off at maxErrorBodyBytes.
 const truncationMarker = "…"
 
-// parseErrorResponse extracts error messages from a Redmine error response.
-// The URL is scrubbed of credentials, the body is read up to
-// maxErrorBodyBytes (anything beyond is discarded rather than failing), and
-// server-provided messages are stripped of terminal control characters.
+// parseErrorResponse extracts error messages from a Redmine error response
+// into an APIError (see NewAPIError). The body is read up to
+// maxErrorBodyBytes; anything beyond is discarded rather than failing.
 func parseErrorResponse(resp *http.Response) *APIError {
-	apiErr := &APIError{
-		StatusCode: resp.StatusCode,
-	}
+	var rawURL string
 	if resp.Request != nil && resp.Request.URL != nil {
-		apiErr.URL = debug.ScrubURL(resp.Request.URL.String())
+		rawURL = resp.Request.URL.String()
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes+1))
 	if err != nil {
-		return apiErr
+		return NewAPIError(resp.StatusCode, rawURL, nil)
 	}
 	truncated := int64(len(body)) > maxErrorBodyBytes
 	if truncated {
@@ -91,11 +101,7 @@ func parseErrorResponse(resp *http.Response) *APIError {
 			messages = append(messages, truncationMarker)
 		}
 	}
-	for _, msg := range messages {
-		apiErr.Errors = append(apiErr.Errors, sanitizeServerText(msg))
-	}
-
-	return apiErr
+	return NewAPIError(resp.StatusCode, rawURL, messages)
 }
 
 // partialErrorMessages recovers the complete strings of a top-level "errors"
@@ -131,38 +137,4 @@ func partialErrorMessages(body []byte) []string {
 		return messages
 	}
 	return nil
-}
-
-// sanitizeServerText strips control characters (C0 except newline and tab,
-// DEL, and C1, which covers ESC-introduced terminal sequences) from text the
-// server controls, so error messages cannot rewrite the user's terminal.
-func sanitizeServerText(s string) string {
-	clean := true
-	for _, r := range s {
-		if isStrippedControl(r) {
-			clean = false
-			break
-		}
-	}
-	if clean {
-		return s
-	}
-	return strings.Map(func(r rune) rune {
-		if isStrippedControl(r) {
-			return -1
-		}
-		return r
-	}, s)
-}
-
-func isStrippedControl(r rune) bool {
-	switch {
-	case r == '\n' || r == '\t':
-		return false
-	case r < 0x20, r == 0x7f:
-		return true
-	case r >= 0x80 && r <= 0x9f:
-		return true
-	}
-	return false
 }

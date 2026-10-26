@@ -68,6 +68,20 @@ func TestDoRaw_ResponseSizeLimit(t *testing.T) {
 	}
 }
 
+func TestUpload_ResponseSizeLimit(t *testing.T) {
+	setLimit(t, &maxJSONResponseBytes, 32)
+	ts := bodyServer(http.StatusCreated, `{"upload":{"token":"`+strings.Repeat("t", 100)+`"}}`)
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Attachments = &AttachmentService{client: c}
+	_, err := c.Attachments.Upload(context.Background(), "f.bin", strings.NewReader("x"), 1)
+	var tooLarge *ResponseTooLargeError
+	if !errors.As(err, &tooLarge) {
+		t.Fatalf("err = %v, want ResponseTooLargeError (not a decode error)", err)
+	}
+}
+
 func TestResponseTooLargeError_Message(t *testing.T) {
 	err := &ResponseTooLargeError{Limit: 256 << 20}
 	if got := err.Error(); got != "response body exceeds the 256 MiB limit" {
@@ -138,7 +152,7 @@ func TestParseErrorResponse_SanitizesAndScrubs(t *testing.T) {
 	if !errors.As(err, &apiErr) {
 		t.Fatalf("err = %v, want *APIError", err)
 	}
-	if got, want := apiErr.Errors[0], "Subject [31mcan't[0m be blank\n\tsee docs2J"; got != want {
+	if got, want := apiErr.Errors[0], "Subject ^[[31mcan't^[[0m be blank\n\tsee docs\\u009b2J^G"; got != want {
 		t.Errorf("Errors[0] = %q, want %q", got, want)
 	}
 	if strings.Contains(apiErr.URL, "SECRET") || strings.Contains(apiErr.URL, "TOKEN") {
@@ -149,17 +163,19 @@ func TestParseErrorResponse_SanitizesAndScrubs(t *testing.T) {
 	}
 }
 
-// TestAPIError_ErrorSanitizes covers APIErrors built outside
-// parseErrorResponse, such as the one `redmine api` derives from a raw
-// response.
-func TestAPIError_ErrorSanitizes(t *testing.T) {
+// TestNewAPIError covers APIErrors built outside parseErrorResponse, such as
+// the one `redmine api` derives from a raw response: messages get the same
+// terminal sanitization as everywhere else (ESC shown as ^[) and the URL is
+// scrubbed.
+func TestNewAPIError(t *testing.T) {
 	tests := []struct {
 		name string
 		err  *APIError
 		want string
 	}{
-		{"control characters in messages", &APIError{StatusCode: 422, Errors: []string{"bad\x1b]0;pwned\x07", "x\u009b2J"}}, "API error 422: bad]0;pwned; x2J"},
-		{"credentials in URL", &APIError{StatusCode: 404, URL: "/issues.json?key=SECRET&limit=1"}, "API error 404 for /issues.json?key=%2A%2A%2A&limit=1"},
+		{"control characters in messages", NewAPIError(422, "/issues.json", []string{"bad\x1b]0;pwned\x07", "x\u009b2J", "rtl\u202Eexe.pdf"}), `API error 422: bad^[]0;pwned^G; x\u009b2J; rtlexe.pdf`},
+		{"credentials in URL", NewAPIError(404, "/issues.json?key=SECRET&limit=1", nil), "API error 404 for /issues.json?key=%2A%2A%2A&limit=1"},
+		{"literal with credentials in URL", &APIError{StatusCode: 404, URL: "/issues.json?key=SECRET&limit=1"}, "API error 404 for /issues.json?key=%2A%2A%2A&limit=1"},
 		{"plain URL", &APIError{StatusCode: 404, URL: "/issues/9.json"}, "API error 404 for /issues/9.json"},
 	}
 	for _, tt := range tests {
@@ -169,23 +185,7 @@ func TestAPIError_ErrorSanitizes(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSanitizeServerText(t *testing.T) {
-	tests := []struct {
-		in, want string
-	}{
-		{"plain text", "plain text"},
-		{"line1\nline2\tcol", "line1\nline2\tcol"},
-		{"bell\a and nul\x00", "bell and nul"},
-		{"\x1b]0;pwned\x07title", "]0;pwnedtitle"},
-		{"c1\u0085\u009bend", "c1end"},
-		{"del\x7f", "del"},
-		{"unicode ✓ ü", "unicode ✓ ü"},
-	}
-	for _, tt := range tests {
-		if got := sanitizeServerText(tt.in); got != tt.want {
-			t.Errorf("sanitizeServerText(%q) = %q, want %q", tt.in, got, tt.want)
-		}
+	if err := NewAPIError(404, "/x?key=SECRET", nil); strings.Contains(err.URL, "SECRET") {
+		t.Errorf("URL = %q leaks credentials", err.URL)
 	}
 }

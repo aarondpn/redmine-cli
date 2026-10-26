@@ -1,8 +1,10 @@
 package cmdutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -103,6 +105,40 @@ func TestBuildErrorEnvelope_InvalidPathSegmentIsValidation(t *testing.T) {
 	}
 	if !strings.Contains(env.Error.Message, `invalid project identifier "../users/2"`) {
 		t.Errorf("message = %q", env.Error.Message)
+	}
+}
+
+// timeoutError is a net.Error that reports a timeout, like the ones net/http
+// returns for dial, TLS handshake and response header timeouts.
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+func TestBuildErrorEnvelope_FailuresWithoutHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"request timeout", fmt.Errorf("request failed: %w", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: timeoutError{}}), output.ErrCodeTimeout},
+		{"deadline exceeded", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: context.DeadlineExceeded}, output.ErrCodeTimeout},
+		{"other request failure", fmt.Errorf("request failed: %w", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: errors.New("connection refused")}), output.ErrCodeUnknown},
+		{"cancelled request", &url.Error{Op: "Get", URL: "https://redmine.example.com/issues.json", Err: context.Canceled}, output.ErrCodeUnknown},
+		{"download target exists", fmt.Errorf("attachment 7: %w", &DestinationExistsError{Path: "report.pdf"}), output.ErrCodeAlreadyExists},
+		{"strict mode", fmt.Errorf("checking server: %w", &StrictModeError{Msg: "server uses plain http://"}), output.ErrCodeStrictMode},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := BuildErrorEnvelope(tt.err)
+			if env.Error.Code != tt.want {
+				t.Errorf("code = %q, want %q", env.Error.Code, tt.want)
+			}
+			if env.Error.Message != tt.err.Error() {
+				t.Errorf("message = %q, want the error text %q", env.Error.Message, tt.err.Error())
+			}
+		})
 	}
 }
 

@@ -3,6 +3,8 @@ package mcpserver
 import (
 	"net"
 	"strings"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 )
 
 // NormalizeBindAddr applies the convenience defaults used by `redmine mcp
@@ -32,16 +34,5 @@ func NormalizeBindAddr(addr string) (normalized string, isLoopback bool) {
 	if host == "" {
 		return net.JoinHostPort("127.0.0.1", port), true
 	}
-	return addr, isLoopbackHost(host)
-}
-
-func isLoopbackHost(host string) bool {
-	switch host {
-	case "localhost":
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback()
-	}
-	return false
+	return addr, api.IsLoopbackHost(host)
 }

@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"golang.org/x/net/http/httpguts"
@@ -80,21 +79,20 @@ func MergeHeaders(base map[string]string, overrides []string) (map[string]string
 	return merged, nil
 }
 
-// SameServerHost reports whether two server URLs point at the same host.
-// Configured headers may carry secrets scoped to one server, so they are only
-// carried over when a profile keeps its host.
+// SameServerHost reports whether two server URLs point at the same host and
+// port (see OriginOf), so "https://redmine.example.com" and
+// "redmine.example.com:443" match. The scheme is ignored: moving a profile
+// from http:// to https:// on the default ports keeps its host. Configured
+// headers may carry secrets scoped to one server, so they are only carried
+// over when a profile keeps its host.
 func SameServerHost(a, b string) bool {
-	ha, hb := serverHost(a), serverHost(b)
-	return ha != "" && strings.EqualFold(ha, hb)
-}
-
-func serverHost(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
-		u, err = url.Parse("https://" + raw)
-		if err != nil {
-			return ""
-		}
+	oa, ok := parseServerOrigin(a)
+	if !ok || oa.Host == "" {
+		return false
 	}
-	return u.Host
+	ob, ok := parseServerOrigin(b)
+	if !ok || oa.Host != ob.Host {
+		return false
+	}
+	return oa.Port == ob.Port || (oa.HasDefaultPort() && ob.HasDefaultPort())
 }

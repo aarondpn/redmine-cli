@@ -168,7 +168,10 @@ func renderAPIResponse(printer output.Printer, out io.Writer, isTTY bool, resp *
 	}
 
 	if include {
-		fmt.Fprintf(out, "%s\n", resp.Status)
+		// The status line and headers are metadata the server controls, so
+		// they are always sanitized like other terminal output; the body
+		// below is written as received.
+		fmt.Fprintf(out, "%s\n", output.SanitizeTerminal(resp.Status))
 		// Sort header keys for stable output.
 		keys := make([]string, 0, len(resp.Headers))
 		for k := range resp.Headers {
@@ -177,7 +180,7 @@ func renderAPIResponse(printer output.Printer, out io.Writer, isTTY bool, resp *
 		sort.Strings(keys)
 		for _, k := range keys {
 			for _, v := range resp.Headers[k] {
-				fmt.Fprintf(out, "%s: %s\n", k, v)
+				fmt.Fprintf(out, "%s: %s\n", output.SanitizeTerminal(k), output.SanitizeTerminal(v))
 			}
 		}
 		fmt.Fprintln(out)
@@ -229,19 +232,14 @@ func decodeAPIJSONBody(body []byte) any {
 }
 
 func rawResponseError(resp *redmineapi.RawResponse, endpoint string) error {
-	apiErr := &redmineapi.APIError{
-		StatusCode: resp.StatusCode,
-		URL:        endpoint,
-	}
-
 	var payload struct {
 		Errors []string `json:"errors"`
 	}
+	var messages []string
 	if err := json.Unmarshal(resp.Body, &payload); err == nil && len(payload.Errors) > 0 {
-		apiErr.Errors = append(apiErr.Errors, payload.Errors...)
+		messages = payload.Errors
 	}
-
-	return apiErr
+	return redmineapi.NewAPIError(resp.StatusCode, endpoint, messages)
 }
 
 // buildJSONBody constructs a JSON object from key=value pairs.

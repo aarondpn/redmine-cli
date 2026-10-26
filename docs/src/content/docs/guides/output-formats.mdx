@@ -189,7 +189,8 @@ come before it:
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
-`jq_failed`, `status_not_applied`, `unknown`. Validation and conflict errors include a `details`
+`jq_failed`, `status_not_applied`, `timeout`, `already_exists`, `strict_mode`,
+`unknown`. Validation and conflict errors include a `details`
 array with the individual messages from Redmine. `validation_failed` is also
 used, without `details`, when the CLI rejects an argument before sending
 anything, such as a project identifier or wiki page title that is not a
@@ -197,7 +198,13 @@ single URL path segment (`../users/2`). `jq_invalid` means the
 `--jq` expression is empty or malformed and the command did not run;
 `jq_failed` means the `--jq` expression failed on the command's output; the
 command itself succeeded unless the message says the output was an error
-response (see above).
+response (see above). `timeout` means connecting to the server, or waiting
+for its response, timed out (see
+[timeouts](/getting-started/configuration/#timeouts-and-limits));
+`already_exists` means a download target already exists and `--clobber` was
+not given; `strict_mode` means
+[strict mode](/getting-started/configuration/#strict-mode) refused something
+that is otherwise only a warning.
 
 `status_not_applied` means Redmine accepted an issue update but silently kept
 the old status (see
@@ -276,14 +283,17 @@ Anyone who can edit an issue, wiki page or name on your Redmine controls part
 of what the CLI prints. The output layer treats that text as untrusted:
 
 - **Terminal output.** Tables, detail views, journals, status messages,
-  errors and the interactive browsers (`issues browse`, `search browse`)
-  neutralize terminal control characters in server data. Escape sequences
+  errors, `--verbose` debug lines, the status line and headers printed by
+  `redmine api -i`, and the interactive browsers (`issues browse`,
+  `search browse`) neutralize terminal control characters in server data. Escape sequences
   are shown as visible text (ESC as `^[`, BEL as `^G`, a stray carriage
   return as `^M`), C1 controls as `\u009b`-style escapes, and invisible bidi
   override characters are removed, so a crafted subject cannot set your
   clipboard, plant hyperlinks, move the cursor or overwrite lines. Regular
   Unicode (accents, CJK, emoji) is unaffected. JSON, CSV, `--jq` results,
   `redmine api` bodies and attachment downloads are written byte for byte.
+  Error messages from Redmine get the same treatment wherever they appear,
+  including the `details` of JSON error envelopes and MCP tool errors.
 - **CSV.** Cells that start with `=`, `+`, `-`, `@`, a tab or a carriage
   return may be evaluated as formulas when the file is opened in a
   spreadsheet app. By default the CSV stays unchanged and a single warning is

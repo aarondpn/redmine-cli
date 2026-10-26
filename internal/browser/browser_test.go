@@ -57,6 +57,9 @@ func TestSameHost(t *testing.T) {
 		{"userinfo trick", "https://redmine.example.com@evil.example/", "https://redmine.example.com", false},
 		{"other port", "https://redmine.example.com:8443/", "https://redmine.example.com", false},
 		{"scheme downgrade", "http://redmine.example.com/", "https://redmine.example.com", false},
+		{"scheme differs on the same port", "http://redmine.example.com:443/", "https://redmine.example.com", false},
+		{"trailing dot", "https://redmine.example.com./issues/1", "https://Redmine.Example.com", true},
+		{"http server explicit port", "http://redmine.example.com:80/x", "http://redmine.example.com", true},
 		{"no server configured", "https://redmine.example.com/", "", false},
 	}
 	for _, tt := range tests {

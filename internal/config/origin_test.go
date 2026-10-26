@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +26,8 @@ func TestServerOrigin(t *testing.T) {
 		{"redmine.example.com:3000", "https://redmine.example.com:3000"},
 		{"http://[::1]:3000", "http://[::1]:3000"},
 		{"http://[::1]", "http://[::1]"},
+		{"https://Redmine.Example.com.:443/", "https://redmine.example.com"},
+		{"https://[::1]:443", "https://[::1]"},
 		{"", ""},
 	}
 	for _, tc := range cases {
@@ -45,11 +48,39 @@ func TestSameOrigin(t *testing.T) {
 		{"https://redmine.example.com", "http://redmine.example.com", false},
 		{"https://redmine.example.com", "https://redmine.example.com:8443", false},
 		{"https://redmine.example.com", "https://attacker.example", false},
+		{"https://redmine.example.com.", "https://redmine.example.com", true},
+		{"https://redmine.example.com", "redmine.example.com:443", true},
 		{"", "", false},
 	}
 	for _, tc := range cases {
 		if got := SameOrigin(tc.a, tc.b); got != tc.want {
 			t.Errorf("SameOrigin(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestOriginOf(t *testing.T) {
+	cases := []struct {
+		in   string
+		want Origin
+	}{
+		{"https://redmine.example.com", Origin{"https", "redmine.example.com", "443"}},
+		{"https://redmine.example.com:443/issues.json", Origin{"https", "redmine.example.com", "443"}},
+		{"HTTPS://Redmine.Example.COM", Origin{"https", "redmine.example.com", "443"}},
+		{"https://redmine.example.com./x", Origin{"https", "redmine.example.com", "443"}},
+		{"http://redmine.example.com", Origin{"http", "redmine.example.com", "80"}},
+		{"http://redmine.example.com:8080", Origin{"http", "redmine.example.com", "8080"}},
+		{"http://[::1]:3000/x", Origin{"http", "::1", "3000"}},
+		{"http://dev.LOCALHOST.", Origin{"http", "dev.localhost", "80"}},
+		{"ftp://files.example.com", Origin{"ftp", "files.example.com", ""}},
+	}
+	for _, tc := range cases {
+		u, err := url.Parse(tc.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := OriginOf(u); got != tc.want {
+			t.Errorf("OriginOf(%q) = %+v, want %+v", tc.in, got, tc.want)
 		}
 	}
 }

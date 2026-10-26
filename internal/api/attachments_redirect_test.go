@@ -41,7 +41,9 @@ func TestAttachmentDownload_RefusesRedirectToInternalAddress(t *testing.T) {
 		target  string
 		wantErr string
 	}{
-		{"cloud metadata over http", "http://169.254.169.254/latest/meta-data/", "only https"},
+		{"cloud metadata over http", "http://169.254.169.254/latest/meta-data/", "non-public address"},
+		{"other loopback over http", "http://127.0.0.2/admin", "non-public address"},
+		{"rfc1918 over http", "http://10.0.0.1/internal", "non-public address"},
 		{"cloud metadata over https", "https://169.254.169.254/latest/meta-data/", "non-public address"},
 		{"rfc1918 10/8", "https://10.0.0.1/internal", "non-public address"},
 		{"rfc1918 172.16/12", "https://172.16.0.1/internal", "non-public address"},
@@ -58,7 +60,6 @@ func TestAttachmentDownload_RefusesRedirectToInternalAddress(t *testing.T) {
 		{"benchmarking", "https://198.18.0.1/", "non-public address"},
 		{"nat64 metadata", "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/", "non-public address"},
 		{"6to4 private", "https://[2002:a00:1::1]/internal", "non-public address"},
-		{"public host over http", "http://storage.example.com/obj", "only https"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,7 +124,7 @@ func TestAttachmentDownload_FollowsPublicHTTPSRedirectWithoutCredentials(t *test
 
 	c := newClient(&config.Config{Server: srv.URL, APIKey: "K"}, debug.New(nil), tlsTestTransport(t, storage))
 	// Treat loopback as public so the test server stands in for S3.
-	c.downloadDialer.blocked = func(net.IP) bool { return false }
+	c.dialer.blocked = func(net.IP) bool { return false }
 
 	body, err := downloadAttachment(t, c)
 	if err != nil {
@@ -134,6 +135,63 @@ func TestAttachmentDownload_FollowsPublicHTTPSRedirectWithoutCredentials(t *test
 	}
 	if k, _ := storageKey.Load().(string); k != "" {
 		t.Errorf("API key leaked to object storage: %q", k)
+	}
+}
+
+// Redirects to plain http:// object storage on another public host worked
+// before the hardening and keep working, still without credentials.
+func TestAttachmentDownload_FollowsPublicHTTPRedirectWithoutCredentials(t *testing.T) {
+	var storageKey atomic.Value
+	storage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		storageKey.Store(r.Header.Get("X-Redmine-API-Key"))
+		_, _ = w.Write([]byte("payload"))
+	}))
+	defer storage.Close()
+
+	srv := redirectingServer(strings.Replace(storage.URL, "127.0.0.1", "localhost", 1) + "/bucket/x.bin")
+	defer srv.Close()
+
+	c, err := NewClient(&config.Config{Server: srv.URL, APIKey: "K"}, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Treat loopback as public so the test server stands in for storage.
+	c.dialer.blocked = func(net.IP) bool { return false }
+
+	body, err := downloadAttachment(t, c)
+	if err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
+	if body != "payload" {
+		t.Errorf("body = %q, want payload", body)
+	}
+	if k, _ := storageKey.Load().(string); k != "" {
+		t.Errorf("API key leaked to object storage: %q", k)
+	}
+}
+
+// Without that override the same redirect is refused when connecting,
+// because "localhost" resolves to a loopback address.
+func TestAttachmentDownload_HTTPRedirectRecheckedAtDial(t *testing.T) {
+	var targetHits atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		targetHits.Add(1)
+		_, _ = w.Write([]byte("internal"))
+	}))
+	defer target.Close()
+
+	srv := redirectingServer(strings.Replace(target.URL, "127.0.0.1", "localhost", 1) + "/admin")
+	defer srv.Close()
+
+	c, err := NewClient(&config.Config{Server: srv.URL, APIKey: "K"}, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := downloadAttachment(t, c); !errors.Is(err, errBlockedAddress) {
+		t.Fatalf("err = %v, want errBlockedAddress", err)
+	}
+	if n := targetHits.Load(); n != 0 {
+		t.Errorf("internal target received %d request(s)", n)
 	}
 }
 
@@ -162,23 +220,92 @@ func TestAttachmentDownload_SameOriginRedirectKeepsCredentials(t *testing.T) {
 	}
 }
 
-// TestAttachmentDownload_PrivateServerSameHostRedirect: a Redmine on a
-// private or loopback address may redirect within its own host.
-func TestAttachmentDownload_PrivateServerSameHostRedirect(t *testing.T) {
+// TestAttachmentDownload_SameHostOtherPortIsNotTrusted: another port on the
+// configured server's host may be a different, internal service (an admin
+// console, a database UI), so a redirect there gets the same address checks
+// as any other host, both for literal IPs and at dial time.
+func TestAttachmentDownload_SameHostOtherPortIsNotTrusted(t *testing.T) {
+	var siblingHits atomic.Int32
 	sibling := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("payload"))
+		siblingHits.Add(1)
+		_, _ = w.Write([]byte("internal"))
 	}))
 	defer sibling.Close()
 
-	srv := redirectingServer(sibling.URL + "/x.bin")
-	defer srv.Close()
+	t.Run("literal ip", func(t *testing.T) {
+		srv := redirectingServer(sibling.URL + "/x.bin")
+		defer srv.Close()
 
-	c, err := NewClient(&config.Config{Server: srv.URL, APIKey: "K"}, debug.New(nil))
-	if err != nil {
+		c, err := NewClient(&config.Config{Server: srv.URL, APIKey: "K"}, debug.New(nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := downloadAttachment(t, c); err == nil || !strings.Contains(err.Error(), "non-public address") {
+			t.Fatalf("err = %v, want refusal of a non-public address", err)
+		}
+	})
+	t.Run("host name", func(t *testing.T) {
+		srv := redirectingServer(strings.Replace(sibling.URL, "127.0.0.1", "localhost", 1) + "/x.bin")
+		defer srv.Close()
+
+		c, err := NewClient(&config.Config{Server: strings.Replace(srv.URL, "127.0.0.1", "localhost", 1), APIKey: "K"}, debug.New(nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := downloadAttachment(t, c); !errors.Is(err, errBlockedAddress) {
+			t.Fatalf("err = %v, want errBlockedAddress", err)
+		}
+	})
+	if n := siblingHits.Load(); n != 0 {
+		t.Errorf("service on the other port received %d request(s)", n)
+	}
+}
+
+func TestGuardedDialer_TrustsOnlyServerEndpoints(t *testing.T) {
+	tests := []struct {
+		server string
+		host   string
+		port   string
+		want   bool
+	}{
+		{"https://redmine.internal", "redmine.internal", "443", true},
+		{"https://redmine.internal", "REDMINE.internal.", "443", true},
+		{"https://redmine.internal", "redmine.internal", "80", false},
+		{"https://redmine.internal", "redmine.internal", "8443", false},
+		{"http://redmine.internal", "redmine.internal", "80", true},
+		{"http://redmine.internal", "redmine.internal", "443", true}, // https upgrade
+		{"http://redmine.internal", "redmine.internal", "8080", false},
+		{"http://redmine.internal:3000", "redmine.internal", "3000", true},
+		{"http://redmine.internal:3000", "redmine.internal", "443", false},
+		{"https://[fd00::1]:8443", "fd00::1", "8443", true},
+		{"https://bücher.example", "xn--bcher-kva.example", "443", true},
+		{"https://redmine.internal", "other.internal", "443", false},
+	}
+	for _, tt := range tests {
+		u, err := url.Parse(tt.server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d := newGuardedDialer(config.OriginOf(u))
+		if got := d.isTrusted(tt.host, tt.port); got != tt.want {
+			t.Errorf("server %s: isTrusted(%s, %s) = %v, want %v", tt.server, tt.host, tt.port, got, tt.want)
+		}
+	}
+}
+
+func TestGuardedDialer_TrustsProxyEndpoints(t *testing.T) {
+	d := newGuardedDialer(config.Origin{Scheme: "https", Host: "redmine.example.com", Port: "443"})
+	proxy := d.wrapProxy(func(*http.Request) (*url.URL, error) {
+		return url.Parse("http://Proxy.Internal:3128")
+	})
+	if _, err := proxy(httptest.NewRequest(http.MethodGet, "https://redmine.example.com/", nil)); err != nil {
 		t.Fatal(err)
 	}
-	if body, err := downloadAttachment(t, c); err != nil || body != "payload" {
-		t.Fatalf("body = %q, err = %v; want payload", body, err)
+	if !d.isTrusted("proxy.internal", "3128") {
+		t.Error("the configured proxy must be dialed without address checks")
+	}
+	if d.isTrusted("proxy.internal", "8080") {
+		t.Error("another port on the proxy host must not be trusted")
 	}
 }
 
@@ -208,12 +335,17 @@ func TestAttachmentDownload_RefusesHTTPSDowngrade(t *testing.T) {
 // The configured server may live in any of the blocked ranges (an intranet
 // Redmine on CGNAT or a NAT64 address); redirects within its host are still
 // followed, while the same ranges stay off-limits for every other host.
-func TestDownloadRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
+func TestRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
 	tests := []struct {
 		server, target string
 		allowed        bool
 	}{
-		{"https://100.64.1.1", "https://100.64.1.1:8443/files/x.bin", true},
+		{"https://100.64.1.1", "https://100.64.1.1:443/files/x.bin", true},
+		{"https://100.64.1.1", "https://100.64.1.1:8443/files/x.bin", false},
+		{"http://100.64.1.1", "https://100.64.1.1/files/x.bin", true},
+		{"http://100.64.1.1:8080", "https://100.64.1.1:8080/files/x.bin", true},
+		{"http://100.64.1.1:8080", "https://100.64.1.1/files/x.bin", false},
+		{"https://10.0.0.5", "https://10.0.0.5:3000/files/x.bin", false},
 		{"https://[64:ff9b::a00:1]", "https://[64:ff9b::a00:1]/files/x.bin", true},
 		{"https://198.18.0.10", "https://198.18.0.10/files/x.bin", true},
 		{"https://100.64.1.1", "https://100.64.1.2/files/x.bin", false},
@@ -228,7 +360,7 @@ func TestDownloadRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
 			}
 			prev := httptest.NewRequest(http.MethodGet, tt.server+"/attachments/download/1", nil)
 			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
-			err = downloadRedirectPolicy(server)(req, []*http.Request{prev})
+			err = redirectPolicy(server)(req, []*http.Request{prev})
 			if tt.allowed && err != nil {
 				t.Fatalf("redirect refused: %v", err)
 			}
@@ -239,7 +371,7 @@ func TestDownloadRedirectPolicy_SameHostInBlockedRange(t *testing.T) {
 	}
 }
 
-func TestIsBlockedDownloadIP(t *testing.T) {
+func TestIsBlockedIP(t *testing.T) {
 	tests := []struct {
 		ip      string
 		blocked bool
@@ -281,8 +413,8 @@ func TestIsBlockedDownloadIP(t *testing.T) {
 		{"2600:1f18::1", false},
 	}
 	for _, tt := range tests {
-		if got := isBlockedDownloadIP(net.ParseIP(tt.ip)); got != tt.blocked {
-			t.Errorf("isBlockedDownloadIP(%s) = %v, want %v", tt.ip, got, tt.blocked)
+		if got := isBlockedIP(net.ParseIP(tt.ip)); got != tt.blocked {
+			t.Errorf("isBlockedIP(%s) = %v, want %v", tt.ip, got, tt.blocked)
 		}
 	}
 }

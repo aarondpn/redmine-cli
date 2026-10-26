@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -162,6 +163,19 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 	var pathErr *api.InvalidPathSegmentError
 	if errors.As(err, &pathErr) {
 		env.Error.Code = output.ErrCodeValidationFailed
+	}
+	// Failures that never got an HTTP status.
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Timeout() {
+		env.Error.Code = output.ErrCodeTimeout
+	}
+	var existsErr *DestinationExistsError
+	if errors.As(err, &existsErr) {
+		env.Error.Code = output.ErrCodeAlreadyExists
+	}
+	var strictErr *StrictModeError
+	if errors.As(err, &strictErr) {
+		env.Error.Code = output.ErrCodeStrictMode
 	}
 
 	return env

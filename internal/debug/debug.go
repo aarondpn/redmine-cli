@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/url"
 	"strings"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/textsafe"
 )
 
 // Logger writes debug messages to a writer. A nil Logger is safe to use and
@@ -21,12 +23,15 @@ func New(w io.Writer) *Logger {
 	return &Logger{w: w}
 }
 
-// Printf writes a formatted debug message followed by a newline.
+// Printf writes a formatted debug message followed by a newline. The
+// arguments often carry server-controlled text (resource names, error
+// messages), so the formatted message is sanitized for the terminal (see
+// textsafe.Terminal).
 func (l *Logger) Printf(format string, args ...interface{}) {
 	if l == nil || l.w == nil {
 		return
 	}
-	fmt.Fprintf(l.w, "[debug] "+format+"\n", args...)
+	fmt.Fprintf(l.w, "[debug] %s\n", textsafe.Terminal(fmt.Sprintf(format, args...)))
 }
 
 // Enabled reports whether debug output is active.

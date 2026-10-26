@@ -128,7 +128,7 @@ export REDMINE_READ_ONLY=1
 # hard-disable the optional system keyring
 export REDMINE_NO_KEYRING=1
 
-# wait up to 5 minutes for the server to start responding (default 120s, 0 disables)
+# wait at most 5 minutes for the server to start responding (default 0: no limit)
 export REDMINE_HTTP_TIMEOUT=5m
 # hide the environment from --jq expressions (env / $ENV evaluate to {})
 export REDMINE_JQ_NO_ENV=1
@@ -274,13 +274,13 @@ Headers are only sent to the configured server, never to hosts it redirects to. 
 
 ## Connection security
 
-Use an `https://` server URL. With a plain `http://` URL the API key or password crosses the network in cleartext, so commands that contact the server print a warning to stderr. [Strict mode](#strict-mode) (`strict: true` in the profile or `REDMINE_STRICT=1`) turns that warning into an error. Loopback servers (`localhost`, `127.0.0.0/8`, `::1`) are exempt, so a local development instance on `http://127.0.0.1:3000` works without a warning.
+Use an `https://` server URL. With a plain `http://` URL the API key or password crosses the network in cleartext, so commands that contact the server print a warning to stderr. [Strict mode](#strict-mode) (`strict: true` in the profile or `REDMINE_STRICT=1`) turns that warning into an error. Loopback servers (`localhost` and names under it such as `dev.localhost`, `127.0.0.0/8`, `::1`) are exempt, so a local development instance on `http://127.0.0.1:3000` works without a warning.
 
-Redirects are followed up to 10 hops. A redirect from `https://` to `http://` is always refused. Credentials and custom headers are only sent when both the scheme and the host (including the port) match the configured server; the one exception is an `http://` server redirecting to `https://` on the same host. For how attachment download redirects are handled, see [attachments download](/commands/attachments/#download).
+Redirects are followed up to 10 hops. A redirect from `https://` to `http://` is always refused. Credentials and custom headers are only sent when both the scheme and the host (including the port) match the configured server; the one exception is an `http://` server redirecting to `https://` on the same host. A redirect away from the configured server is refused when it leads to a loopback, private or otherwise non-public address, for API requests (including `redmine api`) and attachment downloads alike; see [attachments download](/commands/attachments/#download) for the full rules.
 
 ## Timeouts and limits
 
-Connecting to the server times out after 30 seconds, the TLS handshake after 15 seconds, and waiting for the server to start responding after 120 seconds. There is no limit on total request time, so large attachment downloads keep streaming as long as data arrives. Override the response wait with `REDMINE_HTTP_TIMEOUT`, which takes a Go duration such as `90s` or `5m`; `0` disables it.
+Connecting to the server times out after 30 seconds and the TLS handshake after 15 seconds. By default there is no limit on how long the server may take to start responding, so slow queries on a busy Redmine still complete, and no limit on total request time, so large attachment downloads keep streaming as long as data arrives. To give up on a server that stops answering, set `REDMINE_HTTP_TIMEOUT` to a Go duration such as `90s` or `5m`; it bounds the wait for the response to start (`0`, the default, means no limit).
 
 API responses are capped at 256 MiB, and at most 1 MiB of an error response is read. Attachment downloads are not size-limited, since they are streamed to disk.
 

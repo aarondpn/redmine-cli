@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,18 +26,15 @@ type RawResponse struct {
 
 // Client is the Redmine API client.
 type Client struct {
+	// httpClient sends every request, API calls and attachment downloads
+	// alike. Its redirect policy and dialer refuse redirects to internal
+	// addresses away from the configured server (see redirectPolicy).
 	httpClient *http.Client
-	// downloadClient streams attachment bytes. It carries the same
-	// credentials as httpClient but a stricter redirect policy and a dialer
-	// that refuses internal addresses (see downloadRedirectPolicy). When nil
-	// (clients built directly in tests), Download derives one from
-	// httpClient.
-	downloadClient *http.Client
-	// downloadDialer guards downloadClient's connections; kept so tests can
-	// adjust which addresses it blocks.
-	downloadDialer *downloadDialer
-	baseURL        string
-	debugLog       *debug.Logger
+	// dialer guards httpClient's connections; kept so tests can adjust which
+	// addresses it blocks. Nil for clients built directly in tests.
+	dialer   *guardedDialer
+	baseURL  string
+	debugLog *debug.Logger
 
 	Issues       *IssueService
 	Projects     *ProjectService
@@ -130,41 +126,43 @@ type authTransport struct {
 	// headers are the user-configured extra headers. Like credentials they are
 	// only sent to the configured origin, since they may carry proxy tokens.
 	headers map[string]string
-	// origin is the configured server's scheme and host:port. Credentials are
-	// only attached when the request targets this exact origin, so neither a
+	// origin is the configured server's origin. Credentials are only
+	// attached when the request targets this exact origin, so neither a
 	// redirect off-site (e.g. an attachment content_url that 302s to external
 	// object storage) nor one to the same host over plain http ever receives
 	// the API key or basic-auth credentials. The one exception is the https
-	// upgrade of an http:// origin (see attachesTo). The zero origin means
+	// upgrade of an http:// origin (see attachesTo). A nil origin means
 	// "always attach" (used by tests that construct the transport directly
 	// without a configured server).
-	origin origin
+	origin *config.Origin
 }
 
-// attachesTo reports whether credentials and configured headers go to u: it
-// must be the configured origin, or, for a server configured as http://, the
-// same host upgraded to https (port 80 becoming 443), which is how most
-// servers redirect plain-http clients. The upgrade only ever improves on the
-// cleartext connection the user configured.
+// attachesTo reports whether credentials and configured headers go to u (see
+// isServerOrigin).
 func (t *authTransport) attachesTo(u *url.URL) bool {
-	if t.origin == (origin{}) {
+	if t.origin == nil {
 		return true
 	}
-	o := originOf(u)
-	if o == t.origin {
+	return isServerOrigin(*t.origin, config.OriginOf(u))
+}
+
+// isServerOrigin reports whether o is the configured server's origin, or, for
+// a server configured as http://, the same host upgraded to https (port 80
+// becoming 443), which is how most servers redirect plain-http clients. The
+// upgrade only ever improves on the cleartext connection the user
+// configured.
+func isServerOrigin(server, o config.Origin) bool {
+	if o == server {
 		return true
 	}
-	if t.origin.scheme != "http" || o.scheme != "https" {
+	if server.Scheme != "http" || o.Scheme != "https" || o.Host != server.Host {
 		return false
 	}
-	host, port, err := net.SplitHostPort(t.origin.host)
-	if err != nil {
-		return false
-	}
+	port := server.Port
 	if port == "80" {
 		port = "443"
 	}
-	return o.host == net.JoinHostPort(host, port)
+	return o.Port == port
 }
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -204,11 +202,12 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // NewClient creates a new Redmine API client from configuration.
 //
-// The transport bounds connection setup and the wait for response headers
-// (see HTTPTimeoutEnv) but not body streaming. Redirects that downgrade
-// https to http are refused, and credentials and configured headers are only
-// sent to the configured server's origin (scheme and host:port, see
-// authTransport.attachesTo).
+// The transport bounds connection setup and, if asked to, the wait for
+// response headers (see HTTPTimeoutEnv) but not body streaming. Redirects
+// that downgrade https to http, or that leave the configured server for a
+// non-public address, are refused (see redirectPolicy), and credentials and
+// configured headers are only sent to the configured server's origin
+// (scheme and host:port, see authTransport.attachesTo).
 func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if cfg.Server == "" {
 		return nil, fmt.Errorf("server URL not configured. Run 'redmine auth login' to set up")
@@ -229,33 +228,27 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 		serverURL = &url.URL{}
 	}
 
-	downloadBase, dialer := newDownloadTransport(base, serverURL)
+	guarded, dialer := newGuardedTransport(base, serverURL)
 
-	newAuth := func(rt http.RoundTripper) http.RoundTripper {
-		var t http.RoundTripper = &authTransport{
-			base:       rt,
-			authMethod: cfg.AuthMethod,
-			apiKey:     cfg.APIKey,
-			username:   cfg.Username,
-			password:   cfg.Password,
-			headers:    cfg.Headers,
-			origin:     originOf(serverURL),
-		}
-		if cfg.ReadOnly {
-			t = &readOnlyTransport{base: t}
-		}
-		return t
+	serverOrigin := config.OriginOf(serverURL)
+	var transport http.RoundTripper = &authTransport{
+		base:       guarded,
+		authMethod: cfg.AuthMethod,
+		apiKey:     cfg.APIKey,
+		username:   cfg.Username,
+		password:   cfg.Password,
+		headers:    cfg.Headers,
+		origin:     &serverOrigin,
+	}
+	if cfg.ReadOnly {
+		transport = &readOnlyTransport{base: transport}
 	}
 
 	c := &Client{
-		httpClient: &http.Client{Transport: newAuth(base), CheckRedirect: checkRedirect},
-		downloadClient: &http.Client{
-			Transport:     newAuth(downloadBase),
-			CheckRedirect: downloadRedirectPolicy(serverURL),
-		},
-		downloadDialer: dialer,
-		baseURL:        baseURL,
-		debugLog:       log,
+		httpClient: &http.Client{Transport: transport, CheckRedirect: redirectPolicy(serverURL)},
+		dialer:     dialer,
+		baseURL:    baseURL,
+		debugLog:   log,
 	}
 
 	c.Issues = &IssueService{client: c}

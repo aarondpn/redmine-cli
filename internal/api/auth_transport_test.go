@@ -8,17 +8,19 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
-func originFor(t *testing.T, raw string) origin {
+func originFor(t *testing.T, raw string) *config.Origin {
 	t.Helper()
 	u, err := url.Parse(raw)
 	if err != nil {
 		t.Fatalf("parse %q: %v", raw, err)
 	}
-	return originOf(u)
+	o := config.OriginOf(u)
+	return &o
 }
 
 func TestAuthTransport_AttachesKeyOnConfiguredHost(t *testing.T) {
@@ -53,7 +55,7 @@ func TestAuthTransport_StripsKeyOnForeignHost(t *testing.T) {
 
 	// Configured host is deliberately different from the server we call.
 	client := &http.Client{Transport: &authTransport{
-		base: http.DefaultTransport, authMethod: "apikey", apiKey: "K", origin: origin{scheme: "http", host: "redmine.internal:9999"},
+		base: http.DefaultTransport, authMethod: "apikey", apiKey: "K", origin: &config.Origin{Scheme: "http", Host: "redmine.internal", Port: "9999"},
 	}}
 	req, _ := http.NewRequest(http.MethodGet, ts.URL, nil)
 	resp, err := client.Do(req)
@@ -76,7 +78,7 @@ func TestAuthTransport_StripsBasicAuthOnForeignHost(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Transport: &authTransport{
-		base: http.DefaultTransport, authMethod: "basic", username: "u", password: "p", origin: origin{scheme: "http", host: "redmine.internal:9999"},
+		base: http.DefaultTransport, authMethod: "basic", username: "u", password: "p", origin: &config.Origin{Scheme: "http", Host: "redmine.internal", Port: "9999"},
 	}}
 	req, _ := http.NewRequest(http.MethodGet, ts.URL, nil)
 	resp, err := client.Do(req)
@@ -179,7 +181,7 @@ func TestAuthTransport_ConfiguredHeadersStrippedOnForeignHost(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Transport: &authTransport{
-		base: http.DefaultTransport, origin: origin{scheme: "http", host: "redmine.internal:9999"},
+		base: http.DefaultTransport, origin: &config.Origin{Scheme: "http", Host: "redmine.internal", Port: "9999"},
 		headers: map[string]string{"X-Proxy-Token": "secret"},
 	}}
 	req, _ := http.NewRequest(http.MethodGet, ts.URL, nil)

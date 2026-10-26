@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"unicode"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
 // ValidateURL checks that raw is safe to hand to the platform URL launcher:
@@ -39,24 +41,14 @@ func ValidateURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-// SameHost reports whether u points at the same host and port as the
-// configured server URL. Default ports are taken from each URL's scheme.
+// SameHost reports whether u points at the configured server URL: the same
+// origin (scheme, host and port, see config.OriginOf).
 func SameHost(u *url.URL, server string) bool {
 	s, err := url.Parse(server)
 	if err != nil || s.Hostname() == "" {
 		return false
 	}
-	return strings.EqualFold(u.Hostname(), s.Hostname()) && effectivePort(u) == effectivePort(s)
-}
-
-func effectivePort(u *url.URL) string {
-	if p := u.Port(); p != "" {
-		return p
-	}
-	if strings.EqualFold(u.Scheme, "http") {
-		return "80"
-	}
-	return "443"
+	return config.OriginOf(u) == config.OriginOf(s)
 }
 
 // Command validates raw with ValidateURL and returns the command that opens

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // maxPages is an absolute cap on the pages a single FetchAll or
@@ -38,6 +40,72 @@ func repeatedPage(prevFirstID, firstID string) bool {
 	return prevFirstID != "" && firstID == prevFirstID
 }
 
+// pageGuard holds the defenses FetchAll and FetchAllFiltered share against a
+// server that misreports pagination: paging stops on an empty page, on a
+// page that repeats the previous one and after maxPages pages, and a page
+// longer than requested is cut to the page size, so neither a lying
+// total_count nor ignored offset or limit parameters can make the client
+// page forever or multiply the results.
+type pageGuard struct {
+	log         *debug.Logger
+	name        string // log prefix
+	pageSize    int
+	page        int
+	prevFirstID string
+}
+
+func newPageGuard(log *debug.Logger, name string, pageSize int) *pageGuard {
+	return &pageGuard{log: log, name: name, pageSize: pageSize, page: 1}
+}
+
+// acceptPage vets a decoded page. It returns ok == false when paging must
+// stop without using the page: it is empty, or it starts with the same item
+// as the previous page (the server ignored offset). Otherwise it returns the
+// items to keep. A page with more items than requested, while total_count
+// says more pages follow, comes from a server that ignored limit; only the
+// first pageSize items are kept, since the next page starts pageSize items
+// further on and would repeat the rest. A page that holds the whole
+// collection (at least total_count items, as endpoints without pagination
+// return) is kept in full.
+func acceptPage[T any](g *pageGuard, items []T, itemsRaw json.RawMessage, totalCount int) ([]T, bool) {
+	// An empty page means there is nothing more to fetch, whatever
+	// total_count claims.
+	if len(items) == 0 {
+		return nil, false
+	}
+	firstID := firstItemID(itemsRaw)
+	if repeatedPage(g.prevFirstID, firstID) {
+		g.log.Printf("%s: page %d repeats the previous page (server ignored offset), stopping", g.name, g.page)
+		return nil, false
+	}
+	g.prevFirstID = firstID
+	if len(items) > g.pageSize && len(items) < totalCount {
+		g.log.Printf("%s: page %d has %d items, more than the requested %d (server ignored limit); keeping the first %d", g.name, g.page, len(items), g.pageSize, g.pageSize)
+		items = items[:g.pageSize]
+	}
+	return items, true
+}
+
+// next reports whether to fetch another page after one that kept n items,
+// advancing *offset and the page counter when it does.
+func (g *pageGuard) next(n, totalCount int, offset *int) bool {
+	// If the endpoint returned all items at once (doesn't support
+	// pagination) or returned fewer than requested, stop.
+	if n >= totalCount || n < g.pageSize {
+		return false
+	}
+	*offset += g.pageSize
+	if *offset >= totalCount {
+		return false
+	}
+	if g.page >= maxPages {
+		g.log.Printf("%s: reached the %d page safety cap, stopping", g.name, maxPages)
+		return false
+	}
+	g.page++
+	return true
+}
+
 // FetchAll retrieves all pages of a resource. The key parameter is the JSON
 // wrapper key (e.g., "issues", "projects"). If maxResults is 0, all results
 // are fetched.
@@ -58,15 +126,14 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 	}
 	startOffset := offset
 	totalCount := 0
-	page := 1
-	prevFirstID := ""
+	guard := newPageGuard(c.debugLog, "Pagination", pageSize)
 
 	for {
 		p := cloneParams(params)
 		p.Set("limit", strconv.Itoa(pageSize))
 		p.Set("offset", strconv.Itoa(offset))
 
-		c.debugLog.Printf("Pagination: fetching %s page %d (offset=%d, limit=%d)", path, page, offset, pageSize)
+		c.debugLog.Printf("Pagination: fetching %s page %d (offset=%d, limit=%d)", path, guard.page, offset, pageSize)
 
 		var raw map[string]json.RawMessage
 		if err := c.Get(ctx, path, p, &raw); err != nil {
@@ -91,17 +158,10 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 			return nil, 0, fmt.Errorf("decoding %s: %w", key, err)
 		}
 
-		// An empty page means there is nothing more to fetch, whatever
-		// total_count claims.
-		if len(items) == 0 {
+		items, ok = acceptPage(guard, items, itemsRaw, totalCount)
+		if !ok {
 			break
 		}
-		firstID := firstItemID(itemsRaw)
-		if repeatedPage(prevFirstID, firstID) {
-			c.debugLog.Printf("Pagination: page %d repeats the previous page (server ignored offset), stopping", page)
-			break
-		}
-		prevFirstID = firstID
 
 		allItems = append(allItems, items...)
 
@@ -122,22 +182,9 @@ func FetchAll[T any](ctx context.Context, c *Client, path string, params url.Val
 			break
 		}
 
-		// If the endpoint returned all items at once (doesn't support
-		// pagination) or returned fewer than requested, stop.
-		if len(items) >= totalCount || len(items) < pageSize {
+		if !guard.next(len(items), totalCount, &offset) {
 			break
 		}
-
-		// Check if there are more pages
-		offset += pageSize
-		if offset >= totalCount {
-			break
-		}
-		if page >= maxPages {
-			c.debugLog.Printf("Pagination: reached the %d page safety cap, stopping", maxPages)
-			break
-		}
-		page++
 	}
 
 	// Apply maxResults after any offset adjustment
@@ -160,15 +207,14 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 	var matched []T
 	offset := 0
 	totalCount := 0
-	page := 1
-	prevFirstID := ""
+	guard := newPageGuard(c.debugLog, "Pagination (filtered)", pageSize)
 
 	for {
 		p := cloneParams(params)
 		p.Set("limit", strconv.Itoa(pageSize))
 		p.Set("offset", strconv.Itoa(offset))
 
-		c.debugLog.Printf("Pagination (filtered): fetching %s page %d (offset=%d, limit=%d)", path, page, offset, pageSize)
+		c.debugLog.Printf("Pagination (filtered): fetching %s page %d (offset=%d, limit=%d)", path, guard.page, offset, pageSize)
 
 		var raw map[string]json.RawMessage
 		if err := c.Get(ctx, path, p, &raw); err != nil {
@@ -191,15 +237,10 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 			return nil, false, fmt.Errorf("decoding %s: %w", key, err)
 		}
 
-		if len(items) == 0 {
+		items, ok = acceptPage(guard, items, itemsRaw, totalCount)
+		if !ok {
 			break
 		}
-		firstID := firstItemID(itemsRaw)
-		if repeatedPage(prevFirstID, firstID) {
-			c.debugLog.Printf("Pagination (filtered): page %d repeats the previous page (server ignored offset), stopping", page)
-			break
-		}
-		prevFirstID = firstID
 
 		for i, item := range items {
 			if filter(item) {
@@ -216,23 +257,11 @@ func FetchAllFiltered[T any](ctx context.Context, c *Client, path string, params
 			}
 		}
 
-		c.debugLog.Printf("Pagination (filtered): page %d had %d items, %d matched so far (server total: %d)", page, len(items), len(matched), totalCount)
+		c.debugLog.Printf("Pagination (filtered): page %d had %d items, %d matched so far (server total: %d)", guard.page, len(items), len(matched), totalCount)
 
-		// If the endpoint returned all items at once (doesn't support
-		// pagination) or returned fewer than requested, stop.
-		if len(items) >= totalCount || len(items) < pageSize {
+		if !guard.next(len(items), totalCount, &offset) {
 			break
 		}
-
-		offset += pageSize
-		if offset >= totalCount {
-			break
-		}
-		if page >= maxPages {
-			c.debugLog.Printf("Pagination (filtered): reached the %d page safety cap, stopping", maxPages)
-			break
-		}
-		page++
 	}
 
 	return matched, false, nil

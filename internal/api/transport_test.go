@@ -26,28 +26,6 @@ func tlsTestTransport(t *testing.T, ts *httptest.Server) *http.Transport {
 	return base
 }
 
-func TestOriginOf(t *testing.T) {
-	tests := []struct {
-		a, b string
-		same bool
-	}{
-		{"https://redmine.example.com", "https://redmine.example.com:443/issues.json", true},
-		{"HTTPS://Redmine.Example.com", "https://redmine.example.com", true},
-		{"http://redmine.example.com", "http://redmine.example.com:80", true},
-		{"https://redmine.example.com", "http://redmine.example.com", false},
-		{"https://redmine.example.com", "https://redmine.example.com:8443", false},
-		{"https://redmine.example.com", "https://evil.example.com", false},
-		{"http://[::1]:3000", "http://[::1]:3000/x", true},
-	}
-	for _, tt := range tests {
-		ua, _ := url.Parse(tt.a)
-		ub, _ := url.Parse(tt.b)
-		if got := originOf(ua) == originOf(ub); got != tt.same {
-			t.Errorf("same origin(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.same)
-		}
-	}
-}
-
 func TestIsCleartextServer(t *testing.T) {
 	tests := []struct {
 		server string
@@ -63,11 +41,42 @@ func TestIsCleartextServer(t *testing.T) {
 		{"http://127.0.0.1:3000", false},
 		{"http://127.8.9.10", false},
 		{"http://[::1]:3000", false},
+		{"http://localhost.:3000", false},
+		{"http://dev.localhost:3000", false},
+		{"http://localhost.example.com", true},
 		{"", false},
 	}
 	for _, tt := range tests {
 		if got := IsCleartextServer(tt.server); got != tt.want {
 			t.Errorf("IsCleartextServer(%q) = %v, want %v", tt.server, got, tt.want)
+		}
+	}
+}
+
+func TestIsLoopbackHost(t *testing.T) {
+	tests := []struct {
+		host string
+		want bool
+	}{
+		{"localhost", true},
+		{"LOCALHOST", true},
+		{"localhost.", true},
+		{"dev.localhost", true},
+		{"Dev.LocalHost.", true},
+		{"127.0.0.1", true},
+		{"127.8.9.10", true},
+		{"::1", true},
+		{"::ffff:127.0.0.1", true},
+		{"localhost.example.com", false},
+		{"mylocalhost", false},
+		{"10.0.0.1", false},
+		{"0.0.0.0", false},
+		{"::", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsLoopbackHost(tt.host); got != tt.want {
+			t.Errorf("IsLoopbackHost(%q) = %v, want %v", tt.host, got, tt.want)
 		}
 	}
 }
@@ -88,7 +97,7 @@ func TestResponseHeaderTimeoutEnv(t *testing.T) {
 		want    time.Duration
 		wantErr bool
 	}{
-		{"", defaultResponseHeaderTimeout, false},
+		{"", 0, false},
 		{"0", 0, false},
 		{"45s", 45 * time.Second, false},
 		{" 5m ", 5 * time.Minute, false},
@@ -124,23 +133,23 @@ func TestNewClient_TransportTimeouts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.httpClient.Timeout != 0 || c.downloadClient.Timeout != 0 {
+	if c.httpClient.Timeout != 0 {
 		t.Errorf("http.Client.Timeout must stay unset so large downloads can stream")
 	}
-	for name, hc := range map[string]*http.Client{"api": c.httpClient, "download": c.downloadClient} {
-		tr := hc.Transport.(*authTransport).base.(*http.Transport)
-		if tr.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
-			t.Errorf("%s ResponseHeaderTimeout = %v, want %v", name, tr.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
-		}
-		if tr.TLSHandshakeTimeout != tlsHandshakeTimeout {
-			t.Errorf("%s TLSHandshakeTimeout = %v, want %v", name, tr.TLSHandshakeTimeout, tlsHandshakeTimeout)
-		}
-		if tr.IdleConnTimeout != idleConnTimeout {
-			t.Errorf("%s IdleConnTimeout = %v, want %v", name, tr.IdleConnTimeout, idleConnTimeout)
-		}
-		if tr.Proxy == nil {
-			t.Errorf("%s transport lost proxy-from-environment support", name)
-		}
+	tr := c.httpClient.Transport.(*authTransport).base.(*http.Transport)
+	// Slow queries must keep working: the wait for response headers is only
+	// bounded when REDMINE_HTTP_TIMEOUT asks for it.
+	if tr.ResponseHeaderTimeout != 0 {
+		t.Errorf("ResponseHeaderTimeout = %v, want 0 (disabled by default)", tr.ResponseHeaderTimeout)
+	}
+	if tr.TLSHandshakeTimeout != 15*time.Second {
+		t.Errorf("TLSHandshakeTimeout = %v, want 15s", tr.TLSHandshakeTimeout)
+	}
+	if tr.IdleConnTimeout != 90*time.Second {
+		t.Errorf("IdleConnTimeout = %v, want 90s", tr.IdleConnTimeout)
+	}
+	if tr.Proxy == nil {
+		t.Errorf("transport lost proxy-from-environment support")
 	}
 }
 
@@ -180,7 +189,7 @@ func TestAuthTransport_SchemeMismatchDropsCredentials(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	client := &http.Client{Transport: &authTransport{
 		base: http.DefaultTransport, authMethod: "apikey", apiKey: "K",
-		origin:  origin{scheme: "https", host: u.Host},
+		origin:  &config.Origin{Scheme: "https", Host: u.Hostname(), Port: u.Port()},
 		headers: map[string]string{"X-Proxy-Token": "secret"},
 	}}
 	resp, err := client.Get(ts.URL)
@@ -203,7 +212,7 @@ func TestAuthTransport_DefaultPortMatchesConfiguredOrigin(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: r}, nil
 	})
 	server, _ := url.Parse("https://Redmine.Example.com")
-	client := &http.Client{Transport: &authTransport{base: rt, apiKey: "K", origin: originOf(server)}}
+	client := &http.Client{Transport: &authTransport{base: rt, apiKey: "K", origin: originFor(t, server.String())}}
 	resp, err := client.Get("https://redmine.example.com:443/issues.json")
 	if err != nil {
 		t.Fatal(err)
@@ -221,6 +230,8 @@ func TestAuthTransport_AttachesTo(t *testing.T) {
 	}{
 		{"https://redmine.example.com", "https://redmine.example.com/issues.json", true},
 		{"https://redmine.example.com", "https://REDMINE.example.com:443/x", true},
+		{"https://redmine.example.com.", "https://redmine.example.com/x", true},
+		{"https://redmine.example.com", "https://redmine.example.com./x", true},
 		{"https://redmine.example.com", "http://redmine.example.com/x", false},
 		{"https://redmine.example.com", "https://redmine.example.com:8443/x", false},
 		{"https://redmine.example.com", "https://storage.example.com/x", false},
@@ -234,7 +245,7 @@ func TestAuthTransport_AttachesTo(t *testing.T) {
 	for _, tt := range tests {
 		server, _ := url.Parse(tt.server)
 		target, _ := url.Parse(tt.target)
-		tr := &authTransport{origin: originOf(server)}
+		tr := &authTransport{origin: originFor(t, server.String())}
 		if got := tr.attachesTo(target); got != tt.want {
 			t.Errorf("server %s: attachesTo(%s) = %v, want %v", tt.server, tt.target, got, tt.want)
 		}
