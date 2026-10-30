@@ -75,8 +75,10 @@ How it behaves:
   error.
 - Commands that never print JSON reject `--jq`: `completion`, `mcp serve`,
   `mcp tools`, `attachments download --path -` (raw file bytes) and the
-  interactive commands (`auth login`, `auth logout`, `auth switch` without a
-  profile name, `issues browse`, `search browse`).
+  interactive commands (`auth login` when it runs the wizard, `auth logout`,
+  `auth switch` without a profile name, `issues browse`, `search browse`).
+  `auth login --server ... --api-key-file -` runs without prompts and supports
+  `--jq` and `-o json`.
 - The expression runs against exactly the JSON the command would print
   without `--jq`: resource bodies, lists (an empty list is `[]`), action
   envelopes, and `redmine api` response bodies.
