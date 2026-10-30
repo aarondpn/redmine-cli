@@ -22,6 +22,16 @@ const CredentialStoreKeyring = "keyring"
 
 var errNoActiveProfile = errors.New("multiple profiles exist but no active profile set")
 
+// keyringSecretError reports a keyring profile whose secret could not be read.
+type keyringSecretError struct {
+	msg string
+	// mcpHTTP is the profile's (or REDMINE_MCP_HTTP's) MCP HTTP address, so
+	// callers can still tell that HTTP was requested.
+	mcpHTTP string
+}
+
+func (e *keyringSecretError) Error() string { return e.msg }
+
 // Overrides carries CLI-flag credential values that outrank both the config
 // file and the keyring. They are resolved before any keyring lookup so an
 // explicit --api-key never triggers a keyring read.
@@ -139,7 +149,7 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 		if cfg.AuthMethod == "basic" {
 			field = "REDMINE_PASSWORD"
 		}
-		return nil, fmt.Errorf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field)
+		return nil, &keyringSecretError{msg: fmt.Sprintf("profile %q stores credentials in the system keyring, but the secret could not be retrieved. Re-run 'redmine auth login', or supply the secret via %s (add REDMINE_NO_KEYRING=1 to skip keyring lookups entirely)", selectedName, field), mcpHTTP: cfg.MCP.HTTP}
 	}
 
 	if selectedName != "" {
@@ -244,6 +254,23 @@ func keyringSecretMissing(cfg *Config) bool {
 // IsNoActiveProfileError reports whether err is the missing-active-profile error.
 func IsNoActiveProfileError(err error) bool {
 	return errors.Is(err, errNoActiveProfile)
+}
+
+// IsKeyringSecretError reports whether err is the error for a keyring profile
+// whose secret could not be retrieved.
+func IsKeyringSecretError(err error) bool {
+	var ke *keyringSecretError
+	return errors.As(err, &ke)
+}
+
+// KeyringSecretMCPHTTP returns the MCP HTTP address of the profile behind a
+// keyring secret error (after REDMINE_MCP_HTTP), or "" for other errors.
+func KeyringSecretMCPHTTP(err error) string {
+	var ke *keyringSecretError
+	if errors.As(err, &ke) {
+		return ke.mcpHTTP
+	}
+	return ""
 }
 
 // EffectiveProfileName resolves which profile name should be displayed or used

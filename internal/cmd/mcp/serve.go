@@ -19,6 +19,10 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/mcpserver"
 )
 
+// newStdioTransport builds the stdio transport; tests swap it to avoid
+// depending on the process's real stdin.
+var newStdioTransport = func() sdk.Transport { return &sdk.StdioTransport{} }
+
 func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	var (
 		enableWrites  bool
@@ -39,7 +43,10 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 		Long: "Start a Model Context Protocol server on stdio or streamable HTTP that exposes the " +
 			"Redmine API as a set of MCP tools and resources. The active " +
 			"--profile (or REDMINE_* environment variables / --server / --api-key " +
-			"flags) selects the Redmine instance.\n\n" +
+			"flags) selects the Redmine instance. When nothing is configured yet, " +
+			"the stdio server still starts, without Redmine tools, and tells the " +
+			"agent how to finish the setup (with --http it exits with the error " +
+			"instead).\n\n" +
 			"By default only read tools are registered. Pass --enable-writes to " +
 			"also register create/update/delete tools. Use --http to listen on " +
 			"an HTTP address such as :8080 instead of stdio. The HTTP transport " +
@@ -59,20 +66,41 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			"Run `redmine mcp tools` to see the available groups and tools.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := f.ApiClient()
-			if err != nil {
-				return err
-			}
-
 			version := cmd.Root().Version
 			if version == "" {
 				version = "dev"
 			}
 
-			cfg, _ := f.Config()
+			cfg, cfgErr := f.Config()
+			// Filter flags are the user's explicit input, so invalid ones fail
+			// even when the server runs unconfigured.
 			spec, err := buildFilterSpec(cfg, cmd, enableGroups, disableGroups, enableTools, disableTools)
 			if err != nil {
 				return err
+			}
+
+			// main cancels this context on the first SIGINT/SIGTERM, which
+			// shuts both transports down cleanly, and restores default
+			// signal handling so a second Ctrl-C still kills the process.
+			// Serve must not catch signals itself, or it would swallow that
+			// second Ctrl-C while shutting down.
+			ctx := cmdutil.Context(cmd)
+
+			client, err := f.ApiClient()
+			if err != nil {
+				// A host such as Claude Code only reports "Failed to connect"
+				// when the process exits before the handshake, so a missing
+				// setup keeps the server up and tells the agent what to do.
+				// Over HTTP there is no host to surface that: the operator
+				// reads the log and a restart is needed anyway, so fail.
+				// Errors from explicit input (an unknown --profile, a broken
+				// config file) fail too instead of masking the typo.
+				if !isSetupProblem(cfg, cfgErr) || httpRequested(cmd, httpAddr, cfg, cfgErr) {
+					return err
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; run 'redmine auth login' (or set REDMINE_SERVER and REDMINE_API_KEY), then restart the MCP server.\n", err)
+				srv := mcpserver.BuildSetupServer(err.Error(), mcpserver.Options{Name: name, Version: version})
+				return srv.Run(ctx, newStdioTransport())
 			}
 
 			opts := mcpserver.Options{
@@ -82,12 +110,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 			opts = mcpserver.ResolveOptions(opts, spec)
 
-			// main cancels this context on the first SIGINT/SIGTERM, which
-			// shuts both transports down cleanly, and restores default
-			// signal handling so a second Ctrl-C still kills the process.
-			// Serve must not catch signals itself, or it would swallow that
-			// second Ctrl-C while shutting down.
-			ctx := cmdutil.Context(cmd)
+			startCredentialCheck(ctx, f, cfg, client)
 
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
 			if httpAddr != "" {
@@ -127,7 +150,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			srv := mcpserver.BuildServer(client, opts)
-			return srv.Run(ctx, &sdk.StdioTransport{})
+			return srv.Run(ctx, newStdioTransport())
 		},
 	}
 
@@ -145,6 +168,31 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 
 	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
+}
+
+// isSetupProblem reports whether the failure to build a client means Redmine
+// is not set up yet (no server, no usable stored credential, no profile
+// selected) rather than a mistake in explicit input. cfgErr is the error from
+// loading the configuration; cfg is nil when it failed.
+func isSetupProblem(cfg *config.Config, cfgErr error) bool {
+	if cfgErr != nil {
+		return config.IsKeyringSecretError(cfgErr) || config.IsNoActiveProfileError(cfgErr)
+	}
+	return cfg != nil && cfg.Server == ""
+}
+
+// httpRequested reports whether HTTP mode was asked for, even when the config
+// could not be loaded (cfg is nil then, so REDMINE_MCP_HTTP and a keyring
+// profile's mcp.http are checked separately). An explicit empty --http means
+// stdio.
+func httpRequested(cmd *cobra.Command, flagVal string, cfg *config.Config, cfgErr error) bool {
+	if cmd.Flags().Changed("http") {
+		return flagVal != ""
+	}
+	if cfg != nil {
+		return cfg.MCP.HTTP != ""
+	}
+	return os.Getenv("REDMINE_MCP_HTTP") != "" || config.KeyringSecretMCPHTTP(cfgErr) != ""
 }
 
 // buildFilterSpec merges config-file values with the CLI flag values. CLI
