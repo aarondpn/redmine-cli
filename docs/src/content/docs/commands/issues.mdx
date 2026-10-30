@@ -432,6 +432,7 @@ redmine issues watchers remove 123 alice
 
 ```bash
 redmine issues relations list <id>
+redmine issues relations get <relation-id>
 redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
 redmine issues relations remove <relation-id>
 ```
@@ -460,11 +461,12 @@ Supported relation types (from the [Redmine REST docs](https://www.redmine.org/p
 redmine issues relations add 123 --to 124 --type blocks
 redmine issues relations add 123 --to 124 --type precedes --delay 5
 redmine issues relations list 123
+redmine issues relations get 42
 redmine issues relations remove 42
 ```
 
 <Aside type="note">
-  `relations remove` takes the **relation ID**, not an issue ID. Use `relations list` first to discover the relation IDs on an issue.
+  `relations get` and `relations remove` take the **relation ID**, not an issue ID. Use `relations list` first to discover the relation IDs on an issue. `relations get` prints the relation as JSON with `-o json`, or as a detail view (ID, issue, related issue, type, delay) otherwise.
 </Aside>
 
 ## delete

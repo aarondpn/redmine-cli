@@ -69,6 +69,7 @@ Redmine instance. The suite is split into topical files:
 | `issues_list_test.go`    | list filter round-trips (`--status`, `--assignee me`, `--tracker`, bogus tracker error) |
 | `assignee_test.go`       | group assignment by name, `--assignee none` (unassign + list filter), MCP unassign, non-admin name resolution via project memberships |
 | `time_entries_test.go`   | time log / list / update / delete with activity resolution |
+| `enumerations_test.go`   | `priorities list`, `activities list` (global and `--project` with the seeded override), `document-categories list`, unknown project, MCP `list_priorities` / `list_time_entry_activities`; `issues relations get` (`TestRelations_Get`) |
 | `search_test.go`         | `search --issues` and `search --projects` scope |
 | `auth_test.go`           | basic-auth profile against `/users/current.json` (needs `REDMINE_E2E_PASSWORD`) |
 | `api_test.go`            | raw `api` passthrough GET + POST + PUT with `--input` |
@@ -101,7 +102,7 @@ not for all projects (`E2E Project Scoped`, for `--issue-custom-field`),
 entry custom field would make every other test that logs time fail.
 
 It then runs `seed-contract.rb`, which seeds the data the contract tests
-need (it is idempotent; re-run it on a live stack with
+need (including a project-specific override of the second shared time entry activity in `e2e-contract`, which `activities list --project` must report with its own ID; it is idempotent; re-run it on a live stack with
 `docker compose -f e2e/compose.yaml exec -T redmine bundle exec rails runner - < e2e/seed-contract.rb`).
 
 ### Contract tests

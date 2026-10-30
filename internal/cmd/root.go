@@ -15,6 +15,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/category"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/completion"
 	customfield "github.com/aarondpn/redmine-cli/v2/internal/cmd/custom_field"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/enumeration"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/files"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/group"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/installskill"
@@ -135,6 +136,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(customfield.NewCmdCustomFields(f))
 	cmd.AddCommand(category.NewCmdCategories(f))
 	cmd.AddCommand(status.NewCmdStatuses(f))
+	cmd.AddCommand(enumeration.NewCmdPriorities(f))
+	cmd.AddCommand(enumeration.NewCmdActivities(f))
+	cmd.AddCommand(enumeration.NewCmdDocumentCategories(f))
 	cmd.AddCommand(versioncmd.NewCmdVersions(f))
 	cmd.AddCommand(files.NewCmdFiles(f))
 	cmd.AddCommand(search.NewCmdSearch(f))

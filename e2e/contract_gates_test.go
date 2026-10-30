@@ -10,8 +10,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/aarondpn/redmine-cli/v2/internal/api"
-	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil/contract"
 )
 
@@ -131,47 +129,6 @@ func TestContract_Coverage(t *testing.T) {
 			case !redmineAtLeast(g.Since[0], g.Since[1]) && found:
 				t.Fatalf("Redmine %s already sends %s in %s although the table says it arrives with %d.%d (%s): lower Since.",
 					e2eVersion(), g.Path, g.Case, g.Since[0], g.Since[1], g.Ref)
-			}
-		})
-	}
-}
-
-// TestContract_Enumerations covers the one resource without a CLI or MCP
-// surface: the enumerations are only reachable through the API client, so the
-// models it decodes into are diffed against the raw payload directly.
-func TestContract_Enumerations(t *testing.T) {
-	requireE2E(t)
-	cfg := &config.Config{Server: e2eBaseURL(), APIKey: e2eAPIKey(), AuthMethod: "apikey"}
-	client, err := api.NewClient(cfg, nil)
-	if err != nil {
-		t.Fatalf("new client: %v", err)
-	}
-	ctx := context.Background()
-
-	activities, err := client.Enumerations.TimeEntryActivities(ctx)
-	if err != nil {
-		t.Fatalf("time entry activities: %v", err)
-	}
-	priorities, err := client.Enumerations.IssuePriorities(ctx)
-	if err != nil {
-		t.Fatalf("issue priorities: %v", err)
-	}
-
-	for _, tc := range []struct {
-		name, path, root string
-		got              any
-	}{
-		{"time_entry_activities", "/enumerations/time_entry_activities.json", "time_entry_activities", activities},
-		{"issue_priorities", "/enumerations/issue_priorities.json", "issue_priorities", priorities},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			raw := field(rawGET(t, tc.path), tc.root)
-			got, err := contract.Normalize(tc.got)
-			if err != nil {
-				t.Fatalf("normalize: %v", err)
-			}
-			if res := contract.Diff(raw, got, nil); !res.OK() {
-				contractFail(t, "enumerations", res)
 			}
 		})
 	}

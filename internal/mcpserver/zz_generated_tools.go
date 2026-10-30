@@ -246,6 +246,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Category:    "meta",
 		Call:        ops.ListCustomFields,
 	})
+	registerToolSpec(s, client, opts, toolSpec[struct{}, ops.PrioritiesListResult]{
+		Name:        "list_priorities",
+		Description: "List issue priorities with their IDs, default flag and active state. Use the IDs for priority_id.",
+		Category:    "meta",
+		Call:        ops.ListPriorities,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListQueriesInput, ops.QueriesListResult]{
 		Name:        "list_queries",
 		Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.",
@@ -387,6 +393,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Category:    "time",
 		Call:        ops.ListTimeEntries,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListTimeEntryActivitiesInput, ops.TimeEntryActivitiesListResult]{
+		Name:        "list_time_entry_activities",
+		Description: "List time entry activities with their IDs. Pass project_id to get the activities available in that project, including project-specific overrides whose IDs differ from the global ones. Use the IDs for activity_id.",
+		Category:    "time",
+		Call:        ops.ListTimeEntryActivities,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.SummaryTimeEntriesInput, ops.TimeSummaryResult]{
 		Name:        "summary_time_entries",
 		Description: "Summarize time entries grouped by day, project, or activity.",
@@ -515,6 +527,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
 		{Name: "list_custom_fields", Description: "List custom field definitions configured in this Redmine instance. Admin-only endpoint.", Group: "meta", Writes: false},
+		{Name: "list_priorities", Description: "List issue priorities with their IDs, default flag and active state. Use the IDs for priority_id.", Group: "meta", Writes: false},
 		{Name: "list_queries", Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.", Group: "meta", Writes: false},
 		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
@@ -537,6 +550,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "delete_time_entry", Description: "Delete a time entry. Destructive. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "get_time_entry", Description: "Fetch a single time entry by ID.", Group: "time", Writes: false},
 		{Name: "list_time_entries", Description: "List Redmine time entries matching the given filters.", Group: "time", Writes: false},
+		{Name: "list_time_entry_activities", Description: "List time entry activities with their IDs. Pass project_id to get the activities available in that project, including project-specific overrides whose IDs differ from the global ones. Use the IDs for activity_id.", Group: "time", Writes: false},
 		{Name: "summary_time_entries", Description: "Summarize time entries grouped by day, project, or activity.", Group: "time", Writes: false},
 		{Name: "update_time_entry", Description: "Update an existing time entry. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "create_user", Description: "Create a new Redmine user. Requires --enable-writes and admin privileges.", Group: "users", Writes: true},

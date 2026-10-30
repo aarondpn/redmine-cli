@@ -13,7 +13,7 @@ type ListTimeEntriesInput struct {
 	ProjectID  string `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID to filter by."`
 	UserID     string `json:"user_id,omitempty" jsonschema:"User numeric ID or 'me'."`
 	IssueID    int    `json:"issue_id,omitempty" jsonschema:"Issue numeric ID to filter by."`
-	ActivityID int    `json:"activity_id,omitempty" jsonschema:"Activity enumeration ID."`
+	ActivityID int    `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
 	From       string `json:"from,omitempty" jsonschema:"Inclusive start date (YYYY-MM-DD)."`
 	To         string `json:"to,omitempty" jsonschema:"Inclusive end date (YYYY-MM-DD)."`
 	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
@@ -34,7 +34,7 @@ type CreateTimeEntryInput struct {
 	IssueID           int                      `json:"issue_id,omitempty" jsonschema:"Issue to log time against. Either issue_id or project_id is required."`
 	ProjectID         string                   `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. Either issue_id or project_id is required."`
 	Hours             float64                  `json:"hours" jsonschema:"Hours worked (decimal, e.g. 1.5)."`
-	ActivityID        int                      `json:"activity_id,omitempty" jsonschema:"Activity enumeration ID."`
+	ActivityID        int                      `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
 	SpentOn           string                   `json:"spent_on,omitempty" jsonschema:"Date the work was done (YYYY-MM-DD). Defaults to today."`
 	Comments          string                   `json:"comments,omitempty" jsonschema:"Free-text comment."`
 	UserID            int                      `json:"user_id,omitempty" jsonschema:"Numeric ID of the user the entry is logged for. Requires admin or 'log time for other users' permission on the server."`
@@ -44,7 +44,7 @@ type CreateTimeEntryInput struct {
 type UpdateTimeEntryInput struct {
 	ID                int                      `json:"id" jsonschema:"Time entry numeric ID."`
 	Hours             *float64                 `json:"hours,omitempty" jsonschema:"New hours worked."`
-	ActivityID        *int                     `json:"activity_id,omitempty" jsonschema:"New activity enumeration ID."`
+	ActivityID        *int                     `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
 	SpentOn           *string                  `json:"spent_on,omitempty" jsonschema:"New date (YYYY-MM-DD)."`
 	Comments          *string                  `json:"comments,omitempty" jsonschema:"New comment body."`
 	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Time entry custom field values keyed by numeric custom field ID (list_custom_fields, customized_type time_entry); required when the server defines required time entry custom fields. Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`

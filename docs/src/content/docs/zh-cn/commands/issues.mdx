@@ -285,6 +285,7 @@ redmine issues watchers remove 123 alice
 
 ```bash
 redmine issues relations list <id>
+redmine issues relations get <relation-id>
 redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
 redmine issues relations remove <relation-id>
 ```
@@ -313,11 +314,12 @@ Redmine 支持的关联类型（参见 [Redmine REST 文档](https://www.redmine
 redmine issues relations add 123 --to 124 --type blocks
 redmine issues relations add 123 --to 124 --type precedes --delay 5
 redmine issues relations list 123
+redmine issues relations get 42
 redmine issues relations remove 42
 ```
 
 <Aside type="note">
-  `relations remove` 接受的是 **关联 ID**，而非工单 ID。请先用 `relations list` 查询关联 ID。
+  `relations get` 与 `relations remove` 接受的是 **关联 ID**，而非工单 ID。请先用 `relations list` 查询关联 ID。`relations get` 在 `-o json` 下输出 JSON，否则显示详情（ID、工单、关联工单、类型、延迟）。
 </Aside>
 
 ## delete

@@ -257,6 +257,17 @@ seed_time(project, parent, admin, activity, 1.5, "contract time on parent", entr
 seed_time(project, child, admin, activity, 2.25, "contract time on child", entry_cf, "entry cf value")
 seed_time(project, nil, admin, activity, 0.5, "contract time on project", entry_cf, "entry cf value")
 
+# A project-specific override of the second shared activity: it is what makes
+# `activities list --project` differ from the global list (own ID).
+override_parent = TimeEntryActivity.shared.active.where.not(id: activity.id).order(:position).first
+if override_parent.nil?
+  gaps["activity_override"] = "no second shared time entry activity to override"
+elsif !project.time_entry_activities.exists?(parent_id: override_parent.id)
+  project.time_entry_activities.create!(name: override_parent.name, parent_id: override_parent.id,
+                                        position: override_parent.position, active: true)
+end
+activity_override = override_parent && project.time_entry_activities.find_by(parent_id: override_parent.id)
+
 # --- statuses -------------------------------------------------------------------------
 if IssueStatus.column_names.include?("description")
   open_status.update!(description: "contract status description") if open_status.description.blank?
@@ -303,6 +314,7 @@ puts({
   leaf_id: leaf.id,
   closed_id: closed.id,
   user_id: user.id,
+  activity_override_id: activity_override&.id,
   group_id: group.id,
   gaps: gaps
 }.inspect)

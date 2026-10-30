@@ -28,7 +28,8 @@ type contractCase struct {
 	// include list: Redmine ignores include names it does not know, so one
 	// list serves all four supported lines.
 	Raw string
-	// Root is the key of the payload inside Redmine's envelope.
+	// Root is the key of the payload inside Redmine's envelope; a dotted path
+	// descends into nested objects.
 	Root string
 	// List marks Root as an array. The CLI prints lists as bare arrays, so
 	// the envelope (total_count, offset, limit) is only compared for MCP.
@@ -280,13 +281,30 @@ var contractCases = []contractCase{
 		MCP: &contractMCP{Tool: "list_issue_relations", Args: idArgs("issue_id", "leaf", nil)},
 	},
 	{
-		// No CLI command or MCP tool exists for enumerations; only the raw
-		// payload is fetched here, for the coverage table. The API client's
-		// models are diffed by TestContract_Enumerations.
 		Name: "enumerations_activities", Raw: "/enumerations/time_entry_activities.json", Root: "time_entry_activities", List: true,
+		CLI: []string{"activities", "list"},
+		MCP: &contractMCP{Tool: "list_time_entry_activities", Args: literal(map[string]any{})},
+	},
+	{
+		Name: "priorities_list", Raw: "/enumerations/issue_priorities.json", Root: "issue_priorities", List: true,
+		CLI: []string{"priorities", "list"},
+		MCP: &contractMCP{Tool: "list_priorities", Args: literal(map[string]any{})},
+	},
+	{
+		// CLI only: documents are not supported elsewhere, so no MCP tool.
+		Name: "document_categories_list", Raw: "/enumerations/document_categories.json", Root: "document_categories", List: true,
+		CLI: []string{"document-categories", "list"},
+	},
+	{
+		// Project-specific activities (overrides have their own IDs) only come
+		// from the project payload; the enumerations endpoint ignores project_id.
+		Name: "activities_list_project", Raw: "/projects/{P}.json?include=time_entry_activities", Root: "project.time_entry_activities", List: true,
+		CLI: []string{"activities", "list", "--project", "{P}"},
+		MCP: &contractMCP{Tool: "list_time_entry_activities", Args: projArgs(nil), Key: "time_entry_activities"},
 	},
 	{
 		Name: "relations_get", Raw: "/relations/{relation}.json", Root: "relation",
+		CLI: []string{"issues", "relations", "get", "{relation}"},
 		MCP: &contractMCP{Tool: "get_issue_relation", Args: idArgs("id", "relation", nil)},
 	},
 }
@@ -323,7 +341,9 @@ var contractNoCase = map[string]string{
 // rawRoot extracts the part of the Redmine payload a case compares.
 func (c contractCase) rawRoot(t *testing.T, w *contractWorld, doc any) any {
 	t.Helper()
-	root := field(doc, c.Root)
+	// Root may be dotted ("project.time_entry_activities") to reach into a
+	// nested envelope.
+	root := field(doc, strings.Split(c.Root, ".")...)
 	if root == nil {
 		t.Fatalf("raw %s has no %q key", c.Name, c.Root)
 	}

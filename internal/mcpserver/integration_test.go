@@ -97,6 +97,7 @@ func TestWriteGate_HidesMutatingTools(t *testing.T) {
 		"list_trackers", "get_tracker", "list_statuses", "list_categories", "list_roles", "get_role",
 		"list_wiki_pages", "get_wiki_page",
 		"list_memberships", "get_membership",
+		"list_priorities", "list_time_entry_activities",
 	}
 	for _, n := range wantPresent {
 		if !contains(names, n) {

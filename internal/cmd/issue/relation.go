@@ -18,11 +18,12 @@ func NewCmdRelations(f *cmdutil.Factory) *cobra.Command {
 		Use:     "relations",
 		Aliases: []string{"relation"},
 		Short:   "Manage issue relations",
-		Long: "List, create, and delete relations between issues. " +
+		Long: "List, get, create, and delete relations between issues. " +
 			"Relation types: relates, duplicates, duplicated, blocks, blocked, " +
 			"precedes, follows, copied_to, copied_from.",
 	}
 	cmd.AddCommand(newCmdRelationList(f))
+	cmd.AddCommand(newCmdRelationGet(f))
 	cmd.AddCommand(newCmdRelationAdd(f))
 	cmd.AddCommand(newCmdRelationRemove(f))
 	return cmd
@@ -65,6 +66,54 @@ func newCmdRelationList(f *cmdutil.Factory) *cobra.Command {
 						formatDelay(r.Delay),
 					}
 				})
+			return nil
+		},
+	}
+	cmdutil.AddOutputFlag(cmd, &format)
+	return cmd
+}
+
+func newCmdRelationGet(f *cmdutil.Factory) *cobra.Command {
+	var format string
+	cmd := &cobra.Command{
+		Use:     "get <relation-id>",
+		Aliases: []string{"show", "view"},
+		Short:   "Show a single relation by its relation ID",
+		Long: "Show an issue relation by its relation ID. List relations with " +
+			"`redmine issues relations list <issue-id>` to discover the ID.",
+		Example: `  # Show relation 42
+  redmine issues relations get 42
+
+  # As JSON
+  redmine issues relations get 42 -o json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			relID, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid relation ID: %s", args[0])
+			}
+			client, err := f.ApiClient()
+			if err != nil {
+				return err
+			}
+			printer := f.Printer(format)
+			stop := printer.Spinner("Fetching relation...")
+			rel, err := ops.GetIssueRelation(cmdutil.Context(cmd), client, ops.GetIssueRelationInput{ID: relID})
+			stop()
+			if err != nil {
+				return fmt.Errorf("failed to get relation #%d: %w", relID, err)
+			}
+			if printer.Format() == output.FormatJSON {
+				printer.JSON(rel)
+				return nil
+			}
+			printer.Detail([]output.KeyValue{
+				{Key: "ID", Value: output.StyleID.Render(strconv.Itoa(rel.ID))},
+				{Key: "Issue", Value: output.StyleID.Render(fmt.Sprintf("#%d", rel.IssueID))},
+				{Key: "Related Issue", Value: output.StyleID.Render(fmt.Sprintf("#%d", rel.IssueToID))},
+				{Key: "Type", Value: rel.RelationType},
+				{Key: "Delay", Value: formatDelay(rel.Delay)},
+			})
 			return nil
 		},
 	}

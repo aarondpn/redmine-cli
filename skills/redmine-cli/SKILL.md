@@ -13,7 +13,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 
 | Command | Purpose |
 |---------|---------|
-| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; manage watchers and relations (`issues watchers …`, `issues relations …`). To search issues, use `search issues` |
+| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
 | `attachments` | Inspect attachment metadata (`attachments get <id>`) and download attachment files (`attachments download <id>`) using the active profile's auth |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |
@@ -28,6 +28,9 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `categories` | List issue categories |
 | `trackers` | List and get trackers |
 | `statuses` | List issue statuses |
+| `priorities` | List issue priorities and their IDs (for `--priority`) |
+| `activities` | List time entry activities; `--project <p>` shows the ones available in that project incl. overrides with their own IDs |
+| `document-categories` | List document categories |
 | `custom-fields` | List and get custom field definitions (admin-only endpoint) |
 | `search` | Search issues, wiki, news, messages, or browse results |
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |
