@@ -35,6 +35,27 @@ The API key and password prompts are masked. If the server URL uses `http://` an
 
 Logging in again keeps the profile's `read_only` and `mcp` settings.
 
+### Non-interactive login
+
+Without a terminal (CI, scripts, AI agents) the wizard cannot run. Pass the global `--server` together with `--api-key-file` (`-` reads standard input) or `--api-key`, and no prompt is shown: the URL is normalized, the connection is tested, and the profile is saved and activated.
+
+```bash
+echo "$REDMINE_KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
+redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --name work --default-project web -o json
+```
+
+`-o json` prints the usual action envelope (`"action": "logged_in"`). With missing values and no terminal the command fails immediately and names the flags to pass. In a terminal, values given as flags are not asked for again.
+
+| Flag | Description |
+|------|-------------|
+| `--server`, `-s` | Global flag. Server URL; skips the URL prompt. |
+| `--api-key-file`, `--api-key` | Global flags. API key; skip the credential prompt. Prefer `--api-key-file` so the key stays out of the process list. |
+| `--default-project` | Project identifier saved as the profile's default (checked against the server). |
+
+### Server URL normalization
+
+The URL is cleaned up before it is saved, and the wizard tells you when it changed it: surrounding whitespace, query, fragment and trailing slashes are dropped, `https://` is added when no scheme is given (an explicit `http://` is kept), and a Redmine page copied from the browser is reduced to the base URL (`https://host/projects/foo/issues` becomes `https://host`). A sub-path installation is preserved: `https://host/redmine/issues/5` becomes `https://host/redmine`. Server values from `REDMINE_SERVER` or a profile only get `https://` added when the scheme is missing.
+
 <Aside type="tip">
   Run `redmine auth login` again at any time to add another profile — the wizard never overwrites an existing one without confirmation.
 </Aside>

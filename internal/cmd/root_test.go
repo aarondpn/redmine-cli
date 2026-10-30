@@ -66,7 +66,6 @@ func TestRootCmd_PersistentOutputFlag_InheritedByLeafCommands(t *testing.T) {
 
 func TestRootCmd_InteractiveCommandsRejectOutputFlag(t *testing.T) {
 	for _, args := range [][]string{
-		{"auth", "login", "--output", "json"},
 		{"auth", "logout", "--output", "json"},
 		{"auth", "switch", "--output", "json"},
 		{"issues", "browse", "--output", "json"},
