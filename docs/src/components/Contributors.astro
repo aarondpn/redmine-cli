@@ -10,11 +10,16 @@ type Contributor = {
   type: string;
 };
 
+// Set in CI, where shared runner IPs exhaust the unauthenticated rate limit.
+const token = process.env.GITHUB_TOKEN;
+const headers: Record<string, string> = { Accept: 'application/vnd.github+json' };
+if (token) headers.Authorization = `Bearer ${token}`;
+
 let contributors: Contributor[] = [];
 try {
   const res = await fetch(
     'https://api.github.com/repos/aarondpn/redmine-cli/contributors?per_page=50',
-    { headers: { Accept: 'application/vnd.github+json' } },
+    { headers },
   );
   if (res.ok) {
     const data = (await res.json()) as Contributor[];
