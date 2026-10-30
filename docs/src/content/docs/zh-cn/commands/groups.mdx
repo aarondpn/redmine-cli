@@ -39,11 +39,14 @@ redmine groups get <id-or-name> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include-users`       | 在输出中包含用户组成员 |
-| `--include-memberships` | 在输出中包含项目成员关系 |
-| `-o, --output`          | 输出格式 |
+| `--include`    | 包含关联数据：`users`、`memberships`（可重复或用逗号分隔） |
+| `-o, --output` | 输出格式 |
 
-使用 `-o json`（以及 MCP 的用户组工具）时，用户组始终带有 `custom_fields`（没有值时为 `[]`），并在 Redmine 返回时带有 `builtin`。使用 `--include-memberships`（MCP：`includes: ["memberships"]`）时，每个 `memberships` 条目为 `{id, project, roles}`。
+{/* DEPRECATED(remove-after: 2027-01-31): --include-users/--include-memberships aliases; delete this paragraph */}
+
+`--include-users` 和 `--include-memberships` 是 `--include users` 和 `--include memberships` 的已弃用别名，使用时会向 stderr 输出警告，并将在 2027-01-31 之后移除。
+
+使用 `-o json`（以及 MCP 的用户组工具）时，用户组始终带有 `custom_fields`（没有值时为 `[]`），并在 Redmine 返回时带有 `builtin`。使用 `--include memberships`（MCP：`includes: ["memberships"]`）时，每个 `memberships` 条目为 `{id, project, roles}`。
 
 ## create
 

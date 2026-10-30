@@ -2,7 +2,6 @@ package issue
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -30,7 +29,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 		query              string
 		queryID            int
 		sort               string
-		include            string
+		includes           []string
 		attachments        bool
 		relations          bool
 		extraFilter        []string
@@ -86,6 +85,18 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
   redmine issues list --query "My open issues"
   redmine issues list --query-id 12`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateListIncludes(includes); err != nil {
+				return err
+			}
+			var shorthands []string
+			if attachments {
+				shorthands = append(shorthands, "attachments")
+			}
+			if relations {
+				shorthands = append(shorthands, "relations")
+			}
+			includes = cmdutil.MergeIncludes(includes, shorthands...)
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -150,17 +161,6 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 			resolvedQueryID, err := resolveIssueQueryFilter(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project)
 			if err != nil {
 				return err
-			}
-
-			var includes []string
-			if include != "" {
-				includes = strings.Split(include, ",")
-			}
-			if attachments {
-				includes = append(includes, "attachments")
-			}
-			if relations {
-				includes = append(includes, "relations")
 			}
 
 			var isPrivatePtr *bool
@@ -254,7 +254,8 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("query", "query-id")
 	cmd.MarkFlagsMutuallyExclusive("subproject", "include-subprojects")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., updated_on:desc)")
-	cmd.Flags().StringVar(&include, "include", "", "Include related data: attachments,relations")
+	cmd.Flags().StringSliceVar(&includes, "include", nil, "Include related data: attachments, relations (repeatable or comma-separated)")
+	_ = cmd.RegisterFlagCompletionFunc("include", completeListIncludes)
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
 	cmd.Flags().StringArrayVar(&extraFilter, "filter", nil, "Raw Redmine filter as key=value (repeatable). Examples: --filter created_on='>=2025-01-01', --filter cf_5=Critical, --filter subject='~login'")

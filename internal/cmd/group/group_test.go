@@ -111,7 +111,7 @@ func TestGroupGet_MembershipsShowProjectAndKeepRolesInJSON(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships"})
+	cmd.SetArgs([]string{"1", "--include", "memberships"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestGroupGet_MembershipsShowProjectAndKeepRolesInJSON(t *testing.T) {
 
 	f = testutil.NewFactory(t, srv.URL)
 	cmd = newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships", "--output", "json"})
+	cmd.SetArgs([]string{"1", "--include", "memberships", "--output", "json"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}

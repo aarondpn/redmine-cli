@@ -104,7 +104,7 @@ func TestGroups_DeleteExplicit(t *testing.T) {
 }
 
 // TestGroups_AddRemoveUser verifies that add-user/remove-user mutate the
-// membership list visible via `groups get --include-users`. Both subcommands
+// membership list visible via `groups get --include users`. Both subcommands
 // emit user_added/user_removed envelopes.
 func TestGroups_AddRemoveUser(t *testing.T) {
 	requireE2E(t)
@@ -150,7 +150,7 @@ func groupHasUser(t *testing.T, r *cliRunner, groupID, userID int) bool {
 			Name string `json:"name"`
 		} `json:"users"`
 	}
-	r.runJSON(t, &got, "groups", "get", strconv.Itoa(groupID), "--include-users")
+	r.runJSON(t, &got, "groups", "get", strconv.Itoa(groupID), "--include", "users")
 	for _, u := range got.Users {
 		if u.ID == userID {
 			return true
