@@ -104,6 +104,17 @@ redmine update
   安装程序和自动更新程序在发行版校验和不匹配时均会拒绝执行。自动更新程序还会拒绝没有本仓库发布工作流签发的有效证明的版本；安装程序在有较新且已登录的 `gh` 时同样如此，否则只检查校验和并给出提示。请勿绕过失败的检查——请作为安全问题上报。
 </Aside>
 
+### Docker
+
+[MCP 服务器镜像](/zh-cn/guides/ai-agents/#使用-docker-运行)不会自动更新。拉取新版本后，重启 MCP 客户端或重新创建容器：
+
+```bash
+docker pull ghcr.io/aarondpn/redmine-mcp
+
+# Docker Compose
+docker compose pull && docker compose up -d
+```
+
 ## 下一步
 
 <CardGrid>

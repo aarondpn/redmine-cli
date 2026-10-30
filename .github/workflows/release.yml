@@ -248,3 +248,100 @@ jobs:
           set -euo pipefail
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+  # Comments on every issue that a PR in this release closed, linking the
+  # version that ships the fix. Stable releases only, counted from the previous
+  # stable tag, so fixes from an rc cycle are announced once with the final
+  # version. The marker makes re-runs skip issues that were already notified.
+  #
+  # A failure here does not affect the release itself; re-running only this
+  # job is safe.
+  notify-issues:
+    needs: verify-release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Comment on resolved issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          prev=$(git describe --tags --abbrev=0 --match 'v*' --exclude '*-*' "${tag}^")
+          echo "Issues closed between ${prev} and ${tag}:"
+
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          query='query($owner: String!, $repo: String!, $oid: GitObjectID!) {
+            repository(owner: $owner, name: $repo) {
+              object(oid: $oid) {
+                ... on Commit {
+                  associatedPullRequests(first: 5) {
+                    nodes {
+                      number
+                      merged
+                      closingIssuesReferences(first: 25) {
+                        nodes { number state repository { nameWithOwner } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }'
+
+          # One "<issue> <pr>" line per same-repo issue a merged PR in the range
+          # closed and that is still closed (not reopened after a failed fix).
+          # `|| exit 1` because errexit does not reach into the subshell, so a
+          # failed call would otherwise silently drop that commit's issues.
+          # shellcheck disable=SC2016 # jq variable, not shell
+          pairs=$(git rev-list "${prev}..${tag}" | while read -r sha; do
+            gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F repo="${GITHUB_REPOSITORY#*/}" -F oid="$sha" -f query="$query" \
+              --jq '.data.repository.object.associatedPullRequests.nodes[]
+                | select(.merged) | .number as $pr
+                | .closingIssuesReferences.nodes[]
+                | select(.repository.nameWithOwner == env.GITHUB_REPOSITORY and .state == "CLOSED")
+                | "\(.number) \($pr)"' || exit 1
+          done | sort -k1,1n -k2,2n -u)
+
+          if [ -z "$pairs" ]; then
+            echo "none"
+            exit 0
+          fi
+
+          marker="<!-- released-in: ${tag} -->"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+          failed=0
+          for issue in $(cut -d' ' -f1 <<<"$pairs" | uniq); do
+            prs=$(awk -v i="$issue" '$1 == i { printf "%s#%s", (n++ ? ", " : ""), $2 }' <<<"$pairs")
+            # Read all comments first: piping into `grep -q` could kill gh with
+            # SIGPIPE mid-pagination, which pipefail would turn into "not found".
+            if ! bodies=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${issue}/comments?per_page=100" --paginate --jq '.[].body'); then
+              echo "::warning::could not read comments on #${issue}"
+              failed=1
+              continue
+            fi
+            if grep -qF "$marker" <<<"$bodies"; then
+              echo "#${issue}: already notified"
+              continue
+            fi
+            body="This is now available in [${tag}](${url}) via ${prs}. To update, run \`redmine update\` or see the [update instructions](https://redmine-cli.dev/getting-started/installation/#update).
+
+          ${marker}"
+            # A locked or deleted issue must not stop the others from being notified.
+            if gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$body"; then
+              echo "#${issue}: notified (${prs})"
+            else
+              echo "::warning::could not comment on #${issue}"
+              failed=1
+            fi
+          done
+          exit "$failed"
