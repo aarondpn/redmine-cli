@@ -142,6 +142,11 @@ func ParseCustomFieldValues(ctx context.Context, client *api.Client, raws []stri
 		if len(vals) < 2 {
 			continue
 		}
+		// Repeated clears agree with each other; collapse them to one.
+		if !slices.ContainsFunc(vals, func(v string) bool { return v != "" }) {
+			out[k] = vals[:1]
+			continue
+		}
 		if slices.Contains(vals, "") {
 			label := k
 			if def, ok := defs[k]; ok {

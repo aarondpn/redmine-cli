@@ -427,9 +427,27 @@ func ResolveTrackerNames(ctx context.Context, client *api.Client, inputs []strin
 
 // ResolveCustomFieldNames resolves a batch of custom-field inputs (names or
 // numeric IDs) to numeric IDs, fetching /custom_fields.json at most once.
-// Only fields of customizedType are candidates; "" accepts any type.
+// Only fields of customizedType are candidates; "" accepts any type. Blank
+// inputs are skipped, as in ResolveAll.
 func ResolveCustomFieldNames(ctx context.Context, client *api.Client, inputs []string, customizedType string) ([]int, error) {
-	return ResolveAll(ctx, client, inputs, CustomFieldLabel(customizedType), customFieldOptionsOfType(ctx, client, customizedType))
+	trimmed := make([]string, 0, len(inputs))
+	for _, in := range inputs {
+		if in = strings.TrimSpace(in); in != "" {
+			trimmed = append(trimmed, in)
+		}
+	}
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	fields, err := ResolveCustomFieldsForType(ctx, client, trimmed, customizedType)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int, len(fields))
+	for i, f := range fields {
+		ids[i] = f.ID
+	}
+	return ids, nil
 }
 
 // ResolveCustomFieldsForType resolves custom field names or numeric IDs for

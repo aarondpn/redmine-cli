@@ -140,8 +140,8 @@ func TestResolveCustomFieldNames_ByType(t *testing.T) {
 	if !reflect.DeepEqual(got, []int{1, 3}) {
 		t.Errorf("got %v, want [1 3]", got)
 	}
-	if _, err := ResolveCustomFieldNames(ctx, client, []string{"Owner"}, "issue"); err == nil {
-		t.Error("Owner is a version field and must not resolve as issue field")
+	if _, err := ResolveCustomFieldNames(ctx, client, []string{"Owner"}, "issue"); err == nil || !strings.Contains(err.Error(), "of type version") {
+		t.Errorf("Owner is a version field and must be reported as such, got %v", err)
 	}
 	if _, err := ResolveCustomFieldNames(ctx, client, []string{"Severity"}, ""); err == nil || !strings.Contains(err.Error(), "multiple") {
 		t.Errorf("untyped Severity should be ambiguous, got %v", err)

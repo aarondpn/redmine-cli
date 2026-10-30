@@ -175,6 +175,13 @@ func TestParseCustomFieldValues_Clear(t *testing.T) {
 	if want := (models.CustomFieldValues{"5": {""}}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v", got)
 	}
+	repeated, err := cmdutil.ParseCustomFieldValues(context.Background(), client, []string{"5=", "5="}, models.CustomizedTypeIssue)
+	if err != nil {
+		t.Fatalf("repeated clear: %v", err)
+	}
+	if want := (models.CustomFieldValues{"5": {""}}); !reflect.DeepEqual(repeated, want) {
+		t.Errorf("repeated clear: got %v", repeated)
+	}
 	data, _ := json.Marshal(got)
 	if string(data) != `{"5":""}` {
 		t.Errorf("marshals to %s", data)
