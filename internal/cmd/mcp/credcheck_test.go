@@ -50,8 +50,15 @@ func TestCredentialCheck_WarnsOnRejectedCredentials(t *testing.T) {
 		f, stderr := newProbeFactory(t)
 		<-startCredentialCheck(context.Background(), f, cfg, client)
 		out := stderr.String()
-		if !strings.Contains(out, cfg.Server) || !strings.Contains(out, "redmine auth login") {
-			t.Errorf("status %d: warning = %q, want server and fix", status, out)
+		want := "redmine auth login"
+		if status == http.StatusForbidden {
+			want = "Enable REST web service"
+		}
+		if !strings.Contains(out, cfg.Server) || !strings.Contains(out, want) {
+			t.Errorf("status %d: warning = %q, want server and %q", status, out, want)
+		}
+		if status == http.StatusForbidden && strings.Contains(out, "auth login") {
+			t.Errorf("403 warning must not suggest re-login: %q", out)
 		}
 	}
 }

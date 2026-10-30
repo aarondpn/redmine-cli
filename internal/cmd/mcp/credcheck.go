@@ -38,8 +38,9 @@ func startCredentialCheck(ctx context.Context, f *cmdutil.Factory, cfg *config.C
 
 // credentialWarning returns the warning for err, or "" when err is not a
 // clear credential rejection. /users/current.json needs no permission beyond
-// a valid login, so both 401 and 403 point at the credentials (or at API
-// access being disabled for them) rather than at a missing project role.
+// a valid login, so a 401 points at the credentials, and a 403 at the REST
+// API being disabled (or a proxy blocking the request): Redmine treats a
+// locked account as anonymous and answers 401, never 403.
 func credentialWarning(cfg *config.Config, err error) string {
 	var ae *api.APIError
 	if !errors.As(err, &ae) || (!ae.IsAuthError() && !ae.IsForbidden()) {
@@ -60,10 +61,10 @@ func credentialWarning(cfg *config.Config, err error) string {
 	}
 	fix := fmt.Sprintf("Run 'redmine auth login' to update the credentials, or fix %s in the MCP host config, then restart the MCP server.", secretVar)
 	if ae.IsForbidden() {
-		return fmt.Sprintf("Redmine at %s denied the credentials (HTTP 403): the account may be locked or REST API access disabled for it. %s", target, fix)
+		return fmt.Sprintf("Redmine at %s refused the credentials check (HTTP 403), which it answers for every request while the REST API is disabled: an administrator must enable Administration > Settings > API > Enable REST web service (or a proxy in front of Redmine blocks the request). Run 'redmine auth status' to check.", target)
 	}
 	if missing {
 		return fmt.Sprintf("Redmine at %s requires authentication (HTTP 401) but no %s is configured. %s", target, secret, fix)
 	}
-	return fmt.Sprintf("Redmine at %s rejected the credentials (HTTP 401): the %s is wrong, expired or revoked. %s", target, secret, fix)
+	return fmt.Sprintf("Redmine at %s rejected the credentials (HTTP 401): the %s is wrong, expired or revoked, or the account is locked. %s", target, secret, fix)
 }

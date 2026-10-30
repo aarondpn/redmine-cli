@@ -78,6 +78,9 @@ func TestAuth_StatusBadKey(t *testing.T) {
 	if user, _ := status["user"].(string); !strings.Contains(strings.ToLower(user), "authentication failed") {
 		t.Fatalf("auth status user = %q, want authentication-failure indication", user)
 	}
+	if reason, _ := status["reason"].(string); reason != "credentials_rejected" {
+		t.Fatalf("auth status reason = %q, want credentials_rejected", reason)
+	}
 }
 
 func TestAuth_List(t *testing.T) {

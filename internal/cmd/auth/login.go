@@ -147,6 +147,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 
 	printer := f.Printer("")
 
+	assumedHTTPS := server != "" && config.EnsureScheme(server) != server
 	normalized, err := config.NormalizeServerURL(server)
 	if err != nil {
 		return err
@@ -272,7 +273,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	stop()
 	if err != nil {
 		printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
-		return loginConnectError(err)
+		return loginConnectError(err, authMethod, assumedHTTPS)
 	}
 
 	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
@@ -404,7 +405,10 @@ const loginForbiddenHint = `Redmine permissions are not the cause: every logged-
 
 // loginUnauthorizedHint replaces the generic 401 hint, which would point the
 // user at 'redmine auth login' while they are running it.
-const loginUnauthorizedHint = `Check the API key (My account > API access key), or the username and password, and run the login again; a locked account is rejected the same way.`
+const (
+	loginUnauthorizedAPIKeyHint = `Check the API key (My account > API access key) and run the login again; a locked account is rejected the same way.`
+	loginUnauthorizedBasicHint  = `Check the username and password and run the login again; a locked account is rejected the same way.`
+)
 
 // loginNotFoundHint is attached when the server answers but has no
 // /users/current.json: the URL points at something other than Redmine's base.
@@ -413,17 +417,29 @@ const loginNotFoundHint = `The server answered, but not as a Redmine REST API. C
 // loginUnreachableHint is attached when the probe got no HTTP response.
 const loginUnreachableHint = `Check the server URL and that the host is reachable from this machine (DNS, VPN, proxy or firewall).`
 
+// loginHTTPSAssumedHint is appended to the unreachable hint when the login
+// added https:// to a server URL typed without a scheme.
+const loginHTTPSAssumedHint = ` The URL had no scheme, so https:// was assumed; if the server only serves plain HTTP, pass http:// explicitly.`
+
 // loginConnectError wraps a failed connection probe, attaching the
-// login-specific hints.
-func loginConnectError(err error) error {
+// login-specific hints. authMethod selects the 401 wording; assumedHTTPS
+// reports that the scheme was added by the login.
+func loginConnectError(err error, authMethod string, assumedHTTPS bool) error {
 	wrapped := fmt.Errorf("could not connect to Redmine server: %w", err)
 	var apiErr *api.APIError
 	if !errors.As(err, &apiErr) {
-		return cmdutil.WithHint(wrapped, loginUnreachableHint)
+		hint := loginUnreachableHint
+		if assumedHTTPS {
+			hint += loginHTTPSAssumedHint
+		}
+		return cmdutil.WithHint(wrapped, hint)
 	}
 	switch {
 	case apiErr.IsAuthError():
-		return cmdutil.WithHint(wrapped, loginUnauthorizedHint)
+		if authMethod == "basic" {
+			return cmdutil.WithHint(wrapped, loginUnauthorizedBasicHint)
+		}
+		return cmdutil.WithHint(wrapped, loginUnauthorizedAPIKeyHint)
 	case apiErr.IsForbidden():
 		return cmdutil.WithHint(wrapped, loginForbiddenHint)
 	case apiErr.IsNotFound():
