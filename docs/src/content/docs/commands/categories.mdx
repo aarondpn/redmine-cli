@@ -1,0 +1,119 @@
+---
+title: Issue Categories
+description: List, inspect, create, update and delete issue categories, including moving issues to another category on delete.
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+The `categories` command (alias `category`) manages the issue categories of a project. A category groups issues and can carry a default assignee that Redmine preselects for new issues in it.
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="List issue categories for a project." />
+  <LinkCard title="get" href="#get" description="View a single category by ID or name." />
+  <LinkCard title="create" href="#create" description="Create a category." />
+  <LinkCard title="update" href="#update" description="Rename a category or change its default assignee." />
+  <LinkCard title="delete" href="#delete" description="Delete a category, optionally moving its issues." />
+</CardGrid>
+
+Commands that take `<id-or-name>` accept a numeric ID or a category name. A name is resolved inside `--project` (or the default project of the active profile).
+
+## list
+
+```bash
+redmine categories list --project <identifier> [flags]
+```
+
+Aliases: `ls`.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project name, identifier or ID - falls back to the default project |
+| `-o, --output` | Output format |
+
+```bash
+redmine categories list --project myproject
+redmine categories list --project myproject -o json
+```
+
+## get
+
+```bash
+redmine categories get <id-or-name> [flags]
+```
+
+Aliases: `show`, `view`. Shows the ID, project, name and default assignee.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project used to resolve a category name - falls back to the default project |
+| `-o, --output` | Output format |
+
+```bash
+redmine categories get 12
+redmine categories get "Backend" --project myproject -o json
+```
+
+## create
+
+```bash
+redmine categories create --name <name> [flags]
+```
+
+Aliases: `new`.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project name, identifier or ID - falls back to the default project |
+| `--name`       | Category name (required, unique within the project, at most 60 characters) |
+| `--assignee`   | Default assignee: user or group name, login, ID or `me`. Names are matched against the project's members |
+| `-o, --output` | Output format |
+
+```bash
+redmine categories create --project myproject --name Backend
+redmine categories create --project myproject --name Backend --assignee me
+```
+
+## update
+
+```bash
+redmine categories update <id-or-name> [flags]
+```
+
+Aliases: `edit`. Only the flags you pass are changed; at least one of `--name` or `--assignee` is required.
+
+| Flag | Description |
+|------|-------------|
+| `--project`  | Project used to resolve a category name - falls back to the default project |
+| `--name`     | New category name |
+| `--assignee` | New default assignee (user or group name, login, ID, `me`), or `none` to clear it |
+
+```bash
+redmine categories update 12 --name "Back end"
+redmine categories update Backend --project myproject --assignee "Backend Team"
+redmine categories update 12 --assignee none
+```
+
+## delete
+
+```bash
+redmine categories delete <id-or-name> [flags]
+```
+
+Aliases: `rm`. Asks for confirmation unless `--force` is given. Declining prints `Delete cancelled` and changes nothing.
+
+| Flag | Description |
+|------|-------------|
+| `--project`     | Project used to resolve category names - falls back to the default project |
+| `--reassign-to` | Move the category's issues to this category (ID or name) of the same project |
+| `-f, --force`   | Skip the confirmation prompt |
+
+Without `--reassign-to`, the category's issues are left without a category.
+
+```bash
+redmine categories delete 12
+redmine categories delete Backend --project myproject --reassign-to Platform --force
+```
+
+<Aside type="caution" title="Reassign targets are validated">
+  Redmine silently ignores a `reassign_to_id` that belongs to another project (or does not exist) and leaves the issues without a category. The CLI and the MCP `delete_issue_category` tool therefore look up both categories first and refuse a target from a different project, so issues are never dropped by accident. A name given to `--reassign-to` is looked up in the project of the category being deleted.
+</Aside>

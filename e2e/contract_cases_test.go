@@ -128,6 +128,11 @@ var contractCases = []contractCase{
 		MCP: &contractMCP{Tool: "get_version", Args: idArgs("id", "version", nil)},
 	},
 	{
+		Name: "categories_get", Raw: "/issue_categories/{category}.json", Root: "issue_category",
+		CLI: []string{"categories", "get", "{category}"},
+		MCP: &contractMCP{Tool: "get_issue_category", Args: idArgs("id", "category", nil)},
+	},
+	{
 		Name: "time_entries_list", Raw: "/time_entries.json?project_id={P}&limit=100", Root: "time_entries", List: true,
 		CLI: []string{"time", "list", "--project", "{P}", "--limit", "100"},
 		MCP: &contractMCP{Tool: "list_time_entries", Args: projArgs(map[string]any{"limit": 100})},

@@ -49,6 +49,7 @@ type attachmentEntry struct {
 	Filename    string `json:"filename"`
 	Filesize    int64  `json:"filesize"`
 	ContentType string `json:"content_type"`
+	Description string `json:"description"`
 }
 
 // findIssueAttachmentID discovers the attachment ID via the new

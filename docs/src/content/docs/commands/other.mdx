@@ -1,6 +1,6 @@
 ---
 title: Other Commands
-description: API passthrough, categories, trackers, statuses, priorities, time entry activities, document categories, custom fields, completion, and self-update.
+description: API passthrough, trackers, statuses, priorities, time entry activities, document categories, custom fields, completion, and self-update.
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
@@ -9,7 +9,7 @@ A grab-bag of utility commands that don't fit the main resource families.
 
 <CardGrid>
   <LinkCard title="api"           href="#api"           description="Authenticated requests to any Redmine endpoint." />
-  <LinkCard title="categories"    href="#categories"    description="List issue categories for a project." />
+  <LinkCard title="categories"    href="/commands/categories/"    description="Manage issue categories (own page)." />
   <LinkCard title="trackers"      href="#trackers"      description="List all available trackers." />
   <LinkCard title="statuses"      href="#statuses"      description="List all issue statuses." />
   <LinkCard title="priorities"    href="#priorities"    description="List issue priorities and their IDs." />
@@ -79,11 +79,7 @@ Make authenticated requests to any Redmine REST API endpoint.
 
 ## categories
 
-```bash
-redmine categories list --project <identifier>
-```
-
-Lists issue categories for a project.
+Issue categories have their own page: [Issue Categories](/commands/categories/) covers `list`, `get`, `create`, `update` and `delete`.
 
 ## trackers
 

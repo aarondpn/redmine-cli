@@ -1,6 +1,6 @@
 ---
 title: 附件
-description: 查看附件元数据并下载附件文件，无需 curl，也无需手动处理 API 密钥。
+description: 查看、下载、重命名、删除附件并获取缩略图，无需 curl，也无需手动处理 API 密钥。
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
@@ -10,6 +10,9 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 <CardGrid>
   <LinkCard title="get"      href="#get"      description="打印附件元数据（文件名、大小、类型、作者）。" />
   <LinkCard title="download" href="#download" description="将文件下载到磁盘，或流式输出到 stdout。" />
+  <LinkCard title="update"   href="#update"   description="重命名附件，或更改其描述、内容类型。" />
+  <LinkCard title="delete"   href="#delete"   description="删除附件。" />
+  <LinkCard title="thumbnail" href="#thumbnail" description="下载图片附件渲染出的缩略图。" />
 </CardGrid>
 
 <Aside type="tip">
@@ -137,4 +140,69 @@ failed to download attachment 42: refusing to save the hidden filename ".bashrc"
 <Aside type="tip">
   若要一次性获取某个工单的**所有**附件，请使用
   [`redmine issues get <id> --download-attachments <dir>`](/zh-cn/commands/issues/#get)。
+</Aside>
+
+## update
+
+```bash
+redmine attachments update <id> [flags]
+```
+
+别名：`edit`。通过 `PUT /attachments/:id.json` 修改附件的元数据。至少需要一个标志；只会修改你传入的标志。
+
+| 标志 | 描述 |
+|------|------|
+| `--filename`     | 新文件名 |
+| `--description`  | 新描述；传入空值（`--description ""`）会清空描述 |
+| `--content-type` | 新内容类型，例如 `image/png` |
+
+```bash
+redmine attachments update 42 --filename report-final.pdf
+redmine attachments update 42 --description "Final version"
+```
+
+你需要拥有附件所属对象的编辑权限（对工单附件而言，即编辑该工单的权限）。
+
+## delete
+
+```bash
+redmine attachments delete <id> [flags]
+```
+
+别名：`rm`。永久删除附件。除非传入 `--force`，否则会先请求确认；拒绝确认会打印 `Delete cancelled`，且不做任何更改。删除工单附件会记录在工单历史中。
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+```bash
+redmine attachments delete 42
+redmine attachments delete 42 --force
+```
+
+## thumbnail
+
+```bash
+redmine attachments thumbnail <id> --path <file> [flags]
+```
+
+别名：`thumb`。下载 Redmine 为图片附件（以及服务器支持时的 PDF）渲染的缩略图。
+
+| 标志 | 描述 |
+|------|------|
+| `--path`       | 目标文件路径（必填）。使用 `-` 将图片流式输出到 stdout |
+| `--size`       | 边长（像素）。Redmine 会向上取整到 50 的倍数，上限 800；省略则使用服务器的默认缩略图大小 |
+| `--clobber`    | 覆盖目标位置已存在的文件 |
+| `-o, --output` | 确认输出格式：`json` 打印 `{id, path, bytes, size}`；否则向 stderr 写一行可读文本 |
+
+没有 `--clobber` 时不会覆盖已有文件，请求失败也不会留下文件（与 [`download`](#download) 的安全写入行为一致）。使用 `--path -` 时，字节写入 stdout，确认信息写入 stderr，并且不支持 `--jq`。
+
+```bash
+redmine attachments thumbnail 42 --path thumb.png
+redmine attachments thumbnail 42 --size 200 --path thumb.png --clobber
+redmine attachments thumbnail 42 --path - > thumb.png
+```
+
+<Aside type="note">
+  当附件无法生成缩略图时（不是图片或 PDF，或服务器未安装 ImageMagick 的 `convert`），Redmine 会返回 `404 Not Found`。CLI 将其报告为 `not_found`。
 </Aside>

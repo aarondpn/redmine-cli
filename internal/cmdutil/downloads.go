@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"math/rand/v2"
 	"os"
@@ -228,18 +229,36 @@ func createDownloadTemp(dir string) (*os.File, error) {
 // without opts.Clobber. Other non-regular files, such as directories, are
 // still an error.
 func SaveAttachmentToFile(ctx context.Context, client *api.Client, att *models.Attachment, path string, opts SaveOptions) (int64, error) {
+	return SaveStreamToFile(ctx, path, opts, attachmentStream(client, att))
+}
+
+// StreamFunc writes a remote payload to w and returns the bytes written.
+type StreamFunc func(ctx context.Context, w io.Writer) (int64, error)
+
+// attachmentStream adapts an attachment download to a StreamFunc.
+func attachmentStream(client *api.Client, att *models.Attachment) StreamFunc {
+	return func(ctx context.Context, w io.Writer) (int64, error) {
+		return client.Attachments.Download(ctx, att, w)
+	}
+}
+
+// SaveStreamToFile is SaveAttachmentToFile for any streamed payload (such as
+// an attachment thumbnail): fetch writes into a temporary file that is moved
+// into place on success, with the same no-clobber, atomic-replace and
+// device/FIFO behaviour documented on SaveAttachmentToFile.
+func SaveStreamToFile(ctx context.Context, path string, opts SaveOptions, fetch StreamFunc) (int64, error) {
 	stream, err := openStreamTarget(path)
 	if err != nil {
 		return 0, err
 	}
 	if stream != nil {
-		n, err := client.Attachments.Download(ctx, att, stream)
+		n, err := fetch(ctx, stream)
 		if closeErr := stream.Close(); closeErr != nil && err == nil {
 			err = fmt.Errorf("closing %s: %w", path, closeErr)
 		}
 		return n, err
 	}
-	return saveAttachmentFile(ctx, client, att, path, opts)
+	return saveStreamFile(ctx, path, opts, fetch)
 }
 
 // isStreamMode reports whether mode is that of a character device or a FIFO.
@@ -272,6 +291,11 @@ func openStreamTarget(path string) (*os.File, error) {
 // saveAttachmentFile is SaveAttachmentToFile without the device and FIFO
 // exception, which only applies to a path the user chose.
 func saveAttachmentFile(ctx context.Context, client *api.Client, att *models.Attachment, path string, opts SaveOptions) (int64, error) {
+	return saveStreamFile(ctx, path, opts, attachmentStream(client, att))
+}
+
+// saveStreamFile is SaveStreamToFile without the device and FIFO exception.
+func saveStreamFile(ctx context.Context, path string, opts SaveOptions, fetch StreamFunc) (int64, error) {
 	existing, err := checkDownloadTarget(path, opts.Clobber)
 	if err != nil {
 		return 0, err
@@ -301,7 +325,7 @@ func saveAttachmentFile(ctx context.Context, client *api.Client, att *models.Att
 	}
 	var n int64
 	if err == nil {
-		n, err = client.Attachments.Download(ctx, att, tmp)
+		n, err = fetch(ctx, tmp)
 	}
 	if err == nil {
 		if syncErr := tmp.Sync(); syncErr != nil {

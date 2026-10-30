@@ -92,6 +92,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.CreateIssueRelation,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.DeleteAttachmentInput, ops.MessageResult]{
+		Name:        "delete_attachment",
+		Description: "Delete an attachment. Destructive. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.DeleteAttachment,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.DeleteIssueInput, ops.MessageResult]{
 		Name:        "delete_issue",
 		Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.",
@@ -156,6 +163,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.ReopenIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UpdateAttachmentInput, ops.MessageResult]{
+		Name:        "update_attachment",
+		Description: "Rename an attachment or change its description or content type. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.UpdateAttachment,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateIssueInput, ops.MessageResult]{
 		Name:        "update_issue",
 		Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.",
@@ -196,12 +210,26 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.UpdateMembership,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.CreateIssueCategoryInput, *models.IssueCategory]{
+		Name:        "create_issue_category",
+		Description: "Create an issue category in a project. Requires --enable-writes.",
+		Category:    "meta",
+		Writes:      true,
+		Call:        ops.CreateIssueCategory,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateVersionInput, *models.Version]{
 		Name:        "create_version",
 		Description: "Create a project version (milestone). Requires --enable-writes.",
 		Category:    "meta",
 		Writes:      true,
 		Call:        ops.CreateVersion,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.DeleteIssueCategoryInput, ops.MessageResult]{
+		Name:        "delete_issue_category",
+		Description: "Delete an issue category. Its issues lose their category unless reassign_to_id names another category of the same project. Destructive. Requires --enable-writes.",
+		Category:    "meta",
+		Writes:      true,
+		Call:        ops.DeleteIssueCategory,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.DeleteVersionInput, ops.MessageResult]{
 		Name:        "delete_version",
@@ -215,6 +243,12 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "Fetch a single custom field definition by ID. Admin-only endpoint.",
 		Category:    "meta",
 		Call:        ops.GetCustomField,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueCategoryInput, *models.IssueCategory]{
+		Name:        "get_issue_category",
+		Description: "Fetch a single issue category by ID.",
+		Category:    "meta",
+		Call:        ops.GetIssueCategory,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetRoleInput, *models.Role]{
 		Name:        "get_role",
@@ -281,6 +315,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Description: "List versions (milestones) for a project.",
 		Category:    "meta",
 		Call:        ops.ListVersions,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UpdateIssueCategoryInput, ops.MessageResult]{
+		Name:        "update_issue_category",
+		Description: "Update an issue category's name or default assignee (assigned_to_id 0 clears it). Requires --enable-writes.",
+		Category:    "meta",
+		Writes:      true,
+		Call:        ops.UpdateIssueCategory,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateVersionInput, ops.MessageResult]{
 		Name:        "update_version",
@@ -503,6 +544,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "close_issue", Description: "Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue", Description: "Create a new Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue_relation", Description: "Create a relation between two issues. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "delete_attachment", Description: "Delete an attachment. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue_relation", Description: "Delete an issue relation by its relation ID. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "get_attachment", Description: "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"].", Group: "issues", Writes: false},
@@ -513,15 +555,19 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_issues", Description: "List Redmine issues matching the given filters.", Group: "issues", Writes: false},
 		{Name: "remove_issue_watcher", Description: "Remove a user as a watcher from an issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "update_attachment", Description: "Rename an attachment or change its description or content type. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "delete_membership", Description: "Remove a project membership. Destructive. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "get_membership", Description: "Fetch a single project membership by ID.", Group: "memberships", Writes: false},
 		{Name: "list_memberships", Description: "List memberships for a project.", Group: "memberships", Writes: false},
 		{Name: "update_membership", Description: "Replace the roles on a project membership. Requires --enable-writes.", Group: "memberships", Writes: true},
+		{Name: "create_issue_category", Description: "Create an issue category in a project. Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "create_version", Description: "Create a project version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
+		{Name: "delete_issue_category", Description: "Delete an issue category. Its issues lose their category unless reassign_to_id names another category of the same project. Destructive. Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "delete_version", Description: "Delete a version (milestone). Destructive. Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "get_custom_field", Description: "Fetch a single custom field definition by ID. Admin-only endpoint.", Group: "meta", Writes: false},
+		{Name: "get_issue_category", Description: "Fetch a single issue category by ID.", Group: "meta", Writes: false},
 		{Name: "get_role", Description: "Fetch a single Redmine role by ID, including permissions when available.", Group: "meta", Writes: false},
 		{Name: "get_tracker", Description: "Fetch a single tracker by ID, including default status and enabled standard fields when available.", Group: "meta", Writes: false},
 		{Name: "get_version", Description: "Fetch a single version (milestone) by ID.", Group: "meta", Writes: false},
@@ -533,6 +579,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_versions", Description: "List versions (milestones) for a project.", Group: "meta", Writes: false},
+		{Name: "update_issue_category", Description: "Update an issue category's name or default assignee (assigned_to_id 0 clears it). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "update_version", Description: "Update an existing version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "get_my_account", Description: "Fetch the authenticated user's account via /my/account.json. Includes custom_fields.", Group: "my_account", Writes: false},
 		{Name: "update_my_account", Description: "Update the authenticated user's own account. Works without admin privileges. Requires --enable-writes.", Group: "my_account", Writes: true},

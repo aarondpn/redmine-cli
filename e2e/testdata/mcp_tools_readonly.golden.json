@@ -16,6 +16,10 @@
     "description": "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions."
   },
   {
+    "name": "get_issue_category",
+    "description": "Fetch a single issue category by ID."
+  },
+  {
     "name": "get_issue_relation",
     "description": "Fetch a single issue relation by its relation ID."
   },

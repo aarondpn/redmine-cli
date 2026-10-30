@@ -15,16 +15,22 @@ func NewCmdAttachments(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "attachments",
 		Aliases: []string{"attachment", "a"},
-		Short:   "Inspect and download Redmine attachments",
-		Long: "Inspect attachment metadata and download attachment files.\n\n" +
+		Short:   "Inspect, edit, download and delete Redmine attachments",
+		Long: "Inspect attachment metadata, download attachment files or thumbnails, rename or\n" +
+			"describe attachments, and delete them.\n\n" +
 			"Discover attachment IDs with `redmine issues get <id> --attachments`, then\n" +
 			"fetch metadata with `redmine attachments get <id>` or download the file with\n" +
-			"`redmine attachments download <id>`. Downloads reuse the active profile's\n" +
-			"server and API key, so there is no need to extract the key or shell out to curl.",
+			"`redmine attachments download <id>`. Use `update` to change the filename, description\n" +
+			"or content type, `delete` to remove an attachment and `thumbnail` to fetch a rendered\n" +
+			"preview image. Downloads reuse the active profile's server and API key, so there is\n" +
+			"no need to extract the key or shell out to curl.",
 	}
 
 	cmd.AddCommand(newCmdGet(f))
 	cmd.AddCommand(newCmdDownload(f))
+	cmd.AddCommand(newCmdUpdate(f))
+	cmd.AddCommand(newCmdDelete(f))
+	cmd.AddCommand(newCmdThumbnail(f))
 
 	return cmd
 }

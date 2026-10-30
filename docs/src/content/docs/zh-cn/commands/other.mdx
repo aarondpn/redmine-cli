@@ -1,6 +1,6 @@
 ---
 title: 其他命令
-description: API 透传、类别、跟踪类型、状态、优先级、工时活动、文档类别、自定义字段、shell 补全与自动更新。
+description: API 透传、跟踪类型、状态、优先级、工时活动、文档类别、自定义字段、shell 补全与自动更新。
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
@@ -9,7 +9,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 
 <CardGrid>
   <LinkCard title="api"           href="#api"           description="向任意 Redmine 端点发送已认证的请求。" />
-  <LinkCard title="categories"    href="#categories"    description="列出项目的工单类别。" />
+  <LinkCard title="categories"    href="/zh-cn/commands/categories/"    description="管理工单类别（独立页面）。" />
   <LinkCard title="trackers"      href="#trackers"      description="列出所有可用的跟踪类型。" />
   <LinkCard title="statuses"      href="#statuses"      description="列出所有工单状态。" />
   <LinkCard title="priorities"    href="#priorities"    description="列出工单优先级及其 ID。" />
@@ -72,11 +72,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 
 ## categories
 
-```bash
-redmine categories list --project <identifier>
-```
-
-列出项目的工单类别。
+工单类别有独立页面：[工单类别](/zh-cn/commands/categories/)涵盖 `list`、`get`、`create`、`update` 和 `delete`。
 
 ## trackers
 

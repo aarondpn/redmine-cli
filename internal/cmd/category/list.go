@@ -17,9 +17,17 @@ func NewCmdCategories(f *cmdutil.Factory) *cobra.Command {
 		Use:     "categories",
 		Aliases: []string{"category"},
 		Short:   "Manage issue categories",
+		Long: "List, inspect, create, update and delete issue categories.\n\n" +
+			"A category groups the issues of one project and can carry a default assignee that is\n" +
+			"preselected for new issues in it. Commands that take <id-or-name> accept a numeric ID or a\n" +
+			"category name (resolved in --project or the default project).",
 	}
 
 	cmd.AddCommand(newCmdCategoryList(f))
+	cmd.AddCommand(newCmdCategoryGet(f))
+	cmd.AddCommand(newCmdCategoryCreate(f))
+	cmd.AddCommand(newCmdCategoryUpdate(f))
+	cmd.AddCommand(newCmdCategoryDelete(f))
 	return cmd
 }
 
