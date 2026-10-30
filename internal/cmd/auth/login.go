@@ -310,6 +310,11 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		).Run()
 	}
 
+	// A non-interactive re-login (e.g. to refresh the key) keeps the
+	// profile's default project unless --default-project replaces it.
+	if nonInteractive && defProject == "" && existing != nil && config.SameServerHost(existing.Server, server) {
+		defProject = existing.DefaultProject
+	}
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
 
@@ -391,19 +396,38 @@ func warnCleartextServer(f *cmdutil.Factory, server string) {
 	}
 }
 
-// loginProxyHint replaces the generic forbidden hint for the login probe. A
-// 403 on /users/current.json almost never means missing role permissions
-// (every authenticated user may read it); it typically comes from a firewall
-// or proxy in front of Redmine.
-const loginProxyHint = `A 403 here usually comes from a firewall or proxy in front of Redmine, not from Redmine permissions. Retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`
+// loginForbiddenHint replaces the generic forbidden hint for the login probe.
+// Every logged-in user may read /users/current.json, so a 403 there is never
+// a missing role permission: Redmine answers it with 403 while the REST API is
+// disabled, and a firewall or proxy in front of Redmine can do the same.
+const loginForbiddenHint = `Redmine permissions are not the cause: every logged-in user may read their own account. Either the REST API is disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a firewall or proxy in front of Redmine blocks the request; then retry with the headers it expects, e.g. --header "User-Agent: Mozilla/5.0"`
 
-// loginConnectError wraps a failed connection probe, attaching the proxy hint
-// to 403 responses.
+// loginUnauthorizedHint replaces the generic 401 hint, which would point the
+// user at 'redmine auth login' while they are running it.
+const loginUnauthorizedHint = `Check the API key (My account > API access key), or the username and password, and run the login again; a locked account is rejected the same way.`
+
+// loginNotFoundHint is attached when the server answers but has no
+// /users/current.json: the URL points at something other than Redmine's base.
+const loginNotFoundHint = `The server answered, but not as a Redmine REST API. Check the server URL, including the sub-path the instance is installed under (e.g. https://host/redmine).`
+
+// loginUnreachableHint is attached when the probe got no HTTP response.
+const loginUnreachableHint = `Check the server URL and that the host is reachable from this machine (DNS, VPN, proxy or firewall).`
+
+// loginConnectError wraps a failed connection probe, attaching the
+// login-specific hints.
 func loginConnectError(err error) error {
 	wrapped := fmt.Errorf("could not connect to Redmine server: %w", err)
 	var apiErr *api.APIError
-	if errors.As(err, &apiErr) && apiErr.IsForbidden() {
-		return cmdutil.WithHint(wrapped, loginProxyHint)
+	if !errors.As(err, &apiErr) {
+		return cmdutil.WithHint(wrapped, loginUnreachableHint)
+	}
+	switch {
+	case apiErr.IsAuthError():
+		return cmdutil.WithHint(wrapped, loginUnauthorizedHint)
+	case apiErr.IsForbidden():
+		return cmdutil.WithHint(wrapped, loginForbiddenHint)
+	case apiErr.IsNotFound():
+		return cmdutil.WithHint(wrapped, loginNotFoundHint)
 	}
 	return wrapped
 }

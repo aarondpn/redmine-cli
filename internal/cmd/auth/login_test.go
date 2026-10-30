@@ -130,8 +130,7 @@ func runLoginCmd(f *cmdutil.Factory, args ...string) error {
 func TestLoginNonInteractive_SavesAndActivatesProfile(t *testing.T) {
 	srv := loginServer(t)
 	f, cfgPath := loginFactory(t, "")
-	f.ServerOverride = strings.TrimPrefix(srv.URL, "http://") + "/redmine/projects/x/issues"
-	f.ServerOverride = "http://" + strings.TrimPrefix(f.ServerOverride, "http://")
+	f.ServerOverride = srv.URL + "/redmine/projects/x/issues"
 	f.APIKeyOverride = "secret"
 
 	if err := runLoginCmd(f, "--name", "work", "--default-project", "web"); err != nil {
@@ -227,6 +226,38 @@ func TestLoginNoTerminalFailsFast(t *testing.T) {
 			err := runLoginCmd(f)
 			if err == nil || !strings.Contains(err.Error(), "--api-key-file") || !strings.Contains(err.Error(), "--server") {
 				t.Fatalf("error = %v, want loginNeedsTerminalError", err)
+			}
+		})
+	}
+}
+
+func TestLoginNonInteractive_KeepsDefaultProject(t *testing.T) {
+	srv := loginServer(t)
+	for name, tc := range map[string]struct {
+		server string
+		want   string
+	}{
+		"same server":  {server: srv.URL, want: "web"},
+		"other server": {server: "https://other.example.com", want: ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, cfgPath := loginFactory(t, "")
+			yaml := "active_profile: w\nprofiles:\n  w:\n    server: " + tc.server + "\n    api_key: old\n    auth_method: apikey\n    default_project: web\n"
+			if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f.ServerOverride = srv.URL
+			f.APIKeyOverride = "new"
+
+			if err := runLoginCmd(f, "--name", "w"); err != nil {
+				t.Fatal(err)
+			}
+			pc, err := config.LoadProfiles(cfgPath, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p := pc.Profiles["w"]; p.APIKey != "new" || p.DefaultProject != tc.want {
+				t.Fatalf("profile = %+v, want api key new and default project %q", p, tc.want)
 			}
 		})
 	}
