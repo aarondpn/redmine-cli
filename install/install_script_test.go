@@ -227,7 +227,7 @@ func TestInstallScript(t *testing.T) {
 			name:          "latest release with verified attestation",
 			withGh:        true,
 			wantInstalled: true,
-			wantOutput:    []string{"Latest version: " + scriptFixtureTag, "Attestation verified."},
+			wantOutput:    []string{"Latest version: " + scriptFixtureTag, "Attestation verified.", "Next: run 'redmine auth login' to connect to your Redmine server", "https://redmine-cli.dev/getting-started/configuration/"},
 			wantLog:       []string{"/releases/latest", "/releases/download/" + scriptFixtureTag + "/", "gh attestation verify ", verifyArgs},
 		},
 		{

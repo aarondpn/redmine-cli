@@ -150,3 +150,6 @@ case ":$PATH:" in
   *) printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
      printf "Add this to your shell profile:\n\n  export PATH=\"%s:\$PATH\"\n\n" "$INSTALL_DIR" ;;
 esac
+
+info "Next: run 'redmine auth login' to connect to your Redmine server"
+info "Docs: https://redmine-cli.dev/getting-started/configuration/"

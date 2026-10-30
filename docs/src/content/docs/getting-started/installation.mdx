@@ -48,6 +48,23 @@ Pick the install path that suits your platform. All methods produce the same `re
     </Aside>
   </TabItem>
 
+  <TabItem label="Scoop" icon="seti:powershell">
+    For Windows. Installs the Windows build from the project bucket; update with `scoop update redmine`.
+
+    ```powershell
+    scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
+    scoop install redmine
+    ```
+  </TabItem>
+
+  <TabItem label="winget" icon="seti:powershell">
+    For Windows. Installs from the Windows Package Manager community repository; update with `winget upgrade aarondpn.redmine-cli`.
+
+    ```powershell
+    winget install aarondpn.redmine-cli
+    ```
+  </TabItem>
+
   <TabItem label="go install" icon="seti:go">
     Builds from source via the Go toolchain. Requires Go 1.26 or later (the `go` directive in `go.mod`); with the default `GOTOOLCHAIN=auto`, an older Go 1.21+ downloads a suitable toolchain itself. Release binaries are built with Go 1.27.3.
 
