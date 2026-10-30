@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -8,6 +9,10 @@ import (
 )
 
 var schemePrefix = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
+
+// userinfoPrefix matches an optional scheme followed by the userinfo part of
+// the authority (user:password@), which error messages must not repeat.
+var userinfoPrefix = regexp.MustCompile(`^((?:[A-Za-z][A-Za-z0-9+.-]*://)?)[^/?#]*@`)
 
 // redmineRoutes are the first path segments of Redmine's own routes. A pasted
 // browser URL is cut at the first of them, so a sub-path install prefix
@@ -44,17 +49,25 @@ func NormalizeServerURL(raw string) (string, error) {
 	if s == "" {
 		return "", fmt.Errorf("server URL is required")
 	}
+	// Error messages show the input with any user:password@ masked; the
+	// credentials check itself comes after parsing.
+	shown := userinfoPrefix.ReplaceAllString(s, "${1}***@")
 	s = EnsureScheme(s)
 
 	u, err := url.Parse(s)
 	if err != nil {
-		return "", fmt.Errorf("invalid server URL %q: %w", raw, err)
+		// A *url.Error repeats the full URL, so only its cause is kept.
+		var uerr *url.Error
+		if errors.As(err, &uerr) {
+			err = uerr.Err
+		}
+		return "", fmt.Errorf("invalid server URL %q: %w", shown, err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", fmt.Errorf("invalid server URL %q: scheme must be http or https", raw)
+		return "", fmt.Errorf("invalid server URL %q: scheme must be http or https", shown)
 	}
 	if u.Hostname() == "" {
-		return "", fmt.Errorf("invalid server URL %q: no host", raw)
+		return "", fmt.Errorf("invalid server URL %q: no host", shown)
 	}
 
 	if u.User != nil {

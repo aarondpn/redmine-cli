@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeServerURL(t *testing.T) {
 	cases := []struct {
@@ -48,6 +51,25 @@ func TestNormalizeServerURL(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Fatalf("NormalizeServerURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeServerURL_ErrorsHideCredentials(t *testing.T) {
+	for _, in := range []string{
+		"http://bob:sekret@h/%zz",
+		"ftp://bob:sekret@h/",
+		"bob:sekret@h/%zz",
+		"https://bob:sekret@host/issues",
+	} {
+		t.Run(in, func(t *testing.T) {
+			_, err := NormalizeServerURL(in)
+			if err == nil {
+				t.Fatalf("NormalizeServerURL(%q): want error", in)
+			}
+			if strings.Contains(err.Error(), "sekret") {
+				t.Fatalf("error leaks the password: %v", err)
 			}
 		})
 	}
