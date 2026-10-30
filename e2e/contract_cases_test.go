@@ -301,7 +301,7 @@ var contractCases = []contractCase{
 var knownZeroDrops = func() []contract.Rule {
 	var rules []contract.Rule
 	for _, p := range []string{
-		"is_private", "private_notes", "homepage", "inherit_members", "regexp", "comments", "downloads",
+		"homepage", "inherit_members", "regexp", "comments",
 	} {
 		rules = append(rules, contract.Rule{
 			Path: "**." + p, Kind: contract.KindZeroDrop, Optional: true,

@@ -19,8 +19,7 @@
 //   - contract_*_test.go - raw Redmine JSON vs CLI and MCP output, and the
 //     table of version-gated keys (see README.md).
 //
-// The remaining files are topical (wiki, users, groups, mcp_*, ...); README.md
-// lists them all.
+// The remaining files are topical (wiki, users, groups, mcp_*, ...).
 //
 // When adding a new feature area, create a new topical file and reuse the
 // helpers here; do not grow a single large test function. Do not re-assert
