@@ -2,6 +2,9 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "redmine-cli",
 	"compatibility_date": "2026-06-13",
+	// Keeps the `main` preview alias that .github/workflows/docs.yml uploads
+	// reachable instead of depending on the Worker's dashboard setting.
+	"preview_urls": true,
 	"assets": {
 		"directory": "./dist",
 		"not_found_handling": "404-page"

@@ -1,0 +1,141 @@
+name: Docs
+
+# redmine-cli.dev only moves with stable releases, so it never documents
+# features that `redmine update` cannot install yet. Pushes to main upload a
+# preview version instead, served under the `main` preview alias
+# (https://main-redmine-cli.<subdomain>.workers.dev).
+#
+# The Cloudflare Workers Builds production deployment for main must stay off,
+# or it would publish unreleased docs again.
+#
+# For a docs-only fix between releases, run this workflow manually with a ref
+# that contains the fix but no unreleased features, e.g. a branch cut from the
+# latest tag with the fix cherry-picked.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    # Not evaluated for tag pushes, so every release deploys.
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag, branch or commit to deploy to redmine-cli.dev
+        required: true
+
+permissions: {}
+
+jobs:
+  preview:
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: docs-preview
+      url: ${{ steps.upload.outputs.url }}
+    concurrency:
+      group: docs-preview
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      # The homepage fetches the latest release, stars and contributors at
+      # build time; unauthenticated calls from shared runner IPs get rate
+      # limited and silently fall back to placeholders.
+      - name: Build
+        working-directory: docs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build
+
+      - name: Upload preview version
+        id: upload
+        working-directory: docs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.json
+        run: |
+          set -euo pipefail
+          npx --no wrangler versions upload --preview-alias main --message "main ${GITHUB_SHA::7}"
+          url=$(jq -r 'select(.type == "version-upload") | .preview_alias_url // empty' "$WRANGLER_OUTPUT_FILE_PATH")
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+  # Stable releases only, like the MCP Registry entry: a prerelease must not
+  # replace the docs of the current stable version.
+  production:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.ref_type == 'tag' && !contains(github.ref_name, '-')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: docs-production
+      url: https://redmine-cli.dev
+    concurrency:
+      group: docs-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Empty on tag pushes, which checks out the tag.
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      # No cache: a poisoned cache entry would end up on the live site.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      # The homepage shows the version and date of the latest GitHub release,
+      # read at build time. GoReleaser publishes it a few minutes after the tag
+      # push that also started this run, so building right away would render
+      # the previous release until the next one. If the release never appears,
+      # the docs are not deployed either.
+      - name: Wait for the GitHub release
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 60); do
+            if [ "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::release ${GITHUB_REF_NAME} was not published within 30 minutes; re-run this job once it is"
+          exit 1
+
+      - name: Build
+        working-directory: docs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build
+
+      - name: Deploy
+        working-directory: docs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_REF: ${{ inputs.ref || github.ref_name }}
+        run: npx --no wrangler deploy --message "${DEPLOY_REF}"
