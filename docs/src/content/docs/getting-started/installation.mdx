@@ -48,6 +48,23 @@ Pick the install path that suits your platform. All methods produce the same `re
     </Aside>
   </TabItem>
 
+  <TabItem label="Scoop" icon="seti:powershell">
+    For Windows. Installs the Windows build from the project bucket; update with `scoop update redmine`.
+
+    ```powershell
+    scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
+    scoop install redmine
+    ```
+  </TabItem>
+
+  <TabItem label="winget" icon="seti:powershell">
+    For Windows. Installs from the Windows Package Manager community repository; update with `winget upgrade aarondpn.redmine-cli`.
+
+    ```powershell
+    winget install aarondpn.redmine-cli
+    ```
+  </TabItem>
+
   <TabItem label="go install" icon="seti:go">
     Builds from source via the Go toolchain. Requires Go 1.26 or later (the `go` directive in `go.mod`); with the default `GOTOOLCHAIN=auto`, an older Go 1.21+ downloads a suitable toolchain itself. Release binaries are built with Go 1.27.3.
 
@@ -99,6 +116,8 @@ redmine update
 ```
 
 Pulls the latest release, verifies its SHA256 checksum and its GitHub artifact attestation, then replaces the running binary. See [Self-Update](/commands/other/#self-update) for details and flags.
+
+If you installed with Scoop or winget, update through that package manager (`scoop update redmine` or `winget upgrade aarondpn.redmine-cli`) instead, so its recorded version stays in sync.
 
 <Aside type="caution" title="Checksum and attestation verification">
   The installer and self-updater both fail closed if the release checksum does not match. The self-updater also refuses a release without a valid attestation from this repository's release workflow, and so does the installer when a recent, logged-in `gh` is available; otherwise the installer only checks the checksum and says so. Never bypass a failed check — report it as a security issue.

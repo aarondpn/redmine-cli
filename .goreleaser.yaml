@@ -111,6 +111,48 @@ homebrew_casks:
     homepage: https://github.com/aarondpn/redmine-cli
     description: CLI tool for interacting with Redmine project management
 
+# Windows package managers. Both are skipped while their token secret is
+# unset, so a release never fails because the bucket repo, the winget-pkgs
+# fork or the secret does not exist yet. `index .Env` returns "" for a missing
+# variable, where `.Env.NAME` would be a template error; it is only needed in
+# skip_upload. GoReleaser requires `token` to be the plain `{{ .Env.NAME }}`
+# form and only templates it after the skip_upload check. Prereleases are never
+# published, so rc tags stay out of the bucket and winget-pkgs.
+scoops:
+  - name: redmine
+    repository:
+      owner: aarondpn
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    skip_upload: '{{ if and (index .Env "SCOOP_BUCKET_GITHUB_TOKEN") (not .Prerelease) }}false{{ else }}true{{ end }}'
+    homepage: https://github.com/aarondpn/redmine-cli
+    description: CLI tool for interacting with Redmine project management
+    license: MIT
+
+# Manifests are pushed to the aarondpn/winget-pkgs fork and a pull request is
+# opened against microsoft/winget-pkgs.
+winget:
+  - name: redmine-cli
+    package_identifier: aarondpn.redmine-cli
+    publisher: aarondpn
+    publisher_url: https://github.com/aarondpn
+    short_description: CLI tool for interacting with Redmine project management
+    license: MIT
+    license_url: https://github.com/aarondpn/redmine-cli/blob/main/LICENSE
+    homepage: https://github.com/aarondpn/redmine-cli
+    skip_upload: '{{ if and (index .Env "WINGET_GITHUB_TOKEN") (not .Prerelease) }}false{{ else }}true{{ end }}'
+    repository:
+      owner: aarondpn
+      name: winget-pkgs
+      branch: "redmine-cli-{{ .Version }}"
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
 release:
   github:
     owner: aarondpn

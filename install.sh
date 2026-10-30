@@ -145,8 +145,13 @@ mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 info "Installed ${BINARY} ${TAG} to ${INSTALL_DIR}/${BINARY}"
 
 # Check if INSTALL_DIR is in PATH
+REDMINE_CMD="$BINARY"
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
-  *) printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
+  *) REDMINE_CMD="${INSTALL_DIR}/${BINARY}"
+     printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
      printf "Add this to your shell profile:\n\n  export PATH=\"%s:\$PATH\"\n\n" "$INSTALL_DIR" ;;
 esac
+
+info "Next: run '${REDMINE_CMD} auth login' to connect to your Redmine server"
+info "Docs: https://redmine-cli.dev/getting-started/configuration/"
