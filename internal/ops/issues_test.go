@@ -12,6 +12,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 type captureIssueUpdateHandler struct {
@@ -112,7 +113,7 @@ func TestCreateIssue_PropagatesNewFields(t *testing.T) {
 		StartDate:         "2026-05-01",
 		DueDate:           "2026-05-15",
 		WatcherUserIDs:    []int{2, 3},
-		CustomFieldValues: map[string]string{"7": "urgent"},
+		CustomFieldValues: models.CustomFieldValues{"7": {"urgent"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestUpdateIssue_PropagatesNewFields(t *testing.T) {
 		StartDate:         &start,
 		Notes:             &notes,
 		PrivateNotes:      &priv,
-		CustomFieldValues: map[string]string{"8": "yes"},
+		CustomFieldValues: models.CustomFieldValues{"8": {"yes"}, "9": {"a", "b"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -162,6 +163,9 @@ func TestUpdateIssue_PropagatesNewFields(t *testing.T) {
 	cfvs := issue["custom_field_values"].(map[string]any)
 	if cfvs["8"] != "yes" {
 		t.Errorf("custom_field_values[8] = %v, want yes", cfvs["8"])
+	}
+	if multi, _ := cfvs["9"].([]any); len(multi) != 2 || multi[0] != "a" || multi[1] != "b" {
+		t.Errorf("custom_field_values[9] = %v, want [a b]", cfvs["9"])
 	}
 }
 

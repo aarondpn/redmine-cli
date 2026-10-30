@@ -214,8 +214,7 @@ func TestCmdProjectCreate_IssueCustomFieldsBatchResolves(t *testing.T) {
 	}
 }
 
-// TestCmdProjectCreate_CustomFieldNameKey covers the name-keyed branch of
-// parseCustomFieldValues, which must resolve "Severity" against
+// TestCmdProjectCreate_CustomFieldNameKey covers the name-keyed // cmdutil.ParseCustomFieldValues, which must resolve "Severity" against
 // /custom_fields.json and emit the value under the resolved ID as a string
 // key. The numeric-key short-circuit is exercised by
 // TestCmdProjectCreate_ExtendedFieldsSerialize.

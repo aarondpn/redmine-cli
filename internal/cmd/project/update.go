@@ -8,6 +8,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
@@ -111,7 +112,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if cmd.Flags().Changed("issue-custom-field") {
-				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields)
+				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields, models.CustomizedTypeIssue)
 				if err != nil {
 					return fmt.Errorf("resolve --issue-custom-field: %w", err)
 				}
@@ -119,7 +120,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if cmd.Flags().Changed("custom-field") {
-				values, err := parseCustomFieldValues(ctx, client, customFieldRaw)
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeProject)
 				if err != nil {
 					return err
 				}
@@ -127,7 +128,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if _, err := ops.UpdateProject(ctx, client, input); err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Action(output.ActionUpdated, "project", identifier, fmt.Sprintf("Project %q updated", identifier))
@@ -148,7 +149,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module name to enable (replaces current set): boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki")
 	cmd.Flags().StringSliceVar(&issueCustomFields, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (replaces current set)")
-	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Project custom field value as name=value or id=value (repeatable)")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Project custom field", models.CustomizedTypeProject)
 
 	_ = cmd.RegisterFlagCompletionFunc("parent", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))

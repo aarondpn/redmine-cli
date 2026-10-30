@@ -97,7 +97,7 @@ func TestProjectService_Create_SerializesExtendedFields(t *testing.T) {
 		TrackerIDs:          []int{1, 2},
 		EnabledModuleNames:  []string{"issue_tracking", "wiki"},
 		IssueCustomFieldIDs: []int{10},
-		CustomFieldValues:   map[string]string{"5": "hello"},
+		CustomFieldValues:   models.CustomFieldValues{"5": {"hello"}},
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)

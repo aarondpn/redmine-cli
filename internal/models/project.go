@@ -37,7 +37,7 @@ type ProjectCreate struct {
 	TrackerIDs          []int             `json:"tracker_ids,omitempty"`
 	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty"`
 	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty"`
-	CustomFieldValues   map[string]string `json:"custom_field_values,omitempty"`
+	CustomFieldValues   CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // ProjectUpdate defines fields for updating a project. Pointer-typed fields
@@ -56,5 +56,5 @@ type ProjectUpdate struct {
 	TrackerIDs          []int             `json:"tracker_ids,omitempty"`
 	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty"`
 	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty"`
-	CustomFieldValues   map[string]string `json:"custom_field_values,omitempty"`
+	CustomFieldValues   CustomFieldValues `json:"custom_field_values,omitempty"`
 }

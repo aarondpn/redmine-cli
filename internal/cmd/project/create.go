@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -98,7 +99,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(issueCustomFields) > 0 {
-				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields)
+				ids, err := resolver.ResolveCustomFieldNames(ctx, client, issueCustomFields, models.CustomizedTypeIssue)
 				if err != nil {
 					return fmt.Errorf("resolve --issue-custom-field: %w", err)
 				}
@@ -106,7 +107,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(customFieldRaw) > 0 {
-				values, err := parseCustomFieldValues(ctx, client, customFieldRaw)
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeProject)
 				if err != nil {
 					return err
 				}
@@ -115,7 +116,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			project, err := ops.CreateProject(ctx, client, input)
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Resource(project, fmt.Sprintf("Project %q created (ID: %d)", project.Name, project.ID))
@@ -136,7 +137,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module to enable: boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki (repeatable or comma-separated)")
 	cmd.Flags().StringSliceVar(&issueCustomFields, "issue-custom-field", nil, "Issue-level custom field name or ID to enable (repeatable or comma-separated)")
-	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Project custom field value as name=value or id=value (repeatable)")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Project custom field", models.CustomizedTypeProject)
 
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("identifier")

@@ -145,7 +145,7 @@ type IssueCreate struct {
 	EstimatedHours    float64           `json:"estimated_hours,omitempty"`
 	IsPrivate         *bool             `json:"is_private,omitempty"`
 	WatcherUserIDs    []int             `json:"watcher_user_ids,omitempty"`
-	CustomFieldValues map[string]string `json:"custom_field_values,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 	Uploads           []Upload          `json:"uploads,omitempty"`
 }
 
@@ -167,6 +167,6 @@ type IssueUpdate struct {
 	FixedVersionID    *int              `json:"fixed_version_id,omitempty"`
 	EstimatedHours    *float64          `json:"estimated_hours,omitempty"`
 	IsPrivate         *bool             `json:"is_private,omitempty"`
-	CustomFieldValues map[string]string `json:"custom_field_values,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 	Uploads           []Upload          `json:"uploads,omitempty"`
 }

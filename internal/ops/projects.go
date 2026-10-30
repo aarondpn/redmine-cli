@@ -26,35 +26,35 @@ type GetProjectInput struct {
 }
 
 type CreateProjectInput struct {
-	Name                string            `json:"name" jsonschema:"Human-readable project name."`
-	Identifier          string            `json:"identifier" jsonschema:"URL-safe project identifier (slug)."`
-	Description         string            `json:"description,omitempty" jsonschema:"Project description."`
-	Homepage            string            `json:"homepage,omitempty" jsonschema:"Project homepage URL."`
-	IsPublic            *bool             `json:"is_public,omitempty" jsonschema:"Mark the project as public."`
-	ParentID            int               `json:"parent_id,omitempty" jsonschema:"Parent project numeric ID."`
-	InheritMembers      bool              `json:"inherit_members,omitempty" jsonschema:"Inherit members from the parent project."`
-	DefaultAssignedToID int               `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues."`
-	DefaultVersionID    int               `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. Only effective on update; versions cannot be referenced at project creation."`
-	TrackerIDs          []int             `json:"tracker_ids,omitempty" jsonschema:"Numeric IDs of trackers enabled for this project. Replaces the current set when provided."`
-	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty" jsonschema:"Module names enabled for this project (boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki). Replaces the current set when provided."`
-	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty" jsonschema:"Numeric IDs of issue-level custom fields enabled for this project."`
-	CustomFieldValues   map[string]string `json:"custom_field_values,omitempty" jsonschema:"Values for project-level custom fields, keyed by custom field ID as a string."`
+	Name                string                   `json:"name" jsonschema:"Human-readable project name."`
+	Identifier          string                   `json:"identifier" jsonschema:"URL-safe project identifier (slug)."`
+	Description         string                   `json:"description,omitempty" jsonschema:"Project description."`
+	Homepage            string                   `json:"homepage,omitempty" jsonschema:"Project homepage URL."`
+	IsPublic            *bool                    `json:"is_public,omitempty" jsonschema:"Mark the project as public."`
+	ParentID            int                      `json:"parent_id,omitempty" jsonschema:"Parent project numeric ID."`
+	InheritMembers      bool                     `json:"inherit_members,omitempty" jsonschema:"Inherit members from the parent project."`
+	DefaultAssignedToID int                      `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues."`
+	DefaultVersionID    int                      `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. Only effective on update; versions cannot be referenced at project creation."`
+	TrackerIDs          []int                    `json:"tracker_ids,omitempty" jsonschema:"Numeric IDs of trackers enabled for this project. Replaces the current set when provided."`
+	EnabledModuleNames  []string                 `json:"enabled_module_names,omitempty" jsonschema:"Module names enabled for this project (boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki). Replaces the current set when provided."`
+	IssueCustomFieldIDs []int                    `json:"issue_custom_field_ids,omitempty" jsonschema:"Numeric IDs of issue-level custom fields enabled for this project."`
+	CustomFieldValues   models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Values for project custom fields keyed by numeric custom field ID (list_custom_fields, customized_type project). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type UpdateProjectInput struct {
-	Identifier          string            `json:"identifier" jsonschema:"Project identifier or numeric ID to update."`
-	Name                *string           `json:"name,omitempty" jsonschema:"New project name."`
-	Description         *string           `json:"description,omitempty" jsonschema:"New project description."`
-	Homepage            *string           `json:"homepage,omitempty" jsonschema:"New project homepage URL."`
-	IsPublic            *bool             `json:"is_public,omitempty" jsonschema:"Toggle public visibility."`
-	ParentID            *int              `json:"parent_id,omitempty" jsonschema:"New parent project numeric ID. 0 detaches the project from its parent."`
-	InheritMembers      *bool             `json:"inherit_members,omitempty" jsonschema:"Toggle inheriting members from the parent project."`
-	DefaultAssignedToID *int              `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues. 0 clears the default."`
-	DefaultVersionID    *int              `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. 0 clears the default."`
-	TrackerIDs          []int             `json:"tracker_ids,omitempty" jsonschema:"Replace the enabled tracker set with the given IDs."`
-	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty" jsonschema:"Replace the enabled module set with the given names."`
-	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty" jsonschema:"Replace the enabled issue custom-field set with the given IDs."`
-	CustomFieldValues   map[string]string `json:"custom_field_values,omitempty" jsonschema:"Values for project-level custom fields, keyed by custom field ID as a string."`
+	Identifier          string                   `json:"identifier" jsonschema:"Project identifier or numeric ID to update."`
+	Name                *string                  `json:"name,omitempty" jsonschema:"New project name."`
+	Description         *string                  `json:"description,omitempty" jsonschema:"New project description."`
+	Homepage            *string                  `json:"homepage,omitempty" jsonschema:"New project homepage URL."`
+	IsPublic            *bool                    `json:"is_public,omitempty" jsonschema:"Toggle public visibility."`
+	ParentID            *int                     `json:"parent_id,omitempty" jsonschema:"New parent project numeric ID. 0 detaches the project from its parent."`
+	InheritMembers      *bool                    `json:"inherit_members,omitempty" jsonschema:"Toggle inheriting members from the parent project."`
+	DefaultAssignedToID *int                     `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues. 0 clears the default."`
+	DefaultVersionID    *int                     `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. 0 clears the default."`
+	TrackerIDs          []int                    `json:"tracker_ids,omitempty" jsonschema:"Replace the enabled tracker set with the given IDs."`
+	EnabledModuleNames  []string                 `json:"enabled_module_names,omitempty" jsonschema:"Replace the enabled module set with the given names."`
+	IssueCustomFieldIDs []int                    `json:"issue_custom_field_ids,omitempty" jsonschema:"Replace the enabled issue custom-field set with the given IDs."`
+	CustomFieldValues   models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Values for project custom fields keyed by numeric custom field ID (list_custom_fields, customized_type project). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type DeleteProjectInput struct {
