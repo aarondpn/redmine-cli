@@ -50,11 +50,18 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      # The homepage fetches the latest release, stars and contributors at
+      # build time; unauthenticated calls from shared runner IPs get rate
+      # limited and silently fall back to placeholders.
       - name: Build
         working-directory: docs
-        run: |
-          npm ci
-          npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build
 
       - name: Upload preview version
         id: upload
@@ -65,7 +72,7 @@ jobs:
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.json
         run: |
           set -euo pipefail
-          npx wrangler versions upload --preview-alias main --message "main ${GITHUB_SHA::7}"
+          npx --no wrangler versions upload --preview-alias main --message "main ${GITHUB_SHA::7}"
           url=$(jq -r 'select(.type == "version-upload") | .preview_alias_url // empty' "$WRANGLER_OUTPUT_FILE_PATH")
           echo "url=${url}" >> "$GITHUB_OUTPUT"
 
@@ -95,11 +102,35 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      # The homepage shows the version and date of the latest GitHub release,
+      # read at build time. GoReleaser publishes it a few minutes after the tag
+      # push that also started this run, so building right away would render
+      # the previous release until the next one. If the release never appears,
+      # the docs are not deployed either.
+      - name: Wait for the GitHub release
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 60); do
+            if [ "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::release ${GITHUB_REF_NAME} was not published within 30 minutes; re-run this job once it is"
+          exit 1
+
       - name: Build
         working-directory: docs
-        run: |
-          npm ci
-          npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build
 
       - name: Deploy
         working-directory: docs
@@ -107,4 +138,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           DEPLOY_REF: ${{ inputs.ref || github.ref_name }}
-        run: npx wrangler deploy --message "${DEPLOY_REF}"
+        run: npx --no wrangler deploy --message "${DEPLOY_REF}"
