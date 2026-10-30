@@ -2,6 +2,10 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "redmine-cli",
 	"compatibility_date": "2026-06-13",
+	// Off by default, and `wrangler deploy` applies this setting, so leaving it
+	// out would take down the preview that .github/workflows/docs.yml uploads
+	// for main on every release.
+	"preview_urls": true,
 	"assets": {
 		"directory": "./dist",
 		"not_found_handling": "404-page"
