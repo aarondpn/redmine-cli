@@ -166,6 +166,8 @@ With `-o json` (and in the MCP `get_issue` tool) the issue carries these optiona
 - Journal `updated_on` (Redmine 6.0+, present on every journal) and `updated_by` (set when the notes were edited).
 - `reactions` on the issue and on journals with `--include reactions` (Redmine 7.1+).
 
+In the table view each comment header carries its journal ID, for example `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`, with `(edited)` after the date when the notes were changed later. That ID is what [`issues comment edit`](#edit-a-comment) takes.
+
 <Aside type="tip">
   `--attachments` surfaces each attachment's ID. Feed that ID to
   [`attachments download <id>`](/commands/attachments/#download) to fetch a single
@@ -412,6 +414,44 @@ git log -1 --format=%B | redmine issues comment 123 -F -
 
 File contents are sent as read (UTF-8, no trimming; only a leading byte-order mark is dropped), so multi-line Textile or Markdown needs no shell quoting.
 
+### Edit a comment
+
+<Badge text="Redmine 5.0+" variant="note" />
+
+```bash
+redmine issues comment edit <journal-id> [flags]
+```
+
+Comments are identified by their **journal ID**, not the issue ID. Redmine has no endpoint to fetch a single journal, so list them from the issue:
+
+```bash
+redmine issues get 123 --journals --jq '.journals[] | {id, notes}'
+```
+
+| Flag | Description |
+|------|-------------|
+| `-m, --message`      | New comment text. An empty string is rejected; use `--clear` to remove the text |
+| `-F, --message-file` | Read the new text from a file (`-` reads standard input); mutually exclusive with `--message`; an empty or whitespace-only file is rejected |
+| `--private`          | Make the comment private |
+| `--public`           | Make the comment public; mutually exclusive with `--private` |
+| `--clear`            | Remove the comment's text; mutually exclusive with `--message` and `--message-file` |
+| `-f, --force`        | Skip the confirmation that `--clear` asks for |
+
+At least one of these flags is required. The command prints an `updated` action for resource `journal`.
+
+```bash
+redmine issues comment edit 456 --message "Corrected: deployed to production"
+redmine issues comment edit 456 --message-file notes.textile
+redmine issues comment edit 456 --private
+redmine issues comment edit 456 --clear --force
+```
+
+<Aside type="note">
+  Editing the text needs the "Edit issue notes" permission (or "Edit own issue notes" for your own comments). `--private` and `--public` need "Set notes as private"; Redmine silently ignores them without it. Redmine answers success even when it did not apply a change, so check the result with `issues get --journals`. Servers older than 5.0 do not accept this request over the API; the command then fails with an error whose hint points at the version requirement.
+</Aside>
+
+`--clear` removes the comment from the issue history: Redmine 5.x and 7.0 delete a journal that records no other change, and 6.x keeps an empty row that the API no longer lists. Because it cannot be undone, the command asks for confirmation unless you pass `--force`; declining prints a cancelled `updated` action and changes nothing.
+
 ## watchers
 
 ```bash
@@ -432,6 +472,7 @@ redmine issues watchers remove 123 alice
 
 ```bash
 redmine issues relations list <id>
+redmine issues relations get <relation-id>
 redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
 redmine issues relations remove <relation-id>
 ```
@@ -460,11 +501,12 @@ Supported relation types (from the [Redmine REST docs](https://www.redmine.org/p
 redmine issues relations add 123 --to 124 --type blocks
 redmine issues relations add 123 --to 124 --type precedes --delay 5
 redmine issues relations list 123
+redmine issues relations get 42
 redmine issues relations remove 42
 ```
 
 <Aside type="note">
-  `relations remove` takes the **relation ID**, not an issue ID. Use `relations list` first to discover the relation IDs on an issue.
+  `relations get` and `relations remove` take the **relation ID**, not an issue ID. Use `relations list` first to discover the relation IDs on an issue. `relations get` prints the relation as JSON with `-o json`, or as a detail view (ID, issue, related issue, type, delay) otherwise.
 </Aside>
 
 ## delete

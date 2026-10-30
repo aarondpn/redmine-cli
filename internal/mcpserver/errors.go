@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 // toolErr returns an error-flavored CallToolResult so the MCP client reports
@@ -30,6 +31,11 @@ func toolErrFromAPI[T any](err error) (*mcp.CallToolResult, T, error) {
 // toolErrFromError returns a tool-level error for both API failures and local
 // validation/runtime failures from the ops layer.
 func toolErrFromError[T any](err error) (*mcp.CallToolResult, T, error) {
+	var he *ops.HintedError
+	if errors.As(err, &he) {
+		// Keep the remediation hint next to the described API failure.
+		return toolErr[T](describeAPIError(he.Err) + " (" + he.Hint + ")")
+	}
 	var (
 		ae *api.APIError
 		pe *api.InvalidPathSegmentError

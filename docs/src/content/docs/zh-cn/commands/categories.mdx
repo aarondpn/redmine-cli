@@ -1,0 +1,119 @@
+---
+title: 工单类别
+description: 列出、查看、创建、更新和删除工单类别，删除时可将工单移动到另一个类别。
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+`categories` 命令（别名 `category`）用于管理项目的工单类别。类别用于对工单分组，并可设置默认指派人，Redmine 会在该类别下的新工单中预选该指派人。
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="列出项目的工单类别。" />
+  <LinkCard title="get" href="#get" description="按 ID 或名称查看单个类别。" />
+  <LinkCard title="create" href="#create" description="创建类别。" />
+  <LinkCard title="update" href="#update" description="重命名类别或更改其默认指派人。" />
+  <LinkCard title="delete" href="#delete" description="删除类别，可选择将其工单移到另一个类别。" />
+</CardGrid>
+
+接受 `<id-or-name>` 的命令既可传入数字 ID，也可传入类别名称。名称会在 `--project`（或当前 profile 的默认项目）内解析。
+
+## list
+
+```bash
+redmine categories list --project <identifier> [flags]
+```
+
+别名：`ls`。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目名称、标识符或 ID - 默认回退到默认项目 |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine categories list --project myproject
+redmine categories list --project myproject -o json
+```
+
+## get
+
+```bash
+redmine categories get <id-or-name> [flags]
+```
+
+别名：`show`、`view`。显示 ID、项目、名称和默认指派人。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 用于解析类别名称的项目 - 默认回退到默认项目 |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine categories get 12
+redmine categories get "Backend" --project myproject -o json
+```
+
+## create
+
+```bash
+redmine categories create --name <name> [flags]
+```
+
+别名：`new`。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目名称、标识符或 ID - 默认回退到默认项目 |
+| `--name`       | 类别名称（必填，在项目内唯一，最多 60 个字符） |
+| `--assignee`   | 默认指派人：用户或用户组的名称、登录名、ID 或 `me`。名称会在项目成员中匹配 |
+| `-o, --output` | 输出格式 |
+
+```bash
+redmine categories create --project myproject --name Backend
+redmine categories create --project myproject --name Backend --assignee me
+```
+
+## update
+
+```bash
+redmine categories update <id-or-name> [flags]
+```
+
+别名：`edit`。只会修改你传入的标志；`--name` 与 `--assignee` 至少需要一个。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`  | 用于解析类别名称的项目 - 默认回退到默认项目 |
+| `--name`     | 新的类别名称 |
+| `--assignee` | 新的默认指派人（用户或用户组的名称、登录名、ID、`me`），或用 `none` 清除 |
+
+```bash
+redmine categories update 12 --name "Back end"
+redmine categories update Backend --project myproject --assignee "Backend Team"
+redmine categories update 12 --assignee none
+```
+
+## delete
+
+```bash
+redmine categories delete <id-or-name> [flags]
+```
+
+别名：`rm`。除非传入 `--force`，否则会先请求确认。拒绝确认会打印 `Delete cancelled`，且不做任何更改。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`     | 用于解析类别名称的项目 - 默认回退到默认项目 |
+| `--reassign-to` | 将该类别的工单移到同一项目的这个类别（ID 或名称） |
+| `-f, --force`   | 跳过确认提示 |
+
+不使用 `--reassign-to` 时，该类别下的工单将不再属于任何类别。
+
+```bash
+redmine categories delete 12
+redmine categories delete Backend --project myproject --reassign-to Platform --force
+```
+
+<Aside type="caution" title="会校验转移目标">
+  如果 `reassign_to_id` 属于其他项目（或不存在），Redmine 会静默忽略它，并让这些工单失去类别。因此 CLI 和 MCP 的 `delete_issue_category` 工具会先查询两个类别，并拒绝来自其他项目的目标，避免工单被意外丢弃。传给 `--reassign-to` 的名称会在被删除类别所属的项目中查找。
+</Aside>

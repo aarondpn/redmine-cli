@@ -1,6 +1,6 @@
 ---
 title: Attachments
-description: Inspect attachment metadata and download attachment files without curl or manual API-key handling.
+description: Inspect, download, rename, delete attachments and fetch their thumbnails without curl or manual API-key handling.
 ---
 
 import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
@@ -10,6 +10,9 @@ The `attachments` command (aliases `attachment`, `a`) surfaces Redmine's [Attach
 <CardGrid>
   <LinkCard title="get"      href="#get"      description="Print attachment metadata (filename, size, type, author)." />
   <LinkCard title="download" href="#download" description="Download the file to disk or stream it to stdout." />
+  <LinkCard title="update"   href="#update"   description="Rename an attachment or change its description or content type." />
+  <LinkCard title="delete"   href="#delete"   description="Delete an attachment." />
+  <LinkCard title="thumbnail" href="#thumbnail" description="Download the rendered thumbnail of an image attachment." />
 </CardGrid>
 
 <Aside type="tip">
@@ -139,4 +142,69 @@ If the server redirects the download (or any other request), the redirect is fol
 <Aside type="tip">
   To grab **every** attachment of an issue in one step, use
   [`redmine issues get <id> --download-attachments <dir>`](/commands/issues/#get).
+</Aside>
+
+## update
+
+```bash
+redmine attachments update <id> [flags]
+```
+
+Aliases: `edit`. Changes an attachment's metadata via `PUT /attachments/:id.json`. At least one flag is required; only the flags you pass are changed.
+
+| Flag | Description |
+|------|-------------|
+| `--filename`     | New filename |
+| `--description`  | New description; an empty value (`--description ""`) clears it |
+| `--content-type` | New content type, for example `image/png` |
+
+```bash
+redmine attachments update 42 --filename report-final.pdf
+redmine attachments update 42 --description "Final version"
+```
+
+You need permission to edit the object the attachment belongs to (for an issue attachment, the right to edit that issue).
+
+## delete
+
+```bash
+redmine attachments delete <id> [flags]
+```
+
+Aliases: `rm`. Permanently deletes the attachment. Asks for confirmation unless `--force` is given; declining prints `Delete cancelled` and changes nothing. Deleting an issue attachment is recorded in the issue history.
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip the confirmation prompt |
+
+```bash
+redmine attachments delete 42
+redmine attachments delete 42 --force
+```
+
+## thumbnail
+
+```bash
+redmine attachments thumbnail <id> --path <file> [flags]
+```
+
+Aliases: `thumb`. Downloads the thumbnail Redmine renders for an image attachment (and PDFs where the server supports it).
+
+| Flag | Description |
+|------|-------------|
+| `--path`       | Destination file path (required). Use `-` to stream the image to stdout |
+| `--size`       | Edge length in pixels. Redmine rounds it up to a multiple of 50 and caps it at 800; omitted = the server's default thumbnail size |
+| `--clobber`    | Overwrite an existing file at the destination |
+| `-o, --output` | Confirmation format: `json` prints `{id, path, bytes, size}`; otherwise a human line is written to stderr |
+
+An existing file is never overwritten without `--clobber`, and a failed request leaves no file behind (same safe-write behavior as [`download`](#existing-files-and---clobber)). With `--path -` the bytes go to stdout, the confirmation to stderr, and `--jq` is rejected.
+
+```bash
+redmine attachments thumbnail 42 --path thumb.png
+redmine attachments thumbnail 42 --size 200 --path thumb.png --clobber
+redmine attachments thumbnail 42 --path - > thumb.png
+```
+
+<Aside type="note">
+  Redmine answers `404 Not Found` when the attachment cannot be thumbnailed: it is not an image or PDF, or the server has no ImageMagick (`convert`) installed. The CLI reports this as `not_found`.
 </Aside>

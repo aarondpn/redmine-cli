@@ -141,6 +141,8 @@ redmine issues get <id> [flags]
 - 日志的 `updated_on`（Redmine 6.0+，每条日志都有）和 `updated_by`（备注被编辑过时才有）。
 - 使用 `--include reactions` 时，工单和日志上的 `reactions`（Redmine 7.1+）。
 
+表格视图中每条评论的标题行都带有 journal ID，例如 `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`，评论被编辑过则在日期后显示 `(edited)`。该 ID 供 [`issues comment edit`](#编辑评论) 使用。
+
 <Aside type="tip">
   `--attachments` 会显示每个附件的 ID。把该 ID 传给
   [`attachments download <id>`](/zh-cn/commands/attachments/#download) 可下载单个文件，
@@ -265,6 +267,46 @@ redmine issues assign <id> <user-id-or-name> [flags]
 redmine issues comment <id> --message "Your comment" [flags]
 ```
 
+### 编辑评论
+
+<Badge text="Redmine 5.0+" variant="note" />
+
+```bash
+redmine issues comment edit <journal-id> [flags]
+```
+
+评论由 **journal ID**（而不是工单 ID）标识。Redmine 没有获取单个 journal 的接口，请从工单中列出：
+
+```bash
+redmine issues get 123 --journals --jq '.journals[] | {id, notes}'
+```
+
+表格视图中每条评论的标题行都带有 journal ID，例如 `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`；评论之后被修改过则在日期后显示 `(edited)`。
+
+| 标志 | 说明 |
+|------|------|
+| `-m, --message`      | 新的评论内容。空字符串会被拒绝，请使用 `--clear` 清除内容 |
+| `-F, --message-file` | 从文件读取新内容（`-` 表示标准输入）；与 `--message` 互斥；空文件或仅含空白的文件会被拒绝 |
+| `--private`          | 将评论设为私有 |
+| `--public`           | 将评论设为公开；与 `--private` 互斥 |
+| `--clear`            | 清除评论内容；与 `--message`、`--message-file` 互斥 |
+| `-f, --force`        | 跳过 `--clear` 的确认提示 |
+
+以上标志至少需要一个。命令输出资源为 `journal` 的 `updated` 操作。
+
+```bash
+redmine issues comment edit 456 --message "Corrected: deployed to production"
+redmine issues comment edit 456 --message-file notes.textile
+redmine issues comment edit 456 --private
+redmine issues comment edit 456 --clear --force
+```
+
+<Aside type="note">
+  修改内容需要“编辑工单备注”权限（修改自己的评论需要“编辑自己的工单备注”）。`--private` 和 `--public` 需要“将备注设为私有”权限，没有该权限时 Redmine 会静默忽略。即使 Redmine 没有应用修改也会返回成功，请用 `issues get --journals` 确认结果。早于 5.0 的服务器不接受此 API 请求，命令会报错，并在提示中说明版本要求。
+</Aside>
+
+`--clear` 会把评论从工单历史中移除：Redmine 5.x 和 7.0 会删除没有其他变更的 journal，6.x 则保留一条 API 不再列出的空记录。该操作无法撤销，因此除非加 `--force`，命令会先要求确认；拒绝时输出已取消的 `updated` 操作，不做任何修改。
+
 ## watchers
 
 ```bash
@@ -285,6 +327,7 @@ redmine issues watchers remove 123 alice
 
 ```bash
 redmine issues relations list <id>
+redmine issues relations get <relation-id>
 redmine issues relations add <id> --to <other-id> --type <type> [--delay <days>]
 redmine issues relations remove <relation-id>
 ```
@@ -313,11 +356,12 @@ Redmine 支持的关联类型（参见 [Redmine REST 文档](https://www.redmine
 redmine issues relations add 123 --to 124 --type blocks
 redmine issues relations add 123 --to 124 --type precedes --delay 5
 redmine issues relations list 123
+redmine issues relations get 42
 redmine issues relations remove 42
 ```
 
 <Aside type="note">
-  `relations remove` 接受的是 **关联 ID**，而非工单 ID。请先用 `relations list` 查询关联 ID。
+  `relations get` 与 `relations remove` 接受的是 **关联 ID**，而非工单 ID。请先用 `relations list` 查询关联 ID。`relations get` 在 `-o json` 下输出 JSON，否则显示详情（ID、工单、关联工单、类型、延迟）。
 </Aside>
 
 ## delete

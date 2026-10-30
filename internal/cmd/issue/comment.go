@@ -18,7 +18,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "comment <id>",
 		Short: "Add a comment to an issue",
-		Long:  "Add a comment (note) to an existing issue.",
+		Long:  "Add a comment (note) to an existing issue. To change a comment that was already posted, use `redmine issues comment edit <journal-id>`.",
 		Example: `  # Add a short comment
   redmine issues comment 123 --message "Deployed to staging"
 
@@ -67,6 +67,7 @@ func NewCmdComment(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Comment message")
 	cmdutil.AddTextFileFlag(cmd, "message", "message-file", "F")
+	cmd.AddCommand(newCmdCommentEdit(f))
 
 	return cmd
 }

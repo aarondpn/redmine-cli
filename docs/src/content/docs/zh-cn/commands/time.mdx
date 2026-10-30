@@ -27,7 +27,7 @@ redmine time log [flags]
 | `--issue`    | 工单 ID |
 | `--project`  | 项目（名称或标识符） |
 | `--hours`    | 工时 — <Badge text="必填" variant="danger" /> |
-| `--activity` | 活动类型（名称或 ID） |
+| `--activity` | 活动类型（名称或 ID；项目专用的覆盖活动请使用 `redmine activities list --project <project>` 中的 ID） |
 | `--comment`  | 工作描述 |
 | `--date`     | 日期（YYYY-MM-DD 或 `today`，默认：今天） |
 | `--user`     | 代他人记录工时（`me`、登录名、姓名或 ID） |
@@ -72,7 +72,7 @@ redmine time list [flags]
 | `--project`    | 按项目过滤 |
 | `--user`       | 按用户过滤：`me`、名称或 ID |
 | `--issue`      | 按工单 ID 过滤 |
-| `--activity`   | 按活动类型过滤（名称或 ID） |
+| `--activity`   | 按活动类型过滤（名称或 ID；项目专用的覆盖活动请使用 `redmine activities list --project <project>` 中的 ID） |
 | `--from`       | 开始日期（YYYY-MM-DD 或 `today`） |
 | `--to`         | 结束日期（YYYY-MM-DD 或 `today`） |
 | `--limit`      | 最大结果数 |
@@ -109,7 +109,7 @@ redmine time update <id> [flags]
 | 标志 | 描述 |
 |------|------|
 | `--hours`    | 新工时 |
-| `--activity` | 新活动类型（名称或 ID） |
+| `--activity` | 新活动类型（名称或 ID；项目专用的覆盖活动请使用 `redmine activities list --project <project>` 中的 ID） |
 | `--comment`  | 新评论 |
 | `--date`     | 新日期（YYYY-MM-DD 或 `today`） |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |

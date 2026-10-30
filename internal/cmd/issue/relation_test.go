@@ -94,3 +94,55 @@ func TestCmdRelations_Remove(t *testing.T) {
 		t.Fatalf("path = %s, want /relations/7.json", delPath)
 	}
 }
+
+func TestCmdRelations_Get(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/relations/7.json" || r.Method != http.MethodGet {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"relation":{"id":7,"issue_id":1,"issue_to_id":2,"relation_type":"precedes","delay":3}}`))
+	}))
+	defer srv.Close()
+
+	t.Run("json", func(t *testing.T) {
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := NewCmdRelations(f)
+		cmd.SetArgs([]string{"get", "7", "--output", "json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(testutil.Stdout(f)), &got); err != nil {
+			t.Fatalf("stdout is not a JSON object: %v", err)
+		}
+		if got["relation_type"] != "precedes" || got["id"].(float64) != 7 {
+			t.Fatalf("relation = %v", got)
+		}
+	})
+
+	t.Run("table", func(t *testing.T) {
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := NewCmdRelations(f)
+		cmd.SetArgs([]string{"get", "7", "--output", "table"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		out := testutil.Stdout(f)
+		for _, want := range []string{"Related Issue", "#1", "#2", "precedes", "3"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("table missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := NewCmdRelations(f)
+		cmd.SetArgs([]string{"get", "abc"})
+		err := cmd.Execute()
+		if err == nil || !strings.Contains(err.Error(), "invalid relation ID") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}

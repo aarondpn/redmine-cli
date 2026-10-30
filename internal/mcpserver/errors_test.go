@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func TestDescribeAPIError(t *testing.T) {
@@ -80,6 +81,25 @@ func TestToolErrSetsIsError(t *testing.T) {
 	}
 	if len(res.Content) == 0 {
 		t.Fatal("expected at least one content block")
+	}
+}
+
+// An ops.HintedError keeps its remediation hint in the tool error instead of
+// collapsing to the bare description of the wrapped API error.
+func TestToolErrFromError_KeepsHint(t *testing.T) {
+	err := &ops.HintedError{Err: &api.APIError{StatusCode: http.StatusForbidden}, Hint: ops.JournalEditForbiddenHint}
+	res, _, callErr := toolErrFromError[any](fmt.Errorf("updating journal: %w", err))
+	if callErr != nil {
+		t.Fatalf("unexpected error: %v", callErr)
+	}
+	if res == nil || !res.IsError || len(res.Content) == 0 {
+		t.Fatalf("expected IsError result with content, got %+v", res)
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	for _, want := range []string{"Forbidden", "Redmine 5.0+"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("tool error %q missing %q", text, want)
+		}
 	}
 }
 

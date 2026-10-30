@@ -25,6 +25,7 @@ const (
 	GroupMeta        Group = "meta"
 	GroupWiki        Group = "wiki"
 	GroupMemberships Group = "memberships"
+	GroupNews        Group = "news"
 )
 
 // AllGroups returns the canonical list of groups in the order used by
@@ -41,6 +42,7 @@ func AllGroups() []Group {
 		GroupMeta,
 		GroupWiki,
 		GroupMemberships,
+		GroupNews,
 	}
 }
 

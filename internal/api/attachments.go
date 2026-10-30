@@ -81,6 +81,57 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 	return n, nil
 }
 
+// Update changes an attachment's filename, description or content type via
+// PUT /attachments/:id.json (204 No Content on success).
+func (s *AttachmentService) Update(ctx context.Context, id int, u models.AttachmentUpdate) error {
+	body := map[string]interface{}{"attachment": u}
+	return s.client.Put(ctx, fmt.Sprintf("/attachments/%d.json", id), body)
+}
+
+// Delete removes an attachment via DELETE /attachments/:id.json.
+func (s *AttachmentService) Delete(ctx context.Context, id int) error {
+	return s.client.Delete(ctx, fmt.Sprintf("/attachments/%d.json", id))
+}
+
+// Thumbnail streams the thumbnail image of an attachment to w and returns the
+// number of bytes written. size is the requested edge length in pixels; 0
+// uses the server default. Redmine rounds it up to a multiple of 50 (max 800)
+// and answers 404 when the attachment cannot be thumbnailed (not an image or
+// PDF, or ImageMagick missing on the server).
+func (s *AttachmentService) Thumbnail(ctx context.Context, id, size int, w io.Writer) (int64, error) {
+	u := s.client.baseURL + "/attachments/thumbnail/" + strconv.Itoa(id)
+	if size > 0 {
+		u += "/" + strconv.Itoa(size)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	start := time.Now()
+	resp, err := s.client.httpClient.Do(req)
+	duration := time.Since(start)
+	if err != nil {
+		err = scrubRequestError(err)
+		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
+		return 0, fmt.Errorf("thumbnail request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	s.client.debugLog.Printf("HTTP %s %s -> %d (%s)", req.Method, debug.ScrubURL(req.URL.String()), resp.StatusCode, duration.Round(time.Millisecond))
+
+	if resp.StatusCode >= 400 {
+		return 0, parseErrorResponse(resp)
+	}
+
+	n, err := io.Copy(w, resp.Body)
+	if err != nil {
+		return n, fmt.Errorf("streaming thumbnail of attachment %d: %w", id, err)
+	}
+	return n, nil
+}
+
 // downloadURL returns the absolute URL to stream the attachment bytes from.
 // See Download for the host-matching rationale. The server-supplied filename
 // only decorates the built path, so one that is not a safe single path

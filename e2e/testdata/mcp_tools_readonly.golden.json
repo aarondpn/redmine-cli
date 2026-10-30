@@ -16,6 +16,10 @@
     "description": "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions."
   },
   {
+    "name": "get_issue_category",
+    "description": "Fetch a single issue category by ID."
+  },
+  {
     "name": "get_issue_relation",
     "description": "Fetch a single issue relation by its relation ID."
   },
@@ -26,6 +30,10 @@
   {
     "name": "get_my_account",
     "description": "Fetch the authenticated user's account via /my/account.json. Includes custom_fields."
+  },
+  {
+    "name": "get_news",
+    "description": "Fetch a single news item by ID. Optional includes add attachments, comments and reactions (Redmine 7.1+)."
   },
   {
     "name": "get_project",
@@ -84,6 +92,14 @@
     "description": "List memberships for a project."
   },
   {
+    "name": "list_news",
+    "description": "List news, for one project (project_id) or across all visible projects."
+  },
+  {
+    "name": "list_priorities",
+    "description": "List issue priorities with their IDs, default flag and active state. Use the IDs for priority_id."
+  },
+  {
     "name": "list_project_files",
     "description": "List files attached to a project."
   },
@@ -110,6 +126,10 @@
   {
     "name": "list_time_entries",
     "description": "List Redmine time entries matching the given filters."
+  },
+  {
+    "name": "list_time_entry_activities",
+    "description": "List time entry activities with their IDs. Pass project_id to get the activities available in that project, including project-specific overrides whose IDs differ from the global ones. Use the IDs for activity_id."
   },
   {
     "name": "list_trackers",

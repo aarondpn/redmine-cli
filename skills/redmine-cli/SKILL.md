@@ -13,8 +13,8 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 
 | Command | Purpose |
 |---------|---------|
-| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; manage watchers and relations (`issues watchers …`, `issues relations …`). To search issues, use `search issues` |
-| `attachments` | Inspect attachment metadata (`attachments get <id>`) and download attachment files (`attachments download <id>`) using the active profile's auth |
+| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; `issues comment edit <journal-id>` edits a comment (Redmine 5.0+; journal IDs come from `issues get <id> --journals`); manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
+| `attachments` | Inspect attachment metadata (`attachments get <id>`), download files (`attachments download <id>`) or thumbnails (`attachments thumbnail <id> --path <file>`), and edit or remove them (`attachments update <id> --filename/--description/--content-type`, `attachments delete <id>`) using the active profile's auth |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |
 | `time` | Log, list, get, update, delete, summarize time entries |
@@ -25,9 +25,13 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `my-account` | Get and update your own Redmine account (works without admin) |
 | `groups` | List, get, create, update, delete groups; add/remove users |
 | `roles` | List and get roles, including their permissions |
-| `categories` | List issue categories |
+| `categories` | List, get, create, update, delete issue categories (`--assignee` sets the default assignee, `none` clears it; `delete --reassign-to <category>` moves the issues to another category of the same project) |
+| `news` | List, get, create, update, delete project news (`list` without `--project` spans all projects; `get --include attachments,comments`; `create` looks the new ID up afterwards; news comments are read-only) |
 | `trackers` | List and get trackers |
 | `statuses` | List issue statuses |
+| `priorities` | List issue priorities and their IDs (for `--priority`) |
+| `activities` | List time entry activities; `--project <p>` shows the ones available in that project incl. overrides with their own IDs |
+| `document-categories` | List document categories |
 | `custom-fields` | List and get custom field definitions (admin-only endpoint) |
 | `search` | Search issues, wiki, news, messages, or browse results |
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |

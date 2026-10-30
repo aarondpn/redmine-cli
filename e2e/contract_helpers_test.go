@@ -175,6 +175,14 @@ func discoverContractWorld(t *testing.T) *contractWorld {
 	v := firstWhere(versions, func(m map[string]any) bool { return m["name"] == "E2E Contract v1" })
 	need("version", jsonInt(field(v, "id")), "version E2E Contract v1")
 
+	categories := field(rawGET(t, P+"/issue_categories.json"), "issue_categories")
+	c := firstWhere(categories, func(m map[string]any) bool { return m["name"] == "Contract Category" })
+	need("category", jsonInt(field(c, "id")), "issue category Contract Category")
+
+	news := field(rawGET(t, P+"/news.json?limit=100"), "news")
+	n := firstWhere(news, func(m map[string]any) bool { return m["title"] == "Contract news" })
+	need("news", jsonInt(field(n, "id")), "news Contract news")
+
 	users := field(rawGET(t, "/users.json?limit=100&name=e2econtract"), "users")
 	u := firstWhere(users, func(m map[string]any) bool { return m["login"] == "e2econtract" })
 	need("user", jsonInt(field(u, "id")), "user e2econtract")

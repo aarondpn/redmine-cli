@@ -1,0 +1,140 @@
+---
+title: 新闻
+description: 列出、查看、创建、更新和删除项目新闻，包括附件和只读评论。
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+`news` 命令用于管理项目的新闻。如需在新闻中做全文搜索，请使用 `redmine search news <query>`。
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="列出某个项目或所有项目的新闻。" />
+  <LinkCard title="get" href="#get" description="查看新闻及其附件和评论。" />
+  <LinkCard title="create" href="#create" description="发布新闻。" />
+  <LinkCard title="update" href="#update" description="修改标题、摘要或正文。" />
+  <LinkCard title="delete" href="#delete" description="删除新闻。" />
+</CardGrid>
+
+项目需要启用 `news` 模块。读取需要“查看新闻”权限，写入需要“管理新闻”权限。
+
+## list
+
+```bash
+redmine news list [flags]
+```
+
+别名：`ls`。新闻按时间倒序列出。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`    | 项目名称、标识符或 ID - 默认回退到默认项目。两者都没有时，列出所有可见项目的新闻 |
+| `--limit`      | 最大条目数（默认 100，`0` 表示全部） |
+| `--offset`     | 跳过的条目数 |
+| `-o, --output` | 输出格式 |
+
+表格显示 ID、项目、标题、作者和创建时间。当实际新闻多于显示的数量时，stderr 会提示使用 `--limit` 和 `--offset`。
+
+```bash
+redmine news list --project myproject
+redmine news list
+redmine news list --project myproject --limit 10 --offset 10
+redmine news list --project myproject --jq '.[].title'
+```
+
+## get
+
+```bash
+redmine news get <id> [flags]
+```
+
+别名：`show`、`view`。显示项目、标题、摘要、作者、创建时间和正文。
+
+| 标志 | 描述 |
+|------|------|
+| `--include`    | `attachments`、`comments`、`reactions`（可重复或以逗号分隔） |
+| `-o, --output` | 输出格式 |
+
+使用 `--include comments` 和 `--include attachments` 时，表格输出会追加评论表（ID、作者、评论，标题为 `Comments:`）和附件表（ID、文件名、大小、内容类型，标题为 `Attachments:`）。`-o json` 返回包含所请求数组的完整新闻对象。未知的 include 值会在发送请求之前被拒绝。
+
+```bash
+redmine news get 12
+redmine news get 12 --include attachments,comments
+redmine news get 12 --include comments -o json
+```
+
+<Aside type="note" title="reactions 需要 Redmine 7.1+">
+  `--include reactions` 会在新闻及每条评论上附加 `reactions`。Redmine 7.0 及更早版本会忽略该 include，不返回反应。
+</Aside>
+
+## create
+
+```bash
+redmine news create --title <title> (--description <text> | --description-file <path>) [flags]
+```
+
+别名：`new`。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`          | 项目名称、标识符或 ID - 默认回退到默认项目 |
+| `--title`            | 标题（必填，最多 60 个字符） |
+| `--summary`          | 简短摘要（最多 255 个字符） |
+| `-d, --description`  | 正文（未使用 `--description-file` 时必填） |
+| `-F, --description-file` | 从文件读取正文；用 `-` 从标准输入读取 |
+| `--attach`           | 要附加的文件（可重复） |
+| `-o, --output`       | 输出格式 |
+
+```bash
+redmine news create --project myproject --title "Release 2.0" \
+  --summary "Now available" --description "We shipped 2.0 today."
+redmine news create --project myproject --title "Release 2.0" --description-file news.textile
+redmine news create --project myproject --title "Roadmap" \
+  --description "See the attached roadmap." --attach ./roadmap.pdf
+```
+
+<Aside type="note" title="创建后回查 ID">
+  Redmine 创建新闻时只返回空的 `204 No Content`，响应中没有新 ID。CLI 会回查：列出该项目最新的新闻，并选取第一条标题、摘要和正文都相同且作者为你的新闻。使用 `-o json` 时结果为 `{"ok": true, "action": "created", "resource": "news", "id": 42, ...}`。没有匹配项（或回查失败）时，创建仍然成功，但会省略 `id` 字段并在 stderr 输出警告；请运行 `redmine news list --project <project>` 查找。不要重复创建，否则会发布重复的新闻。
+</Aside>
+
+## update
+
+```bash
+redmine news update <id> [flags]
+```
+
+别名：`edit`。只修改你传入的标志；`--title`、`--summary`、`--description`、`--description-file` 或 `--attach` 至少需要一个。
+
+| 标志 | 描述 |
+|------|------|
+| `--title`            | 新标题 |
+| `--summary`          | 新摘要；`--summary ""` 清空摘要 |
+| `-d, --description`  | 新正文 |
+| `-F, --description-file` | 从文件读取新正文；用 `-` 从标准输入读取 |
+| `--attach`           | 要附加的文件（可重复） |
+
+```bash
+redmine news update 12 --title "Release 2.0 (final)"
+redmine news update 12 --description-file news.textile
+redmine news update 12 --summary "" --attach ./notes.pdf
+```
+
+## delete
+
+```bash
+redmine news delete <id> [flags]
+```
+
+别名：`rm`。连同评论一起删除该新闻。除非指定 `--force`，否则会请求确认；拒绝时输出 `Delete cancelled`，不做任何修改。
+
+| 标志 | 描述 |
+|------|------|
+| `-f, --force` | 跳过确认提示 |
+
+```bash
+redmine news delete 12
+redmine news delete 12 --force
+```
+
+<Aside type="caution" title="新闻评论是只读的">
+  Redmine 不接受通过 REST API 提交新闻评论。`--include comments` 可以读取评论，但无法通过 CLI 或 MCP 服务器创建、编辑或删除评论。
+</Aside>

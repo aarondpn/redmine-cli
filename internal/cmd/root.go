@@ -15,6 +15,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/category"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/completion"
 	customfield "github.com/aarondpn/redmine-cli/v2/internal/cmd/custom_field"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/enumeration"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/files"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/group"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/installskill"
@@ -22,6 +23,7 @@ import (
 	mcpcmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/mcp"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/membership"
 	myaccount "github.com/aarondpn/redmine-cli/v2/internal/cmd/my_account"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmd/news"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/project"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/query"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/role"
@@ -125,6 +127,7 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(attachment.NewCmdAttachments(f))
 	cmd.AddCommand(group.NewCmdGroup(f))
 	cmd.AddCommand(membership.NewCmdMemberships(f))
+	cmd.AddCommand(news.NewCmdNews(f))
 	cmd.AddCommand(project.NewCmdProject(f))
 	cmd.AddCommand(query.NewCmdQueries(f))
 	cmd.AddCommand(role.NewCmdRoles(f))
@@ -135,6 +138,9 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(customfield.NewCmdCustomFields(f))
 	cmd.AddCommand(category.NewCmdCategories(f))
 	cmd.AddCommand(status.NewCmdStatuses(f))
+	cmd.AddCommand(enumeration.NewCmdPriorities(f))
+	cmd.AddCommand(enumeration.NewCmdActivities(f))
+	cmd.AddCommand(enumeration.NewCmdDocumentCategories(f))
 	cmd.AddCommand(versioncmd.NewCmdVersions(f))
 	cmd.AddCommand(files.NewCmdFiles(f))
 	cmd.AddCommand(search.NewCmdSearch(f))

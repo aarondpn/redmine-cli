@@ -14,3 +14,11 @@ type Attachment struct {
 	Author       IDName `json:"author"`
 	CreatedOn    string `json:"created_on"`
 }
+
+// AttachmentUpdate is the payload for PUT /attachments/:id.json. Nil fields
+// are left unchanged; a pointer to an empty string is still sent.
+type AttachmentUpdate struct {
+	Filename    *string `json:"filename,omitempty"`
+	Description *string `json:"description,omitempty"`
+	ContentType *string `json:"content_type,omitempty"`
+}

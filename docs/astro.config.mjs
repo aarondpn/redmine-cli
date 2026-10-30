@@ -66,6 +66,8 @@ export default defineConfig({
 						{ label: 'Projects', translations: { 'zh-CN': '项目' }, slug: 'commands/projects' },
 						{ label: 'Memberships', translations: { 'zh-CN': '成员关系' }, slug: 'commands/memberships' },
 						{ label: 'Versions', translations: { 'zh-CN': '版本' }, slug: 'commands/versions' },
+						{ label: 'Categories', translations: { 'zh-CN': '工单类别' }, slug: 'commands/categories' },
+						{ label: 'News', translations: { 'zh-CN': '新闻' }, slug: 'commands/news' },
 						{ label: 'Files', translations: { 'zh-CN': '项目文件' }, slug: 'commands/files' },
 						{ label: 'Attachments', translations: { 'zh-CN': '附件' }, slug: 'commands/attachments' },
 						{ label: 'Time Entries', translations: { 'zh-CN': '工时记录' }, slug: 'commands/time' },

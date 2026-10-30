@@ -36,6 +36,14 @@ type Journal struct {
 	Reactions []Reaction `json:"reactions,omitzero"`
 }
 
+// JournalUpdate is the payload for PUT /journals/:id.json (Redmine 5.0+).
+// Pointers distinguish "not given" from an empty string, which is how a
+// comment's text is cleared.
+type JournalUpdate struct {
+	Notes        *string `json:"notes,omitempty"`
+	PrivateNotes *bool   `json:"private_notes,omitempty"`
+}
+
 // Reaction is one reaction on an issue or journal (include=reactions,
 // Redmine 7.1+).
 type Reaction struct {
