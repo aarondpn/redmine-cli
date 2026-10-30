@@ -117,6 +117,8 @@ redmine update
 
 Pulls the latest release, verifies its SHA256 checksum and its GitHub artifact attestation, then replaces the running binary. See [Self-Update](/commands/other/#self-update) for details and flags.
 
+If you installed with Scoop or winget, update through that package manager (`scoop update redmine` or `winget upgrade aarondpn.redmine-cli`) instead, so its recorded version stays in sync.
+
 <Aside type="caution" title="Checksum and attestation verification">
   The installer and self-updater both fail closed if the release checksum does not match. The self-updater also refuses a release without a valid attestation from this repository's release workflow, and so does the installer when a recent, logged-in `gh` is available; otherwise the installer only checks the checksum and says so. Never bypass a failed check — report it as a security issue.
 </Aside>

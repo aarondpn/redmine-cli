@@ -114,14 +114,17 @@ homebrew_casks:
 # Windows package managers. Both are skipped while their token secret is
 # unset, so a release never fails because the bucket repo, the winget-pkgs
 # fork or the secret does not exist yet. `index .Env` returns "" for a missing
-# variable, where `.Env.NAME` would be a template error.
+# variable, where `.Env.NAME` would be a template error; it is only needed in
+# skip_upload. GoReleaser requires `token` to be the plain `{{ .Env.NAME }}`
+# form and only templates it after the skip_upload check. Prereleases are never
+# published, so rc tags stay out of the bucket and winget-pkgs.
 scoops:
   - name: redmine
     repository:
       owner: aarondpn
       name: scoop-bucket
-      token: '{{ index .Env "SCOOP_BUCKET_GITHUB_TOKEN" }}'
-    skip_upload: '{{ if index .Env "SCOOP_BUCKET_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    skip_upload: '{{ if and (index .Env "SCOOP_BUCKET_GITHUB_TOKEN") (not .Prerelease) }}false{{ else }}true{{ end }}'
     homepage: https://github.com/aarondpn/redmine-cli
     description: CLI tool for interacting with Redmine project management
     license: MIT
@@ -137,12 +140,12 @@ winget:
     license: MIT
     license_url: https://github.com/aarondpn/redmine-cli/blob/main/LICENSE
     homepage: https://github.com/aarondpn/redmine-cli
-    skip_upload: '{{ if index .Env "WINGET_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    skip_upload: '{{ if and (index .Env "WINGET_GITHUB_TOKEN") (not .Prerelease) }}false{{ else }}true{{ end }}'
     repository:
       owner: aarondpn
       name: winget-pkgs
       branch: "redmine-cli-{{ .Version }}"
-      token: '{{ index .Env "WINGET_GITHUB_TOKEN" }}'
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
       pull_request:
         enabled: true
         base:
