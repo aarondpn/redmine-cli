@@ -13,7 +13,7 @@
   },
   {
     "name": "get_issue",
-    "description": "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.0+)."
+    "description": "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+)."
   },
   {
     "name": "get_issue_relation",

@@ -79,7 +79,7 @@ func deprecationProblems(flags []cmdutil.DeprecatedFlag, markers []markerLocatio
 		}
 		// The flag stays valid through removeAfter itself.
 		if !now.Before(removeAfter.AddDate(0, 0, 1)) {
-			problems = append(problems, fmt.Sprintf("%s --%s expired on %s: delete the flag, the code reading it and its tests (see %s)", fl.Command, fl.Name, fl.RemoveAfter, strings.Join(locs, ", ")))
+			problems = append(problems, fmt.Sprintf("%s --%s expired on %s: delete the flag, the code reading it and its tests (see %s; also grep the repo for %s%s) to find tests and docs)", fl.Command, fl.Name, fl.RemoveAfter, strings.Join(locs, ", "), cmdutil.DeprecationMarker, fl.RemoveAfter))
 		}
 	}
 	return problems

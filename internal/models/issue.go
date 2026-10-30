@@ -46,7 +46,7 @@ type Issue struct {
 	// AllowedStatuses (include=allowed_statuses) needs Redmine 5.0+; older
 	// servers ignore the include and leave it nil.
 	AllowedStatuses []IssueStatus `json:"allowed_statuses,omitzero"`
-	// Reactions (include=reactions) needs Redmine 7.0+.
+	// Reactions (include=reactions) needs Redmine 7.1+.
 	Reactions []Reaction `json:"reactions,omitzero"`
 }
 

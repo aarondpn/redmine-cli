@@ -27,7 +27,7 @@ const removeAfterAnnotation = "redmine-cli-remove-after"
 //
 // Every call site must carry a marker comment that names the flag as --name,
 // so the code to delete can be found with
-// `grep -rn "DEPRECATED(remove-after" internal`:
+// `grep -rn "DEPRECATED(remove-after" . --exclude-dir=node_modules`:
 //
 //	// DEPRECATED(remove-after: 2027-01-31): --include-users alias; delete the flag, the code reading it and its tests
 //	cmdutil.DeprecateFlag(cmd, "include-users", "--include users", "2027-01-31")

@@ -5,7 +5,7 @@ import (
 )
 
 // allowedGetIncludes lists the include keys rendered by GET /issues/:id.json.
-// allowed_statuses needs Redmine 5.0+ and reactions needs Redmine 7.0+;
+// allowed_statuses needs Redmine 5.0+ and reactions needs Redmine 7.1+;
 // older servers ignore them.
 var allowedGetIncludes = map[string]struct{}{
 	"allowed_statuses": {},

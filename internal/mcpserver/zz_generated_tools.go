@@ -114,7 +114,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueInput, *models.Issue]{
 		Name:        "get_issue",
-		Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.0+).",
+		Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+).",
 		Category:    "issues",
 		Call:        ops.GetIssue,
 	})
@@ -494,7 +494,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue_relation", Description: "Delete an issue relation by its relation ID. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "get_attachment", Description: "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"].", Group: "issues", Writes: false},
-		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.0+).", Group: "issues", Writes: false},
+		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+).", Group: "issues", Writes: false},
 		{Name: "get_issue_relation", Description: "Fetch a single issue relation by its relation ID.", Group: "issues", Writes: false},
 		{Name: "list_issue_relations", Description: "List relations attached to an issue.", Group: "issues", Writes: false},
 		{Name: "list_issue_watchers", Description: "List watchers of an issue.", Group: "issues", Writes: false},

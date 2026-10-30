@@ -91,7 +91,7 @@ redmine issues get <id> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`                | 包含关联数据：`journals`、`children`、`relations`、`attachments`、`watchers`、`changesets`、`allowed_statuses`（Redmine 5.0+）、`reactions`（Redmine 7.0+）；可重复或逗号分隔，未知值会被拒绝 |
+| `--include`                | 包含关联数据：`journals`、`children`、`relations`、`attachments`、`watchers`、`changesets`、`allowed_statuses`（Redmine 5.0+）、`reactions`（Redmine 7.1+）；可重复或逗号分隔，未知值会被拒绝 |
 | `--journals`               | `--include journals` 的简写 |
 | `--children`               | `--include children` 的简写 |
 | `--relations`              | `--include relations` 的简写 |
@@ -139,7 +139,7 @@ redmine issues get <id> [flags]
 - `children`，由 `id`、`tracker`、`subject` 和嵌套 `children` 组成的递归树。
 - 使用 `--include changesets` 时的 `changesets`，以及使用 `--include allowed_statuses` 时的 `allowed_statuses`（Redmine 5.0+）。
 - 日志的 `updated_on`（Redmine 6.0+，每条日志都有）和 `updated_by`（备注被编辑过时才有）。
-- 使用 `--include reactions` 时，工单和日志上的 `reactions`（Redmine 7.0+）。
+- 使用 `--include reactions` 时，工单和日志上的 `reactions`（Redmine 7.1+）。
 
 <Aside type="tip">
   `--attachments` 会显示每个附件的 ID。把该 ID 传给

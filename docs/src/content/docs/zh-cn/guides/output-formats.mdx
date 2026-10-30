@@ -92,7 +92,7 @@ redmine issues list --project myproject --limit 0 -o json \
 
    仅较新版本的 Redmine 才会返回的字段也遵循缺省规则：服务端未提供时，这些键是缺省的，而不是 `null` 或 `0`。
    例如 `status.is_closed` 和 `allowed_statuses`（Redmine 5.0+）、工单列表中的工时字段（5.0+）、日志的 `updated_on` 与 `updated_by` 以及用户的
-   `auth_source`（6.0+），还有 `reactions`（7.0+）。使用前请先检查该键是否存在，例如 `jq '.status | has("is_closed")'`
+   `auth_source`（6.0+），还有 `reactions`（7.1+）。使用前请先检查该键是否存在，例如 `jq '.status | has("is_closed")'`
    （`// empty` 也会隐藏 `false` 值）。
    各命令页面列出了可选字段，例如 [`issues get`](/zh-cn/commands/issues/#get)。
 

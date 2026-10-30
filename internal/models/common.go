@@ -32,12 +32,12 @@ type Journal struct {
 	UpdatedOn string          `json:"updated_on,omitempty"`
 	UpdatedBy *IDName         `json:"updated_by,omitempty"`
 	Details   []JournalDetail `json:"details,omitzero"`
-	// Reactions (include=reactions) needs Redmine 7.0+.
+	// Reactions (include=reactions) needs Redmine 7.1+.
 	Reactions []Reaction `json:"reactions,omitzero"`
 }
 
 // Reaction is one reaction on an issue or journal (include=reactions,
-// Redmine 7.0+).
+// Redmine 7.1+).
 type Reaction struct {
 	User IDName `json:"user"`
 }

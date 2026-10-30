@@ -182,7 +182,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVar(&includes, "include", nil,
-		"Include related data: journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+), reactions (Redmine 7.0+) (repeatable or comma-separated)")
+		"Include related data: journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+), reactions (Redmine 7.1+) (repeatable or comma-separated)")
 	_ = cmd.RegisterFlagCompletionFunc("include", completeGetIncludes)
 	cmd.Flags().BoolVar(&journals, "journals", false, "Include issue history/comments (shorthand for --include journals)")
 	cmd.Flags().BoolVar(&children, "children", false, "Include child issues (shorthand for --include children)")

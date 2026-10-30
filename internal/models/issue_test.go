@@ -10,7 +10,9 @@ import (
 // and permission granted: status.is_closed, the hour fields, closed_on, a
 // three-level children tree (a leaf without "children", a node without
 // "tracker"), changesets with and without a user, journals carrying
-// updated_on/updated_by/reactions, allowed_statuses and issue reactions.
+// updated_on/updated_by, allowed_statuses, plus reactions on the issue and
+// journals, which Redmine 7.0.x does not send yet (7.1+); they are kept here to
+// cover the decoding of that include.
 // Keys Redmine always sends but the models drop when empty (is_private,
 // private_notes, null start_date/due_date) are left out on purpose so the
 // lossless round-trip below holds; this is not the full wire payload.
@@ -62,7 +64,7 @@ const issueShow70 = `{
 // the view_time_entries permission: no is_closed, no spent_hours or
 // total_spent_hours (gated by that permission), null estimated_hours and
 // total_estimated_hours (always sent), no
-// updated_on/updated_by on journals, and nothing for the 5.0+/7.0+ includes.
+// updated_on/updated_by on journals, and nothing for the 5.0+/7.1+ includes.
 const issueShow42 = `{
   "id": 10,
   "project": {"id": 1, "name": "P"},

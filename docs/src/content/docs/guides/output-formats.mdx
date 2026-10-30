@@ -171,7 +171,7 @@ is matched in any letter case.
    are absent, never `null` or `0`, when the server does not provide them.
    Examples are `status.is_closed` and `allowed_statuses` (Redmine 5.0+), the
    hours fields on issue lists (5.0+), journal `updated_on` and `updated_by`
-   and a user's `auth_source` (6.0+), and `reactions` (7.0+). Check for the
+   and a user's `auth_source` (6.0+), and `reactions` (7.1+). Check for the
    key before relying on it, for example `jq '.status | has("is_closed")'`
    (`// empty` would also hide a `false` value). The
    per-command pages list the optional fields, for example
