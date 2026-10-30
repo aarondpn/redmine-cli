@@ -218,6 +218,13 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A scheme-less server (redmine.example.com) would fail every request
+	// with 'unsupported protocol scheme ""'; assume https like the login does.
+	if server := config.EnsureScheme(cfg.Server); server != cfg.Server {
+		withScheme := *cfg
+		withScheme.Server = server
+		cfg = &withScheme
+	}
 	return newClient(cfg, log, newBaseTransport(headerTimeout)), nil
 }
 

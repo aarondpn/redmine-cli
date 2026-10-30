@@ -31,6 +31,27 @@ redmine auth login --header "User-Agent: Mozilla/5.0"   # 服务器位于有特�
 | `--keyring` | 将凭据存储到系统密钥环，而非明文配置文件。参见 [配置](/zh-cn/getting-started/configuration/#系统密钥环可选)。 |
 | `--header` | 全局标志。请求头用于连接测试并保存到配置文件中。参见 [自定义 HTTP 请求头](/zh-cn/getting-started/configuration/#自定义-http-请求头)。 |
 
+### 非交互式登录
+
+没有终端时（CI、脚本、AI 代理）无法运行向导。同时传入全局标志 `--server` 与 `--api-key-file`（`-` 表示从标准输入读取）或 `--api-key`，即不会出现任何提示：URL 会被规范化，连接会被测试，配置文件会被保存并激活。
+
+```bash
+echo "$REDMINE_KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
+redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --name work --default-project web -o json
+```
+
+`-o json` 会输出常规的 action 信封（`"action": "logged_in"`）。缺少必要值且没有终端时，命令会立即失败并指出需要传入的标志。在终端中，已通过标志提供的值不会再次询问。
+
+| 标志 | 描述 |
+|------|------|
+| `--server`、`-s` | 全局标志。服务器 URL；跳过 URL 提示。 |
+| `--api-key-file`、`--api-key` | 全局标志。API 密钥；跳过凭据提示。建议使用 `--api-key-file`，避免密钥出现在进程列表中。 |
+| `--default-project` | 保存为配置文件默认项目的项目标识符（会向服务器校验）。 |
+
+### 服务器 URL 规范化
+
+URL 在保存前会被整理，若有改动，向导会告知：去除首尾空白、查询参数、片段和末尾斜杠；未指定协议时添加 `https://`（显式的 `http://` 会保留）；从浏览器复制的 Redmine 页面会被还原为基础 URL（`https://host/projects/foo/issues` 变为 `https://host`）。子路径部署会被保留：`https://host/redmine/issues/5` 变为 `https://host/redmine`。来自 `REDMINE_SERVER` 或配置文件的服务器值仅在缺少协议时补上 `https://`。
+
 <Aside type="tip">
   随时再次执行 `redmine auth login` 即可添加新的配置文件——向导在未经确认的情况下绝不会覆盖已有配置文件。
 </Aside>

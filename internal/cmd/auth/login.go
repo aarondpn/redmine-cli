@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -11,75 +12,129 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/secrets"
 )
 
+// loginOptions holds the login-specific flags.
+type loginOptions struct {
+	name           string
+	useKeyring     bool
+	keyringSet     bool
+	defaultProject string
+}
+
+// loginNeedsTerminalError is returned when values are missing and there is no
+// terminal to prompt on.
+const loginNeedsTerminalError = `redmine auth login needs a terminal to prompt for missing values; pass them as flags instead, e.g.
+  redmine auth login --server https://redmine.example.com --api-key-file -
+(the API key is read from standard input; --api-key-file also accepts a file path)`
+
 // NewCmdLogin creates the auth login command.
 func NewCmdLogin(f *cmdutil.Factory) *cobra.Command {
-	var name string
-	var useKeyring bool
+	var opts loginOptions
 
 	cmd := &cobra.Command{
 		Use:   "login",
 		Args:  cobra.NoArgs,
 		Short: "Log in to a Redmine instance",
-		Long: `Interactive setup to authenticate with a Redmine server and save the profile.
+		Long: `Authenticate with a Redmine server and save the profile.
+
+In a terminal this starts an interactive wizard; values given as flags are not
+asked for again. Without a terminal (scripts, CI, AI agents), pass the global
+--server flag together with --api-key-file (or --api-key) and no prompt is
+shown: the URL is normalized, the connection is tested, and the profile is
+saved and activated. In that mode -o json prints the result.
+
+A server URL without a scheme gets https://, and a URL pasted from the browser
+(https://host/projects/foo/issues) is reduced to the Redmine base URL while a
+sub-path such as /redmine is kept.
 
 Headers passed with the global --header flag are used for the connection test
 and saved to the profile, for servers behind a firewall or proxy that require them.`,
 		Example: `  redmine auth login
   redmine auth login --name work
-  redmine auth login --header "User-Agent: Mozilla/5.0"`,
+  redmine auth login --header "User-Agent: Mozilla/5.0"
+  echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
+  redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --default-project web -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
-				return err
+			nonInteractive := f.ServerOverride != "" && (f.APIKeyOverride != "" || f.APIKeyFile != "")
+			if !nonInteractive {
+				if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
+					return err
+				}
+				if !f.IOStreams.IsTTY {
+					return errors.New(loginNeedsTerminalError)
+				}
 			}
-			return runLogin(cmdutil.Context(cmd), f, name, useKeyring, cmd.Flags().Changed("keyring"))
+			opts.keyringSet = cmd.Flags().Changed("keyring")
+			return runLogin(cmdutil.Context(cmd), f, opts, nonInteractive)
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "Profile name (default: derived from server hostname)")
-	cmd.Flags().BoolVar(&useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
+	cmd.Flags().StringVar(&opts.name, "name", "", "Profile name (default: derived from server hostname)")
+	cmd.Flags().BoolVar(&opts.useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
+	cmd.Flags().StringVar(&opts.defaultProject, "default-project", "", "Default project identifier to save in the profile")
 
 	return cmd
 }
 
-func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyringFlag, keyringFlagSet bool) error {
+func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInteractive bool) error {
 	var (
-		server     string
+		server     = f.ServerOverride
 		authMethod string
-		apiKey     string
 		username   string
 		password   string
-		defProject string
 	)
+	profileName := opts.name
+	defProject := opts.defaultProject
 
-	// Step 1: Server URL and auth method
-	err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Redmine Server URL").
-				Description("e.g., https://redmine.example.com").
-				Value(&server).
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("server URL is required")
-					}
-					return nil
-				}),
-			huh.NewSelect[string]().
-				Title("Authentication Method").
-				Options(
-					huh.NewOption("API Key (recommended)", "apikey"),
-					huh.NewOption("Username & Password", "basic"),
-				).
-				Value(&authMethod),
-		),
-	).Run()
+	apiKey, err := f.APIKeyFromFlags()
 	if err != nil {
 		return err
 	}
+	if apiKey != "" {
+		authMethod = "apikey"
+	}
+
+	// Step 1: Server URL and auth method, for whatever the flags did not give
+	var fields []huh.Field
+	if server == "" {
+		fields = append(fields, huh.NewInput().
+			Title("Redmine Server URL").
+			Description("e.g., https://redmine.example.com").
+			Value(&server).
+			Validate(func(s string) error {
+				_, err := config.NormalizeServerURL(s)
+				return err
+			}))
+	}
+	if authMethod == "" {
+		fields = append(fields, huh.NewSelect[string]().
+			Title("Authentication Method").
+			Options(
+				huh.NewOption("API Key (recommended)", "apikey"),
+				huh.NewOption("Username & Password", "basic"),
+			).
+			Value(&authMethod))
+	}
+	if len(fields) > 0 {
+		if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
+			return err
+		}
+	}
+
+	printer := f.Printer("")
+
+	normalized, err := config.NormalizeServerURL(server)
+	if err != nil {
+		return err
+	}
+	if normalized != strings.TrimSpace(server) {
+		printer.Success(fmt.Sprintf("Using server URL %s", normalized))
+	}
+	server = normalized
 
 	// Derive default profile name from server URL
 	defaultName := config.ProfileNameFromURL(server)
@@ -89,17 +144,19 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 
 	// Step 2: Profile name (with default from hostname)
 	if profileName == "" {
-		err = huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Profile name").
-					Description("A short name for this connection").
-					Placeholder(defaultName).
-					Value(&profileName),
-			),
-		).Run()
-		if err != nil {
-			return err
+		if !nonInteractive {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Profile name").
+						Description("A short name for this connection").
+						Placeholder(defaultName).
+						Value(&profileName),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
 		}
 		if profileName == "" {
 			profileName = defaultName
@@ -121,40 +178,40 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 	warnCleartextServer(f, server)
 
 	// Step 3: Credentials
-	if authMethod == "apikey" {
-		err = huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("API Key").
-					Description("Found at My Account > API access key").
-					EchoMode(huh.EchoModePassword).
-					Value(&apiKey).
-					Validate(func(s string) error {
-						if s == "" {
-							return fmt.Errorf("API key is required")
-						}
-						return nil
-					}),
-			),
-		).Run()
-	} else {
-		err = huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Username").
-					Value(&username),
-				huh.NewInput().
-					Title("Password").
-					EchoMode(huh.EchoModePassword).
-					Value(&password),
-			),
-		).Run()
+	if apiKey == "" {
+		if authMethod == "apikey" {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("API Key").
+						Description("Found at My Account > API access key").
+						EchoMode(huh.EchoModePassword).
+						Value(&apiKey).
+						Validate(func(s string) error {
+							if s == "" {
+								return fmt.Errorf("API key is required")
+							}
+							return nil
+						}),
+				),
+			).Run()
+		} else {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Username").
+						Value(&username),
+					huh.NewInput().
+						Title("Password").
+						EchoMode(huh.EchoModePassword).
+						Value(&password),
+				),
+			).Run()
+		}
+		if err != nil {
+			return err
+		}
 	}
-	if err != nil {
-		return err
-	}
-
-	printer := f.Printer("")
 
 	// --header values are merged over the profile's existing headers, used for
 	// the connection test and saved, so a server that requires them is
@@ -201,11 +258,19 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
 
 	// Step 5: Default project (optional)
-	stop = printer.Spinner("Fetching projects...")
-	projects, _, err := client.Projects.List(ctx, nil, 100, 0)
-	stop()
+	var projects []models.Project
+	switch {
+	case defProject != "":
+		if _, err := client.Projects.Get(ctx, defProject, nil); err != nil {
+			return fmt.Errorf("default project %q: %s", defProject, cmdutil.FormatErrorMessage(err))
+		}
+	case !nonInteractive:
+		stop = printer.Spinner("Fetching projects...")
+		projects, _, err = client.Projects.List(ctx, nil, 100, 0)
+		stop()
+	}
 
-	if err == nil && len(projects) > 0 {
+	if err == nil && len(projects) > 0 && defProject == "" {
 		options := []huh.Option[string]{
 			huh.NewOption("(none)", ""),
 		}
@@ -229,7 +294,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 	cfg.OutputFormat = "table"
 
 	// Step 6: Credential storage choice
-	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, keyringFlag, keyringFlagSet)
+	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, opts.useKeyring, opts.keyringSet, nonInteractive)
 	if err != nil {
 		return err
 	}
@@ -260,7 +325,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, profileName string, keyri
 // resolveKeyringChoice decides whether to store credentials in the system
 // keyring. The flag wins, then the existing profile's storage is the default;
 // a keyring profile is never silently downgraded to plaintext.
-func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool) (bool, error) {
+func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool, noPrompt ...bool) (bool, error) {
 	if keyringFlagSet {
 		if keyringFlag && !secrets.Default.Available() {
 			return false, fmt.Errorf("system keyring is not available on this machine; re-run without --keyring or store credentials via environment variables")
@@ -274,7 +339,7 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 	if wasKeyring && !available {
 		return false, fmt.Errorf("profile %q stores credentials in the system keyring, which is not available right now; make the keyring usable, or re-run with --keyring=false to switch to plaintext storage", profileName)
 	}
-	if !f.IOStreams.IsTTY {
+	if !f.IOStreams.IsTTY || (len(noPrompt) > 0 && noPrompt[0]) {
 		return wasKeyring, nil
 	}
 	if !available {

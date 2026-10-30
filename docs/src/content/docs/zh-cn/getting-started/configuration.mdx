@@ -23,6 +23,8 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
 
 </Steps>
 
+没有终端时（CI、脚本、AI 代理）可跳过向导：`echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -`。参见 [`auth login`](/zh-cn/commands/auth/#非交互式登录)。
+
 ## 多个配置文件
 
 你可以对任意数量的 Redmine 实例进行身份验证。每次执行 `redmine auth login` 都会创建一个命名配置文件。
