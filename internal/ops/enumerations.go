@@ -14,7 +14,7 @@ type PrioritiesListResult struct {
 }
 
 type ListTimeEntryActivitiesInput struct {
-	ProjectID string `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. When set, returns the activities available in that project (only active ones, project-specific overrides included); only id and name are reported then."`
+	ProjectID string `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. When set, returns the activities available in that project (only active ones, project-specific overrides included); Redmine reports only id and name then, so active is always true and is_default is derived from the default shared activity of the same name."`
 }
 
 type TimeEntryActivitiesListResult struct {
@@ -56,7 +56,23 @@ func ListTimeEntryActivities(ctx context.Context, client *api.Client, input List
 	if project.TimeEntryActivities == nil {
 		return TimeEntryActivitiesListResult{}, fmt.Errorf("Redmine returned no time entry activities for project %q (it needs the view_time_entries permission there)", input.ProjectID)
 	}
-	return TimeEntryActivitiesListResult{Activities: project.TimeEntryActivities, Count: len(project.TimeEntryActivities)}, nil
+	// Redmine only reports {id, name} here and only lists active activities.
+	// Fill in the flags it omits so they do not decode as misleading false values.
+	defaults := map[string]bool{}
+	if shared, sharedErr := client.Enumerations.TimeEntryActivities(ctx); sharedErr == nil {
+		for _, a := range shared {
+			if a.IsDefault {
+				defaults[a.Name] = true
+			}
+		}
+	}
+	items := make([]models.Enumeration, len(project.TimeEntryActivities))
+	for i, a := range project.TimeEntryActivities {
+		a.Active = true
+		a.IsDefault = defaults[a.Name]
+		items[i] = a
+	}
+	return TimeEntryActivitiesListResult{Activities: items, Count: len(items)}, nil
 }
 
 // ListDocumentCategories lists document categories. It is CLI-only (no MCP tool).

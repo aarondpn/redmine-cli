@@ -108,8 +108,9 @@ func TestEnumerations_ActivitiesList(t *testing.T) {
 	}
 
 	var project []struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
+		ID     int    `json:"id"`
+		Name   string `json:"name"`
+		Active bool   `json:"active"`
 	}
 	r.runJSON(t, &project, "activities", "list", "--project", contractProject)
 	if len(project) == 0 {
@@ -124,6 +125,9 @@ func TestEnumerations_ActivitiesList(t *testing.T) {
 	}
 	overrides := 0
 	for _, a := range project {
+		if !a.Active {
+			t.Errorf("project activity %+v must be reported active", a)
+		}
 		sharedID, sameName := globalByName[a.Name]
 		if _, isShared := globalByID[a.ID]; !isShared && sameName {
 			overrides++

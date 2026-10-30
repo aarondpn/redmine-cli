@@ -51,16 +51,11 @@ func newCmdCategoryDelete(f *cmdutil.Factory) *cobra.Command {
 				} else {
 					// A name is looked up in the project of the category being
 					// deleted, since both must belong to the same project.
-					scope := cmdutil.DefaultProject(f, project)
-					if scope == "" {
-						cat, err := ops.GetIssueCategory(ctx, client, ops.GetIssueCategoryInput{ID: id})
-						if err != nil {
-							return fmt.Errorf("failed to get category %d: %w", id, err)
-						}
-						scope = strconv.Itoa(cat.Project.ID)
-					} else if scope, err = cmdutil.ResolveProjectIdentifier(ctx, f, scope); err != nil {
-						return err
+					cat, err := ops.GetIssueCategory(ctx, client, ops.GetIssueCategoryInput{ID: id})
+					if err != nil {
+						return fmt.Errorf("failed to get category %d: %w", id, err)
 					}
+					scope := strconv.Itoa(cat.Project.ID)
 					reassignID, err = resolver.ResolveCategory(ctx, client, reassignTo, scope)
 					if err != nil {
 						return err

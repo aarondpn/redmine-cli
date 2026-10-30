@@ -66,6 +66,10 @@ func TestListTimeEntryActivities_Global(t *testing.T) {
 
 func TestListTimeEntryActivities_Project(t *testing.T) {
 	client := enumTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/enumerations/time_entry_activities.json" {
+			_, _ = w.Write([]byte(`{"time_entry_activities":[{"id":9,"name":"Design","active":true},{"id":10,"name":"Development","is_default":true,"active":true}]}`))
+			return
+		}
 		if r.URL.Path != "/projects/demo.json" || r.URL.Query().Get("include") != "time_entry_activities" {
 			t.Errorf("request = %s", r.URL.String())
 		}
@@ -77,6 +81,12 @@ func TestListTimeEntryActivities_Project(t *testing.T) {
 	}
 	if res.Count != 2 || res.Activities[0].ID != 50 {
 		t.Errorf("result = %+v", res)
+	}
+	if !res.Activities[0].Active || !res.Activities[1].Active {
+		t.Errorf("project activities must be reported active: %+v", res.Activities)
+	}
+	if res.Activities[0].IsDefault || !res.Activities[1].IsDefault {
+		t.Errorf("is_default = %v/%v, want false/true", res.Activities[0].IsDefault, res.Activities[1].IsDefault)
 	}
 }
 

@@ -152,7 +152,7 @@ func UpdateNews(ctx context.Context, client *api.Client, input UpdateNewsInput) 
 		return MessageResult{}, errors.New("id must be a positive news ID")
 	}
 	if input.Title == nil && input.Summary == nil && input.Description == nil && len(input.Uploads) == 0 {
-		return MessageResult{}, errors.New("nothing to update: provide title, summary and/or description")
+		return MessageResult{}, errors.New("nothing to update: provide title, summary, description and/or uploads")
 	}
 	if input.Title != nil && strings.TrimSpace(*input.Title) == "" {
 		return MessageResult{}, errors.New("title must not be empty")
