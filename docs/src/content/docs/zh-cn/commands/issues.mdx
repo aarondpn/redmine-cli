@@ -126,7 +126,7 @@ redmine issues get <id> [flags]
     # 调查前先查看历史、文件、子工单和关联
     redmine issues get 123 --include journals,attachments,children,relations -o json
 
-    # 当前用户可以将工单转换到的状态（Redmine 5.0+）
+    # 当前用户可以将工单转换到的状态
     redmine issues get 123 --include allowed_statuses -o json
     ```
   </TabItem>

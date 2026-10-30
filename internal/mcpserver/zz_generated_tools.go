@@ -114,7 +114,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetIssueInput, *models.Issue]{
 		Name:        "get_issue",
-		Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+).",
+		Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions.",
 		Category:    "issues",
 		Call:        ops.GetIssue,
 	})
@@ -416,19 +416,19 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetUserInput, *models.User]{
 		Name:        "get_user",
-		Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.",
+		Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes.",
 		Category:    "users",
 		Call:        ops.GetUser,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListUsersInput, ops.UsersListResult]{
 		Name:        "list_users",
-		Description: "List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only).",
+		Description: "List Redmine users matching the given filter. Supports the auth_source include.",
 		Category:    "users",
 		Call:        ops.ListUsers,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetCurrentUserInput, *models.User]{
 		Name:        "me",
-		Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.",
+		Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes.",
 		Category:    "users",
 		Call:        ops.GetCurrentUser,
 	})
@@ -494,7 +494,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "delete_issue", Description: "Delete a Redmine issue. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_issue_relation", Description: "Delete an issue relation by its relation ID. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "get_attachment", Description: "Fetch metadata for a Redmine attachment by ID: filename, size, content type, description, author, and download URL. Discover attachment IDs via get_issue with includes=[\"attachments\"].", Group: "issues", Writes: false},
-		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+).", Group: "issues", Writes: false},
+		{Name: "get_issue", Description: "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions.", Group: "issues", Writes: false},
 		{Name: "get_issue_relation", Description: "Fetch a single issue relation by its relation ID.", Group: "issues", Writes: false},
 		{Name: "list_issue_relations", Description: "List relations attached to an issue.", Group: "issues", Writes: false},
 		{Name: "list_issue_watchers", Description: "List watchers of an issue.", Group: "issues", Writes: false},
@@ -541,9 +541,9 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_time_entry", Description: "Update an existing time entry. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "create_user", Description: "Create a new Redmine user. Requires --enable-writes and admin privileges.", Group: "users", Writes: true},
 		{Name: "delete_user", Description: "Delete a Redmine user. Destructive. Requires --enable-writes.", Group: "users", Writes: true},
-		{Name: "get_user", Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.", Group: "users", Writes: false},
-		{Name: "list_users", Description: "List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only).", Group: "users", Writes: false},
-		{Name: "me", Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.", Group: "users", Writes: false},
+		{Name: "get_user", Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes.", Group: "users", Writes: false},
+		{Name: "list_users", Description: "List Redmine users matching the given filter. Supports the auth_source include.", Group: "users", Writes: false},
+		{Name: "me", Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes.", Group: "users", Writes: false},
 		{Name: "update_user", Description: "Update an existing Redmine user. Requires --enable-writes.", Group: "users", Writes: true},
 		{Name: "create_wiki_page", Description: "Create (or overwrite) a wiki page. Requires --enable-writes.", Group: "wiki", Writes: true},
 		{Name: "delete_wiki_page", Description: "Delete a wiki page. Destructive. Requires --enable-writes.", Group: "wiki", Writes: true},

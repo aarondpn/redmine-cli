@@ -64,7 +64,7 @@ type DeleteUserInput struct {
 }
 
 //mcpgen:tool list_users
-//mcpgen:description List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only).
+//mcpgen:description List Redmine users matching the given filter. Supports the auth_source include.
 //mcpgen:category users
 func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (UsersListResult, error) {
 	users, total, err := client.Users.List(ctx, models.UserFilter{
@@ -82,14 +82,14 @@ func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (U
 }
 
 //mcpgen:tool get_user
-//mcpgen:description Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.
+//mcpgen:description Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes.
 //mcpgen:category users
 func GetUser(ctx context.Context, client *api.Client, input GetUserInput) (*models.User, error) {
 	return client.Users.Get(ctx, input.ID, input.Includes)
 }
 
 //mcpgen:tool me
-//mcpgen:description Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.
+//mcpgen:description Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes.
 //mcpgen:category users
 func GetCurrentUser(ctx context.Context, client *api.Client, input GetCurrentUserInput) (*models.User, error) {
 	return client.Users.Current(ctx, input.Includes)

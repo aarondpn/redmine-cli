@@ -42,12 +42,6 @@ Aliases: `show`, `view`. Accepts a numeric ID or group name.
 | `--include`    | Include related data: `users`, `memberships` (repeatable or comma-separated) |
 | `-o, --output` | Output format |
 
-{/* DEPRECATED(remove-after: 2027-01-31): --include-users/--include-memberships aliases; delete this paragraph */}
-
-`--include-users` and `--include-memberships` are deprecated aliases for `--include users` and `--include memberships`. They print a warning to stderr and will be removed after 2027-01-31.
-
-With `-o json` (and in the MCP group tools) a group carries `custom_fields` (always present, `[]` when there are no values) and `builtin` when Redmine sends it. With `--include memberships` (MCP: `includes: ["memberships"]`), each `memberships` entry is `{id, project, roles}`.
-
 ## create
 
 ```bash

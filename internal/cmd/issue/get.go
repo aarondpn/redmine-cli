@@ -63,7 +63,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
   redmine issues get 123 --include journals,attachments,children,relations -o json
 
-  # Which statuses may the current user move the issue to? (Redmine 5.0+)
+  # Which statuses may the current user move the issue to?
   redmine issues get 123 --include allowed_statuses -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

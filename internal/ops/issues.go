@@ -146,7 +146,7 @@ func assigneeFilterValue(v string) string {
 }
 
 //mcpgen:tool get_issue
-//mcpgen:description Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.1+).
+//mcpgen:description Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions.
 //mcpgen:category issues
 func GetIssue(ctx context.Context, client *api.Client, input GetIssueInput) (*models.Issue, error) {
 	return client.Issues.Get(ctx, input.ID, input.Includes)

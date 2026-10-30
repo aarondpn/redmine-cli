@@ -32,13 +32,12 @@ const removeAfterAnnotation = "redmine-cli-remove-after"
 //	// DEPRECATED(remove-after: 2027-01-31): --include-users alias; delete the flag, the code reading it and its tests
 //	cmdutil.DeprecateFlag(cmd, "include-users", "--include users", "2027-01-31")
 //
-// Tests and docs that reference a deprecated flag carry the same marker (a Go
-// comment, or an MDX comment `{/* DEPRECATED(remove-after: ...): ... */}`), so
-// the grep also lists everything that goes stale. The expiry test only scans
-// non-test .go call sites.
+// Tests that reference a deprecated flag carry the same marker, so the grep
+// also lists everything that goes stale. The expiry test only scans non-test
+// .go call sites. Deprecated flags are not documented in user-facing docs.
 //
 // To remove a deprecated flag, delete the flag definition, the code that reads
-// it, its tests, its docs, and every marker comment.
+// it, its tests, and every marker comment.
 func DeprecateFlag(cmd *cobra.Command, name, replacement, removeAfter string) {
 	if _, err := time.Parse(DeprecationDateLayout, removeAfter); err != nil {
 		panic(fmt.Sprintf("DeprecateFlag(%s): removeAfter %q is not a YYYY-MM-DD date", name, removeAfter))
