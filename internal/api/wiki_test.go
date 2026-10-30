@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
@@ -132,6 +133,115 @@ func TestWikiService_Create_Body(t *testing.T) {
 	}
 	if wp["comments"] != "created" {
 		t.Errorf("comments = %v, want created", wp["comments"])
+	}
+}
+
+func TestWikiService_Create_ParentTitle(t *testing.T) {
+	for name, tc := range map[string]struct {
+		parent      string
+		wantPresent bool
+	}{
+		"set":     {parent: "User Guide", wantPresent: true},
+		"omitted": {parent: "", wantPresent: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var gotBody map[string]interface{}
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				b, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(b, &gotBody)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{"wiki_page":{"title":"Child","parent":{"title":"User_Guide"},"version":1}}`))
+			}))
+			defer ts.Close()
+
+			c := newTestClient(ts)
+			c.Wikis = &WikiService{client: c}
+
+			page, err := c.Wikis.Create(context.Background(), "proj", "Child", models.WikiPageCreate{
+				Text:        "body",
+				ParentTitle: tc.parent,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if page.Parent == nil || page.Parent.Title != "User_Guide" {
+				t.Errorf("page.Parent = %+v, want User_Guide", page.Parent)
+			}
+			wp, ok := gotBody["wiki_page"].(map[string]interface{})
+			if !ok {
+				t.Fatal("body missing wiki_page key")
+			}
+			got, present := wp["parent_title"]
+			if present != tc.wantPresent {
+				t.Fatalf("parent_title present = %v, want %v (body %#v)", present, tc.wantPresent, wp)
+			}
+			if tc.wantPresent && got != tc.parent {
+				t.Errorf("parent_title = %v, want %q", got, tc.parent)
+			}
+		})
+	}
+}
+
+// TestWikiService_Create_EmptyBodyReadBack covers the fallback after a 204
+// overwrite with --title: the original name is read first (Redmine drops
+// the rename without rename_wiki_pages, and the new title may belong to an
+// unrelated page), and the new title only when the original is gone.
+func TestWikiService_Create_EmptyBodyReadBack(t *testing.T) {
+	for name, tc := range map[string]struct {
+		pages     map[string]string
+		wantTitle string
+		wantGets  []string
+	}{
+		"rename dropped": {
+			pages: map[string]string{
+				"/projects/proj/wiki/Old.json": `{"wiki_page":{"title":"Old","version":2}}`,
+				"/projects/proj/wiki/New.json": `{"wiki_page":{"title":"New","version":9}}`,
+			},
+			wantTitle: "Old",
+			wantGets:  []string{"/projects/proj/wiki/Old.json"},
+		},
+		"rename applied": {
+			pages: map[string]string{
+				"/projects/proj/wiki/New.json": `{"wiki_page":{"title":"New","version":2}}`,
+			},
+			wantTitle: "New",
+			wantGets:  []string{"/projects/proj/wiki/Old.json", "/projects/proj/wiki/New.json"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var gets []string
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				gets = append(gets, r.URL.Path)
+				body, ok := tc.pages[r.URL.Path]
+				w.Header().Set("Content-Type", "application/json")
+				if !ok {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"errors":["Not found"]}`))
+					return
+				}
+				_, _ = w.Write([]byte(body))
+			}))
+			defer ts.Close()
+
+			c := newTestClient(ts)
+			c.Wikis = &WikiService{client: c}
+
+			page, err := c.Wikis.Create(context.Background(), "proj", "Old", models.WikiPageCreate{Text: "body", Title: "New"})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if page.Title != tc.wantTitle {
+				t.Errorf("page.Title = %q, want %q", page.Title, tc.wantTitle)
+			}
+			if strings.Join(gets, " ") != strings.Join(tc.wantGets, " ") {
+				t.Errorf("GETs = %v, want %v", gets, tc.wantGets)
+			}
+		})
 	}
 }
 
@@ -373,6 +483,87 @@ func TestWikiService_Update_WithoutSection_OmitsSectionField(t *testing.T) {
 	}
 	if _, present := gotBody["section_hash"]; present {
 		t.Errorf("section_hash should be omitted when nil, got %#v", gotBody["section_hash"])
+	}
+}
+
+// TestWikiService_Update_ParentTitle covers the three states of the pointer:
+// nil leaves the parent alone (field omitted), a title moves the page, and
+// the empty string must still be sent so Redmine moves the page to the root.
+func TestWikiService_Update_ParentTitle(t *testing.T) {
+	str := func(s string) *string { return &s }
+	for name, tc := range map[string]struct {
+		parent      *string
+		wantPresent bool
+	}{
+		"nil omits":     {parent: nil, wantPresent: false},
+		"title is sent": {parent: str("User Guide"), wantPresent: true},
+		"empty is sent": {parent: str(""), wantPresent: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var gotBody map[string]interface{}
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				b, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(b, &gotBody)
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer ts.Close()
+
+			c := newTestClient(ts)
+			c.Wikis = &WikiService{client: c}
+
+			text := "body"
+			if err := c.Wikis.Update(context.Background(), "proj", "MyPage", models.WikiPageUpdate{
+				Text:        &text,
+				ParentTitle: tc.parent,
+			}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wp, ok := gotBody["wiki_page"].(map[string]interface{})
+			if !ok {
+				t.Fatal("body missing wiki_page key")
+			}
+			got, present := wp["parent_title"]
+			if present != tc.wantPresent {
+				t.Fatalf("parent_title present = %v, want %v (body %#v)", present, tc.wantPresent, wp)
+			}
+			if tc.wantPresent && got != *tc.parent {
+				t.Errorf("parent_title = %v, want %q", got, *tc.parent)
+			}
+		})
+	}
+}
+
+func TestWikiService_List_DecodesHierarchy(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"wiki_pages":[` +
+			`{"title":"Guide","version":3,"created_on":"2026-01-01T00:00:00Z","updated_on":"2026-01-02T00:00:00Z"},` +
+			`{"title":"Install","parent":{"title":"Guide"},"version":1,"project":{"id":7,"name":"Proj"},` +
+			`"created_on":"2026-01-03T00:00:00Z","updated_on":"2026-01-04T00:00:00Z"}]}`))
+	}))
+	defer ts.Close()
+
+	c := newTestClient(ts)
+	c.Wikis = &WikiService{client: c}
+
+	pages, _, err := c.Wikis.List(context.Background(), "proj", 0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("len(pages) = %d, want 2", len(pages))
+	}
+	if pages[0].Parent != nil {
+		t.Errorf("top-level page parent = %+v, want nil", pages[0].Parent)
+	}
+	if pages[0].Version != 3 || pages[0].CreatedOn != "2026-01-01T00:00:00Z" {
+		t.Errorf("pages[0] = %+v, want version 3 and created_on set", pages[0])
+	}
+	if pages[1].Parent == nil || pages[1].Parent.Title != "Guide" {
+		t.Errorf("pages[1].Parent = %+v, want Guide", pages[1].Parent)
+	}
+	if pages[1].Project == nil || pages[1].Project.ID != 7 {
+		t.Errorf("pages[1].Project = %+v, want id 7", pages[1].Project)
 	}
 }
 

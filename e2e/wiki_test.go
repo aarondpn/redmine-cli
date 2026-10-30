@@ -376,6 +376,209 @@ func TestWiki_ProjectInResponse(t *testing.T) {
 	}
 }
 
+// wikiParent is the subset of a wiki page JSON payload the parent tests read.
+type wikiParent struct {
+	Title  string `json:"title"`
+	Text   string `json:"text"`
+	Parent *struct {
+		Title string `json:"title"`
+	} `json:"parent"`
+}
+
+func (p wikiParent) parentTitle() string {
+	if p.Parent == nil {
+		return ""
+	}
+	return p.Parent.Title
+}
+
+// requireWikiParent fetches page and fails unless its parent is want ("" for
+// the wiki root).
+func requireWikiParent(t *testing.T, r *cliRunner, project, page, want string) wikiParent {
+	t.Helper()
+	var got wikiParent
+	r.runJSON(t, &got, "wiki", "get", page, "--project", project)
+	if got.parentTitle() != want {
+		t.Fatalf("wiki page %q parent = %q, want %q", page, got.parentTitle(), want)
+	}
+	return got
+}
+
+// TestWiki_Parent drives --parent end-to-end: create a child page, see the
+// hierarchy in list, move the page, move it back to the root, and get a
+// useful error for an unknown or circular parent.
+func TestWiki_Parent(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
+	guide := "Guide_" + suffix
+	other := "Other_" + suffix
+	child := "Child_" + suffix
+	style := wikiHeadingStyle()
+	for _, page := range []string{guide, other} {
+		r.run(t, "wiki", "create", page, "--project", proj.Identifier,
+			"--text", wikiSection(style, page, "Parent page."))
+	}
+
+	// Redmine titleizes and matches case-insensitively: "guide <suffix>"
+	// with a space must resolve to Guide_<suffix>.
+	var created wikiParent
+	r.runJSON(t, &created, "wiki", "create", child, "--project", proj.Identifier,
+		"--text", wikiSection(style, "Child", "Child page."),
+		"--parent", "guide "+suffix)
+	if created.parentTitle() != guide {
+		t.Fatalf("created child parent = %q, want %q", created.parentTitle(), guide)
+	}
+	requireWikiParent(t, r, proj.Identifier, child, guide)
+
+	var listed []struct {
+		Title   string `json:"title"`
+		Version int    `json:"version"`
+		Parent  *struct {
+			Title string `json:"title"`
+		} `json:"parent"`
+	}
+	r.runJSON(t, &listed, "wiki", "list", "--project", proj.Identifier)
+	foundChild := false
+	for _, p := range listed {
+		switch p.Title {
+		case child:
+			foundChild = true
+			if p.Parent == nil || p.Parent.Title != guide {
+				t.Errorf("wiki list: child parent = %+v, want %q", p.Parent, guide)
+			}
+			if p.Version != 1 {
+				t.Errorf("wiki list: child version = %d, want 1", p.Version)
+			}
+		case guide:
+			if p.Parent != nil {
+				t.Errorf("wiki list: top-level page %q has parent %+v", guide, p.Parent)
+			}
+		}
+	}
+	if !foundChild {
+		t.Fatalf("wiki list did not include %q: %+v", child, listed)
+	}
+	table := string(r.run(t, "wiki", "list", "--project", proj.Identifier, "--output", "table"))
+	if !strings.Contains(table, "Parent") {
+		t.Errorf("wiki list table missing Parent column:\n%s", table)
+	}
+
+	// Move without --text: the current body must be preserved.
+	var moved actionEnvelope
+	r.runJSON(t, &moved, "wiki", "update", child, "--project", proj.Identifier, "--parent", other)
+	if !moved.Ok || moved.Action != "updated" {
+		t.Fatalf("unexpected move envelope: %+v", moved)
+	}
+	after := requireWikiParent(t, r, proj.Identifier, child, other)
+	if !strings.Contains(after.Text, "Child page.") {
+		t.Errorf("moving the page changed its text: %q", after.Text)
+	}
+
+	var cleared actionEnvelope
+	r.runJSON(t, &cleared, "wiki", "update", child, "--project", proj.Identifier, "--parent", "")
+	if !cleared.Ok {
+		t.Fatalf("unexpected clear envelope: %+v", cleared)
+	}
+	requireWikiParent(t, r, proj.Identifier, child, "")
+
+	// Redmine treats a whitespace-only parent like an empty one.
+	r.run(t, "wiki", "update", child, "--project", proj.Identifier, "--parent", other)
+	r.run(t, "wiki", "update", child, "--project", proj.Identifier, "--parent", "  ")
+	requireWikiParent(t, r, proj.Identifier, child, "")
+
+	// A parent named by a renamed page's old title: Redmine follows the
+	// rename redirect, so the move lands. The API cannot resolve the redirect,
+	// so the CLI must not report parent_not_applied; at most it warns.
+	renamed := "Renamed_" + suffix
+	r.run(t, "wiki", "update", other, "--project", proj.Identifier, "--title", renamed)
+	stdout, stderrRedirect, err := r.runRaw("wiki", "update", child, "--project", proj.Identifier, "--parent", other)
+	if err != nil {
+		t.Fatalf("move via redirected parent title failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderrRedirect)
+	}
+	requireWikiParent(t, r, proj.Identifier, child, renamed)
+	r.run(t, "wiki", "update", child, "--project", proj.Identifier, "--parent", "")
+
+	// Unknown parent: Redmine answers a bare 422; the CLI must name the
+	// parent instead of a message-less "Validation error".
+	stderr := r.runExpectJSONError(t, "wiki", "update", child, "--project", proj.Identifier,
+		"--parent", "Missing_"+suffix)
+	assertErrorCode(t, stderr, "validation_failed")
+	env := requireErrorEnvelopeMessage(t, stderr)
+	if len(env.Error.Details) == 0 || !strings.Contains(env.Error.Details[0], "Missing_"+suffix) {
+		t.Errorf("unknown parent: details = %q, want the rejected parent named", env.Error.Details)
+	}
+	stderr = r.runExpectJSONError(t, "wiki", "create", "New_"+suffix, "--project", proj.Identifier,
+		"--text", "x", "--parent", "Missing_"+suffix)
+	assertErrorCode(t, stderr, "validation_failed")
+
+	// Circular: guide under child, then child under guide.
+	r.run(t, "wiki", "update", guide, "--project", proj.Identifier, "--parent", child)
+	stderr = r.runExpectJSONError(t, "wiki", "update", child, "--project", proj.Identifier, "--parent", guide)
+	assertErrorCode(t, stderr, "validation_failed")
+	requireWikiParent(t, r, proj.Identifier, child, "")
+}
+
+// TestWiki_ParentNotApplied_NonAdmin uses a Developer (edit_wiki_pages but no
+// rename_wiki_pages). Redmine drops parent_title on existing pages for such a
+// user and still answers 204, so the CLI must fail with parent_not_applied
+// while new pages still get their parent.
+func TestWiki_ParentNotApplied_NonAdmin(t *testing.T) {
+	requireE2E(t)
+	admin := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, admin)
+	member := createTestUser(t, admin)
+	addProjectMember(t, admin, proj.Identifier, "--user-id", member.ID, roleIDByName(t, admin, "Developer"))
+	r := newCLIRunnerBasicAuth(t, e2eBaseURL(), member.Login, member.Password)
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
+	guide := "Guide_" + suffix
+	page := "Page_" + suffix
+	admin.run(t, "wiki", "create", guide, "--project", proj.Identifier, "--text", "Guide.")
+	admin.run(t, "wiki", "create", page, "--project", proj.Identifier, "--text", "Old body.")
+
+	// A new page is a new record, which Redmine lets any editor parent.
+	var created wikiParent
+	r.runJSON(t, &created, "wiki", "create", "New_"+suffix, "--project", proj.Identifier,
+		"--text", "New.", "--parent", guide)
+	if created.parentTitle() != guide {
+		t.Fatalf("non-admin create: parent = %q, want %q", created.parentTitle(), guide)
+	}
+
+	stderr := r.runExpectJSONError(t, "wiki", "update", page, "--project", proj.Identifier,
+		"--text", "New body.", "--parent", guide)
+	assertErrorCode(t, stderr, "parent_not_applied")
+	env := requireErrorEnvelopeMessage(t, stderr)
+	for _, want := range []string{guide, "rename_wiki_pages"} {
+		if !strings.Contains(env.Error.Message, want) {
+			t.Errorf("parent_not_applied message missing %q: %q", want, env.Error.Message)
+		}
+	}
+	// The text change in the same request was applied, as the details say.
+	after := requireWikiParent(t, admin, proj.Identifier, page, "")
+	if after.Text != "New body." {
+		t.Errorf("text after dropped parent = %q, want the new body", after.Text)
+	}
+
+	// create over an existing page is an update for Redmine and is checked too.
+	stderr = r.runExpectJSONError(t, "wiki", "create", page, "--project", proj.Identifier,
+		"--text", "Overwritten.", "--parent", guide)
+	assertErrorCode(t, stderr, "parent_not_applied")
+
+	// The rename is dropped under the same rule, so the page is still found
+	// under its old title and the dropped rename is reported too.
+	stderr = r.runExpectJSONError(t, "wiki", "update", page, "--project", proj.Identifier,
+		"--title", "Moved_"+suffix, "--parent", guide)
+	assertErrorCode(t, stderr, "parent_not_applied")
+	env = requireErrorEnvelopeMessage(t, stderr)
+	if !strings.Contains(strings.Join(env.Error.Details, " "), "Moved_"+suffix) {
+		t.Errorf("parent_not_applied details do not mention the dropped rename: %q", env.Error.Details)
+	}
+	requireWikiParent(t, admin, proj.Identifier, page, "")
+}
+
 // wikiHeadingStyle returns the markup the e2e server's default formatter
 // recognises as headings. Redmine 5.0+ defaults to CommonMark (Markdown);
 // 4.x and earlier default to Textile. Section editing keys off recognised

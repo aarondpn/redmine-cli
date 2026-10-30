@@ -81,13 +81,16 @@ func (s *WikiService) Create(ctx context.Context, projectID, page string, wiki m
 		return &resp.WikiPage, nil
 	}
 	// Fallback: some Redmine versions return an empty body; fetch the page back.
-	// Use the effective title when --title was set, since Redmine may store
-	// the page under a different slug than the original <page> argument.
-	effective := page
-	if wiki.Title != "" {
-		effective = wiki.Title
+	// Look under the original <page> name first: Redmine drops --title when
+	// overwriting an existing page without the rename_wiki_pages permission,
+	// and reading the new title first could hit an unrelated page that already
+	// has it. If the rename landed, the old name is now a redirect the API
+	// cannot follow (or, for a new page, never existed), so read the new title.
+	stored, err := s.Get(ctx, projectID, page, nil)
+	if err == nil || wiki.Title == "" {
+		return stored, err
 	}
-	return s.Get(ctx, projectID, effective, nil)
+	return s.Get(ctx, projectID, wiki.Title, nil)
 }
 
 // Update updates an existing wiki page.

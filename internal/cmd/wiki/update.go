@@ -3,6 +3,7 @@ package wiki
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -18,6 +19,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		project       string
 		text          string
 		title         string
+		parent        string
 		comments      string
 		attach        []string
 		expectVersion int
@@ -38,7 +40,13 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			"To update only a single section of a page (based on heading position), " +
 			"pass --section with the 1-based section number. Redmine replaces only " +
 			"that section; the rest of the page is preserved. Use --section-hash to " +
-			"add optimistic-locking at the section level.",
+			"add optimistic-locking at the section level.\n\n" +
+			"To move a page under another page, pass --parent with the parent page " +
+			"title; pass --parent \"\" to move it to the wiki root. Redmine only " +
+			"applies this when you have the rename_wiki_pages permission, so the " +
+			"page is read back afterwards and the command fails if the parent did " +
+			"not change (or warns, if the parent may have been resolved through a " +
+			"rename redirect).",
 		Example: `  # Update page content
   redmine wiki update MyPage --project myproject --text "Updated content"
 
@@ -50,6 +58,12 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
   # Rename a page
   redmine wiki update MyPage --project myproject --title "New Title"
+
+  # Move a page under another page
+  redmine wiki update MyPage --project myproject --parent "User Guide"
+
+  # Move a page back to the wiki root
+  redmine wiki update MyPage --project myproject --parent ""
 
   # Attach a file
   redmine wiki update MyPage --project myproject --attach ./screenshot.png
@@ -117,12 +131,12 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				Page:      args[0],
 			}
 
-			// Fetch the current page when we either need its text (because
-			// --text was omitted) or its version (because --ensure-current
-			// was passed). One fetch covers both cases.
-			needText := !textSet
+			// --ensure-current needs the current version. When --text is
+			// omitted, ops.UpdateWikiPage fetches the page itself to resend
+			// its text and pins the update to that version, which is what
+			// --ensure-current asks for, so skip the extra fetch here.
 			var current *models.WikiPage
-			if needText || ensureCurrent {
+			if ensureCurrent && textSet {
 				current, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
 					ProjectID: projectID,
 					Page:      args[0],
@@ -134,13 +148,12 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			if textSet {
 				input.Text = &text
-			} else {
-				// Redmine requires the text field on every PUT.
-				// Resend the current text unchanged.
-				input.Text = &current.Text
 			}
 			if cmd.Flags().Changed("title") {
 				input.Title = &title
+			}
+			if cmd.Flags().Changed("parent") {
+				input.ParentTitle = &parent
 			}
 			if cmd.Flags().Changed("comments") {
 				input.Comments = &comments
@@ -154,7 +167,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			switch {
-			case ensureCurrent:
+			case current != nil:
 				v := current.Version
 				input.Version = &v
 			case cmd.Flags().Changed("expect-version"):
@@ -171,9 +184,12 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			stop := printer.Spinner("Updating wiki page...")
-			_, err = ops.UpdateWikiPage(ctx, client, input)
+			result, err := ops.UpdateWikiPage(ctx, client, input)
 			stop()
 			if err != nil {
+				if coded := parentNotAppliedError(err); coded != nil {
+					return coded
+				}
 				var apiErr *api.APIError
 				if errors.As(err, &apiErr) && apiErr.IsConflict() && input.Version != nil {
 					// Surface wiki-specific context to the user. FormatError
@@ -182,12 +198,19 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 					// human and JSON output paths instead of being shadowed
 					// by a generic "Conflict" message.
 					context := fmt.Sprintf("wiki page %q has been modified since version %d", args[0], *input.Version)
-					apiErr.Errors = append([]string{context}, apiErr.Errors...)
+					// ops.UpdateWikiPage already says so when it caught the
+					// stale version locally; don't repeat it.
+					if len(apiErr.Errors) == 0 || !strings.HasPrefix(apiErr.Errors[0], context) {
+						apiErr.Errors = append([]string{context}, apiErr.Errors...)
+					}
 					return err
 				}
 				return fmt.Errorf("failed to update wiki page %q: %w", args[0], err)
 			}
 
+			for _, w := range result.Warnings {
+				printer.Warning(w)
+			}
 			printer.Action(output.ActionUpdated, "wiki_page", args[0], fmt.Sprintf("Wiki page %q updated", args[0]))
 			return nil
 		},
@@ -196,7 +219,8 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown")
 	cmdutil.AddTextFileFlag(cmd, "text", "text-file", "F")
-	cmd.Flags().StringVar(&title, "title", "", "Display title")
+	cmd.Flags().StringVar(&title, "title", "", "New page title; renames the page (Redmine keeps a redirect from the old title)")
+	cmd.Flags().StringVar(&parent, "parent", "", "Title of an existing page to move this page under. Pass empty to move it to the wiki root.")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmd.Flags().IntVar(&expectVersion, "expect-version", 0, "Expected current page version. Server returns 409 Conflict if the page has moved on.")

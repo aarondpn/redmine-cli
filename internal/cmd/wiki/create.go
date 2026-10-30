@@ -15,6 +15,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		project  string
 		text     string
 		title    string
+		parent   string
 		comments string
 		attach   []string
 		format   string
@@ -28,9 +29,13 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		Example: `  # Create a new wiki page
   redmine wiki create MyPage --project myproject --text "h1. Hello World"
 
-  # With display title and change comment
+  # Store the page under a different title, with a change comment
   redmine wiki create MyPage --project myproject --text "Content here" \
     --title "My Page" --comments "Initial draft"
+
+  # Nest the new page under an existing page
+  redmine wiki create Installation --project myproject \
+    --text "h1. Installation" --parent "User Guide"
 
   # Read the page content from a file (or from stdin with "-")
   redmine wiki create MyPage --project myproject --text-file page.textile
@@ -70,15 +75,19 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			stop := printer.Spinner("Creating wiki page...")
 			page, err := ops.CreateWikiPage(ctx, client, ops.CreateWikiPageInput{
-				ProjectID: projectID,
-				Page:      args[0],
-				Text:      text,
-				Title:     title,
-				Comments:  comments,
-				Uploads:   uploads,
+				ProjectID:   projectID,
+				Page:        args[0],
+				Text:        text,
+				Title:       title,
+				ParentTitle: parent,
+				Comments:    comments,
+				Uploads:     uploads,
 			})
 			stop()
 			if err != nil {
+				if coded := parentNotAppliedError(err); coded != nil {
+					return coded
+				}
 				return fmt.Errorf("failed to create wiki page %q: %w", args[0], err)
 			}
 
@@ -94,7 +103,8 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Page content in Textile/Markdown (required unless --text-file is given)")
 	cmdutil.AddTextFileFlag(cmd, "text", "text-file", "F")
-	cmd.Flags().StringVar(&title, "title", "", "Display title (defaults to page name)")
+	cmd.Flags().StringVar(&title, "title", "", "Page title to store the page under instead of <page>; Redmine uses it as the URL slug")
+	cmd.Flags().StringVar(&parent, "parent", "", "Title of an existing page to nest this page under")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)

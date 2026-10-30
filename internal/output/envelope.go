@@ -52,6 +52,9 @@ const (
 	// ErrCodeStatusNotApplied: Redmine accepted an issue update but silently
 	// kept the old status (workflow, open subtasks, open blockers).
 	ErrCodeStatusNotApplied = "status_not_applied"
+	// ErrCodeParentNotApplied: Redmine saved a wiki page but silently kept
+	// the old parent (missing rename_wiki_pages permission).
+	ErrCodeParentNotApplied = "parent_not_applied"
 	// ErrCodeTimeout: a connection or request to the server timed out.
 	ErrCodeTimeout = "timeout"
 	// ErrCodeAlreadyExists: a download target exists and --clobber was not

@@ -2,6 +2,7 @@ package wiki
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -63,8 +64,12 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			cmdutil.RenderCollection(printer, pages, []string{"Title", "Updated"}, func(p models.WikiPageIndex) []string {
-				return []string{output.StyleID.Render(p.Title), p.UpdatedOn}
+			cmdutil.RenderCollection(printer, pages, []string{"Title", "Parent", "Version", "Updated"}, func(p models.WikiPageIndex) []string {
+				parent := ""
+				if p.Parent != nil {
+					parent = p.Parent.Title
+				}
+				return []string{output.StyleID.Render(p.Title), parent, strconv.Itoa(p.Version), p.UpdatedOn}
 			})
 
 			cmdutil.WarnPagination(printer, cmdutil.PaginationResult{
