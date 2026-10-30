@@ -240,7 +240,11 @@ Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`
 
 2. **Tools list is empty or missing mutations.** `--enable-writes` was not passed, the surface was narrowed via `--enable-groups` / `--enable-tools`, or the host cached an older `tools/list`. Run `redmine mcp tools` to see the full catalog and restart the host after changing args.
 
-3. **401 / "no profile" errors.** No profile is logged in, or `--profile <name>` points at one that does not exist. Run `redmine auth list` to confirm.
+3. **Only a `setup_status` tool, or the server instructions say Redmine is not connected.** No server or credentials are configured (or the profile's keyring secret cannot be read), so `redmine mcp serve` stays up instead of exiting, without Redmine tools, and tells the agent what to do. Run `redmine auth login` in a terminal (or `redmine auth login --server https://redmine.example.com --api-key-file -` with the key on stdin), or set `REDMINE_SERVER` and `REDMINE_API_KEY` in the host's MCP `env` block, then restart or reconnect the MCP server. Never paste the key into the chat; no tool accepts one. The same message goes to stderr, which hosts show in the server log. This only applies to stdio: with `--http` the command exits with the error instead. An unknown `--profile <name>` or invalid `--enable-groups` / `--enable-tools` values still fail at startup.
+
+4. **Warning on stderr about rejected credentials (401 / 403).** At startup the server checks the credentials in the background (without delaying the connection) and warns, naming the profile and server, when Redmine rejects them. Run `redmine auth login` to update them, or fix `REDMINE_API_KEY` in the host config, then restart the MCP server. Network errors during that check are not reported; tools report them when called.
+
+5. **401 / "no profile" errors.** No profile is logged in, or `--profile <name>` points at one that does not exist. Run `redmine auth list` to confirm.
 
 </Steps>
 

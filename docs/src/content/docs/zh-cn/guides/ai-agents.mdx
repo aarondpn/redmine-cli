@@ -230,7 +230,11 @@ profiles:
 
 2. **工具列表为空或缺少修改类工具。** 未传入 `--enable-writes`，暴露范围被 `--enable-groups` / `--enable-tools` 收窄，或宿主缓存了旧的 `tools/list`。运行 `redmine mcp tools` 查看完整目录，并在修改参数后重启宿主。
 
-3. **401 / “no profile” 错误。** 当前没有登录的配置文件，或 `--profile <name>` 指向的配置文件不存在。运行 `redmine auth list` 进行确认。
+3. **只有 `setup_status` 工具，或服务器说明提示 Redmine 未连接。** 未配置服务器或凭据（或无法读取配置文件的密钥环密钥）时，`redmine mcp serve` 不会退出，而是不带 Redmine 工具继续运行，并告诉代理该怎么做。请在终端运行 `redmine auth login`（或通过标准输入传入密钥：`redmine auth login --server https://redmine.example.com --api-key-file -`），或在宿主 MCP 配置的 `env` 中设置 `REDMINE_SERVER` 与 `REDMINE_API_KEY`，然后重启或重新连接 MCP 服务器。切勿把密钥粘贴到对话中；没有任何工具接受密钥。相同的信息也会输出到 stderr，宿主会在服务器日志中显示。此行为仅适用于 stdio：使用 `--http` 时命令会直接报错退出。未知的 `--profile <name>` 或无效的 `--enable-groups` / `--enable-tools` 取值仍会在启动时报错。
+
+4. **stderr 出现凭据被拒绝（401 / 403）的警告。** 服务器启动时会在后台检查凭据（不会延迟连接），Redmine 拒绝凭据时会警告并指明配置文件与服务器。运行 `redmine auth login` 更新凭据，或修正宿主配置中的 `REDMINE_API_KEY`，然后重启 MCP 服务器。该检查中的网络错误不会上报；工具被调用时才会报告。
+
+5. **401 / “no profile” 错误。** 当前没有登录的配置文件，或 `--profile <name>` 指向的配置文件不存在。运行 `redmine auth list` 进行确认。
 
 </Steps>
 
