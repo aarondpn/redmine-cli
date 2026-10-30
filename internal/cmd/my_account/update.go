@@ -15,8 +15,7 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 		lastname         string
 		mail             string
 		mailNotification string
-
-		customFieldRaw []string
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{

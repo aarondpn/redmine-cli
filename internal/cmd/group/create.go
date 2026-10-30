@@ -11,10 +11,9 @@ import (
 
 func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		name    string
-		userIDs []int
-		format  string
-
+		name           string
+		userIDs        []int
+		format         string
 		customFieldRaw []string
 	)
 

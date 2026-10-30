@@ -103,17 +103,16 @@ func GetCurrentUser(ctx context.Context, client *api.Client, input GetCurrentUse
 //mcpgen:writes
 func CreateUser(ctx context.Context, client *api.Client, input CreateUserInput) (*models.User, error) {
 	return client.Users.Create(ctx, models.UserCreate{
-		Login:            input.Login,
-		Password:         input.Password,
-		FirstName:        input.FirstName,
-		LastName:         input.LastName,
-		Mail:             input.Mail,
-		Admin:            input.Admin,
-		MailNotification: input.MailNotification,
-		MustChangePasswd: input.MustChangePasswd,
-		GeneratePassword: input.GeneratePassword,
-		AuthSourceID:     input.AuthSourceID,
-
+		Login:             input.Login,
+		Password:          input.Password,
+		FirstName:         input.FirstName,
+		LastName:          input.LastName,
+		Mail:              input.Mail,
+		Admin:             input.Admin,
+		MailNotification:  input.MailNotification,
+		MustChangePasswd:  input.MustChangePasswd,
+		GeneratePassword:  input.GeneratePassword,
+		AuthSourceID:      input.AuthSourceID,
 		CustomFieldValues: input.CustomFieldValues,
 	}, input.SendInformation)
 }
@@ -124,16 +123,15 @@ func CreateUser(ctx context.Context, client *api.Client, input CreateUserInput) 
 //mcpgen:writes
 func UpdateUser(ctx context.Context, client *api.Client, input UpdateUserInput) (MessageResult, error) {
 	if err := client.Users.Update(ctx, input.ID, models.UserUpdate{
-		FirstName:        input.FirstName,
-		LastName:         input.LastName,
-		Mail:             input.Mail,
-		Admin:            input.Admin,
-		Status:           input.Status,
-		MailNotification: input.MailNotification,
-		MustChangePasswd: input.MustChangePasswd,
-		GeneratePassword: input.GeneratePassword,
-		AuthSourceID:     input.AuthSourceID,
-
+		FirstName:         input.FirstName,
+		LastName:          input.LastName,
+		Mail:              input.Mail,
+		Admin:             input.Admin,
+		Status:            input.Status,
+		MailNotification:  input.MailNotification,
+		MustChangePasswd:  input.MustChangePasswd,
+		GeneratePassword:  input.GeneratePassword,
+		AuthSourceID:      input.AuthSourceID,
 		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err

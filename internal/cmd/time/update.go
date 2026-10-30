@@ -15,11 +15,10 @@ import (
 
 func newCmdTimeUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		hours    float64
-		activity string
-		date     string
-		comment  string
-
+		hours          float64
+		activity       string
+		date           string
+		comment        string
 		customFieldRaw []string
 	)
 

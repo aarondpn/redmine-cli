@@ -111,14 +111,13 @@ func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEn
 		return nil, fmt.Errorf("either issue_id or project_id must be provided")
 	}
 	return client.TimeEntries.Create(ctx, models.TimeEntryCreate{
-		IssueID:    input.IssueID,
-		ProjectID:  input.ProjectID,
-		Hours:      input.Hours,
-		ActivityID: input.ActivityID,
-		SpentOn:    input.SpentOn,
-		Comments:   input.Comments,
-		UserID:     input.UserID,
-
+		IssueID:           input.IssueID,
+		ProjectID:         input.ProjectID,
+		Hours:             input.Hours,
+		ActivityID:        input.ActivityID,
+		SpentOn:           input.SpentOn,
+		Comments:          input.Comments,
+		UserID:            input.UserID,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 }
@@ -129,11 +128,10 @@ func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEn
 //mcpgen:writes
 func UpdateTimeEntry(ctx context.Context, client *api.Client, input UpdateTimeEntryInput) (MessageResult, error) {
 	err := client.TimeEntries.Update(ctx, input.ID, models.TimeEntryUpdate{
-		Hours:      input.Hours,
-		ActivityID: input.ActivityID,
-		SpentOn:    input.SpentOn,
-		Comments:   input.Comments,
-
+		Hours:             input.Hours,
+		ActivityID:        input.ActivityID,
+		SpentOn:           input.SpentOn,
+		Comments:          input.Comments,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 	if err != nil {

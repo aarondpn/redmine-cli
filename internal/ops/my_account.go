@@ -30,11 +30,10 @@ func GetMyAccount(ctx context.Context, client *api.Client, _ GetMyAccountInput) 
 //mcpgen:writes
 func UpdateMyAccount(ctx context.Context, client *api.Client, input UpdateMyAccountInput) (MessageResult, error) {
 	if err := client.MyAccount.Update(ctx, models.MyAccountUpdate{
-		FirstName:        input.FirstName,
-		LastName:         input.LastName,
-		Mail:             input.Mail,
-		MailNotification: input.MailNotification,
-
+		FirstName:         input.FirstName,
+		LastName:          input.LastName,
+		Mail:              input.Mail,
+		MailNotification:  input.MailNotification,
 		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err

@@ -73,9 +73,8 @@ func GetGroup(ctx context.Context, client *api.Client, input GetGroupInput) (*mo
 //mcpgen:writes
 func CreateGroup(ctx context.Context, client *api.Client, input CreateGroupInput) (*models.Group, error) {
 	return client.Groups.Create(ctx, models.GroupCreate{
-		Name:    input.Name,
-		UserIDs: input.UserIDs,
-
+		Name:              input.Name,
+		UserIDs:           input.UserIDs,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 }
@@ -86,9 +85,8 @@ func CreateGroup(ctx context.Context, client *api.Client, input CreateGroupInput
 //mcpgen:writes
 func UpdateGroup(ctx context.Context, client *api.Client, input UpdateGroupInput) (MessageResult, error) {
 	if err := client.Groups.Update(ctx, input.ID, models.GroupUpdate{
-		Name:    input.Name,
-		UserIDs: input.UserIDs,
-
+		Name:              input.Name,
+		UserIDs:           input.UserIDs,
 		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err

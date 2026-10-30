@@ -19,15 +19,14 @@ const timeLogValidationHint = "The server may require an activity or time entry 
 
 func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	var (
-		issue    int
-		project  string
-		hours    float64
-		activity string
-		date     string
-		comment  string
-		user     string
-		format   string
-
+		issue          int
+		project        string
+		hours          float64
+		activity       string
+		date           string
+		comment        string
+		user           string
+		format         string
 		customFieldRaw []string
 	)
 

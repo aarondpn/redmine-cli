@@ -13,9 +13,8 @@ import (
 
 func newCmdGroupUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		name    string
-		userIDs []int
-
+		name           string
+		userIDs        []int
 		customFieldRaw []string
 	)
 

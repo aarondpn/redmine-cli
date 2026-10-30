@@ -23,8 +23,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		authSourceID     int
 		sendInformation  bool
 		format           string
-
-		customFieldRaw []string
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{

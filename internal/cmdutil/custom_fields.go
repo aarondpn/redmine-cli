@@ -143,7 +143,11 @@ func ParseCustomFieldValues(ctx context.Context, client *api.Client, raws []stri
 			continue
 		}
 		if slices.Contains(vals, "") {
-			return nil, fmt.Errorf("--custom-field %s: an empty value clears the field and cannot be combined with other values", k)
+			label := k
+			if def, ok := defs[k]; ok {
+				label = fmt.Sprintf("%q (ID %s)", def.Name, k)
+			}
+			return nil, fmt.Errorf("--custom-field %s: an empty value clears the field and cannot be combined with other values", label)
 		}
 		if def, ok := defs[k]; ok && !def.Multiple {
 			return nil, fmt.Errorf("custom field %q (ID %d) does not accept multiple values; pass it once", def.Name, def.ID)

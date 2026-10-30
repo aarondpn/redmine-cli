@@ -13,14 +13,13 @@ import (
 
 func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project       string
-		name          string
-		status        string
-		sharing       string
-		dueDate       string
-		description   string
-		wikiPageTitle string
-
+		project        string
+		name           string
+		status         string
+		sharing        string
+		dueDate        string
+		description    string
+		wikiPageTitle  string
 		customFieldRaw []string
 	)
 

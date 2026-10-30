@@ -116,13 +116,12 @@ func GetVersion(ctx context.Context, client *api.Client, input GetVersionInput) 
 //mcpgen:writes
 func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionInput) (*models.Version, error) {
 	return client.Versions.Create(ctx, input.ProjectID, models.VersionCreate{
-		Name:          input.Name,
-		Status:        input.Status,
-		Sharing:       input.Sharing,
-		DueDate:       input.DueDate,
-		Description:   input.Description,
-		WikiPageTitle: input.WikiPageTitle,
-
+		Name:              input.Name,
+		Status:            input.Status,
+		Sharing:           input.Sharing,
+		DueDate:           input.DueDate,
+		Description:       input.Description,
+		WikiPageTitle:     input.WikiPageTitle,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 }
@@ -133,13 +132,12 @@ func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionI
 //mcpgen:writes
 func UpdateVersion(ctx context.Context, client *api.Client, input UpdateVersionInput) (MessageResult, error) {
 	err := client.Versions.Update(ctx, input.ID, models.VersionUpdate{
-		Name:          input.Name,
-		Status:        input.Status,
-		Sharing:       input.Sharing,
-		DueDate:       input.DueDate,
-		Description:   input.Description,
-		WikiPageTitle: input.WikiPageTitle,
-
+		Name:              input.Name,
+		Status:            input.Status,
+		Sharing:           input.Sharing,
+		DueDate:           input.DueDate,
+		Description:       input.Description,
+		WikiPageTitle:     input.WikiPageTitle,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 	if err != nil {

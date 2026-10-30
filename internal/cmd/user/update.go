@@ -22,8 +22,7 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 		mustChangePasswd bool
 		generatePassword bool
 		authSourceID     int
-
-		customFieldRaw []string
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{

@@ -5,7 +5,6 @@ package e2e
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -73,7 +72,7 @@ func stringSet(v any) []string {
 func requireValueSet(t *testing.T, what string, got any, want ...string) {
 	t.Helper()
 	slices.Sort(want)
-	if g := stringSet(got); !reflect.DeepEqual(g, want) {
+	if g := stringSet(got); !slices.Equal(g, want) {
 		t.Fatalf("%s = %v (raw %#v), want %v", what, g, got, want)
 	}
 }
@@ -335,7 +334,7 @@ func TestMCPStdio_CustomFieldValues(t *testing.T) {
 	}
 
 	out := mcpCallOK(t, ctx, session, "create_issue", map[string]any{
-		"project_id": proj.Identifier,
+		"project_id": proj.ID,
 		"subject":    "E2E MCP custom field values",
 		"custom_field_values": map[string]any{
 			strconv.Itoa(tagsID):  []string{"Alpha", "Gamma"},
@@ -354,6 +353,7 @@ func TestMCPStdio_CustomFieldValues(t *testing.T) {
 	out = mcpCallOK(t, ctx, session, "create_time_entry", map[string]any{
 		"issue_id":            issue.ID,
 		"hours":               1,
+		"activity_id":         firstActivityID(t, r),
 		"custom_field_values": map[string]any{strconv.Itoa(entryTagsID): []string{"Overtime"}},
 	})
 	teID := mcpExtIssueIDFromResult(t, out)
@@ -368,7 +368,7 @@ func TestMCPStdio_CustomFieldValues(t *testing.T) {
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name: "create_issue",
 		Arguments: map[string]any{
-			"project_id":          proj.Identifier,
+			"project_id":          proj.ID,
 			"subject":             "E2E MCP name key",
 			"custom_field_values": map[string]any{"E2E Tags": "Alpha"},
 		},
@@ -376,4 +376,18 @@ func TestMCPStdio_CustomFieldValues(t *testing.T) {
 	if err == nil && !res.IsError {
 		t.Fatalf("create_issue with a name key succeeded: %s", structuredJSON(res))
 	}
+}
+
+func firstActivityID(t *testing.T, r *cliRunner) int {
+	t.Helper()
+	var resp struct {
+		TimeEntryActivities []struct {
+			ID int `json:"id"`
+		} `json:"time_entry_activities"`
+	}
+	r.runJSON(t, &resp, "api", "/enumerations/time_entry_activities.json")
+	if len(resp.TimeEntryActivities) == 0 {
+		t.Fatal("no time entry activities found on server")
+	}
+	return resp.TimeEntryActivities[0].ID
 }
