@@ -23,7 +23,7 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
 redmine wiki list [flags]
 ```
 
-别名：`ls`。列出每个页面的标题和最后修改时间。结果在服务器端分页；若需遍历较大的 Wiki，可结合 `--limit 0` 与 `--offset` 使用。
+别名：`ls`。列出每个页面的标题、父页面、版本号和最后修改时间，便于一眼看清页面层级。JSON 输出还包含 `created_on`，在 Redmine 7.0+ 上还包含所属的 `project`。结果在服务器端分页；若需遍历较大的 Wiki，可结合 `--limit 0` 与 `--offset` 使用。
 
 | 标志 | 描述 |
 |------|------|
@@ -89,7 +89,8 @@ redmine wiki create <page> [flags]
 |------|------|
 | `--project`    | 项目标识符或数字 ID |
 | `-t, --text`   | Textile/Markdown 格式的页面内容。<Badge text="必填" variant="danger" /> |
-| `--title`      | 显示标题（默认为页面名） |
+| `--title`      | 用于存储页面的标题，取代 `<page>`；Redmine 将其用作 URL 标识 |
+| `--parent`     | 同一 Wiki 中已有页面的标题，新页面将作为其子页面 |
 | `--comments`   | 记录在页面历史中的修改备注 |
 | `--attach`     | 要附加的文件路径（可重复） |
 | `-o, --output` | 输出格式 |
@@ -99,6 +100,10 @@ redmine wiki create MyPage --project myproject --text "h1. Hello World"
 
 redmine wiki create MyPage --project myproject \
   --text "Content here" --title "My Page" --comments "Initial draft"
+
+# 将新页面作为已有页面的子页面
+redmine wiki create Installation --project myproject \
+  --text "h1. Installation" --parent "User Guide"
 
 redmine wiki create MyPage --project myproject \
   --text "See diagram" --attach ./diagram.png
@@ -120,7 +125,8 @@ redmine wiki update <page> [flags]
 |------|------|
 | `--project`        | 项目标识符或数字 ID |
 | `-t, --text`       | 新的页面内容，省略时保留当前文本 |
-| `--title`          | 新的显示标题 |
+| `--title`          | 新的页面标题。会重命名页面；Redmine 会保留从旧标题的重定向。需要 `rename_wiki_pages` 权限。 |
+| `--parent`         | 同一 Wiki 中已有页面的标题，将本页面移动到其下。传入 `--parent ""` 可将页面移回 Wiki 根级。参见[父页面变更会被校验](#父页面变更会被校验)。 |
 | `--comments`       | 记录在页面历史中的修改备注 |
 | `--attach`         | 要附加的文件路径（可重复） |
 | `--expect-version` | 期望的当前页面版本号。若页面在你上次获取后已被修改，服务器返回 `409 Conflict`，CLI 以错误码 `conflict` 反馈。 |
@@ -134,6 +140,10 @@ redmine wiki update MyPage --project myproject --text "Updated content"
 redmine wiki update MyPage --project myproject --comments "Fixed typo"
 
 redmine wiki update MyPage --project myproject --title "New Title"
+
+# 将页面移动到另一个页面下，或移回 Wiki 根级
+redmine wiki update MyPage --project myproject --parent "User Guide"
+redmine wiki update MyPage --project myproject --parent ""
 
 redmine wiki update MyPage --project myproject --attach ./screenshot.png
 
@@ -158,6 +168,27 @@ redmine wiki update MyPage --project myproject \
 <Aside>
   若不带 `--expect-version` 或 `--ensure-current`，`wiki update` 会直接覆盖并发编辑。当多人可能同时编辑同一页面时，请使用其中之一，以便过期修改以 `code: "conflict"` 快速失败，而不是在竞争中无声地胜出。
 </Aside>
+
+### 父页面变更会被校验
+
+`--parent` 与页面参数一样按标题匹配：空格可以写成空格或下划线，且不区分大小写（`"user guide"` 可匹配 `User_Guide`）。空白值会将页面移回 Wiki 根级。当 Redmine 应用父页面时（新页面，或拥有下文所述权限时），不存在的父页面、页面自身或其子孙页面会被拒绝，错误码为 `validation_failed`。
+
+即使 Redmine **静默忽略**了父页面，它也会返回成功：修改已有页面的父页面需要 `rename_wiki_pages` 权限，缺少该权限时该字段会被丢弃。因此，只要向 `update`（或向覆盖已有页面的 `create`）传入 `--parent`，CLI 就会检查保存后的父页面。若父页面未改变，命令以退出码 `1` 失败：
+
+- 错误消息会列出请求的父页面和当前的父页面，
+- `details` 会说明同时被丢弃的 `--title` 重命名（它需要相同的权限），并提示请求中的其他变更（文本、备注、附件）可能已经生效，请勿盲目重发，
+- 使用 `-o json` 时，这是标准的[错误信封](/zh-cn/guides/output-formats/#json-错误信封)，错误码为 `parent_not_applied`。
+
+新页面总是接受父页面，因此用 `create` 创建新页面无需额外权限。不带 `--parent` 的更新不会触发额外请求。
+
+Redmine 还会跟随重命名重定向：如果 `Guide` 已被重命名为 `User_Guide`，`--parent Guide` 会将页面放到 `User_Guide` 下。API 无法解析这种重定向，因此这种情况下 `update` 会成功，并在 stderr 上输出警告而非报错，`create` 则静默成功；请用 `redmine wiki get` 检查父页面。
+
+省略 `--text` 时，当前文本会原样重发，并固定为刚读取的页面版本，因此若他人在此期间编辑了页面，命令会以 `code: "conflict"` 失败，而不会覆盖其修改。
+
+```bash
+$ redmine wiki update Installation --project myproject --parent "User Guide" -o json
+{"error":{"message":"Wiki page \"Installation\": parent was not changed to \"User Guide\"; it is now none (wiki root). Redmine silently ignores parent changes on existing pages unless you have the rename_wiki_pages permission.","code":"parent_not_applied"}}
+```
 
 ## delete
 

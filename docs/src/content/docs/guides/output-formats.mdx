@@ -205,7 +205,7 @@ come before it:
 
 `code` comes from a small stable set: `not_found`, `auth_failed`,
 `forbidden`, `validation_failed`, `conflict`, `server_error`, `jq_invalid`,
-`jq_failed`, `status_not_applied`, `timeout`, `already_exists`,
+`jq_failed`, `status_not_applied`, `parent_not_applied`, `timeout`, `already_exists`,
 `unknown`. Validation and conflict errors include a `details`
 array with the individual messages from Redmine. `validation_failed` is also
 used, without `details`, when the CLI rejects an argument before sending
@@ -225,6 +225,12 @@ the old status (see
 [status changes are verified](/commands/issues/#status-changes-are-verified)).
 Its `details` list the allowed statuses and, when the request carried other
 changes, a note that those may already have been applied.
+
+`parent_not_applied` means Redmine saved a wiki page but silently kept its old
+parent (see
+[parent changes are verified](/commands/wiki/#parent-changes-are-verified)).
+Its `details` report a rename that was dropped as well and, when the request
+carried other changes, a note that those may already have been applied.
 
 Because the failure never reaches `stdout`, a pipeline such as
 `redmine issues create ... -o json | jq '{id}'` can no longer mistake an error

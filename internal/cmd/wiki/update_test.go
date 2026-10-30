@@ -520,3 +520,52 @@ func TestUpdate_ExpectVersionMustBePositive(t *testing.T) {
 		t.Errorf("error = %q, want a >= 1 message", err.Error())
 	}
 }
+
+// TestUpdate_EnsureCurrentWithoutText_FetchesOnce: without --text the ops
+// layer fetches the page to resend its text and pins the update to that
+// version, which is what --ensure-current asks for, so the command must not
+// fetch the page a second time.
+func TestUpdate_EnsureCurrentWithoutText_FetchesOnce(t *testing.T) {
+	fake := &wikiParentServer{pageBody: `{"wiki_page":{"title":"MyPage","text":"existing","version":4}}`}
+	srv := fake.start(t)
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := quiet(newCmdUpdate(f))
+	cmd.SetArgs([]string{"MyPage", "--project", "proj", "--comments", "touch", "--ensure-current"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if fake.wikiGets != 1 {
+		t.Errorf("wiki GETs = %d, want 1", fake.wikiGets)
+	}
+	wp, _ := fake.puts[0]["wiki_page"].(map[string]any)
+	if wp["version"] != float64(4) || wp["text"] != "existing" {
+		t.Errorf("PUT wiki_page = %#v, want the current text pinned to version 4", wp)
+	}
+}
+
+// TestUpdate_StaleVersionWithoutText_ReportsConflictOnce covers the conflict
+// ops.UpdateWikiPage raises locally (Redmine skips the version check when
+// the text is unchanged): the command must not repeat the version note.
+func TestUpdate_StaleVersionWithoutText_ReportsConflictOnce(t *testing.T) {
+	fake := &wikiParentServer{pageBody: `{"wiki_page":{"title":"MyPage","text":"existing","version":4}}`}
+	srv := fake.start(t)
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := quiet(newCmdUpdate(f))
+	cmd.SetArgs([]string{"MyPage", "--project", "proj", "--parent", "Guide", "--expect-version", "2"})
+
+	err := cmd.Execute()
+	env := cmdutil.BuildErrorEnvelope(err)
+	if env.Error.Code != output.ErrCodeConflict {
+		t.Fatalf("code = %q, want conflict (err %v)", env.Error.Code, err)
+	}
+	want := `wiki page "MyPage" has been modified since version 2; it is now at version 4`
+	if len(env.Error.Details) != 1 || env.Error.Details[0] != want {
+		t.Errorf("details = %q, want exactly [%q]", env.Error.Details, want)
+	}
+	if len(fake.puts) != 0 {
+		t.Errorf("PUTs = %d, want none for a stale version", len(fake.puts))
+	}
+}

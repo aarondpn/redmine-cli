@@ -15,7 +15,7 @@ Page names are sent as a single escaped path segment. An empty name, or one with
   <LinkCard title="list"   href="#list"   description="List wiki pages in a project." />
   <LinkCard title="get"    href="#get"    description="View a page's content, metadata, and history." />
   <LinkCard title="create" href="#create" description="Create a new page or overwrite an existing one." />
-  <LinkCard title="update" href="#update" description="Edit content, rename, or attach files." />
+  <LinkCard title="update" href="#update" description="Edit content, rename, move, or attach files." />
   <LinkCard title="delete" href="#delete" description="Permanently remove a page." />
 </CardGrid>
 
@@ -25,7 +25,7 @@ Page names are sent as a single escaped path segment. An empty name, or one with
 redmine wiki list [flags]
 ```
 
-Aliases: `ls`. Lists each page's title and last-modified timestamp. Results are paginated server-side; combine `--limit 0` with `--offset` to walk large wikis.
+Aliases: `ls`. Lists each page's title, parent page, version, and last-modified timestamp, so you can see the page hierarchy at a glance. JSON output also carries `created_on` and, on Redmine 7.0+, the owning `project`. Results are paginated server-side; combine `--limit 0` with `--offset` to walk large wikis.
 
 | Flag | Description |
 |------|-------------|
@@ -92,7 +92,8 @@ Aliases: `new`. Creates a new wiki page. If a page with the same name already ex
 | `--project`    | Project identifier or numeric ID |
 | `-t, --text`   | Page content in Textile/Markdown. <Badge text="required" variant="danger" /> unless `--text-file` is given |
 | `-F, --text-file` | Read the page content from a file (`-` reads standard input); mutually exclusive with `--text`; an empty or whitespace-only file is rejected |
-| `--title`      | Display title (defaults to the page name) |
+| `--title`      | Page title to store the page under instead of `<page>`; Redmine uses it as the URL slug |
+| `--parent`     | Title of an existing page in the same wiki to nest the new page under |
 | `--comments`   | Change comment recorded in the page history |
 | `--attach`     | Path to a file to attach (repeatable) |
 | `-o, --output` | Output format |
@@ -102,6 +103,10 @@ redmine wiki create MyPage --project myproject --text "h1. Hello World"
 
 redmine wiki create MyPage --project myproject \
   --text "Content here" --title "My Page" --comments "Initial draft"
+
+# Nest the new page under an existing page
+redmine wiki create Installation --project myproject \
+  --text "h1. Installation" --parent "User Guide"
 
 redmine wiki create MyPage --project myproject \
   --text "See diagram" --attach ./diagram.png
@@ -124,7 +129,8 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 | `--project`        | Project identifier or numeric ID |
 | `-t, --text`       | New page content. If omitted, the current text is preserved. |
 | `-F, --text-file`  | Read the new page content from a file (`-` reads standard input); mutually exclusive with `--text`; an empty or whitespace-only file is rejected |
-| `--title`          | New display title |
+| `--title`          | New page title. Renames the page; Redmine keeps a redirect from the old title. Requires the `rename_wiki_pages` permission. |
+| `--parent`         | Title of an existing page in the same wiki to move this page under. Pass `--parent ""` to move it to the wiki root. See [parent changes are verified](#parent-changes-are-verified). |
 | `--comments`       | Change comment recorded in the page history |
 | `--attach`         | Path to a file to attach (repeatable) |
 | `--expect-version` | Expected current page version. The server returns `409 Conflict` (and the CLI surfaces error code `conflict`) if the page has moved on since you last fetched it. |
@@ -138,6 +144,10 @@ redmine wiki update MyPage --project myproject --text "Updated content"
 redmine wiki update MyPage --project myproject --comments "Fixed typo"
 
 redmine wiki update MyPage --project myproject --title "New Title"
+
+# Move a page under another page, or back to the wiki root
+redmine wiki update MyPage --project myproject --parent "User Guide"
+redmine wiki update MyPage --project myproject --parent ""
 
 redmine wiki update MyPage --project myproject --attach ./screenshot.png
 
@@ -162,6 +172,27 @@ redmine wiki update MyPage --project myproject \
 <Aside>
   Without `--expect-version` or `--ensure-current`, `wiki update` happily overwrites concurrent edits. Use one of these flags whenever multiple authors might be editing the same page so a stale change fails fast with `code: "conflict"` instead of silently winning the race.
 </Aside>
+
+### Parent changes are verified
+
+`--parent` takes a page title the same way page arguments do: spaces may be written as spaces or underscores, and the match is case-insensitive (`"user guide"` finds `User_Guide`). A blank value moves the page to the wiki root. When Redmine applies the parent (new pages, or with the permission below), an unknown parent, the page itself, or one of its own descendants is rejected with `code: "validation_failed"`.
+
+Redmine answers with success even when it **silently ignores** the parent: changing the parent of an existing page requires the `rename_wiki_pages` permission, and without it the field is dropped. So whenever `--parent` is passed to `update` (or to `create` over an existing page), the CLI checks the stored parent. If it did not change, the command fails with exit status `1`:
+
+- the message names the requested and the current parent,
+- the details report a `--title` rename that was dropped as well (it needs the same permission) and warn that the other changes in the request (text, comments, attachments) may already have been applied, so do not resend them blindly,
+- with `-o json`, this is the standard [error envelope](/guides/output-formats/#json-error-envelope) with code `parent_not_applied`.
+
+New pages always accept a parent, so `create` of a new page needs no extra permission. Updates without `--parent` do not trigger the extra request.
+
+Redmine also follows rename redirects: `--parent Guide` lands under `User_Guide` if `Guide` was renamed to that. The API cannot resolve such a redirect, so in that case `update` succeeds with a warning on stderr instead of an error, and `create` succeeds silently; check the parent with `redmine wiki get`.
+
+When `--text` is omitted, the current text is resent unchanged and pinned to the page version just read, so an edit by someone else in between fails with `code: "conflict"` instead of being overwritten.
+
+```bash
+$ redmine wiki update Installation --project myproject --parent "User Guide" -o json
+{"error":{"message":"Wiki page \"Installation\": parent was not changed to \"User Guide\"; it is now none (wiki root). Redmine silently ignores parent changes on existing pages unless you have the rename_wiki_pages permission.","code":"parent_not_applied"}}
+```
 
 ## delete
 
