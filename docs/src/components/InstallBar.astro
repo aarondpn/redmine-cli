@@ -9,6 +9,7 @@ const installers = [
     label: t('install.script'),
     code: 'curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash',
   },
+  { id: 'powershell', label: 'PowerShell', code: 'irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex' },
   { id: 'brew', label: 'Homebrew', code: 'brew install aarondpn/tap/redmine' },
   { id: 'go', label: 'Go', code: 'go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest' },
 ];

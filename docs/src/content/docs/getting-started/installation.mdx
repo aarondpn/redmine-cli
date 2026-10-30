@@ -48,6 +48,22 @@ Pick the install path that suits your platform. All methods produce the same `re
     </Aside>
   </TabItem>
 
+  <TabItem label="PowerShell" icon="seti:powershell">
+    For Windows. Verifies the SHA256 checksum, installs `redmine.exe` to `%LOCALAPPDATA%\Programs\redmine-cli` (no administrator rights needed) and adds that directory to your user `PATH`.
+
+    ```powershell
+    irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+    ```
+
+    It checks the build attestation exactly like the install script above: with a recent, logged-in `gh` it runs `gh attestation verify` and refuses to install if that fails; without one it installs after the checksum check and prints the command to verify the release yourself. `REDMINE_CLI_VERSION` and `REDMINE_CLI_SKIP_ATTESTATION` work the same way:
+
+    ```powershell
+    $env:REDMINE_CLI_VERSION = '<tag>'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.ps1 | iex
+    ```
+
+    Set `REDMINE_INSTALL_DIR` to install elsewhere, and `REDMINE_CLI_NO_MODIFY_PATH=1` to leave your `PATH` alone. Open a new terminal after the first install so it picks up the new `PATH`. `install.ps1` ships with the releases after v2.17.0; to pin an earlier release, fetch the script from `main` instead. Windows on ARM gets the x64 build, which runs under emulation.
+  </TabItem>
+
   <TabItem label="go install" icon="seti:go">
     Builds from source via the Go toolchain. Requires Go 1.26 or later (the `go` directive in `go.mod`); with the default `GOTOOLCHAIN=auto`, an older Go 1.21+ downloads a suitable toolchain itself. Release binaries are built with Go 1.27.3.
 

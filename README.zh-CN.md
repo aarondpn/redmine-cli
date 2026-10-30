@@ -53,6 +53,14 @@ curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.s
 
 脚本会自动检测操作系统和架构，下载最新发布版本并通过校验和验证后，安装到 `~/.local/bin`。如果已安装较新的 [GitHub CLI](https://cli.github.com) 并已登录，脚本还会用 `gh attestation verify` 验证该版本的构建证明（attestation），验证失败时拒绝安装。没有这样的 `gh` 时，脚本只在校验和验证通过后安装，并打印警告以及自行验证该版本的命令。设置 `REDMINE_CLI_VERSION=<tag>` 可安装指定版本；v2.11.2 之前的版本没有构建证明，因此在已登录 `gh` 的环境中固定这些版本时，还需设置 `REDMINE_CLI_SKIP_ATTESTATION=1`。详情请参阅[安装文档](https://redmine-cli.dev/zh-cn/getting-started/installation/)。
 
+### PowerShell 安装脚本（Windows）
+
+```powershell
+irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+```
+
+下载最新的 Windows 版本并校验校验和，将 `redmine.exe` 安装到 `%LOCALAPPDATA%\Programs\redmine-cli`，并加入用户 `PATH`。构建证明、`REDMINE_CLI_VERSION` 和 `REDMINE_CLI_SKIP_ATTESTATION` 的行为与 `install.sh` 相同；安装后请打开新的终端。
+
 ### 使用 Go 安装
 
 ```bash

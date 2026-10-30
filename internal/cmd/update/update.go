@@ -562,15 +562,25 @@ func notWritableError(dir, tag string) error {
 			dir, RepoOwner, RepoName,
 		)
 	}
+	reinstall := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash",
+		RepoOwner, RepoName, tag, tag)
+	if hostOS == "windows" {
+		reinstall = fmt.Sprintf("$env:REDMINE_CLI_VERSION='%s'; irm https://raw.githubusercontent.com/%s/%s/%s/install.ps1 | iex",
+			tag, RepoOwner, RepoName, tag)
+	}
 	return fmt.Errorf(
 		"cannot update: %s is not writable\n\n"+
 			"Reinstall to a user-writable location:\n"+
-			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash\n\n"+
+			"  %s\n\n"+
 			"Or download manually from:\n"+
 			"  https://github.com/%s/%s/releases/tag/%s",
-		dir, RepoOwner, RepoName, tag, tag, RepoOwner, RepoName, tag,
+		dir, reinstall, RepoOwner, RepoName, tag,
 	)
 }
+
+// hostOS is runtime.GOOS, a variable so tests can render the reinstall
+// command of another platform.
+var hostOS = runtime.GOOS
 
 func replaceBinary(execPath string, newBinary []byte) error {
 	dir := filepath.Dir(execPath)

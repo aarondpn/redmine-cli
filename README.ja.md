@@ -53,6 +53,14 @@ curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.s
 
 OS とアーキテクチャを自動検出し、チェックサム検証付きで最新リリースをダウンロードして `~/.local/bin` にインストールします。新しめの [GitHub CLI](https://cli.github.com) がインストール済みでログインしている場合は、`gh attestation verify` でリリースのビルド attestation も検証し、失敗した場合はインストールを中止します。そのような `gh` がない場合はチェックサム検証のみでインストールし、警告と、リリースを自分で検証するためのコマンドを表示します。特定のリリースをインストールするには `REDMINE_CLI_VERSION=<tag>` を設定します。v2.11.2 より前のリリースには attestation がないため、ログイン済みの `gh` がある環境でそれらを指定する場合は `REDMINE_CLI_SKIP_ATTESTATION=1` も必要です。詳細は[インストールのドキュメント](https://redmine-cli.dev/getting-started/installation/)を参照してください。
 
+### PowerShell インストールスクリプト（Windows）
+
+```powershell
+irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+```
+
+最新の Windows 版をチェックサム検証付きでダウンロードし、`redmine.exe` を `%LOCALAPPDATA%\Programs\redmine-cli` にインストールしてユーザーの `PATH` に追加します。ビルドアテステーション、`REDMINE_CLI_VERSION`、`REDMINE_CLI_SKIP_ATTESTATION` は `install.sh` と同じように動作します。インストール後は新しいターミナルを開いてください。
+
 ### Go でインストール
 
 ```bash
