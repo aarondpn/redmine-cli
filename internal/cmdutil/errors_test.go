@@ -167,16 +167,79 @@ func TestBuildErrorEnvelope_HintIsSeparateField(t *testing.T) {
 	}
 }
 
-func TestBuildErrorEnvelope_ForbiddenHasGenericHint(t *testing.T) {
-	env := BuildErrorEnvelope(&api.APIError{StatusCode: 403})
-	if !strings.Contains(env.Error.Hint, "Don't retry with other credentials") {
-		t.Errorf("hint = %q, want forbidden guidance", env.Error.Hint)
+func TestErrorHint_AuthBranches(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         *api.APIError
+		wantMessage string
+		wantHint    []string
+		notHint     []string
+	}{
+		{
+			name:        "401 means credentials rejected",
+			err:         &api.APIError{StatusCode: 401, URL: "https://redmine.example.com/users/current.json"},
+			wantMessage: "Authentication failed",
+			wantHint:    []string{"did not accept the credentials", "redmine auth status", "redmine auth login"},
+			notHint:     []string{"retry", "REST web service"},
+		},
+		{
+			name:        "403 on users/current points at the REST API",
+			err:         &api.APIError{StatusCode: 403, URL: "https://redmine.example.com/users/current.json"},
+			wantMessage: "REST API",
+			wantHint:    []string{"REST API is probably disabled", "Enable REST web service", "redmine auth status", "proxy"},
+			notHint:     []string{"retry"},
+		},
+		{
+			name:        "403 on my/account behind a path prefix points at the REST API",
+			err:         &api.APIError{StatusCode: 403, URL: "https://example.com/redmine/my/account.json?include=x"},
+			wantMessage: "REST API",
+			wantHint:    []string{"REST API is probably disabled"},
+			notHint:     []string{"retry"},
+		},
+		{
+			name:        "other 403 is ambiguous",
+			err:         &api.APIError{StatusCode: 403, URL: "https://redmine.example.com/users.json"},
+			wantMessage: "missing permission or a disabled REST API",
+			wantHint:    []string{"either a missing permission or a disabled REST API", "don't retry with other credentials", "Enable REST web service"},
+		},
+		{
+			name:        "403 without URL is ambiguous",
+			err:         &api.APIError{StatusCode: 403},
+			wantMessage: "missing permission or a disabled REST API",
+			wantHint:    []string{"don't retry with other credentials"},
+		},
 	}
-	if !strings.Contains(FormatError(&api.APIError{StatusCode: 403}), "\nHint: ") {
-		t.Error("FormatError should render the forbidden hint")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := FormatErrorMessage(tt.err)
+			if !strings.Contains(msg, tt.wantMessage) {
+				t.Errorf("message = %q, want it to contain %q", msg, tt.wantMessage)
+			}
+			if strings.Contains(msg, "Hint:") {
+				t.Error("FormatErrorMessage must not include the hint")
+			}
+			env := BuildErrorEnvelope(tt.err)
+			for _, want := range tt.wantHint {
+				if !strings.Contains(env.Error.Hint, want) {
+					t.Errorf("hint = %q, want it to contain %q", env.Error.Hint, want)
+				}
+			}
+			for _, not := range tt.notHint {
+				if strings.Contains(env.Error.Hint, not) {
+					t.Errorf("hint = %q, must not contain %q", env.Error.Hint, not)
+				}
+			}
+			if !strings.Contains(FormatError(tt.err), "\nHint: "+env.Error.Hint) {
+				t.Error("FormatError should render the hint")
+			}
+		})
 	}
-	if strings.Contains(FormatErrorMessage(&api.APIError{StatusCode: 403}), "Hint:") {
-		t.Error("FormatErrorMessage must not include the hint")
+}
+
+func TestErrorHint_ExplicitHintWinsOverAuthHints(t *testing.T) {
+	err := WithHint(&api.APIError{StatusCode: 403, URL: "https://redmine.example.com/users/current.json"}, "custom")
+	if got := ErrorHint(err); got != "custom" {
+		t.Errorf("hint = %q, want custom", got)
 	}
 }
 

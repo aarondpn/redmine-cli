@@ -260,8 +260,16 @@ add; in non-JSON mode the same text is printed on a `Hint:` line.
 
 Hints are currently emitted for:
 
-- `forbidden`: access comes from project roles (or admin status for
-  admin-only endpoints), so retrying with other credentials won't help. For a
+- `auth_failed`: Redmine did not accept the credentials (invalid, revoked or
+  missing API key, or a locked account). The hint points to `redmine auth status`
+  and `redmine auth login`.
+- `forbidden`: a 403 is ambiguous. Redmine answers it both for a missing
+  permission (project roles, or admin status for admin-only endpoints) and for
+  every login-requiring request while the REST API is disabled. The hint says
+  so and only advises against retrying with other credentials when a missing
+  permission is the cause. On `/users/current.json` and `/my/account.json`,
+  which every logged-in user may read, a 403 points to a disabled REST API
+  (Administration > Settings > API) or a proxy in front of Redmine. For a
   single issue, Redmine answers 403 when the issue exists but is private or in
   a project the user is not a member of.
 - `not_found` on a single issue: the issue does not exist on the server.
