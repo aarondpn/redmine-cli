@@ -42,7 +42,7 @@ func TestLauncher(t *testing.T) {
 		t.Skip("POSIX sh launcher")
 	}
 	// The launcher only needs shell builtins, so PATH can hold just the stub
-	// directory; REDMINE_MCP_SYSTEM_DIRS points the fixed system dirs at an
+	// directory; _REDMINE_MCP_TEST_SYSTEM_DIRS points the fixed system dirs at an
 	// empty location so a real install cannot shadow the fixtures.
 	tests := []struct {
 		name    string
@@ -54,7 +54,7 @@ func TestLauncher(t *testing.T) {
 			name: "found on PATH",
 			setup: func(home, pathDir string) []string {
 				writeStub(t, pathDir, "path")
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			want: "path mcp serve",
 		},
@@ -62,7 +62,7 @@ func TestLauncher(t *testing.T) {
 			name: "found in HOME/.local/bin",
 			setup: func(home, pathDir string) []string {
 				writeStub(t, filepath.Join(home, ".local", "bin"), "local")
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			want: "local mcp serve",
 		},
@@ -70,7 +70,7 @@ func TestLauncher(t *testing.T) {
 			name: "found in HOME/go/bin",
 			setup: func(home, pathDir string) []string {
 				writeStub(t, filepath.Join(home, "go", "bin"), "gohome")
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			want: "gohome mcp serve",
 		},
@@ -79,7 +79,7 @@ func TestLauncher(t *testing.T) {
 			setup: func(home, pathDir string) []string {
 				gobin := filepath.Join(home, "custom-gobin")
 				writeStub(t, gobin, "gobin")
-				return []string{"PATH=" + pathDir, "HOME=" + home, "GOBIN=" + gobin, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "GOBIN=" + gobin, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			want: "gobin mcp serve",
 		},
@@ -88,7 +88,7 @@ func TestLauncher(t *testing.T) {
 			setup: func(home, pathDir string) []string {
 				writeStub(t, pathDir, "path")
 				writeStub(t, filepath.Join(home, ".local", "bin"), "local")
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			want: "path mcp serve",
 		},
@@ -100,14 +100,14 @@ func TestLauncher(t *testing.T) {
 				if err := os.Chmod(filepath.Join(dir, "redmine"), 0o644); err != nil {
 					t.Fatal(err)
 				}
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			wantErr: true,
 		},
 		{
 			name: "not found",
 			setup: func(home, pathDir string) []string {
-				return []string{"PATH=" + pathDir, "HOME=" + home, "REDMINE_MCP_SYSTEM_DIRS=" + filepath.Join(home, "none")}
+				return []string{"PATH=" + pathDir, "HOME=" + home, "_REDMINE_MCP_TEST_SYSTEM_DIRS=" + filepath.Join(home, "none")}
 			},
 			wantErr: true,
 		},

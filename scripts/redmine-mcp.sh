@@ -1,14 +1,16 @@
 #!/bin/sh
-# Launcher for the redmine MCP server used by the plugin manifests.
-# GUI-launched hosts often get a minimal PATH, so look in the usual install
-# locations when `redmine` is not on PATH.
+# Launcher for the redmine MCP server, for MCP host configs to use as the
+# command (sh redmine-mcp.sh mcp serve). GUI-launched hosts often get a
+# minimal PATH, so look in the usual install locations when `redmine` is not
+# on PATH.
 
 if command -v redmine >/dev/null 2>&1; then
   exec redmine "$@"
 fi
 
-# REDMINE_MCP_SYSTEM_DIRS overrides the fixed system directories (used by tests).
-for dir in ${REDMINE_MCP_SYSTEM_DIRS:-/opt/homebrew/bin /usr/local/bin} "${HOME:-}/.local/bin" "${GOBIN:-}" "${HOME:-}/go/bin"; do
+# _REDMINE_MCP_TEST_SYSTEM_DIRS replaces the fixed system directories. It is
+# for the tests only and not a supported setting.
+for dir in ${_REDMINE_MCP_TEST_SYSTEM_DIRS:-/opt/homebrew/bin /usr/local/bin} "${HOME:-}/.local/bin" "${GOBIN:-}" "${HOME:-}/go/bin"; do
   case "$dir" in
     /*) ;;
     *) continue ;;
