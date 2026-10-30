@@ -66,8 +66,8 @@ redmine projects create [flags]
 | `--default-assignee`   | 新工单的默认指派人（登录名、姓名或数字 ID） |
 | `--tracker`            | 启用的跟踪标签名称或 ID（可重复或以逗号分隔） |
 | `--enable-module`      | 启用的模块：`boards`、`calendar`、`documents`、`files`、`gantt`、`issue_tracking`、`news`、`repository`、`time_tracking`、`wiki` |
-| `--issue-custom-field` | 启用的工单级自定义字段名称或 ID（可重复） |
-| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+| `--issue-custom-field` | 启用的工单级自定义字段名称或 ID（可重复）。名称仅匹配工单自定义字段 |
+| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值)。名称仅匹配项目自定义字段 |
 
 ```bash
 redmine projects create \
@@ -98,7 +98,7 @@ redmine projects update <identifier> [flags]
 | `--tracker`            | 替换启用的跟踪标签集合 |
 | `--enable-module`      | 替换启用的模块集合 |
 | `--issue-custom-field` | 替换工单级自定义字段集合 |
-| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+| `--custom-field`       | 项目自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值)。名称仅匹配项目自定义字段 |
 
 <Aside type="note">
   `--tracker`、`--enable-module` 和 `--issue-custom-field` 在提供时会替换当前集合，需要传入完整列表，而不仅是要新增的项。

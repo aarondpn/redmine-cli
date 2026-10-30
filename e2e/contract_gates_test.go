@@ -42,6 +42,8 @@ var always = [2]int{0, 0}
 
 var gatedKeys = []gatedKey{
 	// Issues.
+	{"issues_get_full", "custom_fields[].multiple", always, "issues_helper#render_api_custom_values", "a multi-value issue custom field with values"},
+	{"issues_list", "[].custom_fields[].multiple", always, "", "a multi-value issue custom field with values"},
 	{"issues_get_full", "status.is_closed", [2]int{5, 0}, "redmine.org/issues/15855", ""},
 	{"issues_get_closed", "closed_on", always, "since Redmine 2.3", "a closed issue"},
 	{"issues_get_full", "spent_hours", always, "", "time entries on the issue, view_time_entries"},

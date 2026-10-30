@@ -32,10 +32,14 @@ Aliases: `new`.
 | `--due-date`        | Due date (`YYYY-MM-DD` or `today`) |
 | `--description`     | Version description |
 | `--wiki-page-title` | Associated wiki page title |
+| `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 | `-o, --output`      | Output format |
 
 ```bash
 redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30
+
+# Custom field (the value is everything after the first =)
+redmine versions create --project myproject --name 1.3.0 --custom-field "Release Manager=Jane Doe"
 ```
 
 ## list
@@ -91,6 +95,7 @@ Aliases: `edit`. Accepts a numeric ID or a version name.
 | `--due-date`        | New due date (`YYYY-MM-DD` or `today`) |
 | `--description`     | New version description |
 | `--wiki-page-title` | New associated wiki page title |
+| `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 ```bash
 redmine versions update 42 --status closed

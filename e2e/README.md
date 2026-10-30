@@ -75,6 +75,7 @@ Redmine instance. The suite is split into topical files:
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
 | `custom_fields_test.go`  | `custom-fields list` / `get` plus the Redmine 7.0 scope and role metadata |
+| `custom_field_input_test.go` | `--custom-field` on issues, projects, time entries, versions, users, my-account, groups (multi-value, clearing, type-scoped name resolution) and MCP `custom_field_values` |
 | `contract_*_test.go`     | raw Redmine JSON vs `-o json` vs MCP, and the table of version-gated keys (see below) |
 | (API decoding regressions, issue #201) | Spread over the topical files: `projects_test.go` default assignee, `users_test.go` / `my_account_test.go` nullable `admin` / `status` (admin vs non-admin viewer, `users list` before / after 6.0), `groups_test.go` group memberships with project + roles, `roles_test.go` no builtin columns, `issues_test.go` always-present `is_private` / `private_notes`, `files_test.go` `downloads: 0`, `search_test.go` + `mcp_extended_test.go` `all_words` default vs `=false` |
 
@@ -89,6 +90,15 @@ and a role-restricted time entry custom field (`E2E Billing Code`, seeded
 `visible: false` so the role restriction has meaning). The seeding uses `save!`
 throughout: a fixture that cannot be created should stop the bootstrap, not
 degrade quietly into a confusing test failure later.
+
+It also seeds the fixtures for `custom_field_input_test.go`: a multi-value
+issue field (`E2E Tags`), a name shared by an issue and a time entry field
+(`E2E Shared Code`, for type-scoped name resolution), an issue field that is
+not for all projects (`E2E Project Scoped`, for `--issue-custom-field`),
+`E2E Entry Tags`
+(time entry), `E2E Project Labels`, `E2E Version Owner`, `E2E User Skills`
+(editable) and `E2E Group Code`. None of them is required: a required time
+entry custom field would make every other test that logs time fail.
 
 It then runs `seed-contract.rb`, which seeds the data the contract tests
 need (it is idempotent; re-run it on a live stack with

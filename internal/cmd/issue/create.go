@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
@@ -56,6 +57,10 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Create a child issue under an epic, with a category
   redmine issues create --project myproject --parent 1234 --tracker Task \
     --category "Backend" --subject "Implement API endpoint"
+
+  # Multi-value custom field: repeat the flag once per value
+  redmine issues create --project myproject --subject "Bug" \
+    --custom-field Platforms=Linux --custom-field Platforms=macOS
 
   # Attach a screenshot and embed it inline in a Textile description (!filename!);
   # on servers using Markdown/CommonMark formatting write ![](screenshot.png) instead
@@ -179,7 +184,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(customFieldRaw) > 0 {
-				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw)
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeIssue)
 				if err != nil {
 					return err
 				}
@@ -248,7 +253,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().StringArrayVar(&watchers, "watcher", nil, "Initial watcher (name, login, ID, or 'me') (repeatable)")
-	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Custom field", models.CustomizedTypeIssue)
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
 	cmdutil.AddOutputFlag(cmd, &format)
 

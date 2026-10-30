@@ -1,15 +1,11 @@
 package project
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/aarondpn/redmine-cli/v2/internal/api"
-	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 // allowedModules is the canonical list of Redmine project modules. Source:
@@ -52,11 +48,4 @@ func sortedKeys(m map[string]struct{}) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, ", ")
-}
-
-// parseCustomFieldValues is a thin alias for cmdutil.ParseCustomFieldValues
-// kept here so existing project commands and their tests can call the local
-// name. New callers should use cmdutil.ParseCustomFieldValues directly.
-func parseCustomFieldValues(ctx context.Context, client *api.Client, raws []string) (map[string]string, error) {
-	return cmdutil.ParseCustomFieldValues(ctx, client, raws)
 }

@@ -41,45 +41,45 @@ type GetIssueInput struct {
 }
 
 type CreateIssueInput struct {
-	ProjectID         int               `json:"project_id" jsonschema:"Numeric project ID to create the issue in."`
-	Subject           string            `json:"subject" jsonschema:"Issue subject (title)."`
-	Description       string            `json:"description,omitempty" jsonschema:"Issue body (Textile or Markdown depending on the Redmine configuration)."`
-	TrackerID         int               `json:"tracker_id,omitempty" jsonschema:"Tracker ID (Bug, Feature, ...). Use list_trackers to discover."`
-	StatusID          int               `json:"status_id,omitempty" jsonschema:"Initial status ID. Use list_statuses to discover."`
-	PriorityID        int               `json:"priority_id,omitempty" jsonschema:"Priority ID."`
-	AssignedToID      int               `json:"assigned_to_id,omitempty" jsonschema:"User or group ID of the assignee (groups require Redmine's 'Allow issue assignment to groups' setting). Omit to leave unassigned."`
-	CategoryID        int               `json:"category_id,omitempty" jsonschema:"Issue category ID. Use list_categories to discover."`
-	FixedVersionID    int               `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
-	ParentIssueID     int               `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks."`
-	StartDate         string            `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD)."`
-	DueDate           string            `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
-	EstimatedHours    float64           `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
-	IsPrivate         *bool             `json:"is_private,omitempty" jsonschema:"Mark the issue as private."`
-	WatcherUserIDs    []int             `json:"watcher_user_ids,omitempty" jsonschema:"Initial watcher user IDs (numeric)."`
-	CustomFieldValues map[string]string `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom-field ID. Use list_custom_fields to discover field IDs."`
-	Uploads           []models.Upload   `json:"-"`
+	ProjectID         int                      `json:"project_id" jsonschema:"Numeric project ID to create the issue in."`
+	Subject           string                   `json:"subject" jsonschema:"Issue subject (title)."`
+	Description       string                   `json:"description,omitempty" jsonschema:"Issue body (Textile or Markdown depending on the Redmine configuration)."`
+	TrackerID         int                      `json:"tracker_id,omitempty" jsonschema:"Tracker ID (Bug, Feature, ...). Use list_trackers to discover."`
+	StatusID          int                      `json:"status_id,omitempty" jsonschema:"Initial status ID. Use list_statuses to discover."`
+	PriorityID        int                      `json:"priority_id,omitempty" jsonschema:"Priority ID."`
+	AssignedToID      int                      `json:"assigned_to_id,omitempty" jsonschema:"User or group ID of the assignee (groups require Redmine's 'Allow issue assignment to groups' setting). Omit to leave unassigned."`
+	CategoryID        int                      `json:"category_id,omitempty" jsonschema:"Issue category ID. Use list_categories to discover."`
+	FixedVersionID    int                      `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
+	ParentIssueID     int                      `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks."`
+	StartDate         string                   `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD)."`
+	DueDate           string                   `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
+	EstimatedHours    float64                  `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	IsPrivate         *bool                    `json:"is_private,omitempty" jsonschema:"Mark the issue as private."`
+	WatcherUserIDs    []int                    `json:"watcher_user_ids,omitempty" jsonschema:"Initial watcher user IDs (numeric)."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom field ID (list_custom_fields, customized_type issue). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
+	Uploads           []models.Upload          `json:"-"`
 }
 
 type UpdateIssueInput struct {
-	ID                int               `json:"id" jsonschema:"Issue ID to update."`
-	Subject           *string           `json:"subject,omitempty" jsonschema:"New subject (title)."`
-	Description       *string           `json:"description,omitempty" jsonschema:"New description body."`
-	TrackerID         *int              `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
-	StatusID          *int              `json:"status_id,omitempty" jsonschema:"New status ID."`
-	PriorityID        *int              `json:"priority_id,omitempty" jsonschema:"New priority ID."`
-	AssignedToID      *int              `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the issue to. Set to 0 to unassign."`
-	CategoryID        *int              `json:"category_id,omitempty" jsonschema:"Issue category ID."`
-	FixedVersionID    *int              `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
-	ParentIssueID     *int              `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
-	DoneRatio         *int              `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
-	EstimatedHours    *float64          `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
-	StartDate         *string           `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD). Use empty string to clear."`
-	DueDate           *string           `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD). Use empty string to clear."`
-	Notes             *string           `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
-	PrivateNotes      *bool             `json:"private_notes,omitempty" jsonschema:"Mark the note attached via 'notes' as private."`
-	IsPrivate         *bool             `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
-	CustomFieldValues map[string]string `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom-field ID."`
-	Uploads           []models.Upload   `json:"-"`
+	ID                int                      `json:"id" jsonschema:"Issue ID to update."`
+	Subject           *string                  `json:"subject,omitempty" jsonschema:"New subject (title)."`
+	Description       *string                  `json:"description,omitempty" jsonschema:"New description body."`
+	TrackerID         *int                     `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
+	StatusID          *int                     `json:"status_id,omitempty" jsonschema:"New status ID."`
+	PriorityID        *int                     `json:"priority_id,omitempty" jsonschema:"New priority ID."`
+	AssignedToID      *int                     `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the issue to. Set to 0 to unassign."`
+	CategoryID        *int                     `json:"category_id,omitempty" jsonschema:"Issue category ID."`
+	FixedVersionID    *int                     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
+	ParentIssueID     *int                     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
+	DoneRatio         *int                     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
+	EstimatedHours    *float64                 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	StartDate         *string                  `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD). Use empty string to clear."`
+	DueDate           *string                  `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD). Use empty string to clear."`
+	Notes             *string                  `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
+	PrivateNotes      *bool                    `json:"private_notes,omitempty" jsonschema:"Mark the note attached via 'notes' as private."`
+	IsPrivate         *bool                    `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom field ID (list_custom_fields, customized_type issue). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
+	Uploads           []models.Upload          `json:"-"`
 }
 
 type DeleteIssueInput struct {

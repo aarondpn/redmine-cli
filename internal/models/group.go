@@ -12,14 +12,16 @@ type Group struct {
 
 // GroupCreate defines fields for creating a group.
 type GroupCreate struct {
-	Name    string `json:"name"`
-	UserIDs []int  `json:"user_ids,omitempty"`
+	Name              string            `json:"name"`
+	UserIDs           []int             `json:"user_ids,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // GroupUpdate defines fields for updating a group.
 type GroupUpdate struct {
-	Name    *string `json:"name,omitempty"`
-	UserIDs *[]int  `json:"user_ids,omitempty"`
+	Name              *string           `json:"name,omitempty"`
+	UserIDs           *[]int            `json:"user_ids,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // GroupFilter defines parameters for listing groups.

@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -207,6 +208,54 @@ func CompleteCustomFields(f *Factory) func(cmd *cobra.Command, args []string, to
 			items = append(items, fmt.Sprintf("%s\t%s/%s", fld.Name, fld.CustomizedType, fld.FieldFormat))
 		}
 		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// CompleteCustomFieldValues returns a completion function for --custom-field.
+// Before the '=' it offers "Name=" for the custom fields of customizedType;
+// after "Name=" (or "<id>=") of a list field it offers the possible values.
+// Hits the admin-only /custom_fields.json endpoint, so it silently returns no
+// candidates when the authenticated user lacks access.
+func CompleteCustomFieldValues(f *Factory, customizedType string) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		client, ctx, cancel := completionClient(f, cmd)
+		if client == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		defer cancel()
+
+		fields, err := client.CustomFields.List(ctx)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		fields = slices.DeleteFunc(fields, func(fld models.CustomField) bool { return fld.CustomizedType != customizedType })
+
+		key, _, hasValue := strings.Cut(toComplete, "=")
+		if hasValue {
+			var items []string
+			for _, fld := range fields {
+				if !strings.EqualFold(fld.Name, key) && strconv.Itoa(fld.ID) != key {
+					continue
+				}
+				for _, pv := range fld.PossibleValues {
+					items = append(items, key+"="+pv.Value)
+				}
+			}
+			return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoFileComp
+		}
+
+		items := make([]string, 0, len(fields))
+		for _, fld := range fields {
+			desc := fld.FieldFormat
+			if fld.Multiple {
+				desc += ", multiple"
+			}
+			if fld.IsRequired {
+				desc += ", required"
+			}
+			items = append(items, fmt.Sprintf("%s=\t%s", fld.Name, desc))
+		}
+		return filterCompletions(items, toComplete), cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveNoFileComp
 	}
 }
 

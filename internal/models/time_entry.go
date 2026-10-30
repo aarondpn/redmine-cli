@@ -18,21 +18,23 @@ type TimeEntry struct {
 
 // TimeEntryCreate defines fields for creating a time entry.
 type TimeEntryCreate struct {
-	IssueID    int     `json:"issue_id,omitempty"`
-	ProjectID  string  `json:"project_id,omitempty"`
-	Hours      float64 `json:"hours"`
-	ActivityID int     `json:"activity_id,omitempty"`
-	SpentOn    string  `json:"spent_on,omitempty"`
-	Comments   string  `json:"comments,omitempty"`
-	UserID     int     `json:"user_id,omitempty"`
+	IssueID           int               `json:"issue_id,omitempty"`
+	ProjectID         string            `json:"project_id,omitempty"`
+	Hours             float64           `json:"hours"`
+	ActivityID        int               `json:"activity_id,omitempty"`
+	SpentOn           string            `json:"spent_on,omitempty"`
+	Comments          string            `json:"comments,omitempty"`
+	UserID            int               `json:"user_id,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // TimeEntryUpdate defines fields for updating a time entry.
 type TimeEntryUpdate struct {
-	Hours      *float64 `json:"hours,omitempty"`
-	ActivityID *int     `json:"activity_id,omitempty"`
-	SpentOn    *string  `json:"spent_on,omitempty"`
-	Comments   *string  `json:"comments,omitempty"`
+	Hours             *float64          `json:"hours,omitempty"`
+	ActivityID        *int              `json:"activity_id,omitempty"`
+	SpentOn           *string           `json:"spent_on,omitempty"`
+	Comments          *string           `json:"comments,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // TimeEntryFilter defines parameters for listing time entries.

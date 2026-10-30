@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +23,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		authSourceID     int
 		sendInformation  bool
 		format           string
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{
@@ -29,6 +31,8 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Short:   "Create a new user",
 		Aliases: []string{"new"},
+		Example: `  # Create a user with a custom field
+  redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com --generate-password --custom-field Department=QA`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := ValidateMailNotification(mailNotification); err != nil {
 				return err
@@ -69,11 +73,19 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 				input.AuthSourceID = &v
 			}
 
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(cmdutil.Context(cmd), client, customFieldRaw, models.CustomizedTypeUser)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
 			stop := printer.Spinner("Creating user...")
 			user, err := ops.CreateUser(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Resource(user, fmt.Sprintf("Created user %q (ID: %d)", user.Login, user.ID))
@@ -92,6 +104,7 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&generatePassword, "generate-password", false, "Let the server generate a random password")
 	cmd.Flags().IntVar(&authSourceID, "auth-source-id", 0, "Numeric authentication source ID for external auth")
 	cmd.Flags().BoolVar(&sendInformation, "send-information", false, "Email the account info to the new user")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "User custom field", models.CustomizedTypeUser)
 	cmd.MarkFlagRequired("login")
 	cmd.MarkFlagRequired("firstname")
 	cmd.MarkFlagRequired("lastname")

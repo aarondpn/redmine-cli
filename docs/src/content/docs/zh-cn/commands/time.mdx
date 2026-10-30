@@ -31,11 +31,19 @@ redmine time log [flags]
 | `--comment`  | 工作描述 |
 | `--date`     | 日期（YYYY-MM-DD 或 `today`，默认：今天） |
 | `--user`     | 代他人记录工时（`me`、登录名、姓名或 ID） |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 <Tabs syncKey="time-log">
   <TabItem label="基础">
     ```bash
     redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
+    ```
+  </TabItem>
+  <TabItem label="自定义字段">
+    ```bash
+    redmine time log --issue 123 --hours 2 \
+      --custom-field "Billing Code=ACME-42" \
+      --custom-field Tags=Onsite --custom-field Tags=Overtime
     ```
   </TabItem>
   <TabItem label="代他人">
@@ -47,6 +55,10 @@ redmine time log [flags]
 
 <Aside type="caution">
   `--user` 需要 Redmine 服务端的管理员权限或“代他人记录工时”权限。同时，目标用户必须是该项目的成员并拥有“记录工时”权限，否则 Redmine 会返回校验错误（`User is invalid`）。
+</Aside>
+
+<Aside type="tip" title="必填自定义字段">
+  如果服务器定义了必填的工时自定义字段，`time log` 会以 `validation_failed` 失败，直到通过 `--custom-field` 传入这些字段。按名称查找字段需要管理员权限；否则请使用 `redmine time list --limit 1 --jq '.[0].custom_fields'` 得到的数字 ID。
 </Aside>
 
 ## list
@@ -100,6 +112,7 @@ redmine time update <id> [flags]
 | `--activity` | 新活动类型（名称或 ID） |
 | `--comment`  | 新评论 |
 | `--date`     | 新日期（YYYY-MM-DD 或 `today`） |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 ## delete
 

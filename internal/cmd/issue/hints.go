@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -37,15 +38,15 @@ func addErrorHints(f *cmdutil.Factory, parent *cobra.Command) {
 		case "create":
 			wrapRunEWithHint(c, func(cmd *cobra.Command, _ []string, apiErr *api.APIError) string {
 				if apiErr.IsValidationError() && matchesPath(apiErr, issueWritePath) {
-					return createValidationHint(createHintProject(f, cmd))
+					return joinHints(createValidationHint(createHintProject(f, cmd)), customFieldHint(cmd))
 				}
 				return ""
 			})
 		case "update", "assign", "close", "reopen", "comment", "delete":
-			wrapRunEWithHint(c, func(_ *cobra.Command, args []string, apiErr *api.APIError) string {
+			wrapRunEWithHint(c, func(cmd *cobra.Command, args []string, apiErr *api.APIError) string {
 				switch {
 				case apiErr.IsValidationError() && matchesPath(apiErr, issueWritePath):
-					return updateValidationHint(firstArg(args))
+					return joinHints(updateValidationHint(firstArg(args)), customFieldHint(cmd))
 				case apiErr.IsNotFound() && matchesPath(apiErr, issuePath):
 					return issueNotFoundHint(firstArg(args))
 				case apiErr.IsForbidden() && matchesPath(apiErr, issuePath):
@@ -86,6 +87,18 @@ func wrapRunEWithHint(cmd *cobra.Command, hintFor func(cmd *cobra.Command, args 
 		}
 		return cmdutil.WithHint(err, hintFor(cmd, args, apiErr))
 	}
+}
+
+// customFieldHint returns the multi-value hint for the --custom-field values
+// given to cmd, or "" when the command has no such flag or no repeated field.
+func customFieldHint(cmd *cobra.Command) string {
+	raws, _ := cmd.Flags().GetStringArray("custom-field")
+	return cmdutil.CustomFieldValidationHint(raws)
+}
+
+// joinHints joins the non-empty hints with a space.
+func joinHints(hints ...string) string {
+	return strings.Join(slices.DeleteFunc(hints, func(h string) bool { return h == "" }), " ")
 }
 
 func matchesPath(apiErr *api.APIError, re *regexp.Regexp) bool {

@@ -6,19 +6,21 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
 func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project       string
-		name          string
-		status        string
-		sharing       string
-		dueDate       string
-		description   string
-		wikiPageTitle string
+		project        string
+		name           string
+		status         string
+		sharing        string
+		dueDate        string
+		description    string
+		wikiPageTitle  string
+		customFieldRaw []string
 	)
 
 	cmd := &cobra.Command{
@@ -26,7 +28,9 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"edit"},
 		Short:   "Update a project version",
 		Long:    "Update an existing Redmine project version. Accepts a numeric ID or version name (uses the default project, or pass --project).",
-		Args:    cobra.ExactArgs(1),
+		Example: `  # Set a version custom field
+  redmine versions update 1.3.0 --project myproject --custom-field "Release Manager=John Roe"`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -60,8 +64,16 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.WikiPageTitle = &wikiPageTitle
 			}
 
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeVersion)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
 			if _, err := ops.UpdateVersion(ctx, client, input); err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer := f.Printer("")
@@ -77,6 +89,7 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&description, "description", "", "Version description")
 	cmd.Flags().StringVar(&wikiPageTitle, "wiki-page-title", "", "Wiki page title")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Version custom field", models.CustomizedTypeVersion)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteVersionStatus)

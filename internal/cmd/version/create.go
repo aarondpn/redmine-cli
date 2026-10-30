@@ -6,19 +6,21 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
 func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project       string
-		name          string
-		status        string
-		sharing       string
-		dueDate       string
-		description   string
-		wikiPageTitle string
-		format        string
+		project        string
+		name           string
+		status         string
+		sharing        string
+		dueDate        string
+		description    string
+		wikiPageTitle  string
+		format         string
+		customFieldRaw []string
 	)
 
 	cmd := &cobra.Command{
@@ -31,7 +33,10 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
   redmine versions create --name 1.2.0
 
   # Create a version for a specific project
-  redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30 --description "Release 1.2.0"`,
+  redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30 --description "Release 1.2.0"
+
+  # Set version custom fields (repeat a field for multi-value fields)
+  redmine versions create --project myproject --name 1.3.0 --custom-field "Release Manager=Jane Doe"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -60,10 +65,18 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 				input.WikiPageTitle = wikiPageTitle
 			}
 
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(cmdutil.Context(cmd), client, customFieldRaw, models.CustomizedTypeVersion)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
 			printer := f.Printer(format)
 			version, err := ops.CreateVersion(cmdutil.Context(cmd), client, input)
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Resource(version, fmt.Sprintf("Version %q created (ID: %d)", version.Name, version.ID))
@@ -78,6 +91,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&description, "description", "", "Version description")
 	cmd.Flags().StringVar(&wikiPageTitle, "wiki-page-title", "", "Wiki page title")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Version custom field", models.CustomizedTypeVersion)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("name")

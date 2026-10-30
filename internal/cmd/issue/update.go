@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
@@ -55,6 +56,9 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   # Assign to a group (or user) by name, or clear the assignee
   redmine issues update 123 --assignee "Backend Team"
   redmine issues update 123 --assignee none
+
+  # Clear a custom field (also clears every value of a multi-value field)
+  redmine issues update 123 --custom-field Severity=
 
   # Add a private note (only visible to staff)
   redmine issues update 123 --note "Internal context" --private-notes
@@ -214,7 +218,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(customFieldRaw) > 0 {
-				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw)
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeIssue)
 				if err != nil {
 					return err
 				}
@@ -265,7 +269,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
 	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note or --note-file as private")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
-	cmd.Flags().StringArrayVar(&customFieldRaw, "custom-field", nil, "Custom field value as name=value or id=value (repeatable)")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Custom field", models.CustomizedTypeIssue)
 
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))

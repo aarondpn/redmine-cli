@@ -39,6 +39,7 @@ func registerToolSpec[In, Out any](srv *mcp.Server, client *api.Client, opts Opt
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:         spec.Name,
 		Description:  spec.Description,
+		InputSchema:  inputSchemaFor[In](),
 		OutputSchema: outputSchemaWithoutSecrets[Out](),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input In) (*mcp.CallToolResult, Out, error) {
 		clampMCPInput(&input)
@@ -65,16 +66,60 @@ func outputSchemaWithoutSecrets[Out any]() any {
 	if rt.Kind() == reflect.Pointer {
 		rt = rt.Elem()
 	}
-	schema, err := jsonschema.ForType(rt, &jsonschema.ForOptions{
-		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
-			reflect.TypeFor[models.IssueChild](): issueChildSchema(),
-		},
-	})
+	schema, err := jsonschema.ForType(rt, &jsonschema.ForOptions{TypeSchemas: schemaOverrides()})
 	if err != nil {
 		return nil
 	}
 	removeSecretProperties(schema, make(map[*jsonschema.Schema]bool))
 	return schema
+}
+
+// inputSchemaFor returns the input schema for In: the SDK's own inference plus
+// the types whose JSON form the reflection cannot express (custom field values
+// accept a string or an array of strings). It returns nil, and the SDK infers
+// the schema itself, when inference fails. The nil must be untyped: a typed
+// nil *jsonschema.Schema in the interface makes mcp.AddTool panic.
+func inputSchemaFor[In any]() any {
+	rt := reflect.TypeFor[In]()
+	if rt.Kind() == reflect.Pointer {
+		rt = rt.Elem()
+	}
+	schema, err := jsonschema.ForType(rt, &jsonschema.ForOptions{TypeSchemas: schemaOverrides()})
+	if err != nil || schema == nil || schema.Type != "object" {
+		return nil
+	}
+	return schema
+}
+
+// schemaOverrides returns the schemas for types the SDK cannot infer
+// correctly, shared by the input and output schemas.
+func schemaOverrides() map[reflect.Type]*jsonschema.Schema {
+	return map[reflect.Type]*jsonschema.Schema{
+		reflect.TypeFor[models.IssueChild]():        issueChildSchema(),
+		reflect.TypeFor[models.CustomFieldValues](): customFieldValuesSchema(),
+		reflect.TypeFor[models.CustomFieldInput]():  customFieldInputSchema(),
+	}
+}
+
+// customFieldInputSchema describes one custom field value: a string, or an
+// array of strings for a multi-value field.
+func customFieldInputSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		AnyOf: []*jsonschema.Schema{
+			{Type: "string"},
+			{Type: "array", Items: &jsonschema.Schema{Type: "string"}},
+		},
+	}
+}
+
+// customFieldValuesSchema describes custom field values keyed by numeric
+// custom field ID.
+func customFieldValuesSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:                 "object",
+		PropertyNames:        &jsonschema.Schema{Pattern: "^[1-9][0-9]*$"},
+		AdditionalProperties: customFieldInputSchema(),
+	}
 }
 
 // issueChildSchema describes one node of an issue's children tree. The tree

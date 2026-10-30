@@ -276,7 +276,7 @@ func ResolveRole(ctx context.Context, client *api.Client, input string) (int, er
 
 // ResolveCustomField resolves a custom field by name or numeric ID.
 func ResolveCustomField(ctx context.Context, client *api.Client, input string) (int, error) {
-	return Resolve(input, "custom field", client, customFieldOptions(ctx, client))
+	return Resolve(input, "custom field", client, customFieldOptionsOfType(ctx, client, ""))
 }
 
 func trackerOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
@@ -293,15 +293,30 @@ func trackerOptions(ctx context.Context, client *api.Client) func() ([]Option, e
 	}
 }
 
-func customFieldOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
+// CustomFieldLabel returns the noun used in messages for custom fields of
+// customizedType: "time entry custom field" for "time_entry", or plain
+// "custom field" when the type is empty.
+func CustomFieldLabel(customizedType string) string {
+	if customizedType == "" {
+		return "custom field"
+	}
+	return strings.ReplaceAll(customizedType, "_", " ") + " custom field"
+}
+
+// customFieldOptionsOfType lists the custom fields of customizedType ("" for
+// all types) as resolver options.
+func customFieldOptionsOfType(ctx context.Context, client *api.Client, customizedType string) func() ([]Option, error) {
 	return func() ([]Option, error) {
 		fields, err := client.CustomFields.List(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch custom fields: %w", err)
 		}
-		opts := make([]Option, len(fields))
-		for i, f := range fields {
-			opts[i] = Option{ID: f.ID, Name: f.Name}
+		opts := make([]Option, 0, len(fields))
+		for _, f := range fields {
+			if customizedType != "" && f.CustomizedType != customizedType {
+				continue
+			}
+			opts = append(opts, Option{ID: f.ID, Name: f.Name})
 		}
 		return opts, nil
 	}
@@ -412,8 +427,109 @@ func ResolveTrackerNames(ctx context.Context, client *api.Client, inputs []strin
 
 // ResolveCustomFieldNames resolves a batch of custom-field inputs (names or
 // numeric IDs) to numeric IDs, fetching /custom_fields.json at most once.
-func ResolveCustomFieldNames(ctx context.Context, client *api.Client, inputs []string) ([]int, error) {
-	return ResolveAll(ctx, client, inputs, "custom field", customFieldOptions(ctx, client))
+// Only fields of customizedType are candidates; "" accepts any type. Blank
+// inputs are skipped, as in ResolveAll.
+func ResolveCustomFieldNames(ctx context.Context, client *api.Client, inputs []string, customizedType string) ([]int, error) {
+	trimmed := make([]string, 0, len(inputs))
+	for _, in := range inputs {
+		if in = strings.TrimSpace(in); in != "" {
+			trimmed = append(trimmed, in)
+		}
+	}
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	fields, err := ResolveCustomFieldsForType(ctx, client, trimmed, customizedType)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int, len(fields))
+	for i, f := range fields {
+		ids[i] = f.ID
+	}
+	return ids, nil
+}
+
+// ResolveCustomFieldsForType resolves custom field names or numeric IDs for
+// fields of customizedType. The result aligns with inputs. Numeric inputs
+// never trigger a fetch and come back as models.CustomField{ID: n} without
+// metadata; name matches carry the full definition. Custom field names are
+// only unique per type, so a name that exists solely under another type is
+// reported as such instead of silently matching.
+func ResolveCustomFieldsForType(ctx context.Context, client *api.Client, inputs []string, customizedType string) ([]models.CustomField, error) {
+	label := CustomFieldLabel(customizedType)
+	var (
+		fields []models.CustomField
+		loaded bool
+	)
+	load := func() error {
+		if loaded {
+			return nil
+		}
+		loaded = true
+		list, err := client.CustomFields.List(ctx)
+		if err != nil {
+			if isForbiddenErr(err) {
+				return &NameResolutionPermissionError{
+					message: fmt.Sprintf("cannot resolve %s by name (insufficient permissions). Use a numeric ID instead", label),
+				}
+			}
+			return fmt.Errorf("failed to fetch custom fields: %w", err)
+		}
+		fields = list
+		return nil
+	}
+
+	out := make([]models.CustomField, 0, len(inputs))
+	for _, input := range inputs {
+		if id, err := strconv.Atoi(input); err == nil {
+			client.DebugLog().Printf("Resolver: %s %q is numeric, using ID %d directly", label, input, id)
+			out = append(out, models.CustomField{ID: id})
+			continue
+		}
+		client.DebugLog().Printf("Resolver: looking up %s %q", label, input)
+		if err := load(); err != nil {
+			return nil, err
+		}
+
+		needle := strings.TrimSpace(input)
+		var matches []models.CustomField
+		var other *models.CustomField
+		var names []string
+		var ids []int
+		for i, f := range fields {
+			sameType := customizedType == "" || f.CustomizedType == customizedType
+			if sameType {
+				names = append(names, f.Name)
+				ids = append(ids, f.ID)
+			}
+			if !strings.EqualFold(needle, f.Name) {
+				continue
+			}
+			if sameType {
+				matches = append(matches, f)
+			} else if other == nil {
+				other = &fields[i]
+			}
+		}
+
+		switch {
+		case len(matches) == 1:
+			client.DebugLog().Printf("Resolver: matched %s %q -> ID %d", label, input, matches[0].ID)
+			out = append(out, matches[0])
+		case len(matches) > 1:
+			lines := make([]string, len(matches))
+			for i, m := range matches {
+				lines[i] = fmt.Sprintf("  - %s (ID: %d)", m.Name, m.ID)
+			}
+			return nil, fmt.Errorf("multiple %ss match %q, please use the numeric ID:\n%s", label, input, strings.Join(lines, "\n"))
+		case other != nil:
+			return nil, fmt.Errorf("%q is a custom field of type %s, not %s; use a %s name or its numeric ID", input, other.CustomizedType, customizedType, label)
+		default:
+			return nil, fmt.Errorf("%s", buildSuggestions(input, names, ids, label))
+		}
+	}
+	return out, nil
 }
 
 // ResolveQuery resolves a saved query by numeric ID or name. When the input

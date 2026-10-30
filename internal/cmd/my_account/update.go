@@ -3,6 +3,7 @@ package myaccount
 import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/user"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
@@ -14,12 +15,17 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 		lastname         string
 		mail             string
 		mailNotification string
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{
-		Use:     "update",
-		Short:   "Update your own account",
-		Long:    "Update the authenticated user's own account. Works without admin privileges.",
+		Use:   "update",
+		Short: "Update your own account",
+		Long: "Update the authenticated user's own account. Works without admin privileges.\n\n" +
+			"Custom fields: only fields the administrator made editable for users are applied; names need admin rights to resolve, " +
+			"otherwise use the IDs from `redmine my-account get --jq '.custom_fields'`.",
+		Example: `  # Set a multi-value custom field on your own account
+  redmine my-account update --custom-field Skills=Go --custom-field Skills=Ruby`,
 		Aliases: []string{"edit"},
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -53,11 +59,19 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.MailNotification = &v
 			}
 
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(cmdutil.Context(cmd), client, customFieldRaw, models.CustomizedTypeUser)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
 			stop := printer.Spinner("Updating account...")
 			_, err = ops.UpdateMyAccount(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Action(output.ActionUpdated, "my-account", 0, "Updated my account")
@@ -69,6 +83,7 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&lastname, "lastname", "", "Last name")
 	cmd.Flags().StringVar(&mail, "mail", "", "Email address")
 	cmd.Flags().StringVar(&mailNotification, "mail-notification", "", "Email notification preference (all, only_my_events, only_assigned, only_owner, none)")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "User custom field", models.CustomizedTypeUser)
 	_ = cmd.RegisterFlagCompletionFunc("mail-notification", user.CompleteMailNotification)
 	return cmd
 }

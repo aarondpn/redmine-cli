@@ -8,20 +8,26 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
+// timeLogValidationHint explains the usual causes of a 422 when logging time.
+const timeLogValidationHint = "The server may require an activity or time entry custom fields: pass --activity and --custom-field name=value " +
+	"(definitions: `redmine custom-fields list`, admin only; values of an existing entry: `redmine time get <id> -o json`)."
+
 func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	var (
-		issue    int
-		project  string
-		hours    float64
-		activity string
-		date     string
-		comment  string
-		user     string
-		format   string
+		issue          int
+		project        string
+		hours          float64
+		activity       string
+		date           string
+		comment        string
+		user           string
+		format         string
+		customFieldRaw []string
 	)
 
 	cmd := &cobra.Command{
@@ -29,6 +35,12 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Aliases: []string{"add", "create"},
 		Short:   "Log a time entry",
+		Example: `  # Log time against an issue
+  redmine time log --issue 123 --hours 1.5 --activity Development --comment "Bug fix"
+
+  # Set time entry custom fields (by name or numeric ID); repeat a field for multi-value fields
+  redmine time log --issue 123 --hours 2 --custom-field "Billing Code=ACME-42" \
+    --custom-field Tags=Onsite --custom-field Tags=Overtime`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -82,7 +94,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
-			created, err := ops.CreateTimeEntry(ctx, client, ops.CreateTimeEntryInput{
+			input := ops.CreateTimeEntryInput{
 				IssueID:    issue,
 				ProjectID:  project,
 				Hours:      hours,
@@ -90,9 +102,18 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 				SpentOn:    date,
 				Comments:   comment,
 				UserID:     userID,
-			})
+			}
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeTimeEntry)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
+			created, err := ops.CreateTimeEntry(ctx, client, input)
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, timeLogValidationHint, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer := f.Printer(format)
@@ -111,6 +132,7 @@ func newCmdTimeLog(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&date, "date", "", "Date (YYYY-MM-DD or 'today', default today)")
 	cmd.Flags().StringVar(&comment, "comment", "", "Comment")
 	cmd.Flags().StringVar(&user, "user", "", "Log time on behalf of a user (ID, login, name, or 'me'); requires admin or 'log time for other users' permission")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Time entry custom field", models.CustomizedTypeTimeEntry)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("hours")

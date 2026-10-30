@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
@@ -21,6 +22,7 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 		mustChangePasswd bool
 		generatePassword bool
 		authSourceID     int
+		customFieldRaw   []string
 	)
 
 	cmd := &cobra.Command{
@@ -28,7 +30,9 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Update a user",
 		Long:    "Update a user. Accepts a numeric ID, login, full name, or 'me'.",
 		Aliases: []string{"edit"},
-		Args:    cobra.ExactArgs(1),
+		Example: `  # Set a multi-value custom field
+  redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("mail-notification") {
 				if err := ValidateMailNotification(mailNotification); err != nil {
@@ -41,7 +45,8 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			id, err := resolver.ResolveUser(cmdutil.Context(cmd), client, args[0])
+			ctx := cmdutil.Context(cmd)
+			id, err := resolver.ResolveUser(ctx, client, args[0])
 			if err != nil {
 				return err
 			}
@@ -81,11 +86,19 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.AuthSourceID = &v
 			}
 
+			if len(customFieldRaw) > 0 {
+				values, err := cmdutil.ParseCustomFieldValues(ctx, client, customFieldRaw, models.CustomizedTypeUser)
+				if err != nil {
+					return err
+				}
+				input.CustomFieldValues = values
+			}
+
 			stop := printer.Spinner("Updating user...")
-			_, err = ops.UpdateUser(cmdutil.Context(cmd), client, input)
+			_, err = ops.UpdateUser(ctx, client, input)
 			stop()
 			if err != nil {
-				return err
+				return cmdutil.WithValidationHint(err, cmdutil.CustomFieldValidationHint(customFieldRaw))
 			}
 
 			printer.Action(output.ActionUpdated, "user", id, fmt.Sprintf("Updated user %d", id))
@@ -102,6 +115,7 @@ func newCmdUserUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&mustChangePasswd, "must-change-passwd", false, "Force the user to change their password on next login")
 	cmd.Flags().BoolVar(&generatePassword, "generate-password", false, "Let the server generate a random password")
 	cmd.Flags().IntVar(&authSourceID, "auth-source-id", 0, "Numeric authentication source ID for external auth")
+	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "User custom field", models.CustomizedTypeUser)
 	_ = cmd.RegisterFlagCompletionFunc("mail-notification", CompleteMailNotification)
 	return cmd
 }
