@@ -140,11 +140,18 @@ func scrubVolatileIssueFields(raw map[string]any) map[string]any {
 	// shape vary by bootstrap and aren't the schema signal this golden cares
 	// about.
 	delete(raw, "custom_fields")
+	// closed_on and the hour fields depend on the Redmine version and on the
+	// caller's permissions, so their presence is not part of the golden shape.
+	for _, k := range []string{"closed_on", "total_estimated_hours", "spent_hours", "total_spent_hours"} {
+		delete(raw, k)
+	}
 	if tracker, ok := raw["tracker"].(map[string]any); ok {
 		delete(tracker, "id")
 	}
 	if status, ok := raw["status"].(map[string]any); ok {
 		delete(status, "id")
+		// is_closed is only sent by Redmine 5.0+.
+		delete(status, "is_closed")
 	}
 	if priority, ok := raw["priority"].(map[string]any); ok {
 		delete(priority, "id")

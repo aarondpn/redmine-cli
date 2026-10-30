@@ -37,7 +37,7 @@ type IssuesListResult struct {
 
 type GetIssueInput struct {
 	ID       int      `json:"id" jsonschema:"Numeric issue ID."`
-	Includes []string `json:"includes,omitempty" jsonschema:"Extra sections to include: journals, attachments, relations, children, watchers."`
+	Includes []string `json:"includes,omitempty" jsonschema:"Extra sections to include: journals, attachments, relations, children, watchers, changesets, allowed_statuses (Redmine 5.0+), reactions (Redmine 7.0+)."`
 }
 
 type CreateIssueInput struct {
@@ -146,7 +146,7 @@ func assigneeFilterValue(v string) string {
 }
 
 //mcpgen:tool get_issue
-//mcpgen:description Fetch a single Redmine issue by ID.
+//mcpgen:description Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+) and reactions (Redmine 7.0+).
 //mcpgen:category issues
 func GetIssue(ctx context.Context, client *api.Client, input GetIssueInput) (*models.Issue, error) {
 	return client.Issues.Get(ctx, input.ID, input.Includes)

@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 type messageResult interface {
@@ -52,18 +53,55 @@ func registerToolSpec[In, Out any](srv *mcp.Server, client *api.Client, opts Opt
 // outputSchemaWithoutSecrets returns the output schema the SDK would infer
 // for Out, minus the properties toolResult always redacts, so the schema
 // does not advertise a field no result can contain. It returns nil, and the
-// SDK infers the schema itself, when Out has no such property or inference
-// fails (the SDK then reports the error).
+// SDK infers the schema itself, when inference fails (the SDK then reports
+// the error).
+//
+// The schema is always returned rather than only when a secret was removed:
+// models.IssueChild is self-referential, which the SDK's own inference
+// rejects ("cycle detected"), so any tool returning an issue needs the
+// bounded schema from issueChildSchema.
 func outputSchemaWithoutSecrets[Out any]() any {
 	rt := reflect.TypeFor[Out]()
 	if rt.Kind() == reflect.Pointer {
 		rt = rt.Elem()
 	}
-	schema, err := jsonschema.ForType(rt, &jsonschema.ForOptions{})
-	if err != nil || !removeSecretProperties(schema, make(map[*jsonschema.Schema]bool)) {
+	schema, err := jsonschema.ForType(rt, &jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[models.IssueChild](): issueChildSchema(),
+		},
+	})
+	if err != nil {
 		return nil
 	}
+	removeSecretProperties(schema, make(map[*jsonschema.Schema]bool))
 	return schema
+}
+
+// issueChildSchema describes one node of an issue's children tree. The tree
+// has no fixed depth, so nested nodes are only declared as objects instead of
+// recursing into this schema.
+func issueChildSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"id": {Type: "integer"},
+			"tracker": {
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"id":   {Type: "integer"},
+					"name": {Type: "string"},
+				},
+				Required: []string{"id", "name"},
+			},
+			"subject": {Type: "string"},
+			"children": {
+				Type:        "array",
+				Description: "Nested child issues, with the same shape as this object.",
+				Items:       &jsonschema.Schema{Type: "object"},
+			},
+		},
+		Required: []string{"id", "subject"},
+	}
 }
 
 // removeSecretProperties deletes every property named in secretJSONFields

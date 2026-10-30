@@ -21,12 +21,25 @@ type CustomFieldValue struct {
 
 // Journal represents an issue history entry.
 type Journal struct {
-	ID           int             `json:"id"`
-	User         IDName          `json:"user"`
-	Notes        string          `json:"notes"`
-	PrivateNotes bool            `json:"private_notes"`
-	CreatedOn    string          `json:"created_on"`
-	Details      []JournalDetail `json:"details,omitzero"`
+	ID           int    `json:"id"`
+	User         IDName `json:"user"`
+	Notes        string `json:"notes"`
+	PrivateNotes bool   `json:"private_notes,omitempty"`
+	CreatedOn    string `json:"created_on"`
+	// UpdatedOn is sent by Redmine 6.0+ for every journal and equals
+	// CreatedOn until the notes are edited; UpdatedBy is the actual signal
+	// that they were.
+	UpdatedOn string          `json:"updated_on,omitempty"`
+	UpdatedBy *IDName         `json:"updated_by,omitempty"`
+	Details   []JournalDetail `json:"details,omitzero"`
+	// Reactions (include=reactions) needs Redmine 7.0+.
+	Reactions []Reaction `json:"reactions,omitzero"`
+}
+
+// Reaction is one reaction on an issue or journal (include=reactions,
+// Redmine 7.0+).
+type Reaction struct {
+	User IDName `json:"user"`
 }
 
 // JournalDetail represents a single change in a journal entry.

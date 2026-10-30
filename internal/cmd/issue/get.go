@@ -62,7 +62,10 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 
   # Read a ticket fully before investigating: history, files, children, relations
   redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
-  redmine issues get 123 --include journals,attachments,children,relations -o json`,
+  redmine issues get 123 --include journals,attachments,children,relations -o json
+
+  # Which statuses may the current user move the issue to? (Redmine 5.0+)
+  redmine issues get 123 --include allowed_statuses -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmdutil.Context(cmd)
@@ -178,7 +181,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&include, "include", "", "Include related data: journals,children,relations,attachments")
+	cmd.Flags().StringVar(&include, "include", "", "Include related data: journals,children,relations,attachments,watchers,changesets,allowed_statuses (Redmine 5.0+),reactions (Redmine 7.0+)")
 	cmd.Flags().BoolVar(&journals, "journals", false, "Include issue history/comments (shorthand for --include journals)")
 	cmd.Flags().BoolVar(&children, "children", false, "Include child issues (shorthand for --include children)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
