@@ -73,3 +73,20 @@ func TestMyAccount_Update(t *testing.T) {
 		t.Errorf("firstname round-trip = %q, want %q (id %s)", after.FirstName, wanted, strconv.Itoa(before.ID))
 	}
 }
+
+// TestMyAccount_AdminWithoutStatus guards the pointer-typed admin/status
+// fields: my/account always reports admin, but never status, so the JSON must
+// not invent a status of 0.
+func TestMyAccount_AdminWithoutStatus(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+
+	var got map[string]any
+	r.runJSON(t, &got, "my-account", "get")
+	if admin, ok := got["admin"].(bool); !ok || !admin {
+		t.Errorf("my-account get admin = %v, want true", got["admin"])
+	}
+	if status, ok := got["status"]; ok {
+		t.Errorf("my-account get must not contain status, got %v", status)
+	}
+}

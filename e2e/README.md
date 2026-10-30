@@ -75,6 +75,7 @@ Redmine instance. The suite is split into topical files:
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
 | `custom_fields_test.go`  | `custom-fields list` / `get` plus the Redmine 7.0 scope and role metadata |
+| (API decoding regressions, issue #201) | Spread over the topical files: `projects_test.go` default assignee, `users_test.go` / `my_account_test.go` nullable `admin` / `status` (admin vs non-admin viewer, `users list` before / after 6.0), `groups_test.go` group memberships with project + roles, `roles_test.go` no builtin columns, `issues_test.go` always-present `is_private` / `private_notes`, `files_test.go` `downloads: 0`, `search_test.go` + `mcp_extended_test.go` `all_words` default vs `=false` |
 
 Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
 `runner_test.go` (CLI runner + profile constructors), `helpers_test.go`

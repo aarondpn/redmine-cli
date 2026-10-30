@@ -162,3 +162,26 @@ func TestFiles_UploadMissingFile(t *testing.T) {
 		"--project", proj.Identifier)
 	requireErrorEnvelopeMessage(t, stderr)
 }
+
+// TestFiles_ListReportsZeroDownloads guards the omitempty removal on
+// downloads: a never-downloaded file must still report downloads: 0.
+func TestFiles_ListReportsZeroDownloads(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	path := filepath.Join(t.TempDir(), "downloads.txt")
+	if err := os.WriteFile(path, []byte("downloads check\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	r.run(t, "files", "upload", path, "--project", proj.Identifier)
+
+	var listed []map[string]any
+	r.runJSON(t, &listed, "files", "list", "--project", proj.Identifier)
+	if len(listed) != 1 {
+		t.Fatalf("files list returned %d entries, want 1: %v", len(listed), listed)
+	}
+	if v, ok := listed[0]["downloads"]; !ok || v != float64(0) {
+		t.Errorf("downloads = %v (present=%v), want 0", v, ok)
+	}
+}

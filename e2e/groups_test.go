@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -156,4 +157,43 @@ func groupHasUser(t *testing.T, r *cliRunner, groupID, userID int) bool {
 		}
 	}
 	return false
+}
+
+// TestGroups_GetIncludeMemberships guards the membership decoding: a group's
+// memberships carry a project and roles, not a top-level name.
+func TestGroups_GetIncludeMemberships(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	grp := createTestGroup(t, r)
+	role := firstRole(t, r)
+	addProjectMember(t, r, proj.Identifier, "--group-id", grp.ID, role.ID)
+
+	var got struct {
+		Memberships []struct {
+			Project struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+			} `json:"project"`
+			Roles []struct {
+				Name string `json:"name"`
+			} `json:"roles"`
+		} `json:"memberships"`
+	}
+	r.runJSON(t, &got, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships")
+	if len(got.Memberships) != 1 {
+		t.Fatalf("memberships = %+v, want exactly 1", got.Memberships)
+	}
+	m := got.Memberships[0]
+	if m.Project.ID != proj.ID || m.Project.Name != proj.Name {
+		t.Errorf("membership project = %+v, want id=%d name=%q", m.Project, proj.ID, proj.Name)
+	}
+	if len(m.Roles) != 1 || m.Roles[0].Name != role.Name {
+		t.Errorf("membership roles = %+v, want [%s]", m.Roles, role.Name)
+	}
+
+	table := string(r.run(t, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships", "--output", "table"))
+	if !strings.Contains(table, proj.Name) || !strings.Contains(table, role.Name) {
+		t.Errorf("table missing project %q or role %q\n%s", proj.Name, role.Name, table)
+	}
 }

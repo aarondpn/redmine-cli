@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -322,4 +324,84 @@ func lockUser(t *testing.T, r *cliRunner, id int) {
 		t.Fatalf("write lock body: %v", err)
 	}
 	r.run(t, "api", "/users/"+strconv.Itoa(id)+".json", "-X", "PUT", "--input", path)
+}
+
+// TestUsers_GetAdminStatusVisibility guards the nullable admin/status
+// decoding. Admins see both on users/show; a non-admin viewing another user
+// gets neither, and the table must say "unknown" instead of a fake no/0.
+func TestUsers_GetAdminStatusVisibility(t *testing.T) {
+	requireE2E(t)
+	admin := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, admin)
+	viewer := createTestUser(t, admin)
+	other := createTestUser(t, admin)
+	roleID := roleIDByName(t, admin, "Developer")
+	addProjectMember(t, admin, proj.Identifier, "--user-id", viewer.ID, roleID)
+	addProjectMember(t, admin, proj.Identifier, "--user-id", other.ID, roleID)
+
+	t.Run("admin sees admin and status", func(t *testing.T) {
+		var got struct {
+			Admin  *bool `json:"admin"`
+			Status *int  `json:"status"`
+		}
+		admin.runJSON(t, &got, "users", "get", strconv.Itoa(other.ID))
+		if got.Admin == nil || *got.Admin {
+			t.Errorf("admin = %v, want false", got.Admin)
+		}
+		if got.Status == nil || *got.Status != 1 {
+			t.Errorf("status = %v, want 1", got.Status)
+		}
+	})
+
+	t.Run("non-admin sees neither", func(t *testing.T) {
+		r := newCLIRunnerBasicAuth(t, e2eBaseURL(), viewer.Login, viewer.Password)
+		var got map[string]any
+		r.runJSON(t, &got, "users", "get", strconv.Itoa(other.ID))
+		if got["login"] != other.Login {
+			t.Fatalf("users get login = %v, want %q", got["login"], other.Login)
+		}
+		for _, key := range []string{"status", "admin"} {
+			if v, ok := got[key]; ok {
+				t.Errorf("non-admin users get must omit %q, got %v", key, v)
+			}
+		}
+		table := string(r.run(t, "users", "get", strconv.Itoa(other.ID), "--output", "table"))
+		for _, row := range []string{`(?m)^Admin:\s+unknown$`, `(?m)^Status:\s+unknown$`} {
+			if !regexp.MustCompile(row).MatchString(table) {
+				t.Errorf("table should match %s\n%s", row, table)
+			}
+		}
+	})
+}
+
+// TestUsers_ListStatusByVersion: users/index only reports status from Redmine
+// 6.0; before that the CLI must show "unknown" rather than status 0.
+func TestUsers_ListStatusByVersion(t *testing.T) {
+	requireE2E(t)
+	skipIfVersionUnknown(t, "users list status (6.0+)")
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	u := createTestUser(t, r)
+
+	var users []map[string]any
+	r.runJSON(t, &users, "users", "list", "--name", u.Login)
+	if len(users) != 1 {
+		t.Fatalf("users list --name %s returned %d users, want 1", u.Login, len(users))
+	}
+	_, hasStatus := users[0]["status"]
+	table := strings.ToLower(string(r.run(t, "users", "list", "--name", u.Login, "--output", "table")))
+	if redmineAtLeast(6, 0) {
+		if !hasStatus {
+			t.Errorf("Redmine >= 6.0 users list should include status: %v", users[0])
+		}
+		if strings.Contains(table, "unknown") {
+			t.Errorf("Redmine >= 6.0 table should not show unknown\n%s", table)
+		}
+	} else {
+		if hasStatus {
+			t.Errorf("Redmine < 6.0 users list should omit status: %v", users[0])
+		}
+		if !strings.Contains(table, "unknown") {
+			t.Errorf("Redmine < 6.0 table should show unknown status\n%s", table)
+		}
+	}
 }
