@@ -167,6 +167,16 @@ is matched in any letter case.
    stay absent rather than appearing as `[]`, and `issues watchers list`
    fails with a permission hint instead of printing an empty list.
 
+   Fields that only newer Redmine versions send follow the same rule: they
+   are absent, never `null` or `0`, when the server does not provide them.
+   Examples are `status.is_closed` and `allowed_statuses` (Redmine 5.0+), the
+   hours fields on issue lists (5.0+), journal `updated_on` and `updated_by`
+   and a user's `auth_source` (6.0+), and `reactions` (7.0+). Check for the
+   key before relying on it, for example `jq '.status | has("is_closed")'`
+   (`// empty` would also hide a `false` value). The
+   per-command pages list the optional fields, for example
+   [`issues get`](/commands/issues/#get).
+
 2. **Action envelope** for mutators that have no natural response body
    (`issues close`, `issues delete`, `issues assign`, `wiki delete`,
    `memberships delete`, ...). The envelope is stable and minimal:

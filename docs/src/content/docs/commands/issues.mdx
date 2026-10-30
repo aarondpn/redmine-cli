@@ -47,7 +47,7 @@ redmine issues list [flags]
 | `--query`                | Run a saved query by name (see [`queries`](/commands/queries/)) |
 | `--query-id`             | Run a saved query by numeric ID (mutually exclusive with `--query`) |
 | `--sort`                 | Sort order, e.g. `updated_on:desc` |
-| `--include`              | Include related data: `attachments`, `relations` |
+| `--include`              | Include related data: `attachments`, `relations` (repeatable or comma-separated; unknown values are rejected) |
 | `--attachments`          | Shorthand for `--include attachments` |
 | `--relations`            | Shorthand for `--include relations` |
 | `--limit`                | Maximum number of results (0 for all) |
@@ -115,7 +115,7 @@ Aliases: `show`, `view`.
 
 | Flag | Description |
 |------|-------------|
-| `--include`                | Include related data: `journals`, `children`, `relations`, `attachments`, `watchers`, `changesets`, `allowed_statuses` (Redmine 5.0+), `reactions` (Redmine 7.0+) |
+| `--include`                | Include related data: `journals`, `children`, `relations`, `attachments`, `watchers`, `changesets`, `allowed_statuses` (Redmine 5.0+), `reactions` (Redmine 7.0+); repeatable or comma-separated, unknown values are rejected |
 | `--journals`               | Shorthand for `--include journals` |
 | `--children`               | Shorthand for `--include children` |
 | `--relations`              | Shorthand for `--include relations` |
@@ -159,7 +159,7 @@ Attachments of the same issue often share a filename (for example several `scree
 
 With `-o json` (and in the MCP `get_issue` tool) the issue carries these optional keys. They are omitted, not `null`, when Redmine does not send them:
 
-- `status.is_closed` (Redmine 5.0+), `closed_on`, `total_estimated_hours`.
+- `status.is_closed` (Redmine 5.0+), `closed_on`, `total_estimated_hours` (on lists only from Redmine 5.0).
 - `spent_hours` and `total_spent_hours`, only when you have the `view_time_entries` permission; on lists only from Redmine 5.0.
 - `children`, a recursive tree of `id`, `tracker`, `subject` and nested `children`.
 - `changesets` with `--include changesets`, and `allowed_statuses` with `--include allowed_statuses` (Redmine 5.0+).

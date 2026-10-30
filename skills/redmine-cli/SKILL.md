@@ -23,7 +23,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `memberships` | List, get, create, update, delete project memberships |
 | `users` | List, get, create, update, delete users. `--include auth_source` (Redmine 6.0+, admin only) on list/get/me; `--include memberships,groups` on get/me. |
 | `my-account` | Get and update your own Redmine account (works without admin) |
-| `groups` | List, get, create, update, delete groups; add/remove users |
+| `groups` | List, get, create, update, delete groups; add/remove users. `groups get --include users,memberships` shows members and project memberships. |
 | `roles` | List and get roles, including their permissions |
 | `categories` | List issue categories |
 | `trackers` | List and get trackers |
