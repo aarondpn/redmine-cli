@@ -208,6 +208,8 @@ The checksums come from the same place as the archive, so only the attestation p
 
 When installed via Homebrew, delegates to `brew upgrade`.
 
+When installed with Scoop or winget, a newer release is reported together with the package manager's command (`scoop update redmine` or `winget upgrade aarondpn.redmine-cli`) instead of replacing the binary, so the version the package manager records stays correct. On Windows the running `redmine.exe` is renamed to `redmine.exe.old` before the new binary takes its place; the next update removes it.
+
 | Flag | Description |
 |------|-------------|
 | `--skip-attestation` | Install with checksum verification only. Prints a warning. |

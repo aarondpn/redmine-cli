@@ -237,6 +237,10 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 		return nil
 	}
 
+	if m, ok := detectManagedInstall(); ok {
+		return managedInstallError(m, release.TagName)
+	}
+
 	assetName := expectedAssetName()
 	checksumsName := expectedChecksumsName(release.TagName)
 	var downloadURL, checksumsURL string
@@ -603,12 +607,44 @@ func replaceBinary(execPath string, newBinary []byte) error {
 		return err
 	}
 
+	if moveRunningBinaryAside {
+		return swapMovingAside(tmpPath, execPath)
+	}
+
 	// Atomic rename
 	if err := os.Rename(tmpPath, execPath); err != nil {
 		os.Remove(tmpPath)
 		return err
 	}
 
+	return nil
+}
+
+// moveRunningBinaryAside is true where a running executable cannot be
+// replaced, only renamed: Windows refuses to overwrite redmine.exe while it
+// runs. A variable so tests can exercise the Windows path on any OS.
+var moveRunningBinaryAside = runtime.GOOS == "windows"
+
+// swapMovingAside renames the running binary to <exe>.old, then moves the new
+// binary into place, restoring the old one if that fails. The .old file
+// stays locked until this process exits, so it is removed by the next update.
+func swapMovingAside(tmpPath, execPath string) error {
+	oldPath := execPath + ".old"
+	if err := os.Remove(oldPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		os.Remove(tmpPath)
+		return fmt.Errorf("removing %s left by a previous update: %w", oldPath, err)
+	}
+	if err := os.Rename(execPath, oldPath); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, execPath); err != nil {
+		if restoreErr := os.Rename(oldPath, execPath); restoreErr != nil {
+			return fmt.Errorf("%w; restoring the previous binary from %s also failed: %v", err, oldPath, restoreErr)
+		}
+		os.Remove(tmpPath)
+		return err
+	}
 	return nil
 }
 
