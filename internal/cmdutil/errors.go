@@ -58,7 +58,7 @@ func WithHint(err error, hint string) error {
 const (
 	unauthorizedHint = "Redmine did not accept the credentials: the API key is invalid, revoked or missing, or the account is locked. Run 'redmine auth status' to check the active profile, then 'redmine auth login' to configure a valid API key (My account > API access key)."
 
-	restDisabledHint = "Redmine refused a request every logged-in user may make, so the credentials are not the cause. The REST API is probably disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a proxy or firewall in front of Redmine blocks the request. Run 'redmine auth status' to check."
+	restDisabledHint = "Redmine refused a request every logged-in user may make, so the credentials are most likely not the cause. The REST API is probably disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a proxy or firewall in front of Redmine blocks the request. Run 'redmine auth status' to check."
 
 	forbiddenHint = "A 403 is either a missing permission or a disabled REST API. If other commands work for this profile, the user lacks the permission (access comes from project roles, or admin status for admin-only endpoints): don't retry with other credentials; ask the user or a Redmine administrator. If every command is denied, run 'redmine auth status'; an administrator may need to enable Administration > Settings > API > Enable REST web service."
 )

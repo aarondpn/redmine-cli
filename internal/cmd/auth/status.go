@@ -106,7 +106,7 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {
 			authOK = false
-			failure = classifyStatusError(err)
+			failure = classifyStatusError(err, cfg.AuthMethod)
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: failure.user})
 			kvs = append(kvs, output.KeyValue{Key: "Reason", Value: failure.reason})
 			kvs = append(kvs, output.KeyValue{Key: "Hint", Value: failure.hint})
@@ -169,7 +169,15 @@ const (
 //     commands can succeed with a bogus key.
 //   - 403: Redmine answers every login-requiring request with 403 while the
 //     REST API is disabled, whatever the key. A proxy can do the same.
-func classifyStatusError(err error) *statusFailure {
+//
+// authMethod picks the credential the 401 hint talks about.
+func classifyStatusError(err error, authMethod string) *statusFailure {
+	credentialsHint := "Check the API key (My account > API access key) and run 'redmine auth login' to configure a valid one."
+	if authMethod == "basic" {
+		// Redmine also answers basic auth with 401 while two-factor
+		// authentication is active for the account.
+		credentialsHint = "Check the username and password and run 'redmine auth login' to update them. Accounts with two-factor authentication must use an API key (My account > API access key) instead."
+	}
 	var apiErr *api.APIError
 	switch {
 	case errors.As(err, &apiErr) && apiErr.IsAuthError():
@@ -177,7 +185,7 @@ func classifyStatusError(err error) *statusFailure {
 			user:      "authentication failed",
 			reason:    reasonCredentialsRejected,
 			message:   "Redmine rejected the configured credentials and treats requests as anonymous; commands may return only public data or fail.",
-			hint:      "Check the API key (My account > API access key) and run 'redmine auth login' to configure a valid one.",
+			hint:      credentialsHint,
 			anonymous: true,
 		}
 	case errors.As(err, &apiErr) && apiErr.IsForbidden():

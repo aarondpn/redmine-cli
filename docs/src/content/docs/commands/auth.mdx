@@ -88,7 +88,7 @@ When the check fails, the output says why instead of a bare failure:
 
 | `reason` | Meaning |
 |----------|---------|
-| `credentials_rejected` | Redmine answered 401: the API key is invalid, revoked or missing, or the account is locked. Redmine then treats requests as anonymous, so commands on publicly readable instances may still return public data. |
+| `credentials_rejected` | Redmine answered 401: the API key (or, for basic auth, the username and password) is invalid, revoked or missing, or the account is locked. With basic auth, an account with two-factor authentication also gets 401 and must use an API key. Redmine then treats requests as anonymous, so commands on publicly readable instances may still return public data. |
 | `rest_api_disabled` | Redmine answered 403 on `/users/current.json`, which every logged-in user may read. The REST API is probably disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a proxy or firewall blocks the request. |
 | `request_failed` | The request did not complete (network error, timeout, server error), so the credentials could not be verified. |
 

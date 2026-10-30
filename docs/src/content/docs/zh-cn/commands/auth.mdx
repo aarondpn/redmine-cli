@@ -84,7 +84,7 @@ redmine auth status
 
 | `reason` | 含义 |
 |----------|------|
-| `credentials_rejected` | Redmine 返回 401：API 密钥无效、已被撤销或缺失，或账户已被锁定。此时 Redmine 将请求视为匿名请求，因此在允许公开读取的实例上，命令仍可能返回公开数据。 |
+| `credentials_rejected` | Redmine 返回 401：API 密钥（使用基本认证时为用户名和密码）无效、已被撤销或缺失，或账户已被锁定。使用基本认证时，启用了双因素认证的账户同样会收到 401，必须改用 API 密钥。此时 Redmine 将请求视为匿名请求，因此在允许公开读取的实例上，命令仍可能返回公开数据。 |
 | `rest_api_disabled` | Redmine 对 `/users/current.json`（任何已登录用户都可读取）返回 403。REST API 很可能已被禁用（管理员需启用“管理 > 设置 > API > 启用 REST web service”），或者代理或防火墙拦截了请求。 |
 | `request_failed` | 请求未能完成（网络错误、超时、服务器错误），因此无法验证凭据。 |
 

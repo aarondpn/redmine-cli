@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
@@ -161,5 +162,15 @@ func TestStatus_SuccessHasNoFailureFields(t *testing.T) {
 		if _, ok := payload[key]; ok {
 			t.Errorf("unexpected %q on success: %v", key, payload)
 		}
+	}
+}
+
+func TestClassifyStatusError_BasicAuthHint(t *testing.T) {
+	err := &api.APIError{StatusCode: http.StatusUnauthorized}
+	if hint := classifyStatusError(err, "basic").hint; !strings.Contains(hint, "username and password") || !strings.Contains(hint, "two-factor") {
+		t.Errorf("basic auth hint = %q, want it to talk about username and password", hint)
+	}
+	if hint := classifyStatusError(err, "apikey").hint; !strings.Contains(hint, "API key") || strings.Contains(hint, "password") {
+		t.Errorf("api key hint = %q, want it to talk about the API key", hint)
 	}
 }
