@@ -32,6 +32,7 @@ func TestNormalizeServerURL(t *testing.T) {
 		{in: "   ", wantErr: true},
 		{in: "ftp://host", wantErr: true},
 		{in: "https://", wantErr: true},
+		{in: "http://bob:hunter2@host/issues", wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {

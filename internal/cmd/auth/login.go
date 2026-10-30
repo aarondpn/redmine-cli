@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -61,12 +63,15 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nonInteractive := f.ServerOverride != "" && (f.APIKeyOverride != "" || f.APIKeyFile != "")
 			if !nonInteractive {
+				if !hasTerminal(f) {
+					return errors.New(loginNeedsTerminalError)
+				}
 				if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 					return err
 				}
-				if !f.IOStreams.IsTTY {
-					return errors.New(loginNeedsTerminalError)
-				}
+			} else if f.OutputFormat == "" {
+				// An active profile's output_format must not leak into the result.
+				f.OutputFormat = output.FormatTable
 			}
 			opts.keyringSet = cmd.Flags().Changed("keyring")
 			return runLogin(cmdutil.Context(cmd), f, opts, nonInteractive)
@@ -80,9 +85,28 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 	return cmd
 }
 
+// hasTerminal reports whether prompts can be shown: stdout or stdin is a
+// terminal (huh reads the controlling TTY, so a piped stdout is fine).
+func hasTerminal(f *cmdutil.Factory) bool {
+	if f.IOStreams.IsTTY {
+		return true
+	}
+	file, ok := f.IOStreams.In.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
+}
+
 func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInteractive bool) error {
+	// The login builds its own config. Take the global overrides and clear
+	// them so Printer/Config do not resolve the active profile against the
+	// new server (false header warnings, leaked output_format).
+	apiKey, err := f.APIKeyFromFlags()
+	if err != nil {
+		return err
+	}
+	server := f.ServerOverride
+	f.ServerOverride, f.APIKeyOverride, f.APIKeyFile = "", "", ""
+
 	var (
-		server     = f.ServerOverride
 		authMethod string
 		username   string
 		password   string
@@ -90,10 +114,6 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	profileName := opts.name
 	defProject := opts.defaultProject
 
-	apiKey, err := f.APIKeyFromFlags()
-	if err != nil {
-		return err
-	}
 	if apiKey != "" {
 		authMethod = "apikey"
 	}
@@ -300,6 +320,8 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	}
 	if storeInKeyring {
 		cfg.CredentialStore = config.CredentialStoreKeyring
+	} else if nonInteractive && !opts.keyringSet && secrets.Default.Available() {
+		f.Warn("credentials are stored in the plaintext config file; pass --keyring to use the system keyring instead")
 	}
 
 	// Step 7: Save profile
@@ -325,7 +347,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 // resolveKeyringChoice decides whether to store credentials in the system
 // keyring. The flag wins, then the existing profile's storage is the default;
 // a keyring profile is never silently downgraded to plaintext.
-func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet bool, noPrompt ...bool) (bool, error) {
+func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *config.Config, keyringFlag, keyringFlagSet, noPrompt bool) (bool, error) {
 	if keyringFlagSet {
 		if keyringFlag && !secrets.Default.Available() {
 			return false, fmt.Errorf("system keyring is not available on this machine; re-run without --keyring or store credentials via environment variables")
@@ -339,7 +361,7 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 	if wasKeyring && !available {
 		return false, fmt.Errorf("profile %q stores credentials in the system keyring, which is not available right now; make the keyring usable, or re-run with --keyring=false to switch to plaintext storage", profileName)
 	}
-	if !f.IOStreams.IsTTY || (len(noPrompt) > 0 && noPrompt[0]) {
+	if !f.IOStreams.IsTTY || noPrompt {
 		return wasKeyring, nil
 	}
 	if !available {

@@ -57,6 +57,10 @@ func NormalizeServerURL(raw string) (string, error) {
 		return "", fmt.Errorf("invalid server URL %q: no host", raw)
 	}
 
+	if u.User != nil {
+		return "", fmt.Errorf("invalid server URL: it must not contain credentials; use --api-key-file or the username and password prompts instead")
+	}
+
 	u.Scheme = strings.ToLower(u.Scheme)
 	u.RawQuery, u.Fragment, u.RawFragment, u.ForceQuery = "", "", "", false
 
