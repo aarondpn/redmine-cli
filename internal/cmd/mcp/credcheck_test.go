@@ -3,8 +3,13 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"errors"
+	"github.com/spf13/cobra"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -101,3 +106,98 @@ func TestIsSetupProblem(t *testing.T) {
 type errUnknownProfile struct{}
 
 func (errUnknownProfile) Error() string { return `profile "x" not found` }
+
+func TestHTTPRequested(t *testing.T) {
+	newCmd := func(args ...string) *cobra.Command {
+		c := newCmdServe(cmdutil.NewFactory())
+		if err := c.ParseFlags(args); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	t.Setenv("REDMINE_MCP_HTTP", "")
+	if httpRequested(newCmd(), "", nil, errUnknownProfile{}) {
+		t.Error("no flag, env or config means stdio")
+	}
+	if !httpRequested(newCmd("--http", ":0"), ":0", nil, errUnknownProfile{}) {
+		t.Error("--http must count")
+	}
+	if httpRequested(newCmd("--http", ""), "", nil, nil) {
+		t.Error("explicit empty --http means stdio")
+	}
+	if !httpRequested(newCmd(), "", &config.Config{MCP: config.MCPConfig{HTTP: ":1"}}, nil) {
+		t.Error("loaded config mcp.http must count")
+	}
+	t.Setenv("REDMINE_MCP_HTTP", "127.0.0.1:0")
+	if !httpRequested(newCmd(), "", nil, errUnknownProfile{}) {
+		t.Error("REDMINE_MCP_HTTP must count when the config failed to load")
+	}
+}
+
+// runServeUnconfigured runs `mcp serve` against a config file with a keyring
+// profile whose secret is unavailable, with stdin at EOF.
+func runServeUnconfigured(t *testing.T, profile string, env map[string]string, args ...string) (stderr string, err error) {
+	t.Helper()
+	for _, kv := range os.Environ() {
+		if k, _, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "REDMINE_") {
+			t.Setenv(k, "")
+		}
+	}
+	t.Setenv("REDMINE_NO_KEYRING", "1")
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "active_profile: work\nprofiles:\n  work:\n    server: https://work.example.com\n    auth_method: apikey\n    credential_store: keyring\n    keyring_id: srv-id\n"
+	if werr := os.WriteFile(cfgPath, []byte(content), 0o600); werr != nil {
+		t.Fatal(werr)
+	}
+	var errBuf bytes.Buffer
+	f := &cmdutil.Factory{
+		ConfigPath:      cfgPath,
+		ProfileOverride: profile,
+		IOStreams:       &cmdutil.IOStreams{In: strings.NewReader(""), Out: &bytes.Buffer{}, ErrOut: &errBuf},
+	}
+	cmd := newCmdServe(f)
+	cmd.SetArgs(args)
+	cmd.SetErr(&errBuf)
+	cmd.SilenceUsage, cmd.SilenceErrors = true, true
+	err = cmd.ExecuteContext(context.Background())
+	return errBuf.String(), err
+}
+
+func TestServeUnconfigured(t *testing.T) {
+	t.Run("stdio starts the setup server", func(t *testing.T) {
+		out, err := runServeUnconfigured(t, "", nil)
+		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
+			t.Fatalf("err = %v, want a clean stdio shutdown", err)
+		}
+		if !strings.Contains(out, "not configured") {
+			t.Errorf("stderr = %q, want the not-configured notice", out)
+		}
+	})
+	t.Run("--http fails with the error", func(t *testing.T) {
+		_, err := runServeUnconfigured(t, "", nil, "--http", "127.0.0.1:0")
+		if err == nil || !strings.Contains(err.Error(), "keyring") {
+			t.Fatalf("err = %v, want the keyring error", err)
+		}
+	})
+	t.Run("REDMINE_MCP_HTTP fails with the error", func(t *testing.T) {
+		_, err := runServeUnconfigured(t, "", map[string]string{"REDMINE_MCP_HTTP": "127.0.0.1:0"})
+		if err == nil || !strings.Contains(err.Error(), "keyring") {
+			t.Fatalf("err = %v, want the keyring error", err)
+		}
+	})
+	t.Run("unknown profile fails", func(t *testing.T) {
+		_, err := runServeUnconfigured(t, "nope", nil)
+		if err == nil {
+			t.Fatal("want an error for an unknown profile")
+		}
+	})
+	t.Run("invalid filter flag fails", func(t *testing.T) {
+		_, err := runServeUnconfigured(t, "", nil, "--enable-groups", "bogus")
+		if err == nil {
+			t.Fatal("want an error for an invalid group")
+		}
+	})
+}

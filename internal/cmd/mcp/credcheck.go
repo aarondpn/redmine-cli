@@ -46,10 +46,11 @@ func credentialWarning(cfg *config.Config, err error) string {
 	}
 	target := "the configured Redmine server"
 	if cfg != nil {
-		if profile, server, ok := cfg.ProfileServer(); ok {
-			target = fmt.Sprintf("profile %q (%s)", profile, server)
-		} else if cfg.Server != "" {
+		if cfg.Server != "" {
 			target = cfg.Server
+		}
+		if profile, _, ok := cfg.ProfileServer(); ok {
+			target += fmt.Sprintf(" (profile %q)", profile)
 		}
 	}
 	const fix = "Run 'redmine auth login' to update the credentials, or fix REDMINE_API_KEY in the MCP host config, then restart the MCP server."

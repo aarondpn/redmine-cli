@@ -91,10 +91,10 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 				// reads the log and a restart is needed anyway, so fail.
 				// Errors from explicit input (an unknown --profile, a broken
 				// config file) fail too instead of masking the typo.
-				if !isSetupProblem(cfg, cfgErr) || resolveHTTPAddr(cmd, httpAddr, cfg) != "" {
+				if !isSetupProblem(cfg, cfgErr) || httpRequested(cmd, httpAddr, cfg, cfgErr) {
 					return err
 				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: not configured (%v)\n%s", err, mcpserver.SetupInstructions(""))
+				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; run 'redmine auth login' (or set REDMINE_SERVER and REDMINE_API_KEY), then restart the MCP server.\n", err)
 				srv := mcpserver.BuildSetupServer(err.Error(), mcpserver.Options{Name: name, Version: version})
 				return srv.Run(ctx, &sdk.StdioTransport{})
 			}
@@ -175,6 +175,20 @@ func isSetupProblem(cfg *config.Config, cfgErr error) bool {
 		return config.IsKeyringSecretError(cfgErr) || config.IsNoActiveProfileError(cfgErr)
 	}
 	return cfg != nil && cfg.Server == ""
+}
+
+// httpRequested reports whether HTTP mode was asked for, even when the config
+// could not be loaded (cfg is nil then, so REDMINE_MCP_HTTP and a keyring
+// profile's mcp.http are checked separately). An explicit empty --http means
+// stdio.
+func httpRequested(cmd *cobra.Command, flagVal string, cfg *config.Config, cfgErr error) bool {
+	if cmd.Flags().Changed("http") {
+		return flagVal != ""
+	}
+	if cfg != nil {
+		return cfg.MCP.HTTP != ""
+	}
+	return os.Getenv("REDMINE_MCP_HTTP") != "" || config.KeyringSecretMCPHTTP(cfgErr) != ""
 }
 
 // buildFilterSpec merges config-file values with the CLI flag values. CLI
