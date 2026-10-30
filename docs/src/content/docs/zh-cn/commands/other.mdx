@@ -169,7 +169,7 @@ redmine custom-fields get 7 --output json
 </Tabs>
 
 <Aside type="note">
-  通过 Homebrew 安装时会自动附带补全脚本——仅当通过安装脚本、`go install` 或手动下载安装时才需运行上述命令。
+  通过 Homebrew 安装时会自动附带补全脚本——仅当通过安装脚本或手动下载安装时才需运行上述命令。
 </Aside>
 
 跟踪器、版本、类别和成员名称等补全候选项来自服务器。bash 脚本会在 bash 看到它们之前先加引号，因此像 `$(cmd)` 这样的名称只会作为文本给出，绝不会被执行；包含换行的候选项会被丢弃，控制字符会被中和。旧版本生成的 bash 脚本会把候选项不加引号地交给 bash：如果你把 `redmine completion bash` 的输出保存到了文件中，升级后请重新生成该文件。

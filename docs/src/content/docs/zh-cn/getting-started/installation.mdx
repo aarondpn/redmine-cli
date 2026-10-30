@@ -3,145 +3,61 @@ title: 安装
 description: 如何在你的系统上安装 redmine-cli。
 ---
 
-import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
-
-选择适合你平台的安装方式，所有方式均会生成同一个 `redmine` 二进制文件。
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## 安装
 
 <Tabs syncKey="installer">
   <TabItem label="Homebrew" icon="apple">
-    适用于 macOS 和 Linux，自带 bash、zsh 和 fish 的 shell 补全支持。
+    适用于 macOS 和 Linux，包含 shell 补全。
 
     ```bash
-    brew tap aarondpn/tap
-    brew install redmine
+    brew install aarondpn/tap/redmine
     ```
   </TabItem>
 
   <TabItem label="安装脚本" icon="seti:shell">
-    自动检测操作系统和架构，验证 SHA256 校验和，安装至 `~/.local/bin`。
+    适用于 macOS 和 Linux，安装到 `~/.local/bin`。
 
     ```bash
     curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
     ```
-
-    校验和检查始终会执行，不匹配时总是中止安装。脚本是否还会检查版本的构建来源证明（attestation），取决于 [GitHub CLI](https://cli.github.com)：
-
-    - **验证证明。** 如果已安装 `gh`、版本足够新（`gh attestation verify` 支持 `--signer-workflow` 和 `--source-ref`；当前的所有版本都满足），并且已登录（`gh auth login`，或设置了 `GH_TOKEN` / `GITHUB_TOKEN`），脚本会对归档文件运行 `gh attestation verify`，构建来源证明未通过时拒绝安装。
-    - **仅校验和。** 如果 `gh` 未安装、版本过旧或未登录，脚本只在校验和检查通过后安装，并打印一条说明原因的警告，以及可自行验证该版本的 `gh attestation verify` 命令。
-
-    如果 `gh` 因环境原因无法完成检查（代理屏蔽了 Sigstore，或 `gh` 只登录了 GitHub Enterprise Server），可设置 `REDMINE_CLI_SKIP_ATTESTATION=1`，仅凭校验和验证进行安装。脚本会打印警告和自行验证该版本的命令。与 [`redmine update --skip-attestation`](/zh-cn/commands/other/#自动更新) 一样，校验和与归档文件来自同一位置，因此无法发现被篡改的版本；切勿用它绕过确实无效的证明。
-
-    如需安装指定版本而不是最新版本，请设置 `REDMINE_CLI_VERSION`，并从同一标签获取脚本：
-
-    ```bash
-    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.sh | REDMINE_CLI_VERSION=<tag> bash
-    ```
-
-    v2.14.1 及更早版本的 `install.sh` 会忽略 `REDMINE_CLI_VERSION` 并安装最新版本；要固定到这些版本之一，请改用 `main` 分支上的脚本。
-
-    证明仅存在于 v2.11.2 及更高版本。在已登录 `gh` 的情况下固定更早的版本时，证明验证会失败，脚本会拒绝安装；此时需同时设置 `REDMINE_CLI_SKIP_ATTESTATION=1`，仅凭校验和验证进行安装。
-
-    <Aside type="tip" title="PATH">
-      确保 `~/.local/bin` 已添加至你的 `PATH`。大多数现代 shell 会自动添加。
-    </Aside>
   </TabItem>
 
   <TabItem label="PowerShell" icon="seti:powershell">
-    适用于 Windows。校验 SHA256 校验和，将 `redmine.exe` 安装到 `%LOCALAPPDATA%\Programs\redmine-cli`（无需管理员权限），并将该目录加入用户 `PATH`。
+    适用于 Windows，安装到 `%LOCALAPPDATA%\Programs\redmine-cli` 并加入 `PATH`。
 
     ```powershell
     irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
     ```
-
-    构建证明的检查方式与上面的安装脚本完全相同：若安装了较新且已登录的 `gh`，会运行 `gh attestation verify`，验证失败则拒绝安装；否则在校验和检查通过后安装，并打印自行验证该版本的命令。`REDMINE_CLI_VERSION` 和 `REDMINE_CLI_SKIP_ATTESTATION` 的用法相同：
-
-    ```powershell
-    $env:REDMINE_CLI_VERSION = '<tag>'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.ps1 | iex
-    ```
-
-    设置 `REDMINE_INSTALL_DIR` 可安装到其他目录，设置 `REDMINE_CLI_NO_MODIFY_PATH=1` 则不修改 `PATH`。首次安装后请打开新的终端，以使新的 `PATH` 生效。`install.ps1` 随 v2.17.0 之后的版本提供；如需固定更早的版本，请改为从 `main` 获取该脚本。ARM 版 Windows 会安装 x64 版本，通过仿真运行。
-  </TabItem>
-
-  <TabItem label="go install" icon="seti:go">
-    通过 Go 工具链从源码构建，需要 Go 1.26 或更高版本（`go.mod` 中的 `go` 指令）；在默认的 `GOTOOLCHAIN=auto` 下，较旧的 Go 1.21+ 会自动下载合适的工具链。发行版二进制文件使用 Go 1.27.3 构建。
-
-    ```bash
-    go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
-    ```
   </TabItem>
 
   <TabItem label="手动安装" icon="download">
-    下载适合你平台的预构建发行版。
-
-    | 平台    | 架构          | 文件名 |
-    |---------|---------------|--------|
-    | Linux   | x86_64        | `redmine-cli-linux-amd64.tar.gz` |
-    | Linux   | ARM64         | `redmine-cli-linux-arm64.tar.gz` |
-    | macOS   | Intel         | `redmine-cli-darwin-amd64.tar.gz` |
-    | macOS   | Apple Silicon | `redmine-cli-darwin-arm64.tar.gz` |
-    | Windows | x86_64        | `redmine-cli-windows-amd64.zip` |
-
-    下载地址见 [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest)。
+    从 [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest) 下载适合你平台的压缩包，并将 `redmine` 放到 `PATH` 中。
   </TabItem>
 </Tabs>
 
-## 验证
+确认可以运行，然后[登录](/zh-cn/getting-started/configuration/)：
 
-<Steps>
-
-1. 确认二进制文件可访问并能输出版本信息：
-
-   ```bash
-   redmine --version
-   ```
-
-2. 运行内置健康检查，验证安装是否正常：
-
-   ```bash
-   redmine --help
-   ```
-
-3. 继续前往 [配置](/zh-cn/getting-started/configuration/) 以连接你的 Redmine 服务器。
-
-</Steps>
+```bash
+redmine --version
+```
 
 ## 更新
 
-<Badge text="自动更新" variant="tip" />
 ```bash
 redmine update
 ```
 
-拉取最新版本，验证其 SHA256 校验和以及 GitHub artifact attestation，然后替换当前运行的二进制文件。参见 [自动更新](/zh-cn/commands/other/#自动更新) 了解详情和可用标志。
+通过 Homebrew 安装时使用 `brew upgrade` 更新。Docker 镜像使用 `docker pull ghcr.io/aarondpn/redmine-mcp` 更新。详见[自更新](/zh-cn/commands/other/#自动更新)。
 
-<Aside type="caution" title="校验和与证明验证">
-  安装程序和自动更新程序在发行版校验和不匹配时均会拒绝执行。自动更新程序还会拒绝没有本仓库发布工作流签发的有效证明的版本；安装程序在有较新且已登录的 `gh` 时同样如此，否则只检查校验和并给出提示。请勿绕过失败的检查——请作为安全问题上报。
-</Aside>
+## 脚本选项
 
-### Docker
+两个安装脚本都会校验发布版本的校验和；若安装了已登录的 [GitHub CLI](https://cli.github.com)，还会验证构建证明。运行脚本前可设置以下环境变量：
 
-[MCP 服务器镜像](/zh-cn/guides/ai-agents/#使用-docker-运行)不会自动更新。拉取新版本后，重启 MCP 客户端或重新创建容器：
-
-```bash
-docker pull ghcr.io/aarondpn/redmine-mcp
-
-# Docker Compose
-docker compose pull && docker compose up -d
-```
-
-## 下一步
-
-<CardGrid>
-  <LinkCard
-    title="配置"
-    href="/zh-cn/getting-started/configuration/"
-    description="配置服务器、身份验证配置文件及默认值。"
-  />
-  <LinkCard
-    title="快速开始"
-    href="/zh-cn/getting-started/quick-start/"
-    description="5 分钟内上手工单、工时记录与搜索。"
-  />
-</CardGrid>
+| 变量 | 作用 |
+|---|---|
+| `REDMINE_CLI_VERSION` | 安装指定版本，例如 `v2.17.0` |
+| `REDMINE_CLI_SKIP_ATTESTATION=1` | 跳过构建证明检查（不推荐） |
+| `REDMINE_INSTALL_DIR` | 安装到其他目录 |
+| `REDMINE_CLI_NO_MODIFY_PATH=1` | 仅 PowerShell：不修改 `PATH` |

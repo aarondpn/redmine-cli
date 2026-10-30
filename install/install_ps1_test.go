@@ -167,7 +167,9 @@ func (e *psEnv) run(t *testing.T, withGh bool, extra map[string]string) (string,
 	for _, kv := range os.Environ() {
 		name := strings.ToUpper(strings.SplitN(kv, "=", 2)[0])
 		switch {
-		case name == "PATH", name == "GH_TOKEN", name == "GITHUB_TOKEN", strings.HasPrefix(name, "REDMINE_"):
+		// PSModulePath set by the PowerShell 7 that runs CI would make
+		// Windows PowerShell 5.1 load the wrong modules (no Get-FileHash).
+		case name == "PATH", name == "PSMODULEPATH", name == "GH_TOKEN", name == "GITHUB_TOKEN", strings.HasPrefix(name, "REDMINE_"):
 			continue
 		}
 		cmd.Env = append(cmd.Env, kv)

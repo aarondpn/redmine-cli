@@ -36,56 +36,25 @@
 
 ## 安装
 
-### Homebrew（macOS 和 Linux）
+**Homebrew**（macOS、Linux）：
 
 ```bash
-brew tap aarondpn/tap
-brew install redmine
+brew install aarondpn/tap/redmine
 ```
 
-同时会安装 bash、zsh 和 fish 的 shell 补全脚本。
-
-### 快速安装脚本
+**安装脚本**（macOS、Linux）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-脚本会自动检测操作系统和架构，下载最新发布版本并通过校验和验证后，安装到 `~/.local/bin`。如果已安装较新的 [GitHub CLI](https://cli.github.com) 并已登录，脚本还会用 `gh attestation verify` 验证该版本的构建证明（attestation），验证失败时拒绝安装。没有这样的 `gh` 时，脚本只在校验和验证通过后安装，并打印警告以及自行验证该版本的命令。设置 `REDMINE_CLI_VERSION=<tag>` 可安装指定版本；v2.11.2 之前的版本没有构建证明，因此在已登录 `gh` 的环境中固定这些版本时，还需设置 `REDMINE_CLI_SKIP_ATTESTATION=1`。详情请参阅[安装文档](https://redmine-cli.dev/zh-cn/getting-started/installation/)。
-
-### PowerShell 安装脚本（Windows）
+**PowerShell**（Windows）：
 
 ```powershell
 irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
 ```
 
-下载最新的 Windows 版本并校验校验和，将 `redmine.exe` 安装到 `%LOCALAPPDATA%\Programs\redmine-cli`，并加入用户 `PATH`。构建证明、`REDMINE_CLI_VERSION` 和 `REDMINE_CLI_SKIP_ATTESTATION` 的行为与 `install.sh` 相同；安装后请打开新的终端。
-
-### 使用 Go 安装
-
-```bash
-go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
-```
-
-### 手动下载
-
-从 [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest) 获取对应平台的最新发布版本：
-
-| 平台          | 架构          | 下载文件 |
-|---------------|---------------|----------|
-| Linux         | x86_64        | `redmine-cli-linux-amd64.tar.gz` |
-| Linux         | ARM64         | `redmine-cli-linux-arm64.tar.gz` |
-| macOS         | Intel         | `redmine-cli-darwin-amd64.tar.gz` |
-| macOS         | Apple Silicon | `redmine-cli-darwin-arm64.tar.gz` |
-| Windows       | x86_64        | `redmine-cli-windows-amd64.zip` |
-
-### 更新
-
-```bash
-redmine update
-```
-
-下载最新发布版本，验证其 SHA256 校验和以及 GitHub artifact attestation（来自本仓库发布工作流的 SLSA 来源证明，通过 Sigstore 验证）后，替换当前二进制文件。任一检查失败都会拒绝更新；`--skip-attestation` 会在打印警告后回退为仅校验和验证。
+也可以从 [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest) 下载二进制文件。使用 `redmine update` 更新。更多选项：[安装文档](https://redmine-cli.dev/zh-cn/getting-started/installation/)。
 
 ## 快速开始
 
