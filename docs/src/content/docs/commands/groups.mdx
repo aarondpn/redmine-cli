@@ -37,6 +37,14 @@ redmine groups get <id-or-name> [flags]
 
 Aliases: `show`, `view`. Accepts a numeric ID or group name.
 
+| Flag | Description |
+|------|-------------|
+| `--include-users`       | Include group members in output |
+| `--include-memberships` | Include project memberships in output |
+| `-o, --output`          | Output format |
+
+With `-o json` (and in the MCP group tools) a group carries `custom_fields` (always present, `[]` when there are no values) and `builtin` when Redmine sends it. With `--include-memberships` (MCP: `includes: ["memberships"]`), each `memberships` entry is `{id, project, roles}`.
+
 ## create
 
 ```bash

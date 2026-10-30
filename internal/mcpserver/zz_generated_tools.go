@@ -416,19 +416,19 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetUserInput, *models.User]{
 		Name:        "get_user",
-		Description: "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes.",
+		Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.",
 		Category:    "users",
 		Call:        ops.GetUser,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListUsersInput, ops.UsersListResult]{
 		Name:        "list_users",
-		Description: "List Redmine users matching the given filter.",
+		Description: "List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only).",
 		Category:    "users",
 		Call:        ops.ListUsers,
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.GetCurrentUserInput, *models.User]{
 		Name:        "me",
-		Description: "Return the currently authenticated Redmine user. Supports memberships and groups includes.",
+		Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.",
 		Category:    "users",
 		Call:        ops.GetCurrentUser,
 	})
@@ -541,9 +541,9 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_time_entry", Description: "Update an existing time entry. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "create_user", Description: "Create a new Redmine user. Requires --enable-writes and admin privileges.", Group: "users", Writes: true},
 		{Name: "delete_user", Description: "Delete a Redmine user. Destructive. Requires --enable-writes.", Group: "users", Writes: true},
-		{Name: "get_user", Description: "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes.", Group: "users", Writes: false},
-		{Name: "list_users", Description: "List Redmine users matching the given filter.", Group: "users", Writes: false},
-		{Name: "me", Description: "Return the currently authenticated Redmine user. Supports memberships and groups includes.", Group: "users", Writes: false},
+		{Name: "get_user", Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.", Group: "users", Writes: false},
+		{Name: "list_users", Description: "List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only).", Group: "users", Writes: false},
+		{Name: "me", Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes.", Group: "users", Writes: false},
 		{Name: "update_user", Description: "Update an existing Redmine user. Requires --enable-writes.", Group: "users", Writes: true},
 		{Name: "create_wiki_page", Description: "Create (or overwrite) a wiki page. Requires --enable-writes.", Group: "wiki", Writes: true},
 		{Name: "delete_wiki_page", Description: "Delete a wiki page. Destructive. Requires --enable-writes.", Group: "wiki", Writes: true},

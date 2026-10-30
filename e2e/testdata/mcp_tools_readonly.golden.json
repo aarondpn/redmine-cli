@@ -45,7 +45,7 @@
   },
   {
     "name": "get_user",
-    "description": "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes."
+    "description": "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes."
   },
   {
     "name": "get_version",
@@ -117,7 +117,7 @@
   },
   {
     "name": "list_users",
-    "description": "List Redmine users matching the given filter."
+    "description": "List Redmine users matching the given filter. Supports the auth_source include (Redmine 6.0+, admin only)."
   },
   {
     "name": "list_versions",
@@ -129,7 +129,7 @@
   },
   {
     "name": "me",
-    "description": "Return the currently authenticated Redmine user. Supports memberships and groups includes."
+    "description": "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source (Redmine 6.0+, admin only) includes."
   },
   {
     "name": "search",

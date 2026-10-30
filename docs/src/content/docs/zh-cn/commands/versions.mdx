@@ -68,6 +68,8 @@ redmine versions get <id-or-name> [flags]
 |------|------|
 | `--project` | 项目标识符（用于名称解析；默认回退至默认项目） |
 
+使用 `-o json`（以及 MCP 的版本工具）时，版本带有 `custom_fields`。`estimated_hours` 和 `spent_hours` 仅来自 `versions get`，且需要 `view_time_entries` 权限，否则会被省略。
+
 <Aside type="note">
   通过名称解析版本时，必须已知项目信息。CLI 优先使用 `--project`，否则使用活跃配置文件中的 `default_project`。
 </Aside>

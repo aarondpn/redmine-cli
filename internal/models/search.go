@@ -14,6 +14,6 @@ type SearchResult struct {
 type SearchResponse struct {
 	Results    []SearchResult `json:"results"`
 	TotalCount int            `json:"total_count"`
-	Offset     int            `json:"offset"`
-	Limit      int            `json:"limit"`
+	Offset     *int           `json:"offset,omitempty"`
+	Limit      *int           `json:"limit,omitempty"`
 }

@@ -22,7 +22,14 @@ func (s *GroupService) List(ctx context.Context, filter models.GroupFilter) ([]m
 		params = url.Values{}
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
-	return FetchAll[models.Group](ctx, s.client, "/groups.json", params, "groups", filter.Limit)
+	groups, total, err := FetchAll[models.Group](ctx, s.client, "/groups.json", params, "groups", filter.Limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range groups {
+		groups[i].NormalizeCollections()
+	}
+	return groups, total, nil
 }
 
 // Get retrieves a single group by ID. includes can contain "users" and/or "memberships".
@@ -39,6 +46,7 @@ func (s *GroupService) Get(ctx context.Context, id int, includes []string) (*mod
 	if err := s.client.Get(ctx, fmt.Sprintf("/groups/%d.json", id), params, &resp); err != nil {
 		return nil, err
 	}
+	resp.Group.NormalizeCollections()
 	return &resp.Group, nil
 }
 
@@ -51,6 +59,7 @@ func (s *GroupService) Create(ctx context.Context, group models.GroupCreate) (*m
 	if err := s.client.Post(ctx, "/groups.json", body, &resp); err != nil {
 		return nil, err
 	}
+	resp.Group.NormalizeCollections()
 	return &resp.Group, nil
 }
 

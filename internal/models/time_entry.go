@@ -12,6 +12,8 @@ type TimeEntry struct {
 	SpentOn   string  `json:"spent_on"`
 	CreatedOn string  `json:"created_on"`
 	UpdatedOn string  `json:"updated_on"`
+
+	CustomFields []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
 // TimeEntryCreate defines fields for creating a time entry.

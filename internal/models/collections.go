@@ -74,3 +74,31 @@ func hasInclude(includes []string, name string) bool {
 	}
 	return false
 }
+
+// NormalizeCollections marks custom_fields as fetched. Redmine renders it on
+// every version response but omits the key when the version has no visible
+// custom field values.
+func (v *Version) NormalizeCollections() {
+	v.CustomFields = emptyIfNil(v.CustomFields)
+}
+
+// NormalizeCollections marks custom_fields as fetched. Redmine renders it on
+// every time entry response but omits the key when the entry has no visible
+// custom field values.
+func (t *TimeEntry) NormalizeCollections() {
+	t.CustomFields = emptyIfNil(t.CustomFields)
+}
+
+// NormalizeCollections marks custom_fields as fetched. Redmine renders it on
+// every group response but omits the key when the group has no visible custom
+// field values. users and memberships are include-driven and left alone.
+func (g *Group) NormalizeCollections() {
+	g.CustomFields = emptyIfNil(g.CustomFields)
+}
+
+// NormalizeCollections marks custom_fields as fetched. Redmine renders it on
+// every enumeration response but omits the key when the enumeration has no
+// custom field values.
+func (e *Enumeration) NormalizeCollections() {
+	e.CustomFields = emptyIfNil(e.CustomFields)
+}

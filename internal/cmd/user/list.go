@@ -13,12 +13,13 @@ import (
 
 func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		status string
-		name   string
-		group  string
-		limit  int
-		offset int
-		format string
+		status   string
+		name     string
+		group    string
+		limit    int
+		offset   int
+		format   string
+		includes []string
 	)
 
 	cmd := &cobra.Command{
@@ -27,6 +28,9 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 		Short:   "List users",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateUserListIncludes(includes); err != nil {
+				return err
+			}
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -43,11 +47,12 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 
 			stop := printer.Spinner("Fetching users...")
 			result, err := ops.ListUsers(cmdutil.Context(cmd), client, ops.ListUsersInput{
-				Status:  status,
-				Name:    name,
-				GroupID: groupID,
-				Limit:   cmdutil.OpsLimit(limit),
-				Offset:  offset,
+				Status:   status,
+				Name:     name,
+				GroupID:  groupID,
+				Limit:    cmdutil.OpsLimit(limit),
+				Offset:   offset,
+				Includes: includes,
 			})
 			stop()
 			if err != nil {
@@ -82,8 +87,12 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&status, "status", "", "Filter by status (active, registered, locked)")
 	cmd.Flags().StringVar(&name, "name", "", "Filter by name")
 	cmd.Flags().StringVar(&group, "group", "", "Filter by group name or ID")
+	cmd.Flags().StringSliceVar(&includes, "include", nil,
+		"Include related data: auth_source (Redmine 6.0+, admin only; repeatable or comma-separated)")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
+
+	_ = cmd.RegisterFlagCompletionFunc("include", completeUserListIncludes)
 
 	_ = cmd.RegisterFlagCompletionFunc("group", cmdutil.CompleteGroups(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteUserStatus)

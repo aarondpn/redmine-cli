@@ -68,6 +68,8 @@ Aliases: `show`, `view`. Accepts a numeric ID or a version name.
 |------|-------------|
 | `--project` | Project identifier (used for name resolution; falls back to the default project) |
 
+With `-o json` (and in the MCP version tools) versions carry `custom_fields`. `estimated_hours` and `spent_hours` come from `versions get` only and require the `view_time_entries` permission; they are omitted otherwise.
+
 <Aside type="note">
   When resolving a version by name, a project must be known. The CLI uses `--project` if supplied, otherwise the `default_project` from the active profile.
 </Aside>

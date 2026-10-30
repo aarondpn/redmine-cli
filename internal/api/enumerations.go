@@ -19,6 +19,9 @@ func (s *EnumerationService) TimeEntryActivities(ctx context.Context) ([]models.
 	if err := s.client.Get(ctx, "/enumerations/time_entry_activities.json", nil, &resp); err != nil {
 		return nil, err
 	}
+	for i := range resp.Activities {
+		resp.Activities[i].NormalizeCollections()
+	}
 	return resp.Activities, nil
 }
 
@@ -29,6 +32,9 @@ func (s *EnumerationService) IssuePriorities(ctx context.Context) ([]models.Enum
 	}
 	if err := s.client.Get(ctx, "/enumerations/issue_priorities.json", nil, &resp); err != nil {
 		return nil, err
+	}
+	for i := range resp.Priorities {
+		resp.Priorities[i].NormalizeCollections()
 	}
 	return resp.Priorities, nil
 }

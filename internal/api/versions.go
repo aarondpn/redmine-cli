@@ -26,7 +26,14 @@ func (s *VersionService) List(ctx context.Context, projectID string, limit, offs
 		params = url.Values{}
 		params.Set("offset", strconv.Itoa(offset))
 	}
-	return FetchAll[models.Version](ctx, s.client, path, params, "versions", limit)
+	versions, total, err := FetchAll[models.Version](ctx, s.client, path, params, "versions", limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range versions {
+		versions[i].NormalizeCollections()
+	}
+	return versions, total, nil
 }
 
 // Get retrieves a single version by ID.
@@ -37,6 +44,7 @@ func (s *VersionService) Get(ctx context.Context, id int) (*models.Version, erro
 	if err := s.client.Get(ctx, fmt.Sprintf("/versions/%d.json", id), nil, &resp); err != nil {
 		return nil, err
 	}
+	resp.Version.NormalizeCollections()
 	return &resp.Version, nil
 }
 
@@ -53,6 +61,7 @@ func (s *VersionService) Create(ctx context.Context, projectID string, version m
 	if err := s.client.Post(ctx, fmt.Sprintf("/projects/%s/versions.json", seg), body, &resp); err != nil {
 		return nil, err
 	}
+	resp.Version.NormalizeCollections()
 	return &resp.Version, nil
 }
 
@@ -77,5 +86,12 @@ func (s *VersionService) ListFiltered(ctx context.Context, projectID string, nee
 		return nil, false, err
 	}
 	path := fmt.Sprintf("/projects/%s/versions.json", seg)
-	return FetchAllFiltered[models.Version](ctx, s.client, path, nil, "versions", need, filter)
+	versions, hasMore, err := FetchAllFiltered[models.Version](ctx, s.client, path, nil, "versions", need, filter)
+	if err != nil {
+		return nil, false, err
+	}
+	for i := range versions {
+		versions[i].NormalizeCollections()
+	}
+	return versions, hasMore, nil
 }

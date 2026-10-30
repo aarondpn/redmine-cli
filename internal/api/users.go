@@ -38,6 +38,9 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 	if filter.Offset > 0 {
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
+	if len(filter.Includes) > 0 {
+		params.Set("include", joinStrings(filter.Includes, ","))
+	}
 
 	users, total, err := FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
 	if err != nil {

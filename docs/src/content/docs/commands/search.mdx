@@ -38,6 +38,8 @@ redmine search <query> [flags]
 | `--offset`      | Result offset |
 | `-o, --output`  | Output format |
 
+The MCP `search` result also carries the `offset` and `limit` Redmine reports for the page.
+
 <Aside type="caution" title="Default project">
   If the active profile has a default project and you don't pass `--project`,
   search is limited to that project (plus its subprojects with

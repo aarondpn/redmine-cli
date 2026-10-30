@@ -40,6 +40,8 @@ redmine memberships get <id> [flags]
 |------|------|
 | `-o, --output` | 输出格式 |
 
+使用 `-o json`（以及 MCP 的成员关系工具）时，`roles[].inherited` 仅对继承自用户组成员关系的角色发送，且值为 `true`。内置主体会出现在 `group_anonymous` / `group_non_member` 键下，而不是 `user` / `group`。
+
 ## create
 
 ```bash
