@@ -161,9 +161,20 @@ func TestHTTPRequested(t *testing.T) {
 	}
 }
 
-// runServeUnconfigured runs `mcp serve` against a config file with a keyring
-// profile whose secret is unavailable, with stdin at EOF.
+// keyringProfileConfig has a keyring profile whose secret is unavailable
+// (REDMINE_NO_KEYRING is set).
+const keyringProfileConfig = "active_profile: work\nprofiles:\n  work:\n    server: https://work.example.com\n    auth_method: apikey\n    credential_store: keyring\n    keyring_id: srv-id\n"
+
+// runServeUnconfigured runs `mcp serve` against keyringProfileConfig, with
+// stdin at EOF.
 func runServeUnconfigured(t *testing.T, profile string, env map[string]string, args ...string) (stderr string, err error) {
+	t.Helper()
+	return runServeWithConfig(t, keyringProfileConfig, profile, env, args...)
+}
+
+// runServeWithConfig runs `mcp serve` against a config file with content,
+// with stdin at EOF.
+func runServeWithConfig(t *testing.T, content, profile string, env map[string]string, args ...string) (stderr string, err error) {
 	t.Helper()
 	for _, kv := range os.Environ() {
 		if k, _, _ := strings.Cut(kv, "="); strings.HasPrefix(k, "REDMINE_") {
@@ -175,7 +186,6 @@ func runServeUnconfigured(t *testing.T, profile string, env map[string]string, a
 		t.Setenv(k, v)
 	}
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
-	content := "active_profile: work\nprofiles:\n  work:\n    server: https://work.example.com\n    auth_method: apikey\n    credential_store: keyring\n    keyring_id: srv-id\n"
 	if werr := os.WriteFile(cfgPath, []byte(content), 0o600); werr != nil {
 		t.Fatal(werr)
 	}
@@ -193,21 +203,39 @@ func runServeUnconfigured(t *testing.T, profile string, env map[string]string, a
 	return errBuf.String(), err
 }
 
+// closedStdio replaces the stdio transport with one whose client side is
+// already gone, so the setup server returns right after starting.
+func closedStdio(t *testing.T) {
+	t.Helper()
+	orig := newStdioTransport
+	t.Cleanup(func() { newStdioTransport = orig })
+	newStdioTransport = func() sdk.Transport {
+		r, w := io.Pipe()
+		_ = w.Close() // client side gone: immediate EOF
+		return &sdk.IOTransport{Reader: r, Writer: nopWriteCloser{io.Discard}}
+	}
+}
+
 func TestServeUnconfigured(t *testing.T) {
 	t.Run("stdio starts the setup server", func(t *testing.T) {
-		orig := newStdioTransport
-		t.Cleanup(func() { newStdioTransport = orig })
-		newStdioTransport = func() sdk.Transport {
-			r, w := io.Pipe()
-			_ = w.Close() // client side gone: immediate EOF
-			return &sdk.IOTransport{Reader: r, Writer: nopWriteCloser{io.Discard}}
-		}
+		closedStdio(t)
 		out, err := runServeUnconfigured(t, "", nil)
 		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
 			t.Fatalf("err = %v, want a clean stdio shutdown", err)
 		}
-		if !strings.Contains(out, "not configured") {
-			t.Errorf("stderr = %q, want the not-configured notice", out)
+		if !strings.Contains(out, "not configured") || !strings.Contains(out, "redmine auth login") {
+			t.Errorf("stderr = %q, want the not-configured notice pointing at auth login", out)
+		}
+	})
+	t.Run("no active profile points at auth switch", func(t *testing.T) {
+		closedStdio(t)
+		content := "profiles:\n  a:\n    server: https://a.example.com\n    api_key: k\n  b:\n    server: https://b.example.com\n    api_key: k\n"
+		out, err := runServeWithConfig(t, content, "", nil)
+		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
+			t.Fatalf("err = %v, want a clean stdio shutdown", err)
+		}
+		if !strings.Contains(out, "not configured") || !strings.Contains(out, "redmine auth switch") || strings.Contains(out, "redmine auth login") {
+			t.Errorf("stderr = %q, want the not-configured notice pointing at auth switch", out)
 		}
 	})
 	t.Run("--http fails with the error", func(t *testing.T) {

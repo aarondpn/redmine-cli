@@ -98,7 +98,11 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 				if !isSetupProblem(cfg, cfgErr) || httpRequested(cmd, httpAddr, cfg, cfgErr) {
 					return err
 				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; run 'redmine auth login' (or set REDMINE_SERVER and REDMINE_API_KEY), then restart the MCP server.\n", err)
+				fix := "run 'redmine auth login' (or set REDMINE_SERVER and REDMINE_API_KEY)"
+				if config.IsNoActiveProfileError(cfgErr) {
+					fix = "run 'redmine auth switch' (or pass --profile <name>)"
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; %s, then restart the MCP server.\n", err, fix)
 				srv := mcpserver.BuildSetupServer(err.Error(), mcpserver.Options{Name: name, Version: version})
 				return srv.Run(ctx, newStdioTransport())
 			}
