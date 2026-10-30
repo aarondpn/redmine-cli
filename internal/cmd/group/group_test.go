@@ -115,7 +115,7 @@ func TestGroupGet_MembershipsShowProjectAndKeepRolesInJSON(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if out := testutil.Stdout(f); !strings.Contains(out, "Apollo (ID: 7)") {
+	if out := testutil.Stdout(f); !strings.Contains(out, "Apollo (ID: 3) [Developer]") {
 		t.Errorf("detail output missing project name:\n%s", out)
 	}
 
@@ -231,7 +231,7 @@ func TestGroupGet_IncludeMembershipsTable(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships"})
+	cmd.SetArgs([]string{"1", "--include", "memberships"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestGroupGet_IncludeMembershipsJSON(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships", "--output", "json"})
+	cmd.SetArgs([]string{"1", "--include", "memberships", "--output", "json"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}

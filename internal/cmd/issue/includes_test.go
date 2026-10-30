@@ -67,7 +67,7 @@ func TestIssueGet_IncludeQuery(t *testing.T) {
 		{"repeated", []string{"--include", "journals", "--include", "watchers"}, "journals,watchers"},
 		{"shorthands merged", []string{"--include", "watchers", "--journals", "--relations"}, "watchers,journals,relations"},
 		{"shorthand deduplicated", []string{"--include", "journals", "--journals"}, "journals"},
-		{"download implies attachments", []string{"--include", "attachments", "--attachments"}, "attachments"},
+		{"attachments shorthand deduplicated", []string{"--include", "attachments", "--attachments"}, "attachments"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

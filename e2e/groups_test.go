@@ -180,7 +180,7 @@ func TestGroups_GetIncludeMemberships(t *testing.T) {
 			} `json:"roles"`
 		} `json:"memberships"`
 	}
-	r.runJSON(t, &got, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships")
+	r.runJSON(t, &got, "groups", "get", strconv.Itoa(grp.ID), "--include", "memberships")
 	if len(got.Memberships) != 1 {
 		t.Fatalf("memberships = %+v, want exactly 1", got.Memberships)
 	}
@@ -192,7 +192,7 @@ func TestGroups_GetIncludeMemberships(t *testing.T) {
 		t.Errorf("membership roles = %+v, want [%s]", m.Roles, role.Name)
 	}
 
-	table := string(r.run(t, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships", "--output", "table"))
+	table := string(r.run(t, "groups", "get", strconv.Itoa(grp.ID), "--include", "memberships", "--output", "table"))
 	if !strings.Contains(table, proj.Name) || !strings.Contains(table, role.Name) {
 		t.Errorf("table missing project %q or role %q\n%s", proj.Name, role.Name, table)
 	}

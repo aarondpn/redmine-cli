@@ -24,7 +24,7 @@ type Journal struct {
 	ID           int    `json:"id"`
 	User         IDName `json:"user"`
 	Notes        string `json:"notes"`
-	PrivateNotes bool   `json:"private_notes,omitempty"`
+	PrivateNotes bool   `json:"private_notes"`
 	CreatedOn    string `json:"created_on"`
 	// UpdatedOn is sent by Redmine 6.0+ for every journal and equals
 	// CreatedOn until the notes are edited; UpdatedBy is the actual signal

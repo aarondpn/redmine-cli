@@ -13,9 +13,9 @@ import (
 // updated_on/updated_by, allowed_statuses, plus reactions on the issue and
 // journals, which Redmine 7.0.x does not send yet (7.1+); they are kept here to
 // cover the decoding of that include.
-// Keys Redmine always sends but the models drop when empty (is_private,
-// private_notes, null start_date/due_date) are left out on purpose so the
-// lossless round-trip below holds; this is not the full wire payload.
+// Keys the models drop when empty (null start_date/due_date) are left out on
+// purpose so the lossless round-trip below holds; this is not the full wire
+// payload. is_private and private_notes are always sent and always kept.
 const issueShow70 = `{
   "id": 10,
   "project": {"id": 1, "name": "P"},
@@ -26,6 +26,7 @@ const issueShow70 = `{
   "subject": "Parent",
   "description": "",
   "done_ratio": 100,
+  "is_private": false,
   "created_on": "2026-01-01T10:00:00Z",
   "updated_on": "2026-01-03T10:00:00Z",
   "closed_on": "2026-01-03T10:00:00Z",
@@ -47,10 +48,10 @@ const issueShow70 = `{
     {"revision": "def456", "comments": "refs #10", "committed_on": "2026-01-02T10:00:00Z"}
   ],
   "journals": [
-    {"id": 100, "user": {"id": 1, "name": "Admin"}, "notes": "edited", "created_on": "2026-01-02T00:00:00Z",
+    {"id": 100, "user": {"id": 1, "name": "Admin"}, "notes": "edited", "private_notes": false, "created_on": "2026-01-02T00:00:00Z",
      "updated_on": "2026-01-02T01:00:00Z", "updated_by": {"id": 2, "name": "Other"},
      "details": [], "reactions": [{"user": {"id": 2, "name": "Other"}}]},
-    {"id": 101, "user": {"id": 1, "name": "Admin"}, "notes": "plain", "created_on": "2026-01-02T02:00:00Z",
+    {"id": 101, "user": {"id": 1, "name": "Admin"}, "notes": "plain", "private_notes": false, "created_on": "2026-01-02T02:00:00Z",
      "updated_on": "2026-01-02T02:00:00Z", "details": []}
   ],
   "allowed_statuses": [
