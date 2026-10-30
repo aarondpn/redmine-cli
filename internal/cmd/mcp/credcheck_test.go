@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/spf13/cobra"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -51,6 +53,31 @@ func TestCredentialCheck_WarnsOnRejectedCredentials(t *testing.T) {
 		if !strings.Contains(out, cfg.Server) || !strings.Contains(out, "redmine auth login") {
 			t.Errorf("status %d: warning = %q, want server and fix", status, out)
 		}
+	}
+}
+
+func TestCredentialCheck_ScrubsServerURL(t *testing.T) {
+	client, cfg := newProbeClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	cfg.Server = strings.Replace(cfg.Server, "http://", "http://proxyuser:proxypass@", 1) + "/?key=abc"
+	f, stderr := newProbeFactory(t)
+	<-startCredentialCheck(context.Background(), f, cfg, client)
+	out := stderr.String()
+	if out == "" || strings.Contains(out, "proxypass") || strings.Contains(out, "key=abc") {
+		t.Errorf("warning = %q, must be non-empty and free of credentials", out)
+	}
+}
+
+func TestCredentialWarning_MissingSecret(t *testing.T) {
+	err := &api.APIError{StatusCode: http.StatusUnauthorized}
+	got := credentialWarning(&config.Config{Server: "https://r.example.com", AuthMethod: "apikey"}, err)
+	if !strings.Contains(got, "no API key is configured") || !strings.Contains(got, "REDMINE_API_KEY") {
+		t.Errorf("apikey: %q", got)
+	}
+	got = credentialWarning(&config.Config{Server: "https://r.example.com", AuthMethod: "basic", Password: "x"}, err)
+	if !strings.Contains(got, "password is wrong") || !strings.Contains(got, "REDMINE_PASSWORD") {
+		t.Errorf("basic: %q", got)
 	}
 }
 
@@ -168,6 +195,13 @@ func runServeUnconfigured(t *testing.T, profile string, env map[string]string, a
 
 func TestServeUnconfigured(t *testing.T) {
 	t.Run("stdio starts the setup server", func(t *testing.T) {
+		orig := newStdioTransport
+		t.Cleanup(func() { newStdioTransport = orig })
+		newStdioTransport = func() sdk.Transport {
+			r, w := io.Pipe()
+			_ = w.Close() // client side gone: immediate EOF
+			return &sdk.IOTransport{Reader: r, Writer: nopWriteCloser{io.Discard}}
+		}
 		out, err := runServeUnconfigured(t, "", nil)
 		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "EOF") {
 			t.Fatalf("err = %v, want a clean stdio shutdown", err)
@@ -201,3 +235,7 @@ func TestServeUnconfigured(t *testing.T) {
 		}
 	})
 }
+
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }

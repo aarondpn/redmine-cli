@@ -9,6 +9,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
 // credentialCheckTimeout bounds the startup probe so a slow or unreachable
@@ -47,15 +48,22 @@ func credentialWarning(cfg *config.Config, err error) string {
 	target := "the configured Redmine server"
 	if cfg != nil {
 		if cfg.Server != "" {
-			target = cfg.Server
+			target = debug.ScrubURL(cfg.Server)
 		}
 		if profile, _, ok := cfg.ProfileServer(); ok {
 			target += fmt.Sprintf(" (profile %q)", profile)
 		}
 	}
-	const fix = "Run 'redmine auth login' to update the credentials, or fix REDMINE_API_KEY in the MCP host config, then restart the MCP server."
+	secretVar, secret, missing := "REDMINE_API_KEY", "API key", cfg != nil && cfg.APIKey == ""
+	if cfg != nil && cfg.AuthMethod == "basic" {
+		secretVar, secret, missing = "REDMINE_PASSWORD", "password", cfg.Password == ""
+	}
+	fix := fmt.Sprintf("Run 'redmine auth login' to update the credentials, or fix %s in the MCP host config, then restart the MCP server.", secretVar)
 	if ae.IsForbidden() {
 		return fmt.Sprintf("Redmine at %s denied the credentials (HTTP 403): the account may be locked or REST API access disabled for it. %s", target, fix)
 	}
-	return fmt.Sprintf("Redmine at %s rejected the credentials (HTTP 401): the API key or password is wrong, expired or revoked. %s", target, fix)
+	if missing {
+		return fmt.Sprintf("Redmine at %s requires authentication (HTTP 401) but no %s is configured. %s", target, secret, fix)
+	}
+	return fmt.Sprintf("Redmine at %s rejected the credentials (HTTP 401): the %s is wrong, expired or revoked. %s", target, secret, fix)
 }

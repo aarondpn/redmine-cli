@@ -19,6 +19,10 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/mcpserver"
 )
 
+// newStdioTransport builds the stdio transport; tests swap it to avoid
+// depending on the process's real stdin.
+var newStdioTransport = func() sdk.Transport { return &sdk.StdioTransport{} }
+
 func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 	var (
 		enableWrites  bool
@@ -96,7 +100,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; run 'redmine auth login' (or set REDMINE_SERVER and REDMINE_API_KEY), then restart the MCP server.\n", err)
 				srv := mcpserver.BuildSetupServer(err.Error(), mcpserver.Options{Name: name, Version: version})
-				return srv.Run(ctx, &sdk.StdioTransport{})
+				return srv.Run(ctx, newStdioTransport())
 			}
 
 			opts := mcpserver.Options{
@@ -146,7 +150,7 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			srv := mcpserver.BuildServer(client, opts)
-			return srv.Run(ctx, &sdk.StdioTransport{})
+			return srv.Run(ctx, newStdioTransport())
 		},
 	}
 

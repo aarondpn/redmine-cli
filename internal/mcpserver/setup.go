@@ -27,6 +27,7 @@ func SetupInstructions(problem string) string {
 	b.WriteString("Tell the user to set it up, then restart or reconnect the MCP server in their MCP host:\n")
 	b.WriteString("1. Run `redmine auth login` in a terminal (interactive), or non-interactively `redmine auth login --server https://redmine.example.com --api-key-file -` and pipe the API key to its standard input.\n")
 	b.WriteString("2. Or set REDMINE_SERVER and REDMINE_API_KEY in the env block of this MCP server in the host's configuration.\n")
+	b.WriteString("3. If several profiles are already configured but none is active, run `redmine auth switch` (or add `--profile <name>` to the MCP server args in the host configuration) to pick one instead of logging in again.\n")
 	b.WriteString("Never ask the user to paste an API key, password or token into the chat, and never pass one to a tool; the user must enter it themselves in the terminal or the host configuration.\n")
 	if problem != "" {
 		b.WriteString("Underlying problem: " + problem + "\n")
