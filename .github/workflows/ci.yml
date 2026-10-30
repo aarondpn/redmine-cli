@@ -52,6 +52,26 @@ jobs:
       - name: Test e2e helpers
         run: go test -tags=e2e -run 'TestParseRedmineVersion|TestRedmineAtLeast' ./e2e
 
+  # Windows is the only platform where `redmine update` must move the running
+  # binary aside, and where Scoop and winget installs are detected; the
+  # windows-only tests exercise that against a real running executable.
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.3"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
   govulncheck:
     runs-on: ubuntu-latest
     steps:
