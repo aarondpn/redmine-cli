@@ -11,6 +11,10 @@ type User struct {
 	CreatedOn        string             `json:"created_on"`
 	UpdatedOn        string             `json:"updated_on,omitempty"`
 	LastLoginOn      string             `json:"last_login_on,omitempty"`
+	PasswdChangedOn  string             `json:"passwd_changed_on,omitempty"`
+	TwofaScheme      string             `json:"twofa_scheme,omitempty"`
+	AvatarURL        string             `json:"avatar_url,omitempty"`  // Redmine 5.0+, only when an avatar exists
+	AuthSource       *IDName            `json:"auth_source,omitempty"` // include=auth_source, Redmine 6.0+, admin only
 	Status           *int               `json:"status,omitempty"`
 	APIKey           string             `json:"api_key,omitempty"`
 	MailNotification string             `json:"mail_notification,omitempty"`
@@ -20,13 +24,14 @@ type User struct {
 	CustomFields     []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
-// UserMembership represents one row of a user's project memberships as
-// returned by GET /users/:id.json?include=memberships. The project + roles
-// shape mirrors the Redmine REST response.
+// UserMembership represents one row of a user's or group's project
+// memberships as returned by GET /users/:id.json?include=memberships and
+// GET /groups/:id.json?include=memberships. The project + roles shape mirrors
+// the Redmine REST response.
 type UserMembership struct {
-	ID      int      `json:"id"`
-	Project IDName   `json:"project"`
-	Roles   []IDName `json:"roles,omitzero"`
+	ID      int              `json:"id"`
+	Project IDName           `json:"project"`
+	Roles   []MembershipRole `json:"roles,omitzero"`
 }
 
 // UserCreate defines fields for creating a user. The send_information sibling
@@ -74,4 +79,7 @@ type UserFilter struct {
 	GroupID int
 	Limit   int
 	Offset  int
+	// Includes holds include= values; only "auth_source" (Redmine 6.0+, admin
+	// only) is rendered by the users index.
+	Includes []string
 }

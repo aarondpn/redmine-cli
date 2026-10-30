@@ -214,32 +214,6 @@ func TestUsers_CreateDuplicateLogin(t *testing.T) {
 	}
 }
 
-// TestUsers_GetWithIncludes verifies the --include flag is accepted by the
-// server and the resulting user object is well-formed. Redmine's REST API
-// does not echo back empty memberships/groups arrays on the user object, and
-// our CLI model strips empty arrays via omitempty, so asserting the wire
-// shape would be fragile — the wire passthrough is exercised by the unit
-// tests in internal/cmd/user. Here we just confirm the server accepts the
-// include and returns the user.
-func TestUsers_GetWithIncludes(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-
-	u := createTestUser(t, r)
-
-	var got struct {
-		ID    int    `json:"id"`
-		Login string `json:"login"`
-	}
-	r.runJSON(t, &got, "users", "get", strconv.Itoa(u.ID), "--include", "memberships,groups")
-	if got.ID != u.ID {
-		t.Fatalf("users get returned id %d, want %d", got.ID, u.ID)
-	}
-	if got.Login != u.Login {
-		t.Fatalf("users get returned login %q, want %q", got.Login, u.Login)
-	}
-}
-
 // TestUsers_CreateWithNewFields exercises the new --mail-notification,
 // --must-change-passwd, and --generate-password flags via a single create
 // call and verifies the resulting user can be fetched. We skip

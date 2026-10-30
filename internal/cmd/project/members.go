@@ -82,10 +82,16 @@ func memberName(m models.Membership) string {
 	if m.Group != nil {
 		return m.Group.Name + " (group)"
 	}
+	if m.GroupAnonymous != nil {
+		return m.GroupAnonymous.Name + " (group)"
+	}
+	if m.GroupNonMember != nil {
+		return m.GroupNonMember.Name + " (group)"
+	}
 	return "unknown"
 }
 
-func formatRoles(roles []models.IDName) string {
+func formatRoles(roles []models.MembershipRole) string {
 	names := make([]string, len(roles))
 	for i, r := range roles {
 		names[i] = r.Name

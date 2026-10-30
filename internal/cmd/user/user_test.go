@@ -457,3 +457,68 @@ func TestUserList_PreSixStatusAbsent(t *testing.T) {
 		t.Errorf("Status column should show unknown:\n%s", stdout)
 	}
 }
+
+func TestUserList_IncludeAuthSource(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query().Get("include")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"users":[{"id":1,"login":"admin","firstname":"John","lastname":"Doe","mail":"j@example.com","created_on":"2025-01-01T00:00:00Z","status":1,"passwd_changed_on":"2025-02-01T00:00:00Z","twofa_scheme":"totp","auth_source":{"id":2,"name":"LDAP"}}],"total_count":1}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUserList(f)
+	cmd.SetArgs([]string{"--include", "auth_source", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery != "auth_source" {
+		t.Errorf("include query = %q, want auth_source", gotQuery)
+	}
+	out := testutil.Stdout(f)
+	for _, want := range []string{`"auth_source"`, `"LDAP"`, `"passwd_changed_on"`, `"twofa_scheme"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("json output missing %s:\n%s", want, out)
+		}
+	}
+}
+
+// The users index only renders auth_source, so memberships/groups are
+// rejected instead of being silently ignored by Redmine.
+func TestUserList_IncludeValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("server should not be hit, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+
+	for _, bad := range []string{"memberships", "nope"} {
+		f := testutil.NewFactory(t, srv.URL)
+		cmd := newCmdUserList(f)
+		cmd.SetArgs([]string{"--include", bad})
+		err := cmd.Execute()
+		if err == nil || !strings.Contains(err.Error(), "unknown --include") {
+			t.Errorf("--include %s: err = %v, want unknown --include", bad, err)
+		}
+	}
+}
+
+func TestUserGet_IncludeAuthSourceAccepted(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query().Get("include")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user":` + userJSON + `}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUserGet(f)
+	cmd.SetArgs([]string{"1", "--include", "auth_source,memberships"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery != "auth_source,memberships" {
+		t.Errorf("include query = %q", gotQuery)
+	}
+}

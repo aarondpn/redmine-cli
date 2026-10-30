@@ -9,11 +9,12 @@ import (
 )
 
 type ListUsersInput struct {
-	Status  string `json:"status,omitempty" jsonschema:"Filter by status: 'active', 'registered', 'locked', or a numeric code."`
-	Name    string `json:"name,omitempty" jsonschema:"Filter by name substring."`
-	GroupID int    `json:"group_id,omitempty" jsonschema:"Filter users that belong to the given group ID."`
-	Limit   int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset  int    `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
+	Status   string   `json:"status,omitempty" jsonschema:"Filter by status: 'active', 'registered', 'locked', or a numeric code."`
+	Name     string   `json:"name,omitempty" jsonschema:"Filter by name substring."`
+	GroupID  int      `json:"group_id,omitempty" jsonschema:"Filter users that belong to the given group ID."`
+	Limit    int      `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset   int      `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
+	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'auth_source' (Redmine 6.0+, admin only)."`
 }
 
 type UsersListResult struct {
@@ -24,11 +25,11 @@ type UsersListResult struct {
 
 type GetUserInput struct {
 	ID       int      `json:"id" jsonschema:"Numeric user ID."`
-	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'memberships', 'groups' (Redmine 2.1+)."`
+	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'memberships', 'groups' (Redmine 2.1+), 'auth_source' (Redmine 6.0+, admin only)."`
 }
 
 type GetCurrentUserInput struct {
-	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'memberships', 'groups' (Redmine 2.1+)."`
+	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'memberships', 'groups' (Redmine 2.1+), 'auth_source' (Redmine 6.0+, admin only)."`
 }
 
 type CreateUserInput struct {
@@ -63,15 +64,16 @@ type DeleteUserInput struct {
 }
 
 //mcpgen:tool list_users
-//mcpgen:description List Redmine users matching the given filter.
+//mcpgen:description List Redmine users matching the given filter. Supports the auth_source include.
 //mcpgen:category users
 func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (UsersListResult, error) {
 	users, total, err := client.Users.List(ctx, models.UserFilter{
-		Status:  input.Status,
-		Name:    input.Name,
-		GroupID: input.GroupID,
-		Limit:   ListLimit(input.Limit),
-		Offset:  input.Offset,
+		Status:   input.Status,
+		Name:     input.Name,
+		GroupID:  input.GroupID,
+		Limit:    ListLimit(input.Limit),
+		Offset:   input.Offset,
+		Includes: input.Includes,
 	})
 	if err != nil {
 		return UsersListResult{}, err
@@ -80,14 +82,14 @@ func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (U
 }
 
 //mcpgen:tool get_user
-//mcpgen:description Fetch a single Redmine user by numeric ID. Supports memberships and groups includes.
+//mcpgen:description Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes.
 //mcpgen:category users
 func GetUser(ctx context.Context, client *api.Client, input GetUserInput) (*models.User, error) {
 	return client.Users.Get(ctx, input.ID, input.Includes)
 }
 
 //mcpgen:tool me
-//mcpgen:description Return the currently authenticated Redmine user. Supports memberships and groups includes.
+//mcpgen:description Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes.
 //mcpgen:category users
 func GetCurrentUser(ctx context.Context, client *api.Client, input GetCurrentUserInput) (*models.User, error) {
 	return client.Users.Current(ctx, input.Includes)

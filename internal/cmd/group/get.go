@@ -2,6 +2,7 @@ package group
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
@@ -14,6 +15,7 @@ import (
 func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 	var (
 		format             string
+		includes           []string
 		includeUsers       bool
 		includeMemberships bool
 	)
@@ -25,6 +27,18 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"show", "view"},
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateGetIncludes(includes); err != nil {
+				return err
+			}
+			var legacy []string
+			if includeUsers {
+				legacy = append(legacy, "users")
+			}
+			if includeMemberships {
+				legacy = append(legacy, "memberships")
+			}
+			includes = cmdutil.MergeIncludes(includes, legacy...)
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -36,14 +50,6 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer := f.Printer(format)
-
-			var includes []string
-			if includeUsers {
-				includes = append(includes, "users")
-			}
-			if includeMemberships {
-				includes = append(includes, "memberships")
-			}
 
 			stop := printer.Spinner("Fetching group...")
 			group, err := ops.GetGroup(cmdutil.Context(cmd), client, ops.GetGroupInput{
@@ -65,7 +71,7 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Name", Value: group.Name},
 			}
 
-			if includeUsers && len(group.Users) > 0 {
+			if slices.Contains(includes, "users") && len(group.Users) > 0 {
 				names := make([]string, len(group.Users))
 				for i, u := range group.Users {
 					names[i] = fmt.Sprintf("%s (ID: %d)", u.Name, u.ID)
@@ -73,7 +79,7 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 				details = append(details, output.KeyValue{Key: "Users", Value: strings.Join(names, ", ")})
 			}
 
-			if includeMemberships && len(group.Memberships) > 0 {
+			if slices.Contains(includes, "memberships") && len(group.Memberships) > 0 {
 				names := make([]string, len(group.Memberships))
 				for i, m := range group.Memberships {
 					names[i] = fmt.Sprintf("%s (ID: %d)", m.Project.Name, m.Project.ID)
@@ -93,8 +99,13 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringSliceVar(&includes, "include", nil, "Include related data: users, memberships (repeatable or comma-separated)")
+	_ = cmd.RegisterFlagCompletionFunc("include", completeGetIncludes)
 	cmd.Flags().BoolVar(&includeUsers, "include-users", false, "Include group members in output")
 	cmd.Flags().BoolVar(&includeMemberships, "include-memberships", false, "Include project memberships in output")
+	// DEPRECATED(remove-after: 2027-01-31): --include-users and --include-memberships aliases; delete both flags, the includeUsers/includeMemberships vars and the legacy merge in RunE
+	cmdutil.DeprecateFlag(cmd, "include-users", "--include users", "2027-01-31")
+	cmdutil.DeprecateFlag(cmd, "include-memberships", "--include memberships", "2027-01-31")
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }

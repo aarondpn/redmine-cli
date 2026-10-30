@@ -40,6 +40,8 @@ Aliases: `show`, `view`.
 |------|-------------|
 | `-o, --output` | Output format |
 
+With `-o json` (and in the MCP membership tools) `roles[].inherited` is only sent, as `true`, for roles inherited from a group membership. Built-in principals are reported under the `group_anonymous` / `group_non_member` keys instead of `user` / `group`.
+
 ## create
 
 ```bash

@@ -13,7 +13,7 @@
   },
   {
     "name": "get_issue",
-    "description": "Fetch a single Redmine issue by ID."
+    "description": "Fetch a single Redmine issue by ID. Optional includes add journals, children, relations, attachments, watchers, changesets, allowed_statuses and reactions."
   },
   {
     "name": "get_issue_relation",
@@ -45,7 +45,7 @@
   },
   {
     "name": "get_user",
-    "description": "Fetch a single Redmine user by numeric ID. Supports memberships and groups includes."
+    "description": "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes."
   },
   {
     "name": "get_version",
@@ -117,7 +117,7 @@
   },
   {
     "name": "list_users",
-    "description": "List Redmine users matching the given filter."
+    "description": "List Redmine users matching the given filter. Supports the auth_source include."
   },
   {
     "name": "list_versions",
@@ -129,7 +129,7 @@
   },
   {
     "name": "me",
-    "description": "Return the currently authenticated Redmine user. Supports memberships and groups includes."
+    "description": "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes."
   },
   {
     "name": "search",

@@ -6,18 +6,16 @@ import (
 	"testing"
 )
 
+// TestMetadata_TrackerGetJSON checks that `trackers get` resolves a tracker by
+// the name `trackers list` reported. The shape of the payload (default status,
+// enabled standard fields, ...) is asserted by the contract tests.
 func TestMetadata_TrackerGetJSON(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 
 	type tracker struct {
-		ID            int    `json:"id"`
-		Name          string `json:"name"`
-		DefaultStatus struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
-		} `json:"default_status"`
-		EnabledStandardFields []string `json:"enabled_standard_fields"`
+		ID   int    `json:"id"`
+		Name string `json:"name"`
 	}
 
 	var trackers []tracker
@@ -31,51 +29,5 @@ func TestMetadata_TrackerGetJSON(t *testing.T) {
 
 	if got.ID != trackers[0].ID || got.Name != trackers[0].Name {
 		t.Fatalf("trackers get returned %+v, want id=%d name=%q", got, trackers[0].ID, trackers[0].Name)
-	}
-	if got.DefaultStatus.ID == 0 || got.DefaultStatus.Name == "" {
-		t.Fatalf("tracker default status missing: %+v", got.DefaultStatus)
-	}
-	for _, field := range got.EnabledStandardFields {
-		if field == "" {
-			t.Fatalf("tracker enabled standard fields contains blank entry: %+v", got.EnabledStandardFields)
-		}
-	}
-}
-
-// TestMetadata_StatusesList verifies the JSON shape of `statuses list` and
-// that both an open and a closed status are present, mirroring the open/closed
-// gating that issues_test.go relies on. Asserts on the is_closed flag round-
-// trip rather than specific status names so the test is portable across
-// Redmine default-data variations.
-func TestMetadata_StatusesList(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-
-	var statuses []struct {
-		ID       int    `json:"id"`
-		Name     string `json:"name"`
-		IsClosed bool   `json:"is_closed"`
-	}
-	r.runJSON(t, &statuses, "statuses", "list")
-	if len(statuses) == 0 {
-		t.Fatal("statuses list returned no statuses")
-	}
-
-	var hasClosed, hasOpen bool
-	for _, s := range statuses {
-		if s.ID == 0 || s.Name == "" {
-			t.Errorf("status entry missing id or name: %+v", s)
-		}
-		if s.IsClosed {
-			hasClosed = true
-		} else {
-			hasOpen = true
-		}
-	}
-	if !hasOpen {
-		t.Error("statuses list contained no open status; expected at least one")
-	}
-	if !hasClosed {
-		t.Error("statuses list contained no closed status; expected at least one")
 	}
 }

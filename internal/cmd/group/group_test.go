@@ -98,6 +98,41 @@ func TestGroupGet_Detail(t *testing.T) {
 	}
 }
 
+func TestGroupGet_MembershipsShowProjectAndKeepRolesInJSON(t *testing.T) {
+	const body = `{"group":{"id":1,"name":"Developers","builtin":"non_member","custom_fields":[{"id":9,"name":"Cost center","value":"42"}],"memberships":[{"id":7,"project":{"id":3,"name":"Apollo"},"roles":[{"id":4,"name":"Developer"}]}]}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("include"); got != "memberships" {
+			t.Errorf("include = %q, want memberships", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdGroupGet(f)
+	cmd.SetArgs([]string{"1", "--include", "memberships"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if out := testutil.Stdout(f); !strings.Contains(out, "Apollo (ID: 3) [Developer]") {
+		t.Errorf("detail output missing project name:\n%s", out)
+	}
+
+	f = testutil.NewFactory(t, srv.URL)
+	cmd = newCmdGroupGet(f)
+	cmd.SetArgs([]string{"1", "--include", "memberships", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	out := testutil.Stdout(f)
+	for _, want := range []string{`"builtin": "non_member"`, `"Apollo"`, `"Developer"`, `"custom_fields"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("json missing %s:\n%s", want, out)
+		}
+	}
+}
+
 // --- create ---
 
 func TestGroupCreate_Success(t *testing.T) {
@@ -196,7 +231,7 @@ func TestGroupGet_IncludeMembershipsTable(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships"})
+	cmd.SetArgs([]string{"1", "--include", "memberships"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +252,7 @@ func TestGroupGet_IncludeMembershipsJSON(t *testing.T) {
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdGroupGet(f)
-	cmd.SetArgs([]string{"1", "--include-memberships", "--output", "json"})
+	cmd.SetArgs([]string{"1", "--include", "memberships", "--output", "json"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}

@@ -75,6 +75,7 @@ Redmine instance. The suite is split into topical files:
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
 | `custom_fields_test.go`  | `custom-fields list` / `get` plus the Redmine 7.0 scope and role metadata |
+| `contract_*_test.go`     | raw Redmine JSON vs `-o json` vs MCP, and the table of version-gated keys (see below) |
 | (API decoding regressions, issue #201) | Spread over the topical files: `projects_test.go` default assignee, `users_test.go` / `my_account_test.go` nullable `admin` / `status` (admin vs non-admin viewer, `users list` before / after 6.0), `groups_test.go` group memberships with project + roles, `roles_test.go` no builtin columns, `issues_test.go` always-present `is_private` / `private_notes`, `files_test.go` `downloads: 0`, `search_test.go` + `mcp_extended_test.go` `all_words` default vs `=false` |
 
 Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
@@ -89,18 +90,28 @@ and a role-restricted time entry custom field (`E2E Billing Code`, seeded
 throughout: a fixture that cannot be created should stop the bootstrap, not
 degrade quietly into a confusing test failure later.
 
-### Version-gated assertions
+It then runs `seed-contract.rb`, which seeds the data the contract tests
+need (it is idempotent; re-run it on a live stack with
+`docker compose -f e2e/compose.yaml exec -T redmine bundle exec rails runner - < e2e/seed-contract.rb`).
 
-Some behaviour only exists from a given Redmine line onwards. Gate those
-assertions with the helpers in `helpers_test.go` rather than parsing
-`REDMINE_E2E_VERSION` inline:
+### Contract tests
 
-- `skipBelowRedmine(t, 7, 0, "…")` skips the test on older servers.
-- `redmineAtLeast(5, 0)` branches on the version, e.g. to pick Textile over
-  Markdown.
+`TestContract` fetches each resource's raw JSON from Redmine and diffs it
+against `redmine ... -o json` and the matching MCP tool. A key Redmine sends
+that the CLI drops or changes fails the test. The raw payload defines what is
+expected, so the same test works on every Redmine version. Fix failures in
+`internal/models/`; allowlist entries need a `Reason`. Run only these with
+`make e2e-test E2E_RUN=TestContract`; failing payloads land in `e2e/_artifacts/`.
 
-An unset `REDMINE_E2E_VERSION` counts as "new enough", so ad-hoc runs against
-an unknown server still exercise the newest assertions.
+### Version-related tests
+
+- A JSON key that exists from Redmine N on: add a row to the gate table in
+  `contract_gates_test.go`, no hand-written test.
+- Behaviour that differs by version: gate with `skipBelowRedmine(t, 7, 0, "…")`
+  or `redmineAtLeast(5, 0)` from `helpers_test.go`. An unset
+  `REDMINE_E2E_VERSION` counts as the newest version.
+- Behaviour that depends on configuration or plugins: probe the capability,
+  not the version.
 
 ### Adding a new test
 
@@ -113,6 +124,9 @@ an unknown server still exercise the newest assertions.
    the decoded struct rather than the raw bytes.
 6. For commands that must fail, use `runner.runExpectError(t, ...)` and
    decode into `errorEnvelope`.
+7. Do not re-assert that decoded fields show up in `-o json`; that is what
+   the contract tests are for. Test behaviour: writes, filters, name
+   resolution, errors, rendering.
 
 To run the full supported-version matrix sequentially:
 
@@ -145,4 +159,5 @@ make e2e-down
 - `E2E_IMAGE` - Makefile-level override for the Redmine image. `REDMINE_IMAGE` is set by the recipe and cannot be overridden from the environment.
 - `E2E_VERSION`
 - `E2E_PORT`
+- `E2E_RUN` - `go test -run` pattern for `make e2e-test`, e.g. `E2E_RUN=TestContract`.
 - `E2E_PASSWORD` - Makefile-level override for the forced admin password (propagates into `REDMINE_E2E_PASSWORD`).

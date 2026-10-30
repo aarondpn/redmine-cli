@@ -28,7 +28,7 @@ type WikiPagesListResult struct {
 type GetWikiPageInput struct {
 	ProjectID string   `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 	Page      string   `json:"page" jsonschema:"Wiki page title (slug)."`
-	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include, e.g. 'attachments'."`
+	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include: attachments."`
 }
 
 type CreateWikiPageInput struct {

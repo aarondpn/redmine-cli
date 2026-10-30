@@ -39,7 +39,14 @@ func (s *TimeEntryService) List(ctx context.Context, filter models.TimeEntryFilt
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
 
-	return FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", filter.Limit)
+	entries, total, err := FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", filter.Limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range entries {
+		entries[i].NormalizeCollections()
+	}
+	return entries, total, nil
 }
 
 // Get retrieves a single time entry.
@@ -50,6 +57,7 @@ func (s *TimeEntryService) Get(ctx context.Context, id int) (*models.TimeEntry, 
 	if err := s.client.Get(ctx, fmt.Sprintf("/time_entries/%d.json", id), nil, &resp); err != nil {
 		return nil, err
 	}
+	resp.TimeEntry.NormalizeCollections()
 	return &resp.TimeEntry, nil
 }
 
@@ -62,6 +70,7 @@ func (s *TimeEntryService) Create(ctx context.Context, entry models.TimeEntryCre
 	if err := s.client.Post(ctx, "/time_entries.json", body, &resp); err != nil {
 		return nil, err
 	}
+	resp.TimeEntry.NormalizeCollections()
 	return &resp.TimeEntry, nil
 }
 

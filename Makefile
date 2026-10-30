@@ -18,6 +18,12 @@ E2E_PROJECT_NAME ?= e2e-$(subst .,-,$(E2E_VERSION))
 # empty to skip the password reset (in which case basic-auth tests will
 # be skipped as well).
 E2E_PASSWORD ?= admintest123
+# Optional go test -run pattern for e2e-test, e.g. E2E_RUN=TestContract for the
+# fast contract loop.
+E2E_RUN ?=
+# Adding a Redmine line here also needs: a review of the gate table in
+# e2e/contract_gates_test.go, a row in e2e/README.md, and the same version in
+# the workflow matrix (.github/workflows/e2e.yml).
 SUPPORTED_E2E_VERSIONS=4.2 5.1 6.1 7.0
 
 .PHONY: build test lint clean install e2e-up e2e-down e2e-config e2e-test e2e-logs e2e-matrix
@@ -55,7 +61,7 @@ e2e-test:
 		REDMINE_E2E_VERSION=$(E2E_VERSION) \
 		COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) \
 		REDMINE_E2E_API_KEY="$$(COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) ./e2e/admin-api-key.sh)" \
-		go test -tags=e2e ./e2e -v
+		go test -tags=e2e ./e2e -v $(if $(E2E_RUN),-run '$(E2E_RUN)')
 
 e2e-logs:
 	COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) docker compose -f $(E2E_COMPOSE_FILE) logs --no-color

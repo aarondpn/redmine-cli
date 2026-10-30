@@ -1,42 +1,32 @@
 package user
 
 import (
-	"fmt"
-	"sort"
-	"strings"
-
-	"github.com/spf13/cobra"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 // allowedUserIncludes lists the include keys accepted by GET /users/:id.json
-// and GET /users/current.json. Redmine 2.1+ supports both keys.
+// and GET /users/current.json. Redmine 2.1+ supports groups and memberships;
+// auth_source needs Redmine 6.0+ and an admin caller.
 var allowedUserIncludes = map[string]struct{}{
+	"auth_source": {},
 	"groups":      {},
 	"memberships": {},
 }
 
+// allowedUserListIncludes lists the include keys rendered by GET /users.json.
+var allowedUserListIncludes = map[string]struct{}{
+	"auth_source": {},
+}
+
 func validateUserIncludes(values []string) error {
-	for _, raw := range values {
-		v := strings.TrimSpace(raw)
-		if v == "" {
-			continue
-		}
-		if _, ok := allowedUserIncludes[v]; !ok {
-			return fmt.Errorf("unknown --include value %q (allowed: %s)", v, sortedIncludeKeys(allowedUserIncludes))
-		}
-	}
-	return nil
+	return cmdutil.ValidateIncludes(values, allowedUserIncludes)
 }
 
-func completeUserIncludes(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return strings.Split(sortedIncludeKeys(allowedUserIncludes), ", "), cobra.ShellCompDirectiveNoFileComp
+func validateUserListIncludes(values []string) error {
+	return cmdutil.ValidateIncludes(values, allowedUserListIncludes)
 }
 
-func sortedIncludeKeys(m map[string]struct{}) string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return strings.Join(keys, ", ")
-}
+var (
+	completeUserIncludes     = cmdutil.CompleteIncludes(allowedUserIncludes)
+	completeUserListIncludes = cmdutil.CompleteIncludes(allowedUserListIncludes)
+)

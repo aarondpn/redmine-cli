@@ -79,7 +79,7 @@ func TestJSON_GroupGetEmptyIncludedCollections(t *testing.T) {
 	group := createTestGroup(t, r)
 	id := strconv.Itoa(group.ID)
 
-	included := runJSONKeys(t, r, "groups", "get", id, "--include-users", "--include-memberships")
+	included := runJSONKeys(t, r, "groups", "get", id, "--include", "users,memberships")
 	requireEmptyArray(t, included, "users")
 	requireEmptyArray(t, included, "memberships")
 

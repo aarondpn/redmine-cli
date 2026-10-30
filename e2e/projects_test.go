@@ -43,37 +43,6 @@ func TestProjects_CRUD(t *testing.T) {
 	}
 }
 
-// TestProjects_GetWithIncludes asserts the new --include flag surfaces the
-// associations that the bare get/list responses omit. Every Redmine default
-// data set ships with enabled_modules (issue_tracking is enabled on every
-// new project), so that's the safest signal to assert on.
-func TestProjects_GetWithIncludes(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-	proj := createTestProject(t, r)
-
-	var fetched struct {
-		ID             int `json:"id"`
-		EnabledModules []struct {
-			Name string `json:"name"`
-		} `json:"enabled_modules"`
-		Trackers []struct {
-			Name string `json:"name"`
-		} `json:"trackers"`
-	}
-	r.runJSON(t, &fetched, "projects", "get", proj.Identifier,
-		"--include", "enabled_modules,trackers")
-
-	if len(fetched.EnabledModules) == 0 {
-		t.Errorf("enabled_modules empty for fresh project; --include not propagated?")
-	}
-	if len(fetched.Trackers) == 0 {
-		// A bare-bones Redmine install may have zero trackers, so emit
-		// a soft signal rather than a hard fail.
-		t.Logf("trackers empty for fresh project; instance may have no trackers configured")
-	}
-}
-
 // TestProjects_CreateExtendedFields covers the new flags on `projects create`:
 // homepage, --enable-module, --tracker. We re-fetch with includes and assert
 // the server stored the values.

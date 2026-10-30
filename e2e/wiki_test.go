@@ -339,10 +339,11 @@ func TestWiki_SectionUpdate_StaleHashConflict(t *testing.T) {
 	assertErrorCode(t, stderr, "conflict")
 }
 
-// TestWiki_ProjectInResponse covers the project node Redmine 7.0 added to the
-// wiki page API response (#43569). Older lines omit it, so the test is gated
-// rather than made tolerant: the point is that 7.0+ actually populates it.
-func TestWiki_ProjectInResponse(t *testing.T) {
+// TestWiki_Redmine7_ProjectNameInTable checks that the table output shows the
+// project name of the project node Redmine 7.0 added to the wiki page API
+// response (#43569). That the JSON carries the node is asserted by the
+// wiki_get contract case and the gate table in contract_gates_test.go.
+func TestWiki_Redmine7_ProjectNameInTable(t *testing.T) {
 	requireE2E(t)
 	skipIfVersionUnknown(t, "project in wiki page API response")
 	skipBelowRedmine(t, 7, 0, "project in wiki page API response")
@@ -355,24 +356,9 @@ func TestWiki_ProjectInResponse(t *testing.T) {
 		"--project", proj.Identifier,
 		"--text", wikiSection(wikiHeadingStyle(), "Scope", "Body from e2e."))
 
-	var fetched struct {
-		Title   string `json:"title"`
-		Project *struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
-		} `json:"project"`
-	}
-	r.runJSON(t, &fetched, "wiki", "get", page, "--project", proj.Identifier)
-	if fetched.Project == nil {
-		t.Fatalf("wiki get omitted project node on Redmine %s: %+v", e2eVersion(), fetched)
-	}
-	if fetched.Project.ID != proj.ID {
-		t.Errorf("wiki page project id = %d, want %d", fetched.Project.ID, proj.ID)
-	}
-
 	stdout := r.run(t, "wiki", "get", page, "--project", proj.Identifier, "--output", "table")
-	if !strings.Contains(string(stdout), fetched.Project.Name) {
-		t.Errorf("wiki get table output missing project name %q\nstdout:\n%s", fetched.Project.Name, stdout)
+	if !strings.Contains(string(stdout), proj.Name) {
+		t.Errorf("wiki get table output missing project name %q\nstdout:\n%s", proj.Name, stdout)
 	}
 }
 

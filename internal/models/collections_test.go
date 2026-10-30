@@ -219,7 +219,7 @@ func TestIssueNormalizeCollections_NotRequested(t *testing.T) {
 
 func TestIssueNormalizeCollections_KeepsData(t *testing.T) {
 	issue := Issue{
-		Children:     []IDRef{{ID: 2}},
+		Children:     []IssueChild{{ID: 2}},
 		Relations:    []IssueRelation{{ID: 3}},
 		CustomFields: []CustomFieldValue{{ID: 4}},
 	}

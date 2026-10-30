@@ -27,6 +27,7 @@ redmine users list [flags]
 | `--status`     | 按状态过滤：`active`、`registered`、`locked` |
 | `--name`       | 按姓名或登录名过滤 |
 | `--group`      | 按用户组名称或 ID 过滤 |
+| `--include`    | 包含关联数据：`auth_source`（Redmine 6.0+，仅管理员；可重复或逗号分隔） |
 | `--limit`      | 最大结果数 |
 | `--offset`     | 分页偏移量 |
 | `-o, --output` | 输出格式 |
@@ -41,7 +42,7 @@ redmine users get <id-or-name> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`    | 包含关联数据：`memberships`、`groups`（可重复或逗号分隔）。`groups` 需 Redmine 2.1+。 |
+| `--include`    | 包含关联数据：`memberships`、`groups`、`auth_source`（可重复或逗号分隔）。`groups` 需 Redmine 2.1+；`auth_source` 需 Redmine 6.0+ 且为管理员。 |
 | `-o, --output` | 输出格式 |
 
 ## me
@@ -54,8 +55,15 @@ redmine users me [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`    | 包含关联数据：`memberships`、`groups`（可重复或逗号分隔）。 |
+| `--include`    | 包含关联数据：`memberships`、`groups`、`auth_source`（可重复或逗号分隔）。`auth_source` 需 Redmine 6.0+ 且为管理员。 |
 | `-o, --output` | 输出格式 |
+
+使用 `-o json`（以及 MCP 的用户工具）时，用户会带有以下可选键。当 Redmine 没有返回它们时，这些键会被省略，而不是输出 `null`：
+
+- `passwd_changed_on`，由 `users get`、`users me` 和 `users list` 返回，`/my/account.json` 不返回。
+- `twofa_scheme`，仅管理员或用户本人可见。
+- `avatar_url`（Redmine 5.0+），仅在用户有头像时出现。
+- 使用 `--include auth_source` 时的 `auth_source`（`id`、`name`；Redmine 6.0+，仅管理员）。
 
 <Aside type="note" title="users me 与 my-account get 的区别">
   `users me` 调用 `/users/current.json`，返回的是其他管理员同样能看到的用户记录。[`my-account get`](./my_account/) 调用 `/my/account.json`，还会额外返回 **API 密钥** 和账户上的 **自定义字段**，是与可写自助命令 `my-account update` 配对的接口。

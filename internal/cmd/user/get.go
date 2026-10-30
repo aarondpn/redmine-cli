@@ -59,7 +59,7 @@ func newCmdUserGet(f *cmdutil.Factory) *cobra.Command {
 
 	cmdutil.AddOutputFlag(cmd, &format)
 	cmd.Flags().StringSliceVar(&includes, "include", nil,
-		"Include related data: memberships, groups (repeatable or comma-separated)")
+		"Include related data: memberships, groups, auth_source (auth_source needs Redmine 6.0+ and an admin; repeatable or comma-separated)")
 	_ = cmd.RegisterFlagCompletionFunc("include", completeUserIncludes)
 	return cmd
 }

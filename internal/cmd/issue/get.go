@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,7 +18,7 @@ import (
 // NewCmdGet creates the issues get command.
 func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	var (
-		include             string
+		includes            []string
 		journals            bool
 		children            bool
 		relations           bool
@@ -62,7 +61,10 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 
   # Read a ticket fully before investigating: history, files, children, relations
   redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
-  redmine issues get 123 --include journals,attachments,children,relations -o json`,
+  redmine issues get 123 --include journals,attachments,children,relations -o json
+
+  # Which statuses may the current user move the issue to?
+  redmine issues get 123 --include allowed_statuses -o json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmdutil.Context(cmd)
@@ -72,26 +74,27 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("invalid issue ID: %s", args[0])
 			}
 
+			if err := validateGetIncludes(includes); err != nil {
+				return err
+			}
+			var shorthands []string
+			if journals {
+				shorthands = append(shorthands, "journals")
+			}
+			if children {
+				shorthands = append(shorthands, "children")
+			}
+			if relations {
+				shorthands = append(shorthands, "relations")
+			}
+			if attachments || downloadAttachments != "" {
+				shorthands = append(shorthands, "attachments")
+			}
+			includes = cmdutil.MergeIncludes(includes, shorthands...)
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
-			}
-
-			var includes []string
-			if include != "" {
-				includes = strings.Split(include, ",")
-			}
-			if journals {
-				includes = append(includes, "journals")
-			}
-			if children {
-				includes = append(includes, "children")
-			}
-			if relations {
-				includes = append(includes, "relations")
-			}
-			if attachments || downloadAttachments != "" {
-				includes = append(includes, "attachments")
 			}
 
 			printer := f.Printer(format)
@@ -178,7 +181,9 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&include, "include", "", "Include related data: journals,children,relations,attachments")
+	cmd.Flags().StringSliceVar(&includes, "include", nil,
+		"Include related data: journals, children, relations, attachments, watchers, changesets, allowed_statuses (Redmine 5.0+), reactions (Redmine 7.1+) (repeatable or comma-separated)")
+	_ = cmd.RegisterFlagCompletionFunc("include", completeGetIncludes)
 	cmd.Flags().BoolVar(&journals, "journals", false, "Include issue history/comments (shorthand for --include journals)")
 	cmd.Flags().BoolVar(&children, "children", false, "Include child issues (shorthand for --include children)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")

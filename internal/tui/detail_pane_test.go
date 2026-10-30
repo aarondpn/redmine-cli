@@ -156,7 +156,7 @@ func TestDetailPane_SanitizesServerData(t *testing.T) {
 		Subject:     "Subject" + evil,
 		Description: "Body" + evil,
 		Project:     models.IDName{Name: "Project" + evil},
-		Status:      models.IDName{Name: "New"},
+		Status:      models.IssueStatusRef{Name: "New"},
 		Author:      models.IDName{Name: "Author" + evil},
 	})
 	view := d.ViewFocused(true)
@@ -180,7 +180,7 @@ func TestListItems_SanitizeServerData(t *testing.T) {
 		ID:       1,
 		Subject:  evil,
 		Tracker:  models.IDName{Name: evil},
-		Status:   models.IDName{Name: evil},
+		Status:   models.IssueStatusRef{Name: evil},
 		Priority: models.IDName{Name: evil},
 	}}
 	search := searchItem{result: models.SearchResult{Title: evil, Type: evil}}

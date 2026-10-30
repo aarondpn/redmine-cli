@@ -7,30 +7,6 @@ import (
 	"testing"
 )
 
-// TestMyAccount_Get verifies the GET /my/account.json passthrough. The e2e
-// stack authenticates as admin via API key, so api_key must come back
-// populated.
-func TestMyAccount_Get(t *testing.T) {
-	requireE2E(t)
-	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
-
-	var got struct {
-		ID     int    `json:"id"`
-		Login  string `json:"login"`
-		APIKey string `json:"api_key"`
-	}
-	r.runJSON(t, &got, "my-account", "get")
-	if got.ID == 0 {
-		t.Fatalf("my-account get returned id 0: %+v", got)
-	}
-	if got.Login == "" {
-		t.Errorf("my-account get returned empty login")
-	}
-	if got.APIKey == "" {
-		t.Errorf("my-account get must return api_key (admin auth uses one)")
-	}
-}
-
 // TestMyAccount_Update changes the authenticated user's firstname, verifies
 // the round-trip, and restores the original value in t.Cleanup. The cleanup
 // is required because the admin user is shared across the suite.

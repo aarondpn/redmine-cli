@@ -35,6 +35,10 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine wiki get WikiStart --project myproject --include attachments`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateGetIncludes(include); err != nil {
+				return err
+			}
+
 			ctx := cmdutil.Context(cmd)
 
 			client, err := f.ApiClient()
@@ -59,7 +63,7 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				page, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
 					ProjectID: projectID,
 					Page:      pageTitle,
-					Includes:  include,
+					Includes:  cmdutil.MergeIncludes(include),
 				})
 			}
 			stop()
@@ -120,7 +124,8 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", "Project identifier or ID (required if no default)")
 	cmd.Flags().IntVar(&version, "version", 0, "Page version (0 for latest)")
-	cmd.Flags().StringSliceVar(&include, "include", nil, "Include additional data (attachments)")
+	cmd.Flags().StringSliceVar(&include, "include", nil, "Include related data: attachments (repeatable or comma-separated)")
+	_ = cmd.RegisterFlagCompletionFunc("include", completeGetIncludes)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))

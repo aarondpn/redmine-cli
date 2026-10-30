@@ -12,6 +12,12 @@ type Version struct {
 	WikiPageTitle string `json:"wiki_page_title,omitempty"`
 	CreatedOn     string `json:"created_on"`
 	UpdatedOn     string `json:"updated_on"`
+
+	// EstimatedHours and SpentHours are only sent by GET /versions/:id.json,
+	// and only to callers who may view time entries.
+	EstimatedHours *float64           `json:"estimated_hours,omitempty"`
+	SpentHours     *float64           `json:"spent_hours,omitempty"`
+	CustomFields   []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
 // VersionCreate defines fields for creating a project version.

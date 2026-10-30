@@ -1,10 +1,7 @@
 package project
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/spf13/cobra"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 )
 
 // allowedIncludes lists the include keys accepted by /projects.json and
@@ -18,18 +15,7 @@ var allowedIncludes = map[string]struct{}{
 }
 
 func validateProjectIncludes(values []string) error {
-	for _, raw := range values {
-		v := strings.TrimSpace(raw)
-		if v == "" {
-			continue
-		}
-		if _, ok := allowedIncludes[v]; !ok {
-			return fmt.Errorf("unknown --include value %q (allowed: %s)", v, sortedKeys(allowedIncludes))
-		}
-	}
-	return nil
+	return cmdutil.ValidateIncludes(values, allowedIncludes)
 }
 
-func completeProjectIncludes(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return strings.Split(sortedKeys(allowedIncludes), ", "), cobra.ShellCompDirectiveNoFileComp
-}
+var completeProjectIncludes = cmdutil.CompleteIncludes(allowedIncludes)

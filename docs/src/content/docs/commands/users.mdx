@@ -27,6 +27,7 @@ redmine users list [flags]
 | `--status`     | Filter by status: `active`, `registered`, `locked` |
 | `--name`       | Filter by name or login |
 | `--group`      | Filter by group name or ID |
+| `--include`    | Include related data: `auth_source` (Redmine 6.0+, admin only; repeatable or comma-separated) |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format |
@@ -41,7 +42,7 @@ Aliases: `show`, `view`. Accepts a numeric ID, login, full name, or `me`.
 
 | Flag | Description |
 |------|-------------|
-| `--include`    | Include related data: `memberships`, `groups` (repeatable or comma-separated). `groups` requires Redmine 2.1+. |
+| `--include`    | Include related data: `memberships`, `groups`, `auth_source` (repeatable or comma-separated). `groups` requires Redmine 2.1+; `auth_source` requires Redmine 6.0+ and admin privileges. |
 | `-o, --output` | Output format |
 
 ## me
@@ -54,8 +55,15 @@ Shows the authenticated user's details — useful in scripts to resolve the curr
 
 | Flag | Description |
 |------|-------------|
-| `--include`    | Include related data: `memberships`, `groups` (repeatable or comma-separated). |
+| `--include`    | Include related data: `memberships`, `groups`, `auth_source` (repeatable or comma-separated). `auth_source` requires Redmine 6.0+ and admin privileges. |
 | `-o, --output` | Output format |
+
+With `-o json` (and in the MCP user tools) a user carries these optional keys. They are omitted, not `null`, when Redmine does not send them:
+
+- `passwd_changed_on`, sent by `users get`, `users me` and `users list` but not by `/my/account.json`.
+- `twofa_scheme`, only for admins or the user themselves.
+- `avatar_url` (Redmine 5.0+), only when the user has an avatar.
+- `auth_source` (`id`, `name`) with `--include auth_source` (Redmine 6.0+, admin only).
 
 <Aside type="note" title="users me vs my-account get">
   `users me` hits `/users/current.json` and returns the user record visible to the caller. [`my-account get`](./my_account/) hits `/my/account.json`, which also includes the API key and any custom fields, and is the endpoint paired with the writable self-service `my-account update`.

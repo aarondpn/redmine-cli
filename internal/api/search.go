@@ -38,6 +38,16 @@ type SearchParams struct {
 
 // Search performs a search query against the Redmine search API.
 func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]models.SearchResult, int, error) {
+	resp, err := s.SearchPage(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	return resp.Results, resp.TotalCount, nil
+}
+
+// SearchPage performs a search query and returns the full response,
+// including the offset and limit Redmine echoes back.
+func (s *SearchService) SearchPage(ctx context.Context, params SearchParams) (*models.SearchResponse, error) {
 	vals := url.Values{}
 	vals.Set("q", params.Query)
 
@@ -95,15 +105,15 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]mode
 	if params.ProjectID != "" {
 		seg, err := projectSegment(params.ProjectID)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		path = "/projects/" + seg + "/search.json"
 	}
 
 	var resp models.SearchResponse
 	if err := s.client.Get(ctx, path, vals, &resp); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return resp.Results, resp.TotalCount, nil
+	return &resp, nil
 }

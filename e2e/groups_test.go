@@ -104,7 +104,7 @@ func TestGroups_DeleteExplicit(t *testing.T) {
 }
 
 // TestGroups_AddRemoveUser verifies that add-user/remove-user mutate the
-// membership list visible via `groups get --include-users`. Both subcommands
+// membership list visible via `groups get --include users`. Both subcommands
 // emit user_added/user_removed envelopes.
 func TestGroups_AddRemoveUser(t *testing.T) {
 	requireE2E(t)
@@ -150,7 +150,7 @@ func groupHasUser(t *testing.T, r *cliRunner, groupID, userID int) bool {
 			Name string `json:"name"`
 		} `json:"users"`
 	}
-	r.runJSON(t, &got, "groups", "get", strconv.Itoa(groupID), "--include-users")
+	r.runJSON(t, &got, "groups", "get", strconv.Itoa(groupID), "--include", "users")
 	for _, u := range got.Users {
 		if u.ID == userID {
 			return true
@@ -180,7 +180,7 @@ func TestGroups_GetIncludeMemberships(t *testing.T) {
 			} `json:"roles"`
 		} `json:"memberships"`
 	}
-	r.runJSON(t, &got, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships")
+	r.runJSON(t, &got, "groups", "get", strconv.Itoa(grp.ID), "--include", "memberships")
 	if len(got.Memberships) != 1 {
 		t.Fatalf("memberships = %+v, want exactly 1", got.Memberships)
 	}
@@ -192,7 +192,7 @@ func TestGroups_GetIncludeMemberships(t *testing.T) {
 		t.Errorf("membership roles = %+v, want [%s]", m.Roles, role.Name)
 	}
 
-	table := string(r.run(t, "groups", "get", strconv.Itoa(grp.ID), "--include-memberships", "--output", "table"))
+	table := string(r.run(t, "groups", "get", strconv.Itoa(grp.ID), "--include", "memberships", "--output", "table"))
 	if !strings.Contains(table, proj.Name) || !strings.Contains(table, role.Name) {
 		t.Errorf("table missing project %q or role %q\n%s", proj.Name, role.Name, table)
 	}

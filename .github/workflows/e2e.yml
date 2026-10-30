@@ -90,6 +90,16 @@ jobs:
       - name: Run e2e suite
         run: make e2e-test
 
+      # The contract tests write the raw / CLI / MCP payloads of every failing
+      # case here, which is what makes a diff finding debuggable from CI.
+      - name: Upload contract payloads
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-contract-payloads-${{ matrix.version }}
+          path: e2e/_artifacts/
+          if-no-files-found: ignore
+
       - name: Dump container logs
         if: failure()
         run: make e2e-logs

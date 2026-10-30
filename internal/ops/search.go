@@ -29,6 +29,8 @@ type SearchResultsListResult struct {
 	Results    []models.SearchResult `json:"results"`
 	Count      int                   `json:"count"`
 	TotalCount int                   `json:"total_count"`
+	Offset     *int                  `json:"offset,omitempty"`
+	Limit      *int                  `json:"limit,omitempty"`
 }
 
 //mcpgen:tool search
@@ -58,9 +60,15 @@ func Search(ctx context.Context, client *api.Client, input SearchInput) (SearchR
 		params.Issues = true
 		params.WikiPages = true
 	}
-	results, total, err := client.Search.Search(ctx, params)
+	resp, err := client.Search.SearchPage(ctx, params)
 	if err != nil {
 		return SearchResultsListResult{}, err
 	}
-	return SearchResultsListResult{Results: results, Count: len(results), TotalCount: total}, nil
+	return SearchResultsListResult{
+		Results:    resp.Results,
+		Count:      len(resp.Results),
+		TotalCount: resp.TotalCount,
+		Offset:     resp.Offset,
+		Limit:      resp.Limit,
+	}, nil
 }

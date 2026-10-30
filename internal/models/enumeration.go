@@ -6,4 +6,6 @@ type Enumeration struct {
 	Name      string `json:"name"`
 	IsDefault bool   `json:"is_default"`
 	Active    bool   `json:"active"`
+
+	CustomFields []CustomFieldValue `json:"custom_fields,omitzero"`
 }

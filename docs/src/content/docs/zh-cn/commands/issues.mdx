@@ -47,7 +47,7 @@ redmine issues list [flags]
 | `--query`                | 按名称运行自定义查询（参见 [`queries`](/zh-cn/commands/queries/)） |
 | `--query-id`             | 按数字 ID 运行自定义查询（与 `--query` 互斥） |
 | `--sort`                 | 排序方式，例如 `updated_on:desc` |
-| `--include`              | 包含关联数据：`attachments`、`relations` |
+| `--include`              | 包含关联数据：`attachments`、`relations`（可重复或逗号分隔；未知值会被拒绝） |
 | `--attachments`          | `--include attachments` 的简写 |
 | `--relations`            | `--include relations` 的简写 |
 | `--limit`                | 最大结果数（0 表示全部） |
@@ -91,7 +91,7 @@ redmine issues get <id> [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--include`                | 包含关联数据：`journals`、`children`、`relations`、`attachments` |
+| `--include`                | 包含关联数据：`journals`、`children`、`relations`、`attachments`、`watchers`、`changesets`、`allowed_statuses`（Redmine 5.0+）、`reactions`（Redmine 7.1+）；可重复或逗号分隔，未知值会被拒绝 |
 | `--journals`               | `--include journals` 的简写 |
 | `--children`               | `--include children` 的简写 |
 | `--relations`              | `--include relations` 的简写 |
@@ -121,7 +121,25 @@ redmine issues get <id> [flags]
     redmine issues get 123 --download-attachments ./issue-123 --clobber
     ```
   </TabItem>
+  <TabItem label="完整读取">
+    ```bash
+    # 调查前先查看历史、文件、子工单和关联
+    redmine issues get 123 --include journals,attachments,children,relations -o json
+
+    # 当前用户可以将工单转换到的状态
+    redmine issues get 123 --include allowed_statuses -o json
+    ```
+  </TabItem>
 </Tabs>
+
+使用 `-o json`（以及 MCP 的 `get_issue` 工具）时，工单会带有以下可选键。当 Redmine 没有返回它们时，这些键会被省略，而不是输出 `null`：
+
+- `status.is_closed`（Redmine 5.0+）、`closed_on`、`total_estimated_hours`（在列表中仅 Redmine 5.0+ 提供）。
+- `spent_hours` 和 `total_spent_hours`，仅在拥有 `view_time_entries` 权限时出现；在列表中仅 Redmine 5.0+ 提供。
+- `children`，由 `id`、`tracker`、`subject` 和嵌套 `children` 组成的递归树。
+- 使用 `--include changesets` 时的 `changesets`，以及使用 `--include allowed_statuses` 时的 `allowed_statuses`（Redmine 5.0+）。
+- 日志的 `updated_on`（Redmine 6.0+，每条日志都有）和 `updated_by`（备注被编辑过时才有）。
+- 使用 `--include reactions` 时，工单和日志上的 `reactions`（Redmine 7.1+）。
 
 <Aside type="tip">
   `--attachments` 会显示每个附件的 ID。把该 ID 传给

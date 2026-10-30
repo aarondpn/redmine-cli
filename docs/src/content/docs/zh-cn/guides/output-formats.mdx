@@ -85,6 +85,11 @@ redmine issues list --project myproject --limit 0 -o json \
 1. **原始资源**：用于获取或返回数据的命令
    （例如 `issues list`、`issues get`、`project create` 等）。输出内容就是 API 返回的资源对象，或者资源对象数组。
 
+   集合遵循同一条规则：如果已获取某个集合，它始终是数组，为空时是 `[]`；如果未获取，则该键缺省。
+   例如 `issues get 42 --journals` 始终包含 `journals`，即使没有历史记录；不带 `--journals` 时该键缺省，
+   因为空数组会错误地表示该工单没有历史。`--include` 的各部分（`children`、`relations`、`attachments`、`trackers`、`memberships` 等）同理。
+   Redmine 会省略当前账号无权查看的集合（例如没有*查看关注者*权限时的 `watchers`），这些键同样缺省而不会显示为 `[]`。
+
 2. **动作信封**：用于那些没有自然响应体的变更类命令
    （例如 `issues close`、`issues delete`、`issues assign`、`wiki delete`、`memberships delete` 等）。该信封结构稳定且精简：
 

@@ -108,22 +108,16 @@ func (s *IssueService) GetWithAllowedStatuses(ctx context.Context, id int) (issu
 	params.Set("include", "allowed_statuses")
 
 	var resp struct {
-		Issue struct {
-			models.Issue
-			AllowedStatuses *[]models.IssueStatus `json:"allowed_statuses"`
-		} `json:"issue"`
+		Issue models.Issue `json:"issue"`
 	}
 	if err := s.client.Get(ctx, fmt.Sprintf("/issues/%d.json", id), params, &resp); err != nil {
 		return nil, nil, false, err
 	}
 	if resp.Issue.AllowedStatuses != nil {
-		allowed = *resp.Issue.AllowedStatuses
-		if allowed == nil {
-			allowed = []models.IssueStatus{}
-		}
+		allowed = resp.Issue.AllowedStatuses
 		reported = true
 	}
-	return &resp.Issue.Issue, allowed, reported, nil
+	return &resp.Issue, allowed, reported, nil
 }
 
 // Create creates a new issue.

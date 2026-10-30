@@ -2,10 +2,12 @@ package models
 
 // Group represents a Redmine group.
 type Group struct {
-	ID          int              `json:"id"`
-	Name        string           `json:"name"`
-	Users       []IDName         `json:"users,omitzero"`
-	Memberships []UserMembership `json:"memberships,omitzero"`
+	ID           int                `json:"id"`
+	Name         string             `json:"name"`
+	Builtin      string             `json:"builtin,omitempty"` // "anonymous" or "non_member", built-in groups only
+	Users        []IDName           `json:"users,omitzero"`
+	Memberships  []UserMembership   `json:"memberships,omitzero"`
+	CustomFields []CustomFieldValue `json:"custom_fields,omitzero"`
 }
 
 // GroupCreate defines fields for creating a group.

@@ -153,7 +153,7 @@ func verifyStatusApplied(ctx context.Context, client *api.Client, issueID int, c
 	return "", &StatusNotAppliedError{
 		IssueID:         issueID,
 		Requested:       requested,
-		Current:         issue.Status,
+		Current:         issue.Status.IDName(),
 		Allowed:         allowed,
 		AllowedReported: reported,
 		OtherChanges:    check.otherChanges,
