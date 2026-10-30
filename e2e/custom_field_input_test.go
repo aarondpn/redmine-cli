@@ -391,3 +391,209 @@ func firstActivityID(t *testing.T, r *cliRunner) int {
 	}
 	return resp.TimeEntryActivities[0].ID
 }
+
+func TestCustomFieldInput_ProjectCreate(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	labelsID := seededCustomFieldID(t, r, "E2E Project Labels", "project")
+	scopedID := seededCustomFieldID(t, r, "E2E Project Scoped", "issue")
+	identifier := uniqueIdentifier(t)
+
+	var created struct {
+		Identifier string `json:"identifier"`
+	}
+	r.runJSON(t, &created, "projects", "create",
+		"--name", "CLI E2E "+identifier,
+		"--identifier", identifier,
+		"--custom-field", "E2E Project Labels=red",
+		"--custom-field", "E2E Project Labels=green",
+		"--issue-custom-field", "E2E Project Scoped")
+	t.Cleanup(func() {
+		var deleted actionEnvelope
+		r.runJSON(t, &deleted, "projects", "delete", identifier, "--force")
+	})
+	if created.Identifier != identifier {
+		t.Fatalf("created project identifier = %q, want %q", created.Identifier, identifier)
+	}
+
+	path := "/projects/" + identifier + ".json"
+	requireValueSet(t, "project labels", rawCustomFieldValue(t, path, "project", labelsID), "red", "green")
+	enabled := firstWhere(field(rawGET(t, path+"?include=issue_custom_fields"), "project", "issue_custom_fields"),
+		func(m map[string]any) bool { return jsonInt(m["id"]) == scopedID })
+	if enabled == nil {
+		t.Fatalf("--issue-custom-field \"E2E Project Scoped\" did not enable field %d on %s", scopedID, identifier)
+	}
+
+	// --issue-custom-field only matches issue fields, so a project field name
+	// is reported as such before any request.
+	_, stderr := r.runExpectError(t, "projects", "update", identifier, "--issue-custom-field", "E2E Project Labels")
+	if !strings.Contains(string(stderr), "custom field of type project, not issue") {
+		t.Fatalf("stderr does not explain the type mismatch:\n%s", stderr)
+	}
+}
+
+// TestCustomFieldInput_NonAdminUsesIDs: /custom_fields.json is admin-only, so
+// a regular user's name lookup fails with a hint, while a numeric ID works.
+func TestCustomFieldInput_NonAdminUsesIDs(t *testing.T) {
+	requireE2E(t)
+	admin := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	skillsID := seededCustomFieldID(t, admin, "E2E User Skills", "user")
+	user := createTestUser(t, admin)
+	r := newCLIRunnerBasicAuth(t, e2eBaseURL(), user.Login, user.Password)
+
+	_, stderr := r.runExpectError(t, "my-account", "update", "--custom-field", "E2E User Skills=Go")
+	for _, want := range []string{"admin-only", "my-account get"} {
+		if !strings.Contains(string(stderr), want) {
+			t.Fatalf("stderr lacks %q:\n%s", want, stderr)
+		}
+	}
+
+	var env actionEnvelope
+	r.runJSON(t, &env, "my-account", "update",
+		"--custom-field", strconv.Itoa(skillsID)+"=Go",
+		"--custom-field", strconv.Itoa(skillsID)+"=SQL")
+	requireValueSet(t, "non-admin skills",
+		rawCustomFieldValue(t, "/users/"+strconv.Itoa(user.ID)+".json", "user", skillsID), "Go", "SQL")
+}
+
+// TestMCPStdio_CustomFieldValuesAllWriteTools calls every write tool that
+// takes custom_field_values and reads the result back from Redmine.
+func TestMCPStdio_CustomFieldValuesAllWriteTools(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	issue := createTestIssue(t, r, proj.Identifier)
+	tagsID := seededCustomFieldID(t, r, "E2E Tags", "issue")
+	labelsID := seededCustomFieldID(t, r, "E2E Project Labels", "project")
+	entryTagsID := seededCustomFieldID(t, r, "E2E Entry Tags", "time_entry")
+	ownerID := seededCustomFieldID(t, r, "E2E Version Owner", "version")
+	skillsID := seededCustomFieldID(t, r, "E2E User Skills", "user")
+	codeID := seededCustomFieldID(t, r, "E2E Group Code", "group")
+	cfv := func(id int, v any) map[string]any { return map[string]any{strconv.Itoa(id): v} }
+	createdID := func(t *testing.T, out *mcp.CallToolResult, tool string) int {
+		t.Helper()
+		id := mcpExtIssueIDFromResult(t, out)
+		if id == 0 {
+			t.Fatalf("%s returned no ID: %s", tool, structuredJSON(out))
+		}
+		return id
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	session := r.startMCPStdio(t, ctx, "--enable-writes")
+
+	t.Run("update_issue", func(t *testing.T) {
+		mcpCallOK(t, ctx, session, "update_issue", map[string]any{
+			"id": issue.ID, "custom_field_values": cfv(tagsID, []string{"Beta", "Gamma"}),
+		})
+		requireValueSet(t, "issue tags",
+			rawCustomFieldValue(t, "/issues/"+strconv.Itoa(issue.ID)+".json", "issue", tagsID), "Beta", "Gamma")
+	})
+
+	t.Run("create_project and update_project", func(t *testing.T) {
+		identifier := uniqueIdentifier(t)
+		mcpCallOK(t, ctx, session, "create_project", map[string]any{
+			"name": "CLI E2E " + identifier, "identifier": identifier,
+			"custom_field_values": cfv(labelsID, []string{"red", "blue"}),
+		})
+		t.Cleanup(func() {
+			var deleted actionEnvelope
+			r.runJSON(t, &deleted, "projects", "delete", identifier, "--force")
+		})
+		path := "/projects/" + identifier + ".json"
+		requireValueSet(t, "project labels after create", rawCustomFieldValue(t, path, "project", labelsID), "red", "blue")
+
+		mcpCallOK(t, ctx, session, "update_project", map[string]any{
+			"identifier": identifier, "custom_field_values": cfv(labelsID, "green"),
+		})
+		requireValueSet(t, "project labels after update", rawCustomFieldValue(t, path, "project", labelsID), "green")
+	})
+
+	t.Run("update_time_entry", func(t *testing.T) {
+		var entry struct {
+			ID int `json:"id"`
+		}
+		r.runJSON(t, &entry, "time", "log",
+			"--issue", strconv.Itoa(issue.ID), "--hours", "1", "--activity", firstActivityName(t, r))
+		mcpCallOK(t, ctx, session, "update_time_entry", map[string]any{
+			"id": entry.ID, "custom_field_values": cfv(entryTagsID, []string{"Billable", "Onsite"}),
+		})
+		requireValueSet(t, "entry tags",
+			rawCustomFieldValue(t, "/time_entries/"+strconv.Itoa(entry.ID)+".json", "time_entry", entryTagsID), "Billable", "Onsite")
+	})
+
+	t.Run("create_version and update_version", func(t *testing.T) {
+		out := mcpCallOK(t, ctx, session, "create_version", map[string]any{
+			"project_id": proj.Identifier, "name": "v-mcp-" + uniqueShortSuffix(t),
+			"custom_field_values": cfv(ownerID, "Team MCP"),
+		})
+		id := createdID(t, out, "create_version")
+		path := "/versions/" + strconv.Itoa(id) + ".json"
+		requireValue(t, "version owner after create", rawCustomFieldValue(t, path, "version", ownerID), "Team MCP")
+
+		// "" clears a single-value field.
+		mcpCallOK(t, ctx, session, "update_version", map[string]any{
+			"id": id, "custom_field_values": cfv(ownerID, ""),
+		})
+		requireValue(t, "version owner after clear", rawCustomFieldValue(t, path, "version", ownerID), "")
+	})
+
+	t.Run("create_user and update_user", func(t *testing.T) {
+		suffix := uniqueShortSuffix(t)
+		login := "e2emcp" + suffix
+		out := mcpCallOK(t, ctx, session, "create_user", map[string]any{
+			"login": login, "password": "Pass-" + suffix + "-1A",
+			"firstname": "E2E", "lastname": "MCP-" + suffix, "mail": login + "@example.test",
+			"custom_field_values": cfv(skillsID, []string{"Go", "SQL"}),
+		})
+		id := createdID(t, out, "create_user")
+		t.Cleanup(func() {
+			var deleted actionEnvelope
+			r.runJSON(t, &deleted, "users", "delete", strconv.Itoa(id), "--force")
+		})
+		path := "/users/" + strconv.Itoa(id) + ".json"
+		requireValueSet(t, "user skills after create", rawCustomFieldValue(t, path, "user", skillsID), "Go", "SQL")
+
+		mcpCallOK(t, ctx, session, "update_user", map[string]any{
+			"id": id, "custom_field_values": cfv(skillsID, "Ruby"),
+		})
+		requireValueSet(t, "user skills after update", rawCustomFieldValue(t, path, "user", skillsID), "Ruby")
+
+		// An empty array clears a multi-value field.
+		mcpCallOK(t, ctx, session, "update_user", map[string]any{
+			"id": id, "custom_field_values": cfv(skillsID, []string{}),
+		})
+		requireValueSet(t, "user skills after clear", rawCustomFieldValue(t, path, "user", skillsID))
+	})
+
+	t.Run("update_my_account", func(t *testing.T) {
+		// The admin account is shared across the suite.
+		t.Cleanup(func() {
+			var env actionEnvelope
+			r.runJSON(t, &env, "my-account", "update", "--custom-field", strconv.Itoa(skillsID)+"=")
+		})
+		mcpCallOK(t, ctx, session, "update_my_account", map[string]any{
+			"custom_field_values": cfv(skillsID, []string{"Ruby", "SQL"}),
+		})
+		requireValueSet(t, "my account skills", rawCustomFieldValue(t, "/my/account.json", "user", skillsID), "Ruby", "SQL")
+	})
+
+	t.Run("create_group and update_group", func(t *testing.T) {
+		out := mcpCallOK(t, ctx, session, "create_group", map[string]any{
+			"name": "e2e-grp-mcp-" + uniqueShortSuffix(t), "custom_field_values": cfv(codeID, "G-MCP"),
+		})
+		id := createdID(t, out, "create_group")
+		t.Cleanup(func() {
+			var deleted actionEnvelope
+			r.runJSON(t, &deleted, "groups", "delete", strconv.Itoa(id), "--force")
+		})
+		path := "/groups/" + strconv.Itoa(id) + ".json"
+		requireValue(t, "group code after create", rawCustomFieldValue(t, path, "group", codeID), "G-MCP")
+
+		mcpCallOK(t, ctx, session, "update_group", map[string]any{
+			"id": id, "custom_field_values": cfv(codeID, []string{"G-MCP-2"}),
+		})
+		requireValue(t, "group code after update", rawCustomFieldValue(t, path, "group", codeID), "G-MCP-2")
+	})
+}

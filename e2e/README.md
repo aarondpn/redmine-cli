@@ -93,7 +93,9 @@ degrade quietly into a confusing test failure later.
 
 It also seeds the fixtures for `custom_field_input_test.go`: a multi-value
 issue field (`E2E Tags`), a name shared by an issue and a time entry field
-(`E2E Shared Code`, for type-scoped name resolution), `E2E Entry Tags`
+(`E2E Shared Code`, for type-scoped name resolution), an issue field that is
+not for all projects (`E2E Project Scoped`, for `--issue-custom-field`),
+`E2E Entry Tags`
 (time entry), `E2E Project Labels`, `E2E Version Owner`, `E2E User Skills`
 (editable) and `E2E Group Code`. None of them is required: a required time
 entry custom field would make every other test that logs time fail.

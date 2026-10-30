@@ -120,6 +120,9 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
     all_trackers = { is_for_all: true, tracker_ids: Tracker.pluck(:id), is_filter: false }
     tags_cf = seed_cf(IssueCustomField, "E2E Tags", "list", %w[Alpha Beta Gamma], true, all_trackers)
     shared_issue_cf = seed_cf(IssueCustomField, "E2E Shared Code", "string", nil, false, all_trackers)
+    # Not for all projects: --issue-custom-field has to enable it per project.
+    scoped_issue_cf = seed_cf(IssueCustomField, "E2E Project Scoped", "string", nil, false,
+                              all_trackers.merge(is_for_all: false))
     shared_entry_cf = seed_cf(TimeEntryCustomField, "E2E Shared Code", "string", nil, false)
     entry_tags_cf = seed_cf(TimeEntryCustomField, "E2E Entry Tags", "list", %w[Billable Onsite Overtime], true)
     project_labels_cf = seed_cf(ProjectCustomField, "E2E Project Labels", "list", %w[red green blue], true)
@@ -148,7 +151,8 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
       seeded_project_labels_custom_field_id: project_labels_cf.id,
       seeded_version_owner_custom_field_id: version_owner_cf.id,
       seeded_user_skills_custom_field_id: user_skills_cf.id,
-      seeded_group_code_custom_field_id: group_code_cf.id
+      seeded_group_code_custom_field_id: group_code_cf.id,
+      seeded_project_scoped_issue_custom_field_id: scoped_issue_cf.id
     }.inspect)
   ' 2>/dev/null)
 
