@@ -72,6 +72,7 @@ Redmine instance. The suite is split into topical files:
 | `enumerations_test.go`   | `priorities list`, `activities list` (global and `--project` with the seeded override), `document-categories list`, unknown project, MCP `list_priorities` / `list_time_entry_activities`; `issues relations get` (`TestRelations_Get`) |
 | `categories_test.go`, `categories_crud_test.go` | `categories list`; create (default assignee), get by ID / name, update (rename, `--assignee none`), delete with confirmation / `--force`, `--reassign-to` (moves issues; foreign-project target rejected), duplicate name -> `validation_failed`, MCP `create/get/update/delete_issue_category` |
 | `journal_edit_test.go` | `issues comment edit` (text, `--private` / `--public`, `--message-file`, `--clear` with confirmation / `--force`, validation), `[journal N]` header in `issues get`, unknown journal -> `not_found`, pre-5.0 -> `forbidden` with a version hint, MCP `update_journal` (5.0+; tool error on 4.2) |
+| `news_test.go` | `news list` (project / global, `--limit` / `--offset`, pagination warning), `get` (`--include attachments,comments`, unknown include rejected), `create` (read-back ID in the envelope, `--description-file`, `--attach`), `update` (changed fields only, clearing the summary), `delete` with confirmation / `--force`, validation (missing description, title over 60 characters), MCP `list_news` / `get_news` / `create_news` / `update_news` / `delete_news` and `--enable-groups news` |
 | `attachments_test.go`, `attachments_write_test.go` | `attachments get` / `download`; `update` (filename, description, content type), `delete` with confirmation / `--force`, `thumbnail` (real PNG, `--size`, `--path -`, no-clobber; skipped when the server lacks ImageMagick), non-image -> `not_found`, MCP `update_attachment` / `delete_attachment` |
 | `search_test.go`         | `search --issues` and `search --projects` scope |
 | `auth_test.go`           | basic-auth profile against `/users/current.json` (needs `REDMINE_E2E_PASSWORD`) |
@@ -105,7 +106,7 @@ not for all projects (`E2E Project Scoped`, for `--issue-custom-field`),
 entry custom field would make every other test that logs time fail.
 
 It then runs `seed-contract.rb`, which seeds the data the contract tests
-need (including a project-specific override of the second shared time entry activity in `e2e-contract`, which `activities list --project` must report with its own ID; it is idempotent; re-run it on a live stack with
+need (including a project-specific override of the second shared time entry activity in `e2e-contract`, which `activities list --project` must report with its own ID, and a news item `Contract news` with an attachment, a comment and, where Redmine has reactions, reactions on both; it is idempotent; re-run it on a live stack with
 `docker compose -f e2e/compose.yaml exec -T redmine bundle exec rails runner - < e2e/seed-contract.rb`).
 
 ### Contract tests

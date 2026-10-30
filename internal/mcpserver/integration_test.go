@@ -82,6 +82,7 @@ func TestWriteGate_HidesMutatingTools(t *testing.T) {
 		"create_version", "update_version", "delete_version",
 		"create_issue_category", "update_issue_category", "delete_issue_category",
 		"update_attachment", "delete_attachment", "update_journal",
+		"create_news", "update_news", "delete_news",
 	}
 	for _, n := range wantMissing {
 		if contains(names, n) {
@@ -101,6 +102,7 @@ func TestWriteGate_HidesMutatingTools(t *testing.T) {
 		"list_memberships", "get_membership",
 		"list_priorities", "list_time_entry_activities",
 		"get_issue_category",
+		"list_news", "get_news",
 	}
 	for _, n := range wantPresent {
 		if !contains(names, n) {
@@ -129,6 +131,7 @@ func TestWriteGate_RegistersMutatingTools(t *testing.T) {
 		"create_version", "update_version", "delete_version",
 		"create_issue_category", "update_issue_category", "delete_issue_category",
 		"update_attachment", "delete_attachment", "update_journal",
+		"create_news", "update_news", "delete_news",
 	}
 	for _, n := range wantPresent {
 		if !contains(names, n) {

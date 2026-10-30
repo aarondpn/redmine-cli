@@ -1,0 +1,140 @@
+---
+title: News
+description: List, view, create, update and delete project news, including attachments and read-only comments.
+---
+
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+The `news` command manages the news items of a project. For full-text search across news use `redmine search news <query>`.
+
+<CardGrid>
+  <LinkCard title="list" href="#list" description="List news for a project or across all projects." />
+  <LinkCard title="get" href="#get" description="View a news item with its attachments and comments." />
+  <LinkCard title="create" href="#create" description="Publish a news item." />
+  <LinkCard title="update" href="#update" description="Change the title, summary or description." />
+  <LinkCard title="delete" href="#delete" description="Delete a news item." />
+</CardGrid>
+
+The project needs the `news` module enabled. Reading needs the "View news" permission, writing the "Manage news" permission.
+
+## list
+
+```bash
+redmine news list [flags]
+```
+
+Aliases: `ls`. News are listed newest first.
+
+| Flag | Description |
+|------|-------------|
+| `--project`    | Project name, identifier or ID - falls back to the default project. Without either, the news of all visible projects is listed |
+| `--limit`      | Maximum number of items (default 100, `0` for all) |
+| `--offset`     | Number of items to skip |
+| `-o, --output` | Output format |
+
+The table shows ID, project, title, author and creation time. When more news exist than were shown, a hint on stderr points to `--limit` and `--offset`.
+
+```bash
+redmine news list --project myproject
+redmine news list
+redmine news list --project myproject --limit 10 --offset 10
+redmine news list --project myproject --jq '.[].title'
+```
+
+## get
+
+```bash
+redmine news get <id> [flags]
+```
+
+Aliases: `show`, `view`. Shows the project, title, summary, author, creation time and description.
+
+| Flag | Description |
+|------|-------------|
+| `--include`    | `attachments`, `comments`, `reactions` (repeatable or comma-separated) |
+| `-o, --output` | Output format |
+
+With `--include comments` and `--include attachments` the table output adds a comment table (ID, author, comment) and an attachment table (ID, filename, size, content type). `-o json` returns the whole news object with the requested arrays. An unknown include value is rejected before any request is sent.
+
+```bash
+redmine news get 12
+redmine news get 12 --include attachments,comments
+redmine news get 12 --include comments -o json
+```
+
+<Aside type="note" title="Reactions need Redmine 7.1+">
+  `--include reactions` adds `reactions` on the news item and on each comment. Redmine 7.0 and older ignore the include and send no reactions.
+</Aside>
+
+## create
+
+```bash
+redmine news create --title <title> (--description <text> | --description-file <path>) [flags]
+```
+
+Aliases: `new`.
+
+| Flag | Description |
+|------|-------------|
+| `--project`          | Project name, identifier or ID - falls back to the default project |
+| `--title`            | Title (required, at most 60 characters) |
+| `--summary`          | Short summary (at most 255 characters) |
+| `-d, --description`  | Body (required unless `--description-file` is given) |
+| `-F, --description-file` | Read the body from a file, or from standard input with `-` |
+| `--attach`           | File to attach (repeatable) |
+| `-o, --output`       | Output format |
+
+```bash
+redmine news create --project myproject --title "Release 2.0" \
+  --summary "Now available" --description "We shipped 2.0 today."
+redmine news create --project myproject --title "Release 2.0" --description-file news.textile
+redmine news create --project myproject --title "Roadmap" \
+  --description "See the attached roadmap." --attach ./roadmap.pdf
+```
+
+<Aside type="note" title="The ID is looked up after the create">
+  Redmine answers a news create with an empty `204 No Content`, so the new ID is not part of the response. The CLI reads it back: it lists the newest news of the project and picks the first item with the same title, summary and description written by you. With `-o json` the result is `{"ok": true, "action": "created", "resource": "news", "id": 42, ...}`. When no item matches (or the lookup fails) the create still succeeds, the `id` field is omitted and a warning is printed on stderr; run `redmine news list --project <project>` to find it. Do not repeat the create, that would publish a duplicate.
+</Aside>
+
+## update
+
+```bash
+redmine news update <id> [flags]
+```
+
+Aliases: `edit`. Only the flags you pass are changed; at least one of `--title`, `--summary`, `--description`, `--description-file` or `--attach` is required.
+
+| Flag | Description |
+|------|-------------|
+| `--title`            | New title |
+| `--summary`          | New summary; `--summary ""` clears it |
+| `-d, --description`  | New body |
+| `-F, --description-file` | Read the new body from a file, or from standard input with `-` |
+| `--attach`           | File to attach (repeatable) |
+
+```bash
+redmine news update 12 --title "Release 2.0 (final)"
+redmine news update 12 --description-file news.textile
+redmine news update 12 --summary "" --attach ./notes.pdf
+```
+
+## delete
+
+```bash
+redmine news delete <id> [flags]
+```
+
+Aliases: `rm`. Deletes the news item together with its comments. Asks for confirmation unless `--force` is given; declining prints `Delete cancelled` and changes nothing.
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip the confirmation prompt |
+
+```bash
+redmine news delete 12
+redmine news delete 12 --force
+```
+
+<Aside type="caution" title="News comments are read-only">
+  Redmine does not accept news comments over the REST API. `--include comments` reads them, but they cannot be created, edited or deleted from the CLI or the MCP server.
+</Aside>

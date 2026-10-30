@@ -32,6 +32,10 @@
     "description": "Fetch the authenticated user's account via /my/account.json. Includes custom_fields."
   },
   {
+    "name": "get_news",
+    "description": "Fetch a single news item by ID. Optional includes add attachments, comments and reactions (Redmine 7.1+)."
+  },
+  {
     "name": "get_project",
     "description": "Fetch a single Redmine project by identifier or ID."
   },
@@ -86,6 +90,10 @@
   {
     "name": "list_memberships",
     "description": "List memberships for a project."
+  },
+  {
+    "name": "list_news",
+    "description": "List news, for one project (project_id) or across all visible projects."
   },
   {
     "name": "list_priorities",

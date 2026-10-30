@@ -233,6 +233,21 @@ end
 seed_attachment(parent, "contract-issue.txt", admin)
 seed_attachment(project, "contract-file.txt", admin)
 
+# A news item with an attachment, a comment and (Redmine 7.1+) reactions.
+news = News.find_by(project_id: project.id, title: "Contract news")
+news ||= News.create!(project: project, author: admin, title: "Contract news",
+                      summary: "contract news summary", description: "contract news description")
+seed_attachment(news, "contract-news.txt", admin)
+news_comment = news.comments.first || Comment.create!(commented: news, author: admin, content: "contract news comment")
+if defined?(Reaction)
+  begin
+    Reaction.find_or_create_by!(reactable: news, user: admin)
+    Reaction.find_or_create_by!(reactable: news_comment, user: admin)
+  rescue StandardError => e
+    gaps["news_reactions"] = e.message
+  end
+end
+
 # This script runs as root (docker exec) while the server runs as the redmine
 # user. The attachment directories created above would stay root-owned and the
 # server could no longer store uploads in them, failing every later upload
@@ -315,6 +330,7 @@ puts({
   closed_id: closed.id,
   user_id: user.id,
   activity_override_id: activity_override&.id,
+  news_id: news.id,
   group_id: group.id,
   gaps: gaps
 }.inspect)

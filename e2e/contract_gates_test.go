@@ -66,6 +66,13 @@ var gatedKeys = []gatedKey{
 	{"time_entries_list", "[].custom_fields[].value", always, "", "a time entry custom field value"},
 	{"time_entries_get", "custom_fields[].value", always, "", "a time entry custom field value"},
 
+	// News.
+	{"news_get", "attachments[].id", always, "news/show.api.rsb", "an attachment on the news"},
+	{"news_get", "comments[].content", always, "news/show.api.rsb", "a comment on the news"},
+	{"news_list", "[].summary", always, "news/index.api.rsb", "a summary on the news"},
+	{"news_get", "reactions[].user.id", [2]int{7, 1}, "render_api_reactions is absent from Redmine 7.0.x news/show.api.rsb; master only (Since 7.1 is a guess at the next release, same as the issue rows)", "a reaction on the news"},
+	{"news_get", "comments[].reactions[].user.id", [2]int{7, 1}, "render_api_reactions is absent from Redmine 7.0.x news/show.api.rsb; master only (Since 7.1 is a guess at the next release, same as the issue rows)", "a reaction on a news comment"},
+
 	// Users.
 	{"users_get_seeded", "passwd_changed_on", always, "redmine.org/issues/33592", "update_column on the seeded user"},
 	{"users_get_seeded", "twofa_scheme", always, "redmine.org/issues/34242", "twofa_scheme set on the seeded user"},

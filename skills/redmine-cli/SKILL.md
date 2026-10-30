@@ -26,6 +26,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `groups` | List, get, create, update, delete groups; add/remove users |
 | `roles` | List and get roles, including their permissions |
 | `categories` | List, get, create, update, delete issue categories (`--assignee` sets the default assignee, `none` clears it; `delete --reassign-to <category>` moves the issues to another category of the same project) |
+| `news` | List, get, create, update, delete project news (`list` without `--project` spans all projects; `get --include attachments,comments`; `create` looks the new ID up afterwards; news comments are read-only) |
 | `trackers` | List and get trackers |
 | `statuses` | List issue statuses |
 | `priorities` | List issue priorities and their IDs (for `--priority`) |

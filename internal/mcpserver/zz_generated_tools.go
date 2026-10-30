@@ -350,6 +350,39 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.UpdateMyAccount,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.CreateNewsInput, ops.CreateNewsResult]{
+		Name:        "create_news",
+		Description: "Create a news item in a project. Redmine returns no body; the ID is looked up afterwards and omitted when it cannot be determined. Requires --enable-writes.",
+		Category:    "news",
+		Writes:      true,
+		Call:        ops.CreateNews,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.DeleteNewsInput, ops.MessageResult]{
+		Name:        "delete_news",
+		Description: "Delete a news item. Destructive. Requires --enable-writes.",
+		Category:    "news",
+		Writes:      true,
+		Call:        ops.DeleteNews,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.GetNewsInput, *models.News]{
+		Name:        "get_news",
+		Description: "Fetch a single news item by ID. Optional includes add attachments, comments and reactions (Redmine 7.1+).",
+		Category:    "news",
+		Call:        ops.GetNews,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.ListNewsInput, ops.NewsListResult]{
+		Name:        "list_news",
+		Description: "List news, for one project (project_id) or across all visible projects.",
+		Category:    "news",
+		Call:        ops.ListNews,
+	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UpdateNewsInput, ops.MessageResult]{
+		Name:        "update_news",
+		Description: "Update a news item's title, summary or description. Requires --enable-writes.",
+		Category:    "news",
+		Writes:      true,
+		Call:        ops.UpdateNews,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ArchiveProjectInput, ops.MessageResult]{
 		Name:        "archive_project",
 		Description: "Archive a Redmine project. Hides it from default listings. Requires Redmine 5.0+ and --enable-writes.",
@@ -591,6 +624,11 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_version", Description: "Update an existing version (milestone). Requires --enable-writes.", Group: "meta", Writes: true},
 		{Name: "get_my_account", Description: "Fetch the authenticated user's account via /my/account.json. Includes custom_fields.", Group: "my_account", Writes: false},
 		{Name: "update_my_account", Description: "Update the authenticated user's own account. Works without admin privileges. Requires --enable-writes.", Group: "my_account", Writes: true},
+		{Name: "create_news", Description: "Create a news item in a project. Redmine returns no body; the ID is looked up afterwards and omitted when it cannot be determined. Requires --enable-writes.", Group: "news", Writes: true},
+		{Name: "delete_news", Description: "Delete a news item. Destructive. Requires --enable-writes.", Group: "news", Writes: true},
+		{Name: "get_news", Description: "Fetch a single news item by ID. Optional includes add attachments, comments and reactions (Redmine 7.1+).", Group: "news", Writes: false},
+		{Name: "list_news", Description: "List news, for one project (project_id) or across all visible projects.", Group: "news", Writes: false},
+		{Name: "update_news", Description: "Update a news item's title, summary or description. Requires --enable-writes.", Group: "news", Writes: true},
 		{Name: "archive_project", Description: "Archive a Redmine project. Hides it from default listings. Requires Redmine 5.0+ and --enable-writes.", Group: "projects", Writes: true},
 		{Name: "create_project", Description: "Create a new Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "delete_project", Description: "Delete a Redmine project. Destructive. Requires --enable-writes.", Group: "projects", Writes: true},

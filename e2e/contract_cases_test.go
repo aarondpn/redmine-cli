@@ -133,6 +133,16 @@ var contractCases = []contractCase{
 		MCP: &contractMCP{Tool: "get_issue_category", Args: idArgs("id", "category", nil)},
 	},
 	{
+		Name: "news_list", Raw: "/projects/{P}/news.json?limit=100", Root: "news", List: true,
+		CLI: []string{"news", "list", "--project", "{P}", "--limit", "100"},
+		MCP: &contractMCP{Tool: "list_news", Args: projArgs(map[string]any{"limit": 100})},
+	},
+	{
+		Name: "news_get", Raw: "/news/{news}.json?include=attachments,comments,reactions", Root: "news",
+		CLI: []string{"news", "get", "{news}", "--include", "attachments,comments,reactions"},
+		MCP: &contractMCP{Tool: "get_news", Args: idArgs("id", "news", map[string]any{"includes": []string{"attachments", "comments", "reactions"}})},
+	},
+	{
 		Name: "time_entries_list", Raw: "/time_entries.json?project_id={P}&limit=100", Root: "time_entries", List: true,
 		CLI: []string{"time", "list", "--project", "{P}", "--limit", "100"},
 		MCP: &contractMCP{Tool: "list_time_entries", Args: projArgs(map[string]any{"limit": 100})},

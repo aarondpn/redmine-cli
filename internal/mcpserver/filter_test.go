@@ -205,6 +205,7 @@ func TestAllToolsCatalogCoversEveryGroup(t *testing.T) {
 		GroupMeta:        "list_versions",
 		GroupWiki:        "list_wiki_pages",
 		GroupMemberships: "list_memberships",
+		GroupNews:        "list_news",
 	}
 	for g, name := range wantOne {
 		found := false
