@@ -121,3 +121,46 @@ func TestCustomFieldValues_RoundTrip(t *testing.T) {
 		t.Errorf("round trip = %s, want %s", out, in)
 	}
 }
+
+func TestCustomFieldValues_InResourceStructs(t *testing.T) {
+	cfv := CustomFieldValues{"1": {"a", "b"}}
+	for name, v := range map[string]any{
+		"TimeEntryCreate": TimeEntryCreate{Hours: 1, CustomFieldValues: cfv},
+		"TimeEntryUpdate": TimeEntryUpdate{CustomFieldValues: cfv},
+		"VersionCreate":   VersionCreate{Name: "v", CustomFieldValues: cfv},
+		"VersionUpdate":   VersionUpdate{CustomFieldValues: cfv},
+		"UserCreate":      UserCreate{Login: "l", CustomFieldValues: cfv},
+		"UserUpdate":      UserUpdate{CustomFieldValues: cfv},
+		"MyAccountUpdate": MyAccountUpdate{CustomFieldValues: cfv},
+		"GroupCreate":     GroupCreate{Name: "g", CustomFieldValues: cfv},
+		"GroupUpdate":     GroupUpdate{CustomFieldValues: cfv},
+	} {
+		data, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if want := `"custom_field_values":{"1":["a","b"]}`; !strings.Contains(string(data), want) {
+			t.Errorf("%s: body %s lacks %s", name, data, want)
+		}
+	}
+
+	for name, v := range map[string]any{
+		"TimeEntryCreate": TimeEntryCreate{Hours: 1},
+		"TimeEntryUpdate": TimeEntryUpdate{},
+		"VersionCreate":   VersionCreate{Name: "v"},
+		"VersionUpdate":   VersionUpdate{},
+		"UserCreate":      UserCreate{Login: "l"},
+		"UserUpdate":      UserUpdate{},
+		"MyAccountUpdate": MyAccountUpdate{},
+		"GroupCreate":     GroupCreate{Name: "g"},
+		"GroupUpdate":     GroupUpdate{},
+	} {
+		data, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if strings.Contains(string(data), "custom_field_values") {
+			t.Errorf("%s: body %s should omit custom_field_values", name, data)
+		}
+	}
+}

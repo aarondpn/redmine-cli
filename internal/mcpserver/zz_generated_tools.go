@@ -363,7 +363,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateTimeEntryInput, *models.TimeEntry]{
 		Name:        "create_time_entry",
-		Description: "Log a new time entry. Requires --enable-writes.",
+		Description: "Log a new time entry. Pass custom_field_values when the server requires time entry custom fields. Requires --enable-writes.",
 		Category:    "time",
 		Writes:      true,
 		Call:        ops.CreateTimeEntry,
@@ -533,7 +533,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "unarchive_project", Description: "Unarchive a Redmine project. Requires Redmine 5.0+ and --enable-writes.", Group: "projects", Writes: true},
 		{Name: "update_project", Description: "Update an existing Redmine project. Requires --enable-writes.", Group: "projects", Writes: true},
 		{Name: "search", Description: "Search across Redmine issues, wiki pages, news, and more. If no type flag is set, issues and wiki pages are included by default.", Group: "search", Writes: false},
-		{Name: "create_time_entry", Description: "Log a new time entry. Requires --enable-writes.", Group: "time", Writes: true},
+		{Name: "create_time_entry", Description: "Log a new time entry. Pass custom_field_values when the server requires time entry custom fields. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "delete_time_entry", Description: "Delete a time entry. Destructive. Requires --enable-writes.", Group: "time", Writes: true},
 		{Name: "get_time_entry", Description: "Fetch a single time entry by ID.", Group: "time", Writes: false},
 		{Name: "list_time_entries", Description: "List Redmine time entries matching the given filters.", Group: "time", Writes: false},

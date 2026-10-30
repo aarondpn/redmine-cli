@@ -25,14 +25,16 @@ type GetGroupInput struct {
 }
 
 type CreateGroupInput struct {
-	Name    string `json:"name" jsonschema:"Group name."`
-	UserIDs []int  `json:"user_ids,omitempty" jsonschema:"Optional list of user IDs to add as group members."`
+	Name              string                   `json:"name" jsonschema:"Group name."`
+	UserIDs           []int                    `json:"user_ids,omitempty" jsonschema:"Optional list of user IDs to add as group members."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Group custom field values keyed by numeric custom field ID (list_custom_fields, customized_type group). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type UpdateGroupInput struct {
-	ID      int     `json:"id" jsonschema:"Group ID to update."`
-	Name    *string `json:"name,omitempty" jsonschema:"New group name."`
-	UserIDs *[]int  `json:"user_ids,omitempty" jsonschema:"Replacement set of user IDs. Pass an empty list to remove all members."`
+	ID                int                      `json:"id" jsonschema:"Group ID to update."`
+	Name              *string                  `json:"name,omitempty" jsonschema:"New group name."`
+	UserIDs           *[]int                   `json:"user_ids,omitempty" jsonschema:"Replacement set of user IDs. Pass an empty list to remove all members."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Group custom field values keyed by numeric custom field ID (list_custom_fields, customized_type group). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type DeleteGroupInput struct {
@@ -73,6 +75,8 @@ func CreateGroup(ctx context.Context, client *api.Client, input CreateGroupInput
 	return client.Groups.Create(ctx, models.GroupCreate{
 		Name:    input.Name,
 		UserIDs: input.UserIDs,
+
+		CustomFieldValues: input.CustomFieldValues,
 	})
 }
 
@@ -84,6 +88,8 @@ func UpdateGroup(ctx context.Context, client *api.Client, input UpdateGroupInput
 	if err := client.Groups.Update(ctx, input.ID, models.GroupUpdate{
 		Name:    input.Name,
 		UserIDs: input.UserIDs,
+
+		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err
 	}

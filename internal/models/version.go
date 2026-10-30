@@ -22,20 +22,22 @@ type Version struct {
 
 // VersionCreate defines fields for creating a project version.
 type VersionCreate struct {
-	Name          string `json:"name"`
-	Status        string `json:"status,omitempty"`
-	Sharing       string `json:"sharing,omitempty"`
-	DueDate       string `json:"due_date,omitempty"`
-	Description   string `json:"description,omitempty"`
-	WikiPageTitle string `json:"wiki_page_title,omitempty"`
+	Name              string            `json:"name"`
+	Status            string            `json:"status,omitempty"`
+	Sharing           string            `json:"sharing,omitempty"`
+	DueDate           string            `json:"due_date,omitempty"`
+	Description       string            `json:"description,omitempty"`
+	WikiPageTitle     string            `json:"wiki_page_title,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
 // VersionUpdate defines fields for updating a project version.
 type VersionUpdate struct {
-	Name          *string `json:"name,omitempty"`
-	Status        *string `json:"status,omitempty"`
-	Sharing       *string `json:"sharing,omitempty"`
-	DueDate       *string `json:"due_date,omitempty"`
-	Description   *string `json:"description,omitempty"`
-	WikiPageTitle *string `json:"wiki_page_title,omitempty"`
+	Name              *string           `json:"name,omitempty"`
+	Status            *string           `json:"status,omitempty"`
+	Sharing           *string           `json:"sharing,omitempty"`
+	DueDate           *string           `json:"due_date,omitempty"`
+	Description       *string           `json:"description,omitempty"`
+	WikiPageTitle     *string           `json:"wiki_page_title,omitempty"`
+	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }

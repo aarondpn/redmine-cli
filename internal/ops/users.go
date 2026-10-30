@@ -33,30 +33,32 @@ type GetCurrentUserInput struct {
 }
 
 type CreateUserInput struct {
-	Login            string  `json:"login" jsonschema:"Unique login name."`
-	Password         string  `json:"password,omitempty" jsonschema:"Initial password. Omit when generate_password is true."`
-	FirstName        string  `json:"firstname" jsonschema:"Given name."`
-	LastName         string  `json:"lastname" jsonschema:"Family name."`
-	Mail             string  `json:"mail" jsonschema:"Email address."`
-	Admin            bool    `json:"admin,omitempty" jsonschema:"Grant admin privileges."`
-	MailNotification *string `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
-	MustChangePasswd *bool   `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
-	GeneratePassword *bool   `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
-	AuthSourceID     *int    `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
-	SendInformation  bool    `json:"send_information,omitempty" jsonschema:"Email the account info to the new user."`
+	Login             string                   `json:"login" jsonschema:"Unique login name."`
+	Password          string                   `json:"password,omitempty" jsonschema:"Initial password. Omit when generate_password is true."`
+	FirstName         string                   `json:"firstname" jsonschema:"Given name."`
+	LastName          string                   `json:"lastname" jsonschema:"Family name."`
+	Mail              string                   `json:"mail" jsonschema:"Email address."`
+	Admin             bool                     `json:"admin,omitempty" jsonschema:"Grant admin privileges."`
+	MailNotification  *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
+	MustChangePasswd  *bool                    `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
+	GeneratePassword  *bool                    `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
+	AuthSourceID      *int                     `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
+	SendInformation   bool                     `json:"send_information,omitempty" jsonschema:"Email the account info to the new user."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"User custom field values keyed by numeric custom field ID (list_custom_fields, customized_type user). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type UpdateUserInput struct {
-	ID               int     `json:"id" jsonschema:"Numeric user ID to update."`
-	FirstName        *string `json:"firstname,omitempty" jsonschema:"New given name."`
-	LastName         *string `json:"lastname,omitempty" jsonschema:"New family name."`
-	Mail             *string `json:"mail,omitempty" jsonschema:"New email address."`
-	Admin            *bool   `json:"admin,omitempty" jsonschema:"Toggle admin privileges."`
-	Status           *int    `json:"status,omitempty" jsonschema:"Numeric status code (1 active, 2 registered, 3 locked)."`
-	MailNotification *string `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
-	MustChangePasswd *bool   `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
-	GeneratePassword *bool   `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
-	AuthSourceID     *int    `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
+	ID                int                      `json:"id" jsonschema:"Numeric user ID to update."`
+	FirstName         *string                  `json:"firstname,omitempty" jsonschema:"New given name."`
+	LastName          *string                  `json:"lastname,omitempty" jsonschema:"New family name."`
+	Mail              *string                  `json:"mail,omitempty" jsonschema:"New email address."`
+	Admin             *bool                    `json:"admin,omitempty" jsonschema:"Toggle admin privileges."`
+	Status            *int                     `json:"status,omitempty" jsonschema:"Numeric status code (1 active, 2 registered, 3 locked)."`
+	MailNotification  *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
+	MustChangePasswd  *bool                    `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
+	GeneratePassword  *bool                    `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
+	AuthSourceID      *int                     `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"User custom field values keyed by numeric custom field ID (list_custom_fields, customized_type user). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type DeleteUserInput struct {
@@ -111,6 +113,8 @@ func CreateUser(ctx context.Context, client *api.Client, input CreateUserInput) 
 		MustChangePasswd: input.MustChangePasswd,
 		GeneratePassword: input.GeneratePassword,
 		AuthSourceID:     input.AuthSourceID,
+
+		CustomFieldValues: input.CustomFieldValues,
 	}, input.SendInformation)
 }
 
@@ -129,6 +133,8 @@ func UpdateUser(ctx context.Context, client *api.Client, input UpdateUserInput) 
 		MustChangePasswd: input.MustChangePasswd,
 		GeneratePassword: input.GeneratePassword,
 		AuthSourceID:     input.AuthSourceID,
+
+		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err
 	}

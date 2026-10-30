@@ -20,10 +20,19 @@ import (
 // customFieldInputTypes lists the ops inputs whose custom_field_values must
 // advertise the string-or-array schema.
 var customFieldInputTypes = map[string]any{
-	"CreateIssueInput":   inputSchemaFor[ops.CreateIssueInput](),
-	"UpdateIssueInput":   inputSchemaFor[ops.UpdateIssueInput](),
-	"CreateProjectInput": inputSchemaFor[ops.CreateProjectInput](),
-	"UpdateProjectInput": inputSchemaFor[ops.UpdateProjectInput](),
+	"CreateIssueInput":     inputSchemaFor[ops.CreateIssueInput](),
+	"UpdateIssueInput":     inputSchemaFor[ops.UpdateIssueInput](),
+	"CreateProjectInput":   inputSchemaFor[ops.CreateProjectInput](),
+	"UpdateProjectInput":   inputSchemaFor[ops.UpdateProjectInput](),
+	"CreateTimeEntryInput": inputSchemaFor[ops.CreateTimeEntryInput](),
+	"UpdateTimeEntryInput": inputSchemaFor[ops.UpdateTimeEntryInput](),
+	"CreateVersionInput":   inputSchemaFor[ops.CreateVersionInput](),
+	"UpdateVersionInput":   inputSchemaFor[ops.UpdateVersionInput](),
+	"CreateUserInput":      inputSchemaFor[ops.CreateUserInput](),
+	"UpdateUserInput":      inputSchemaFor[ops.UpdateUserInput](),
+	"UpdateMyAccountInput": inputSchemaFor[ops.UpdateMyAccountInput](),
+	"CreateGroupInput":     inputSchemaFor[ops.CreateGroupInput](),
+	"UpdateGroupInput":     inputSchemaFor[ops.UpdateGroupInput](),
 }
 
 func TestInputSchemaFor_CustomFieldValues(t *testing.T) {
@@ -224,4 +233,67 @@ func TestToolsList_CustomFieldValuesSchemaAdvertised(t *testing.T) {
 		return
 	}
 	t.Fatal("create_issue not listed")
+}
+
+func TestResourceTools_CustomFieldValuesRoundTrip(t *testing.T) {
+	tests := []struct {
+		tool  string
+		reply string
+		key   string
+		args  map[string]any
+		want  map[string]any
+	}{
+		{
+			tool:  "create_time_entry",
+			reply: `{"time_entry":{"id":1}}`,
+			key:   "time_entry",
+			args:  map[string]any{"issue_id": 1, "hours": 1, "custom_field_values": map[string]any{"3": []string{"a", "b"}}},
+			want:  map[string]any{"3": []any{"a", "b"}},
+		},
+		{
+			tool: "update_my_account",
+			key:  "user",
+			args: map[string]any{"custom_field_values": map[string]any{"4": "x"}},
+			want: map[string]any{"4": "x"},
+		},
+		{
+			tool: "update_group",
+			key:  "group",
+			args: map[string]any{"id": 5, "custom_field_values": map[string]any{"6": ""}},
+			want: map[string]any{"6": ""},
+		},
+		{
+			tool:  "create_version",
+			reply: `{"version":{"id":1,"name":"v"}}`,
+			key:   "version",
+			args:  map[string]any{"project_id": "demo", "name": "v", "custom_field_values": map[string]any{"7": []string{"a", "b"}}},
+			want:  map[string]any{"7": []any{"a", "b"}},
+		},
+		{
+			tool: "update_user",
+			key:  "user",
+			args: map[string]any{"id": 3, "custom_field_values": map[string]any{"8": "y"}},
+			want: map[string]any{"8": "y"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			h := &captureBodies{reply: tt.reply}
+			apiClient, closeTS := newTestAPIClient(t, h)
+			defer closeTS()
+			cs, cleanup := newConnectedSession(t, apiClient, Options{EnableWrites: true, Version: "v0"})
+			defer cleanup()
+
+			res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: tt.tool, Arguments: tt.args})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.IsError {
+				t.Fatalf("tool error: %+v", res.Content)
+			}
+			if got := h.last(t, tt.key)["custom_field_values"]; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("custom_field_values = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

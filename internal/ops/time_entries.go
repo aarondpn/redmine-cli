@@ -31,21 +31,23 @@ type GetTimeEntryInput struct {
 }
 
 type CreateTimeEntryInput struct {
-	IssueID    int     `json:"issue_id,omitempty" jsonschema:"Issue to log time against. Either issue_id or project_id is required."`
-	ProjectID  string  `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. Either issue_id or project_id is required."`
-	Hours      float64 `json:"hours" jsonschema:"Hours worked (decimal, e.g. 1.5)."`
-	ActivityID int     `json:"activity_id,omitempty" jsonschema:"Activity enumeration ID."`
-	SpentOn    string  `json:"spent_on,omitempty" jsonschema:"Date the work was done (YYYY-MM-DD). Defaults to today."`
-	Comments   string  `json:"comments,omitempty" jsonschema:"Free-text comment."`
-	UserID     int     `json:"user_id,omitempty" jsonschema:"Numeric ID of the user the entry is logged for. Requires admin or 'log time for other users' permission on the server."`
+	IssueID           int                      `json:"issue_id,omitempty" jsonschema:"Issue to log time against. Either issue_id or project_id is required."`
+	ProjectID         string                   `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. Either issue_id or project_id is required."`
+	Hours             float64                  `json:"hours" jsonschema:"Hours worked (decimal, e.g. 1.5)."`
+	ActivityID        int                      `json:"activity_id,omitempty" jsonschema:"Activity enumeration ID."`
+	SpentOn           string                   `json:"spent_on,omitempty" jsonschema:"Date the work was done (YYYY-MM-DD). Defaults to today."`
+	Comments          string                   `json:"comments,omitempty" jsonschema:"Free-text comment."`
+	UserID            int                      `json:"user_id,omitempty" jsonschema:"Numeric ID of the user the entry is logged for. Requires admin or 'log time for other users' permission on the server."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Time entry custom field values keyed by numeric custom field ID (list_custom_fields, customized_type time_entry); required when the server defines required time entry custom fields. Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type UpdateTimeEntryInput struct {
-	ID         int      `json:"id" jsonschema:"Time entry numeric ID."`
-	Hours      *float64 `json:"hours,omitempty" jsonschema:"New hours worked."`
-	ActivityID *int     `json:"activity_id,omitempty" jsonschema:"New activity enumeration ID."`
-	SpentOn    *string  `json:"spent_on,omitempty" jsonschema:"New date (YYYY-MM-DD)."`
-	Comments   *string  `json:"comments,omitempty" jsonschema:"New comment body."`
+	ID                int                      `json:"id" jsonschema:"Time entry numeric ID."`
+	Hours             *float64                 `json:"hours,omitempty" jsonschema:"New hours worked."`
+	ActivityID        *int                     `json:"activity_id,omitempty" jsonschema:"New activity enumeration ID."`
+	SpentOn           *string                  `json:"spent_on,omitempty" jsonschema:"New date (YYYY-MM-DD)."`
+	Comments          *string                  `json:"comments,omitempty" jsonschema:"New comment body."`
+	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Time entry custom field values keyed by numeric custom field ID (list_custom_fields, customized_type time_entry); required when the server defines required time entry custom fields. Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type DeleteTimeEntryInput struct {
@@ -101,7 +103,7 @@ func GetTimeEntry(ctx context.Context, client *api.Client, input GetTimeEntryInp
 }
 
 //mcpgen:tool create_time_entry
-//mcpgen:description Log a new time entry. Requires --enable-writes.
+//mcpgen:description Log a new time entry. Pass custom_field_values when the server requires time entry custom fields. Requires --enable-writes.
 //mcpgen:category time
 //mcpgen:writes
 func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEntryInput) (*models.TimeEntry, error) {
@@ -116,6 +118,8 @@ func CreateTimeEntry(ctx context.Context, client *api.Client, input CreateTimeEn
 		SpentOn:    input.SpentOn,
 		Comments:   input.Comments,
 		UserID:     input.UserID,
+
+		CustomFieldValues: input.CustomFieldValues,
 	})
 }
 
@@ -129,6 +133,8 @@ func UpdateTimeEntry(ctx context.Context, client *api.Client, input UpdateTimeEn
 		ActivityID: input.ActivityID,
 		SpentOn:    input.SpentOn,
 		Comments:   input.Comments,
+
+		CustomFieldValues: input.CustomFieldValues,
 	})
 	if err != nil {
 		return MessageResult{}, err
