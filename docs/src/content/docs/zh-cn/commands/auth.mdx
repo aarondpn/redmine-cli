@@ -78,7 +78,17 @@ redmine auth switch
 redmine auth status
 ```
 
-显示活跃配置文件名称、服务器 URL 及身份验证方式。
+显示活跃配置文件名称、服务器 URL、身份验证方式，以及凭据对应的用户。
+
+检查失败时，输出会说明原因，而不是只显示失败：
+
+| `reason` | 含义 |
+|----------|------|
+| `credentials_rejected` | Redmine 返回 401：API 密钥无效、已被撤销或缺失，或账户已被锁定。此时 Redmine 将请求视为匿名请求，因此在允许公开读取的实例上，命令仍可能返回公开数据。 |
+| `rest_api_disabled` | Redmine 对 `/users/current.json`（任何已登录用户都可读取）返回 403。REST API 很可能已被禁用（管理员需启用“管理 > 设置 > API > 启用 REST web service”），或者代理或防火墙拦截了请求。 |
+| `request_failed` | 请求未能完成（网络错误、超时、服务器错误），因此无法验证凭据。 |
+
+使用 `-o json` 时，`active` 为 `false`，并额外包含 `reason`、`message` 和 `hint`；前两种原因还会包含 `anonymous: true`。检查成功时不包含这些字段。
 
 ## logout
 

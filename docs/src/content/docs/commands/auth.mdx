@@ -82,7 +82,17 @@ Opens an interactive selector. The picked profile becomes the default for subseq
 redmine auth status
 ```
 
-Displays the active profile name, server URL, and authentication method.
+Displays the active profile name, server URL, authentication method, and the user the credentials resolve to.
+
+When the check fails, the output says why instead of a bare failure:
+
+| `reason` | Meaning |
+|----------|---------|
+| `credentials_rejected` | Redmine answered 401: the API key is invalid, revoked or missing, or the account is locked. Redmine then treats requests as anonymous, so commands on publicly readable instances may still return public data. |
+| `rest_api_disabled` | Redmine answered 403 on `/users/current.json`, which every logged-in user may read. The REST API is probably disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a proxy or firewall blocks the request. |
+| `request_failed` | The request did not complete (network error, timeout, server error), so the credentials could not be verified. |
+
+With `-o json`, `active` is `false` and the payload adds `reason`, `message` and `hint`; `anonymous: true` is added for the first two reasons. These fields are absent when the check succeeds.
 
 ## logout
 

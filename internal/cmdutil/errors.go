@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
@@ -37,10 +38,30 @@ func WithHint(err error, hint string) error {
 	return &HintError{Err: err, Hint: hint}
 }
 
-// forbiddenHint is the generic next step for 403 responses. Agents in
-// particular tend to retry with another profile; that is rarely what the
-// user wants and does not fix a missing permission.
-const forbiddenHint = "Redmine denied this for the current user; access comes from project roles, or admin status for admin-only endpoints. Don't retry with other credentials; ask the user or a Redmine administrator."
+// Hints for authentication-related responses. Redmine answers these
+// statuses with an empty body, so the status (and for 403 the endpoint) is all
+// there is to go on:
+//
+//   - 401 on a login-required endpoint: Redmine did not recognise the
+//     credentials (invalid, revoked or missing key, or a locked account) and
+//     treats the request as anonymous. Endpoints that are public still answer
+//     200 with public data in that case.
+//   - 403 on /users/current.json or /my/account.json: any logged-in user may
+//     read them, so the credentials are not the problem. With the REST API
+//     disabled Redmine answers 403 to every request that needs a login, valid
+//     key or not. A proxy or firewall in front of Redmine is the other cause.
+//   - 403 elsewhere is ambiguous: a genuine missing permission looks the same
+//     as the REST API being disabled.
+//
+// Agents follow hints literally, so "don't retry with other credentials" is
+// only given where a missing permission is the likely cause.
+const (
+	unauthorizedHint = "Redmine did not accept the credentials: the API key is invalid, revoked or missing, or the account is locked. Run 'redmine auth status' to check the active profile, then 'redmine auth login' to configure a valid API key (My account > API access key)."
+
+	restDisabledHint = "Redmine refused a request every logged-in user may make, so the credentials are not the cause. The REST API is probably disabled (an administrator must enable Administration > Settings > API > Enable REST web service), or a proxy or firewall in front of Redmine blocks the request. Run 'redmine auth status' to check."
+
+	forbiddenHint = "A 403 is either a missing permission or a disabled REST API. If other commands work for this profile, the user lacks the permission (access comes from project roles, or admin status for admin-only endpoints): don't retry with other credentials; ask the user or a Redmine administrator. If every command is denied, run 'redmine auth status'; an administrator may need to enable Administration > Settings > API > Enable REST web service."
+)
 
 // ErrorHint returns the actionable hint for err, or "" when there is none.
 // An explicit hint attached via WithHint wins over generic, status-based
@@ -51,10 +72,27 @@ func ErrorHint(err error) string {
 		return hinted.Hint
 	}
 	var apiErr *api.APIError
-	if errors.As(err, &apiErr) && apiErr.IsForbidden() {
-		return forbiddenHint
+	if errors.As(err, &apiErr) {
+		switch {
+		case apiErr.IsAuthError():
+			return unauthorizedHint
+		case apiErr.IsForbidden() && isIdentityEndpoint(apiErr.URL):
+			return restDisabledHint
+		case apiErr.IsForbidden():
+			return forbiddenHint
+		}
 	}
 	return ""
+}
+
+// isIdentityEndpoint reports whether rawURL is one of the endpoints that
+// every logged-in user may read, regardless of roles.
+func isIdentityEndpoint(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(u.Path, "/users/current.json") || strings.HasSuffix(u.Path, "/my/account.json")
 }
 
 // FormatError converts an API error into a user-friendly message, followed by
@@ -78,9 +116,11 @@ func FormatErrorMessage(err error) string {
 
 	switch {
 	case apiErr.IsAuthError():
-		return "Authentication failed. Run 'redmine auth login' to reconfigure your credentials."
+		return "Authentication failed: Redmine did not accept the credentials."
+	case apiErr.IsForbidden() && isIdentityEndpoint(apiErr.URL):
+		return "Access denied: Redmine refused the request for the current user (is the REST API enabled?)."
 	case apiErr.IsForbidden():
-		return "Permission denied: you don't have the required permissions for this action."
+		return "Access denied: this is either a missing permission or a disabled REST API."
 	case apiErr.IsNotFound():
 		return "Resource not found."
 	case apiErr.IsValidationError():
