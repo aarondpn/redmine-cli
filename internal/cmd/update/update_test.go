@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +24,15 @@ import (
 )
 
 // --- Homebrew detection ---
+
+// skipHomebrewOnWindows skips tests that need Unix paths or a shell-script
+// brew shim. Homebrew does not exist on Windows.
+func skipHomebrewOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Homebrew is not available on Windows")
+	}
+}
 
 func stubBrewEnv(t *testing.T, execPath, prefix string, prefixErr error) {
 	t.Helper()
@@ -37,6 +47,7 @@ func stubBrewEnv(t *testing.T, execPath, prefix string, prefixErr error) {
 }
 
 func TestDefaultCheckHomebrew_ExecUnderCaskDir(t *testing.T) {
+	skipHomebrewOnWindows(t)
 	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine/2.1.1/redmine", "/opt/homebrew", nil)
 	if !defaultCheckHomebrew() {
 		t.Error("expected true when exec path resolves into the redmine cask dir")
@@ -82,6 +93,7 @@ func TestDefaultCheckHomebrew_BrewNotInstalled(t *testing.T) {
 // original PATH is restored via t.Cleanup.
 func withBrewShim(t *testing.T, body string) {
 	t.Helper()
+	skipHomebrewOnWindows(t)
 	dir := t.TempDir()
 	script := "#!/bin/sh\n" + body + "\n"
 	shimPath := filepath.Join(dir, "brew")

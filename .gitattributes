@@ -1,0 +1,4 @@
+# Check out text files with LF on every platform, including Windows runners
+# that default to core.autocrlf=true: tests compare generated files and
+# workflow text byte for byte, and the embedded prompts are parsed with LF.
+* text=auto eol=lf
