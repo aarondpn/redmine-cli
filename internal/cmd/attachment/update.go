@@ -64,7 +64,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("failed to update attachment %d: %w", id, err)
 			}
 
-			printer.Action(output.ActionUpdated, "attachment", id, fmt.Sprintf("Attachment %d updated", id))
+			printer.Action(output.ActionUpdated, "attachment", id, fmt.Sprintf("Updated attachment %d", id))
 			return nil
 		},
 	}

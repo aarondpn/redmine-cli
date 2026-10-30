@@ -67,7 +67,7 @@ func newCmdCategoryCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Resource(category, fmt.Sprintf("Category %q created (ID: %d)", category.Name, category.ID))
+			printer.Resource(category, fmt.Sprintf("Created category %q (ID: %d)", category.Name, category.ID))
 			return nil
 		},
 	}

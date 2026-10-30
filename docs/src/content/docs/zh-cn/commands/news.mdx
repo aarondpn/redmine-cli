@@ -54,7 +54,7 @@ redmine news get <id> [flags]
 | `--include`    | `attachments`、`comments`、`reactions`（可重复或以逗号分隔） |
 | `-o, --output` | 输出格式 |
 
-使用 `--include comments` 和 `--include attachments` 时，表格输出会追加评论表（ID、作者、评论）和附件表（ID、文件名、大小、内容类型）。`-o json` 返回包含所请求数组的完整新闻对象。未知的 include 值会在发送请求之前被拒绝。
+使用 `--include comments` 和 `--include attachments` 时，表格输出会追加评论表（ID、作者、评论，标题为 `Comments:`）和附件表（ID、文件名、大小、内容类型，标题为 `Attachments:`）。`-o json` 返回包含所请求数组的完整新闻对象。未知的 include 值会在发送请求之前被拒绝。
 
 ```bash
 redmine news get 12

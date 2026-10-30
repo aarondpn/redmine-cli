@@ -43,7 +43,7 @@ func TestCmdAttachmentUpdate(t *testing.T) {
 	if c.method != "PUT" || c.uri != "/attachments/7.json" || c.body != `{"attachment":{"filename":"new.png","description":""}}` {
 		t.Errorf("call = %+v", c)
 	}
-	if out := testutil.Stdout(f) + testutil.Stderr(f); !strings.Contains(out, "updated") {
+	if out := testutil.Stdout(f) + testutil.Stderr(f); !strings.Contains(out, "Updated attachment 7") {
 		t.Errorf("output = %q", out)
 	}
 }

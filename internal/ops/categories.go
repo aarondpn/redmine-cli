@@ -111,6 +111,10 @@ func DeleteIssueCategory(ctx context.Context, client *api.Client, input DeleteIs
 		}
 		dst, err := client.Categories.Get(ctx, input.ReassignToID)
 		if err != nil {
+			var apiErr *api.APIError
+			if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+				return MessageResult{}, fmt.Errorf("reassign target category %d not found", input.ReassignToID)
+			}
 			return MessageResult{}, fmt.Errorf("reassign_to_id %d: %w", input.ReassignToID, err)
 		}
 		if src.Project.ID != dst.Project.ID {

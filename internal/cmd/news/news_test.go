@@ -166,6 +166,11 @@ func TestNewsGet_IncludesRendered(t *testing.T) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
 	}
+	for _, heading := range []string{"\nComments:\n", "\nAttachments:\n"} {
+		if !strings.Contains(out, heading) {
+			t.Errorf("output missing heading %q:\n%s", heading, out)
+		}
+	}
 }
 
 func TestNewsGet_JSON(t *testing.T) {

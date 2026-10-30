@@ -327,8 +327,8 @@ var contractCases = []contractCase{
 		// Project-specific activities (overrides have their own IDs) only come
 		// from the project payload; the enumerations endpoint ignores project_id.
 		Name: "activities_list_project", Raw: "/projects/{P}.json?include=time_entry_activities", Root: "project.time_entry_activities", List: true,
-		CLI: []string{"activities", "list", "--project", "{P}"},
-		MCP: &contractMCP{Tool: "list_time_entry_activities", Args: projArgs(nil), Key: "time_entry_activities"},
+		CLI:      []string{"activities", "list", "--project", "{P}"},
+		MCP:      &contractMCP{Tool: "list_time_entry_activities", Args: projArgs(nil), Key: "time_entry_activities"},
 		AllowCLI: projectActivityExtras,
 		AllowMCP: projectActivityExtras,
 	},

@@ -14,6 +14,9 @@ import (
 // inspected to find the item that was just created.
 const newsReadBackWindow = 25
 
+// newsGetIncludes lists the include keys accepted by GET /news/:id.json.
+var newsGetIncludes = map[string]struct{}{"attachments": {}, "comments": {}, "reactions": {}}
+
 type ListNewsInput struct {
 	ProjectID string `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID. Omit to list news across all visible projects."`
 	Limit     int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
@@ -77,6 +80,18 @@ func ListNews(ctx context.Context, client *api.Client, input ListNewsInput) (New
 //mcpgen:description Fetch a single news item by ID. Optional includes add attachments, comments and reactions (Redmine 7.1+).
 //mcpgen:category news
 func GetNews(ctx context.Context, client *api.Client, input GetNewsInput) (*models.News, error) {
+	if input.ID <= 0 {
+		return nil, errors.New("id must be a positive news ID")
+	}
+	for _, raw := range input.Includes {
+		v := strings.TrimSpace(raw)
+		if v == "" {
+			continue
+		}
+		if _, ok := newsGetIncludes[v]; !ok {
+			return nil, fmt.Errorf("unknown include %q (allowed: attachments, comments, reactions)", v)
+		}
+	}
 	return client.News.Get(ctx, input.ID, input.Includes)
 }
 
@@ -111,7 +126,7 @@ func CreateNews(ctx context.Context, client *api.Client, input CreateNewsInput) 
 	if id > 0 {
 		return CreateNewsResult{
 			ID:      id,
-			Message: fmt.Sprintf("Created news %d %q in project %s", id, input.Title, input.ProjectID),
+			Message: fmt.Sprintf("Created news %q (ID: %d)", input.Title, id),
 		}, nil
 	}
 	reason := "no matching news item found among the newest ones"
@@ -119,7 +134,7 @@ func CreateNews(ctx context.Context, client *api.Client, input CreateNewsInput) 
 		reason = rbErr.Error()
 	}
 	return CreateNewsResult{
-		Message:  fmt.Sprintf("Created news %q in project %s", input.Title, input.ProjectID),
+		Message:  fmt.Sprintf("Created news %q", input.Title),
 		Warnings: []string{"the new news ID could not be determined: " + reason},
 	}, nil
 }

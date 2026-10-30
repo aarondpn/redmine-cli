@@ -86,7 +86,7 @@ func newCmdCategoryUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			printer.Action(output.ActionUpdated, "category", id, fmt.Sprintf("Category %d updated", id))
+			printer.Action(output.ActionUpdated, "category", id, fmt.Sprintf("Updated category %d", id))
 			return nil
 		},
 	}

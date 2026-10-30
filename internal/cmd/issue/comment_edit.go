@@ -7,18 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
-
-const journalEditHint = "Editing comments through the REST API needs Redmine 5.0 or later; older servers reject the request. " +
-	"Check the journal ID with `redmine issues get <issue> --journals`."
-
-// Redmine 4.2 ignores the API key for this endpoint and answers 403 to the
-// anonymous request, so the forbidden hint names both possible causes.
-const journalEditForbiddenHint = "Redmine denied this edit: the account may lack the Edit issue notes permission (or Edit own issue notes for its own comments), or the server is older than 5.0, which does not accept comment edits over the API. Don't retry with other credentials; ask the user or a Redmine administrator."
 
 func newCmdCommentEdit(f *cmdutil.Factory) *cobra.Command {
 	var (
@@ -107,20 +99,14 @@ func newCmdCommentEdit(f *cmdutil.Factory) *cobra.Command {
 			_, err = ops.UpdateJournal(cmdutil.Context(cmd), client, input)
 			stop()
 			if err != nil {
-				err = fmt.Errorf("failed to update journal %d: %w", id, err)
-				var apiErr *api.APIError
-				if errors.As(err, &apiErr) {
-					switch {
-					case apiErr.IsAuthError() || apiErr.IsNotFound():
-						return cmdutil.WithHint(err, journalEditHint)
-					case apiErr.IsForbidden():
-						return cmdutil.WithHint(err, journalEditForbiddenHint)
-					}
+				var he *ops.HintedError
+				if errors.As(err, &he) {
+					return cmdutil.WithHint(fmt.Errorf("failed to update journal %d: %w", id, he.Err), he.Hint)
 				}
-				return err
+				return fmt.Errorf("failed to update journal %d: %w", id, err)
 			}
 
-			printer.Action(output.ActionUpdated, "journal", id, fmt.Sprintf("Updated comment (journal %d)", id))
+			printer.Action(output.ActionUpdated, "journal", id, fmt.Sprintf("Updated journal %d", id))
 			return nil
 		},
 	}

@@ -54,7 +54,7 @@ Aliases: `show`, `view`. Shows the project, title, summary, author, creation tim
 | `--include`    | `attachments`, `comments`, `reactions` (repeatable or comma-separated) |
 | `-o, --output` | Output format |
 
-With `--include comments` and `--include attachments` the table output adds a comment table (ID, author, comment) and an attachment table (ID, filename, size, content type). `-o json` returns the whole news object with the requested arrays. An unknown include value is rejected before any request is sent.
+With `--include comments` and `--include attachments` the table output adds a comment table (ID, author, comment) under a `Comments:` heading and an attachment table (ID, filename, size, content type) under an `Attachments:` heading. `-o json` returns the whole news object with the requested arrays. An unknown include value is rejected before any request is sent.
 
 ```bash
 redmine news get 12

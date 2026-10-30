@@ -43,7 +43,7 @@ func TestCreateNews_ReadBackMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.ID != 20 || len(res.Warnings) != 0 || !strings.Contains(res.Message, "Created news 20") {
+	if res.ID != 20 || len(res.Warnings) != 0 || !strings.Contains(res.Message, "Created news \"T\" (ID: 20)") {
 		t.Errorf("result = %+v", res)
 	}
 	first := (*calls)[0]

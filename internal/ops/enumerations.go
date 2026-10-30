@@ -58,6 +58,8 @@ func ListTimeEntryActivities(ctx context.Context, client *api.Client, input List
 	}
 	// Redmine only reports {id, name} here and only lists active activities.
 	// Fill in the flags it omits so they do not decode as misleading false values.
+	// Best effort: if the shared /enumerations call fails, is_default cannot be
+	// derived and every activity reports false rather than failing the listing.
 	defaults := map[string]bool{}
 	if shared, sharedErr := client.Enumerations.TimeEntryActivities(ctx); sharedErr == nil {
 		for _, a := range shared {

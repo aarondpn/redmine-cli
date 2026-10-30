@@ -73,6 +73,8 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			})
 
 			if len(item.Comments) > 0 {
+				fmt.Fprintln(f.IOStreams.Out)
+				fmt.Fprintln(f.IOStreams.Out, "Comments:")
 				rows := make([][]string, len(item.Comments))
 				for i, c := range item.Comments {
 					rows[i] = []string{output.StyleID.Render(strconv.Itoa(c.ID)), c.Author.Name, c.Content}
@@ -80,6 +82,8 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				printer.Table([]string{"ID", "Author", "Comment"}, rows)
 			}
 			if len(item.Attachments) > 0 {
+				fmt.Fprintln(f.IOStreams.Out)
+				fmt.Fprintln(f.IOStreams.Out, "Attachments:")
 				rows := make([][]string, len(item.Attachments))
 				for i, a := range item.Attachments {
 					rows[i] = []string{
