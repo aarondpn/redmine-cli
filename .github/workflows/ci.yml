@@ -72,6 +72,57 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # The steps below use the real latest GitHub release instead of stubs:
+      # install.ps1 piped into Invoke-Expression as the docs show it, and a
+      # self-update of a running redmine.exe. They need network access.
+      - name: install.ps1 installs the latest release (Windows PowerShell 5.1)
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REDMINE_INSTALL_DIR: ${{ runner.temp }}\install-ps51
+          REDMINE_CLI_NO_MODIFY_PATH: "1"
+        run: |
+          $out = Get-Content -Raw install.ps1 | Invoke-Expression 6>&1 | Out-String
+          $out
+          if ($out -notmatch 'Attestation verified\.') { throw 'install.ps1 did not verify the attestation' }
+          $latest = (gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName).TrimStart('v')
+          $version = & "$env:REDMINE_INSTALL_DIR\redmine.exe" --version
+          $version
+          if ($version -notmatch [regex]::Escape($latest)) { throw "expected version $latest" }
+
+      - name: install.ps1 installs the latest release (PowerShell 7)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REDMINE_INSTALL_DIR: ${{ runner.temp }}\install-pwsh
+          REDMINE_CLI_NO_MODIFY_PATH: "1"
+        run: |
+          $out = Get-Content -Raw install.ps1 | Invoke-Expression 6>&1 | Out-String
+          $out
+          if ($out -notmatch 'Attestation verified\.') { throw 'install.ps1 did not verify the attestation' }
+          $latest = (gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName).TrimStart('v')
+          $version = & "$env:REDMINE_INSTALL_DIR\redmine.exe" --version
+          $version
+          if ($version -notmatch [regex]::Escape($latest)) { throw "expected version $latest" }
+
+      - name: redmine update replaces the running binary with the latest release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'update'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $exe = Join-Path $dir 'redmine.exe'
+          go build -ldflags "-X main.version=2.0.0" -o $exe ./cmd/redmine
+          if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
+          & $exe update
+          if ($LASTEXITCODE -ne 0) { throw "redmine update failed with exit code $LASTEXITCODE" }
+          $latest = (gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName).TrimStart('v')
+          $version = & $exe --version
+          $version
+          if ($version -notmatch [regex]::Escape($latest)) { throw "expected version $latest after the update" }
+          if (-not (Test-Path "$exe.old")) { throw 'expected the previous binary at redmine.exe.old' }
+
   govulncheck:
     runs-on: ubuntu-latest
     steps:
