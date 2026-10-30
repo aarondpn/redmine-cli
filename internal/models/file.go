@@ -13,7 +13,7 @@ type ProjectFile struct {
 	CreatedOn   string  `json:"created_on"`
 	Version     *IDName `json:"version,omitempty"`
 	Digest      string  `json:"digest,omitempty"`
-	Downloads   int     `json:"downloads,omitempty"`
+	Downloads   int     `json:"downloads"`
 }
 
 // ProjectFileCreate defines fields for uploading a file to a project. The

@@ -33,9 +33,9 @@ func newCmdRoleList(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			cmdutil.RenderCollection(printer, result.Roles, []string{"ID", "Name", "Assignable", "Builtin"}, func(r models.Role) []string {
+			cmdutil.RenderCollection(printer, result.Roles, []string{"ID", "Name"}, func(r models.Role) []string {
 				id := output.StyleID.Render(fmt.Sprintf("%d", r.ID))
-				return []string{id, r.Name, optionalBoolLabel(r.Assignable), optionalBoolLabel(builtinPtr(r))}
+				return []string{id, r.Name}
 			})
 			return nil
 		},
@@ -53,15 +53,4 @@ func optionalBoolLabel(v *bool) string {
 		return "yes"
 	}
 	return "no"
-}
-
-func builtinPtr(r models.Role) *bool {
-	if r.Builtin != nil {
-		if r.IsBuiltin != nil && *r.IsBuiltin && !*r.Builtin {
-			value := true
-			return &value
-		}
-		return r.Builtin
-	}
-	return r.IsBuiltin
 }

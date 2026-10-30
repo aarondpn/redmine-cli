@@ -5,6 +5,7 @@ package e2e
 import (
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -241,4 +242,37 @@ func isProbablyUnsupportedArchive(stderr []byte) bool {
 	}
 	msg := strings.ToLower(env.Error.Message)
 	return strings.Contains(msg, "not found") || strings.Contains(msg, "404")
+}
+
+// TestProjects_DefaultAssignee guards the default_assignee decoding: Redmine
+// 4.1+ returns the key "default_assignee" (not "default_assigned_to"), and the
+// CLI must surface it in both JSON and the table view.
+func TestProjects_DefaultAssignee(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	user := createTestUser(t, r)
+	addProjectMember(t, r, proj.Identifier, "--user-id", user.ID, roleIDByName(t, r, "Developer"))
+
+	var updated actionEnvelope
+	r.runJSON(t, &updated, "projects", "update", proj.Identifier, "--default-assignee", strconv.Itoa(user.ID))
+	if !updated.Ok {
+		t.Fatalf("projects update --default-assignee failed: %+v", updated)
+	}
+
+	var got struct {
+		DefaultAssignee *struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"default_assignee"`
+	}
+	r.runJSON(t, &got, "projects", "get", proj.Identifier)
+	if got.DefaultAssignee == nil || got.DefaultAssignee.ID != user.ID || got.DefaultAssignee.Name != user.Name {
+		t.Fatalf("default_assignee = %+v, want id=%d name=%q", got.DefaultAssignee, user.ID, user.Name)
+	}
+
+	table := string(r.run(t, "projects", "get", proj.Identifier, "--output", "table"))
+	if !strings.Contains(table, "Default Assignee") || !strings.Contains(table, user.Name) {
+		t.Fatalf("table output missing default assignee %q\n%s", user.Name, table)
+	}
 }

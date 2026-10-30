@@ -74,10 +74,10 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				pairs = append(pairs, output.KeyValue{Key: "Inherit Members", Value: formatBool(true)})
 			}
 
-			if project.DefaultAssignedTo != nil {
+			if project.DefaultAssignee != nil {
 				pairs = append(pairs, output.KeyValue{
 					Key:   "Default Assignee",
-					Value: fmt.Sprintf("%s (#%d)", project.DefaultAssignedTo.Name, project.DefaultAssignedTo.ID),
+					Value: fmt.Sprintf("%s (#%d)", project.DefaultAssignee.Name, project.DefaultAssignee.ID),
 				})
 			}
 

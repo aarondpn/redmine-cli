@@ -49,18 +49,13 @@ func newCmdMyAccountGet(f *cmdutil.Factory) *cobra.Command {
 }
 
 func myAccountDetailRows(u *models.User) []output.KeyValue {
-	admin := "no"
-	if u.Admin {
-		admin = "yes"
-	}
-
 	pairs := []output.KeyValue{
 		{Key: "ID", Value: fmt.Sprintf("%d", u.ID)},
 		{Key: "Login", Value: u.Login},
 		{Key: "Name", Value: u.FirstName + " " + u.LastName},
 		{Key: "Email", Value: u.Mail},
-		{Key: "Admin", Value: admin},
-		{Key: "Status", Value: user.UserStatusName(u.Status)},
+		{Key: "Admin", Value: user.AdminLabel(u.Admin)},
+		{Key: "Status", Value: user.UserStatusLabel(u.Status)},
 	}
 
 	if u.MailNotification != "" {

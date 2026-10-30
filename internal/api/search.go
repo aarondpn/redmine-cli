@@ -17,8 +17,8 @@ type SearchService struct {
 type SearchParams struct {
 	Query       string
 	ProjectID   string
-	Scope       string // "all", "my_projects", "subprojects"
-	AllWords    bool
+	Scope       string // "all", "my_projects", "bookmarks", "subprojects"
+	AllWords    *bool  // nil means Redmine's default (all words)
 	TitlesOnly  bool
 	OpenIssues  bool
 	Attachments string // "0", "1", "only"
@@ -44,7 +44,11 @@ func (s *SearchService) Search(ctx context.Context, params SearchParams) ([]mode
 	if params.Scope != "" {
 		vals.Set("scope", params.Scope)
 	}
-	if params.AllWords {
+	// Redmine treats a missing all_words as true and an empty value as false,
+	// so always send an explicit value.
+	if params.AllWords != nil && !*params.AllWords {
+		vals.Set("all_words", "")
+	} else {
 		vals.Set("all_words", "1")
 	}
 	if params.TitlesOnly {

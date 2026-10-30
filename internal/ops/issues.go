@@ -16,7 +16,7 @@ type ListIssuesInput struct {
 	StatusID       string            `json:"status_id,omitempty" jsonschema:"Status filter: 'open', 'closed', '*', or a numeric status ID."`
 	AssignedToID   string            `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user or group ID, 'me', or 'none' for unassigned issues."`
 	AuthorID       string            `json:"author_id,omitempty" jsonschema:"Author: numeric user ID or 'me'."`
-	PriorityID     string            `json:"priority_id,omitempty" jsonschema:"Priority: numeric ID (use list_priorities to discover)."`
+	PriorityID     string            `json:"priority_id,omitempty" jsonschema:"Priority: numeric ID (see the priority id on existing issues)."`
 	CategoryID     int               `json:"category_id,omitempty" jsonschema:"Issue category ID (use list_categories to discover)."`
 	FixedVersionID int               `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
 	ParentID       int               `json:"parent_id,omitempty" jsonschema:"Restrict to children of this issue ID."`

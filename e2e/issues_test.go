@@ -230,3 +230,35 @@ func getIssueStatus(t *testing.T, r *cliRunner, id int) string {
 	r.runJSON(t, &got, "issues", "get", issueIDArg(id))
 	return got.Status.Name
 }
+
+// TestIssues_PrivateFlagsAlwaysPresent guards the omitempty removal: Redmine
+// always emits is_private on issues and private_notes on journals, so a false
+// value must still appear in the CLI JSON rather than vanish.
+func TestIssues_PrivateFlagsAlwaysPresent(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	issue := createTestIssue(t, r, proj.Identifier)
+
+	var comment actionEnvelope
+	r.runJSON(t, &comment, "issues", "comment", issueIDArg(issue.ID), "-m", "public note")
+	if !comment.Ok {
+		t.Fatalf("comment failed: %+v", comment)
+	}
+
+	var got map[string]any
+	r.runJSON(t, &got, "issues", "get", issueIDArg(issue.ID), "--journals")
+	if v, ok := got["is_private"]; !ok || v != false {
+		t.Errorf("issue is_private = %v (present=%v), want false", v, ok)
+	}
+	journals, _ := got["journals"].([]any)
+	if len(journals) == 0 {
+		t.Fatalf("expected at least one journal, got %v", got["journals"])
+	}
+	for _, j := range journals {
+		entry, _ := j.(map[string]any)
+		if v, ok := entry["private_notes"]; !ok || v != false {
+			t.Errorf("journal private_notes = %v (present=%v), want false: %v", v, ok, entry)
+		}
+	}
+}

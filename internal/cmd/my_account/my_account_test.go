@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -12,7 +13,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
-const myAccountJSON = `{"id":1,"login":"admin","admin":true,"firstname":"John","lastname":"Doe","mail":"john@example.com","created_on":"2025-01-01T00:00:00Z","last_login_on":"2025-06-15T08:00:00Z","status":1,"api_key":"deadbeef123","mail_notification":"only_my_events","custom_fields":[{"id":2,"name":"Department","value":"Engineering"}]}`
+const myAccountJSON = `{"id":1,"login":"admin","admin":true,"firstname":"John","lastname":"Doe","mail":"john@example.com","created_on":"2025-01-01T00:00:00Z","last_login_on":"2025-06-15T08:00:00Z","api_key":"deadbeef123","mail_notification":"only_my_events","custom_fields":[{"id":2,"name":"Department","value":"Engineering"}]}`
 
 // TestMyAccount_GetDetail asserts the detail output surfaces api_key,
 // mail_notification, and custom field values, all of which are unique to
@@ -38,6 +39,10 @@ func TestMyAccount_GetDetail(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("detail output missing %q:\n%s", want, stdout)
 		}
+	}
+	// my/account.api.rsb never emits status, so the row must not show a fake 0.
+	if !regexp.MustCompile(`(?m)^Status:\s+unknown$`).MatchString(stdout) {
+		t.Errorf("Status row should show unknown:\n%s", stdout)
 	}
 }
 

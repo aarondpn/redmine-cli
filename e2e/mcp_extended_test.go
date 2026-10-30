@@ -520,3 +520,54 @@ func mcpExtFieldFromResult(t *testing.T, out *mcp.CallToolResult, field string) 
 	}
 	return nil, false
 }
+
+// TestMCPStdio_SearchAllWords checks the search tool's all_words handling:
+// omitted means all words must match, false means any word.
+func TestMCPStdio_SearchAllWords(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	w1, w2, project, ids := searchTwoWordFixture(t, r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	session := r.startMCPStdio(t, ctx)
+
+	call := func(extra map[string]any) []int {
+		args := map[string]any{"query": w1 + " " + w2, "project_id": project, "issues": true}
+		for k, v := range extra {
+			args[k] = v
+		}
+		out, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "search", Arguments: args})
+		if err != nil {
+			t.Fatalf("CallTool search: %v", err)
+		}
+		if out.IsError {
+			t.Fatalf("search returned IsError: %s", structuredJSON(out))
+		}
+		raw, err := json.Marshal(out.StructuredContent)
+		if err != nil {
+			t.Fatalf("marshal structured content: %v", err)
+		}
+		var parsed struct {
+			Results []struct {
+				ID int `json:"id"`
+			} `json:"results"`
+		}
+		if err := json.Unmarshal(raw, &parsed); err != nil {
+			t.Fatalf("decode search result: %v\n%s", err, raw)
+		}
+		got := make([]int, len(parsed.Results))
+		for i, res := range parsed.Results {
+			got[i] = res.ID
+		}
+		return got
+	}
+
+	if got := call(nil); len(got) != 0 {
+		t.Errorf("search with all_words omitted returned %v, want none", got)
+	}
+	got := call(map[string]any{"all_words": false})
+	if len(got) != 2 || !containsInt(got, ids[0]) || !containsInt(got, ids[1]) {
+		t.Errorf("search all_words=false returned %v, want both %v", got, ids)
+	}
+}

@@ -1,6 +1,7 @@
 {
   "description": "Created by redmine-cli e2e tests",
   "done_ratio": 0,
+  "is_private": false,
   "priority": {
     "name": "Normal"
   },

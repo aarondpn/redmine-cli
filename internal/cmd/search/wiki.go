@@ -45,7 +45,7 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 				Query:      query,
 				ProjectID:  project,
 				Scope:      scope,
-				AllWords:   allWords,
+				AllWords:   &allWords,
 				TitlesOnly: titlesOnly,
 				WikiPages:  true,
 				Limit:      cmdutil.OpsLimit(limit),
@@ -69,7 +69,7 @@ func newCmdSearchWiki(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&project, "project", "", projectFlagUsage)
 	cmd.Flags().StringVar(&scope, "scope", "", scopeFlagUsage)
-	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
+	cmd.Flags().BoolVar(&allWords, "all-words", true, "Require all query words to match; use --all-words=false to match any word")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)

@@ -142,3 +142,51 @@ func TestSearch_NoResults(t *testing.T) {
 		t.Fatalf("expected empty JSON array, got: %s", got)
 	}
 }
+
+// searchTwoWordFixture creates two issues in a fresh project whose subjects
+// each contain only one of two unique words, and returns the words, the
+// project identifier and the issue IDs.
+func searchTwoWordFixture(t *testing.T, r *cliRunner) (w1, w2, project string, ids [2]int) {
+	t.Helper()
+	proj := createTestProject(t, r)
+	n := time.Now().UnixNano()
+	w1 = fmt.Sprintf("alphaword%d", n)
+	w2 = fmt.Sprintf("betaword%d", n)
+	ids[0] = createTestIssueWithSubject(t, r, proj.Identifier, "Only "+w1).ID
+	ids[1] = createTestIssueWithSubject(t, r, proj.Identifier, "Only "+w2).ID
+	return w1, w2, proj.Identifier, ids
+}
+
+// TestSearch_AllWords guards the explicit all_words handling: the default and
+// --all-words require every word (no issue contains both), while
+// --all-words=false matches either word.
+func TestSearch_AllWords(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	w1, w2, project, ids := searchTwoWordFixture(t, r)
+	query := w1 + " " + w2
+
+	search := func(extra ...string) []int {
+		var results []struct {
+			ID int `json:"id"`
+		}
+		args := append([]string{"search", query, "--issues", "--project", project, "--limit", "25"}, extra...)
+		r.runJSON(t, &results, args...)
+		got := make([]int, len(results))
+		for i, res := range results {
+			got[i] = res.ID
+		}
+		return got
+	}
+
+	if got := search(); len(got) != 0 {
+		t.Errorf("default search returned %v, want none", got)
+	}
+	if got := search("--all-words"); len(got) != 0 {
+		t.Errorf("--all-words search returned %v, want none", got)
+	}
+	got := search("--all-words=false")
+	if len(got) != 2 || !containsInt(got, ids[0]) || !containsInt(got, ids[1]) {
+		t.Errorf("--all-words=false returned %v, want both %v", got, ids)
+	}
+}

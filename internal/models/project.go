@@ -13,7 +13,7 @@ type Project struct {
 	Parent              *IDName            `json:"parent,omitempty"`
 	CreatedOn           string             `json:"created_on"`
 	UpdatedOn           string             `json:"updated_on"`
-	DefaultAssignedTo   *IDName            `json:"default_assigned_to,omitempty"`
+	DefaultAssignee     *IDName            `json:"default_assignee,omitempty"`
 	DefaultVersion      *IDName            `json:"default_version,omitempty"`
 	Trackers            []IDName           `json:"trackers,omitzero"`
 	IssueCategories     []IDName           `json:"issue_categories,omitzero"`

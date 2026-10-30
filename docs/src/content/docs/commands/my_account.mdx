@@ -22,7 +22,7 @@ The `my-account` command backs the Redmine `/my/account.json` endpoint. It is th
 redmine my-account get [flags]
 ```
 
-Aliases: `show`, `view`. Shows ID, login, name, email, admin flag, status, mail notification preference, API key (when populated), custom fields, created/last-login timestamps.
+Aliases: `show`, `view`. Shows ID, login, name, email, admin flag, status, mail notification preference, API key (when populated), custom fields, created/last-login timestamps. Redmine never sends `status` on `/my/account.json`, so the Status row shows `unknown` and the key is absent from JSON output.
 
 | Flag | Description |
 |------|-------------|

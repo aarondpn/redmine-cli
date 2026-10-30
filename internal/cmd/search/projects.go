@@ -37,7 +37,7 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 			result, err := ops.Search(cmdutil.Context(cmd), client, ops.SearchInput{
 				Query:      query,
 				Scope:      scope,
-				AllWords:   allWords,
+				AllWords:   &allWords,
 				TitlesOnly: titlesOnly,
 				Projects:   true,
 				Limit:      cmdutil.OpsLimit(limit),
@@ -59,7 +59,7 @@ func newCmdSearchProjects(f *cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&scope, "scope", "", "Search scope: all, my_projects, bookmarks, subprojects")
-	cmd.Flags().BoolVar(&allWords, "all-words", false, "Match all query words")
+	cmd.Flags().BoolVar(&allWords, "all-words", true, "Require all query words to match; use --all-words=false to match any word")
 	cmd.Flags().BoolVar(&titlesOnly, "titles-only", false, "Search titles only")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)

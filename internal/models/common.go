@@ -24,7 +24,7 @@ type Journal struct {
 	ID           int             `json:"id"`
 	User         IDName          `json:"user"`
 	Notes        string          `json:"notes"`
-	PrivateNotes bool            `json:"private_notes,omitempty"`
+	PrivateNotes bool            `json:"private_notes"`
 	CreatedOn    string          `json:"created_on"`
 	Details      []JournalDetail `json:"details,omitzero"`
 }

@@ -22,8 +22,8 @@ redmine search <query> [flags]
 | 标志 | 描述 |
 |------|------|
 | `--project`     | 限定到指定项目标识符 |
-| `--scope`       | 搜索范围：`all`、`my_projects`、`subprojects` |
-| `--all-words`   | 匹配所有查询词 |
+| `--scope`       | 搜索范围：`all`、`my_projects`、`bookmarks`、`subprojects`（`all`、`my_projects` 和 `bookmarks` 会忽略默认项目） |
+| `--all-words`   | 要求匹配所有查询词（默认 `true`）；使用 `--all-words=false` 则匹配任意一个词 |
 | `--titles-only` | 仅搜索标题 |
 | `--open-issues` | 仅返回未关闭的工单 |
 | `--attachments` | 附件搜索：`0`、`1`、`only` |

@@ -99,7 +99,7 @@ func TestCmdProjectGet_JSONPreservesExtendedFields(t *testing.T) {
                 "name": "Demo",
                 "identifier": "demo",
                 "homepage": "https://example.test",
-                "default_assigned_to": {"id": 7, "name": "Bob"},
+                "default_assignee": {"id": 7, "name": "Bob"},
                 "default_version": {"id": 4, "name": "v1.0"}
             }
         }`))
@@ -114,10 +114,10 @@ func TestCmdProjectGet_JSONPreservesExtendedFields(t *testing.T) {
 	}
 
 	var got struct {
-		Homepage          string `json:"homepage"`
-		DefaultAssignedTo struct {
+		Homepage        string `json:"homepage"`
+		DefaultAssignee struct {
 			Name string `json:"name"`
-		} `json:"default_assigned_to"`
+		} `json:"default_assignee"`
 		DefaultVersion struct {
 			Name string `json:"name"`
 		} `json:"default_version"`
@@ -128,10 +128,30 @@ func TestCmdProjectGet_JSONPreservesExtendedFields(t *testing.T) {
 	if got.Homepage != "https://example.test" {
 		t.Errorf("homepage = %q", got.Homepage)
 	}
-	if got.DefaultAssignedTo.Name != "Bob" {
-		t.Errorf("default_assigned_to.name = %q", got.DefaultAssignedTo.Name)
+	if got.DefaultAssignee.Name != "Bob" {
+		t.Errorf("default_assignee.name = %q", got.DefaultAssignee.Name)
 	}
 	if got.DefaultVersion.Name != "v1.0" {
 		t.Errorf("default_version.name = %q", got.DefaultVersion.Name)
+	}
+}
+
+// Fixture mirrors projects/show.api.rsb, which emits default_assignee (not
+// default_assigned_to).
+func TestCmdProjectGet_DefaultAssigneeFromRedmineShape(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"project":{"id":1,"name":"Demo","identifier":"demo","description":"","status":1,"is_public":true,"default_version":{"id":4,"name":"v1.0"},"default_assignee":{"id":7,"name":"Bob"}}}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdGet(f)
+	cmd.SetArgs([]string{"demo"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if out := testutil.Stdout(f); !strings.Contains(out, "Bob (#7)") {
+		t.Errorf("table output missing default assignee:\n%s", out)
 	}
 }
