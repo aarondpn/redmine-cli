@@ -183,6 +183,9 @@ func TestMCPStdio_UpdateJournal(t *testing.T) {
 		if !out.IsError {
 			t.Fatalf("update_journal should fail on Redmine < 5.0, got %s", structuredJSON(out))
 		}
+		if s := structuredJSON(out); !strings.Contains(s, "Redmine 5.0+") {
+			t.Errorf("update_journal error lacks the Redmine 5.0+ hint: %s", s)
+		}
 		return
 	}
 	if out.IsError {

@@ -212,7 +212,7 @@ func TestNews_GetIncludesComments(t *testing.T) {
 
 	// Table output prints the comment and attachment sections.
 	out := string(r.run(t, "news", "get", id, "--include", "comments,attachments", "-o", "table"))
-	for _, want := range []string{"Contract news", "contract news comment", "contract-news.txt"} {
+	for _, want := range []string{"Contract news", "Comments:", "contract news comment", "Attachments:", "contract-news.txt"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("table output missing %q:\n%s", want, out)
 		}
@@ -302,6 +302,14 @@ func TestMCPStdio_NewsTools(t *testing.T) {
 	}
 	if cs, _ := field(one, "comments").([]any); len(cs) != 1 {
 		t.Fatalf("get_news comments = %v", field(one, "comments"))
+	}
+
+	// Invalid input is rejected as a tool error before Redmine is asked.
+	if out := call("get_news", map[string]any{"id": 0}); !out.IsError || !strings.Contains(structuredJSON(out), "positive news ID") {
+		t.Fatalf("get_news id 0 should be a validation tool error: %s", structuredJSON(out))
+	}
+	if out := call("get_news", map[string]any{"id": w.id("news"), "includes": []string{"bogus"}}); !out.IsError || !strings.Contains(structuredJSON(out), "unknown include") {
+		t.Fatalf("get_news with unknown include should be a validation tool error: %s", structuredJSON(out))
 	}
 
 	// Writes: create (with the read-back id), update, delete.

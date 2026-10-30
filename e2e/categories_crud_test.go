@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -199,6 +200,17 @@ func TestCategories_DeleteReassignOtherProject(t *testing.T) {
 	// Reassigning to the category itself is rejected before any request.
 	r.runExpectJSONError(t, "categories", "delete", strconv.Itoa(mine.ID),
 		"--reassign-to", strconv.Itoa(mine.ID), "--force")
+
+	// A reassign target that does not exist is rejected with a clear message.
+	missing := 999999999
+	stderr = r.runExpectJSONError(t, "categories", "delete", strconv.Itoa(mine.ID),
+		"--reassign-to", strconv.Itoa(missing), "--force")
+	if want := fmt.Sprintf("reassign target category %d not found", missing); !strings.Contains(string(stderr), want) {
+		t.Fatalf("stderr does not contain %q:\n%s", want, stderr)
+	}
+	if !containsInt(listCategoryIDs(t, r, proj.Identifier), mine.ID) {
+		t.Fatalf("category %d was deleted despite the missing reassign target", mine.ID)
+	}
 }
 
 func TestCategories_Validation(t *testing.T) {
@@ -286,6 +298,15 @@ func TestMCPStdio_CategoryTools(t *testing.T) {
 	}
 	if !containsInt(listCategoryIDs(t, r, proj.Identifier), a) {
 		t.Fatalf("category %d deleted despite rejected reassign", a)
+	}
+
+	missing := 999999999
+	out := call("delete_issue_category", map[string]any{"id": a, "reassign_to_id": missing})
+	if want := fmt.Sprintf("reassign target category %d not found", missing); !out.IsError || !strings.Contains(structuredJSON(out), want) {
+		t.Fatalf("missing reassign target should be a tool error containing %q: %s", want, structuredJSON(out))
+	}
+	if !containsInt(listCategoryIDs(t, r, proj.Identifier), a) {
+		t.Fatalf("category %d deleted despite missing reassign target", a)
 	}
 
 	mustOK("delete_issue_category", map[string]any{"id": a, "reassign_to_id": b})
