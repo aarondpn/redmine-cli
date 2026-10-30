@@ -42,6 +42,11 @@ Alias: `edit`. Updates your own account. Only flags you explicitly set are sent 
 | `--lastname`          | New last name |
 | `--mail`              | New email address |
 | `--mail-notification` | Email notification preference: `all`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+| `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
+
+<Aside type="note" title="Custom fields">
+  Redmine only applies the custom fields the administrator made editable for users. Looking fields up by name needs admin rights; otherwise get the numeric IDs with `redmine my-account get --jq '.custom_fields'`.
+</Aside>
 
 <Aside type="caution" title="Works without admin">
   Unlike `users update`, `my-account update` does **not** require admin privileges — every authenticated user can change their own profile. Be sure the API key you're using really belongs to the account you intend to modify.

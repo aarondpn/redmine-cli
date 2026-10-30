@@ -88,6 +88,7 @@ redmine users create [flags]
 | `--generate-password`  | Let the server generate a random password (omit `--password`) |
 | `--auth-source-id`     | Numeric authentication source ID for external auth |
 | `--send-information`   | Email the account info to the new user |
+| `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 <Aside type="caution" title="Passwords on the command line">
   Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or pipe the password from a secure source.
@@ -100,6 +101,11 @@ redmine users update <id-or-name> [flags]
 ```
 
 Accepts the same flags as [`create`](#create) (all optional, except `--send-information` which is create-only). The user argument accepts a numeric ID, login, full name, or `me`. Only fields whose flags are explicitly set are sent to the server, so partial updates do not clobber other fields.
+
+```bash
+# Multi-value custom field: repeat the flag
+redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL
+```
 
 ## delete
 

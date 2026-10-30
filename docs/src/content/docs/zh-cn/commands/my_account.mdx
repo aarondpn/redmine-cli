@@ -42,6 +42,11 @@ redmine my-account update [flags]
 | `--lastname`          | 新的姓 |
 | `--mail`              | 新的邮箱地址 |
 | `--mail-notification` | 邮件通知偏好：`all`、`only_my_events`、`only_assigned`、`only_owner`、`none` |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
+
+<Aside type="note" title="自定义字段">
+  Redmine 只会应用管理员设为用户可编辑的自定义字段。按名称查找字段需要管理员权限；否则请通过 `redmine my-account get --jq '.custom_fields'` 获取数字 ID。
+</Aside>
 
 <Aside type="caution" title="无需管理员权限">
   与 `users update` 不同，`my-account update` 不需要管理员权限——所有已认证的用户都能修改自己的资料。请务必确认使用的 API 密钥属于你想要修改的账户。

@@ -146,7 +146,7 @@ type userFixture struct {
 
 // createTestUser creates a uniquely-named user and registers cleanup. The
 // password matches the login so basic-auth tests can re-use the fixture.
-func createTestUser(t *testing.T, r *cliRunner) *userFixture {
+func createTestUser(t *testing.T, r *cliRunner, extra ...string) *userFixture {
 	t.Helper()
 	suffix := uniqueShortSuffix(t)
 	login := "e2eu" + suffix
@@ -158,12 +158,13 @@ func createTestUser(t *testing.T, r *cliRunner) *userFixture {
 		Login string `json:"login"`
 		Mail  string `json:"mail"`
 	}
-	r.runJSON(t, &created, "users", "create",
+	args := []string{"users", "create",
 		"--login", login,
 		"--firstname", "E2E",
-		"--lastname", "User-"+suffix,
+		"--lastname", "User-" + suffix,
 		"--mail", mail,
-		"--password", password)
+		"--password", password}
+	r.runJSON(t, &created, append(args, extra...)...)
 	if created.Login != login {
 		t.Fatalf("created user login = %q, want %q", created.Login, login)
 	}
@@ -187,7 +188,7 @@ type groupFixture struct {
 }
 
 // createTestGroup creates a uniquely-named group and registers cleanup.
-func createTestGroup(t *testing.T, r *cliRunner) *groupFixture {
+func createTestGroup(t *testing.T, r *cliRunner, extra ...string) *groupFixture {
 	t.Helper()
 	name := "e2e-grp-" + uniqueShortSuffix(t)
 
@@ -195,7 +196,7 @@ func createTestGroup(t *testing.T, r *cliRunner) *groupFixture {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	r.runJSON(t, &created, "groups", "create", "--name", name)
+	r.runJSON(t, &created, append([]string{"groups", "create", "--name", name}, extra...)...)
 	if created.Name != name {
 		t.Fatalf("created group name = %q, want %q", created.Name, name)
 	}

@@ -88,6 +88,7 @@ redmine users create [flags]
 | `--generate-password`  | 由服务器生成随机密码（可省略 `--password`） |
 | `--auth-source-id`     | 外部认证源的数字 ID |
 | `--send-information`   | 将账户信息通过邮件发送给新用户 |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 <Aside type="caution" title="命令行中的密码">
   在命令行中传入 `--password` 可能会将密码泄露至 shell 历史记录。建议使用 `--generate-password` 搭配 `--send-information`，或通过安全来源以管道方式传入密码。
@@ -100,6 +101,11 @@ redmine users update <id-or-name> [flags]
 ```
 
 接受与 [`create`](#create) 相同的标志（均为可选，`--send-information` 仅在 create 时可用）。用户参数接受数字 ID、登录名、全名或 `me`。仅显式设置的字段会发送到服务器，因此局部更新不会覆盖其他字段。
+
+```bash
+# 多值自定义字段：重复使用该标志
+redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL
+```
 
 ## delete
 

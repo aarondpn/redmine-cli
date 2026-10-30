@@ -60,6 +60,7 @@ user_cf = seed_cf(UserCustomField, "E2E Contract User CF")
 entry_cf = seed_cf(TimeEntryCustomField, "E2E Contract Entry CF")
 activity_cf = seed_cf(TimeEntryActivityCustomField, "E2E Contract Activity CF")
 issue_cf = seed_cf(IssueCustomField, "E2E Contract Issue CF", is_for_all: true, tracker_ids: Tracker.pluck(:id))
+issue_multi_cf = seed_cf(IssueCustomField, "E2E Contract Issue Multi CF", field_format: "list", possible_values: %w[one two three], multiple: true, is_for_all: true, tracker_ids: Tracker.pluck(:id))
 
 # --- project ------------------------------------------------------------------
 project = Project.find_or_initialize_by(identifier: "e2e-contract")
@@ -67,7 +68,7 @@ project.name = "E2E Contract"
 project.is_public = true
 project.enabled_module_names = %w[issue_tracking time_tracking wiki repository files news documents]
 project.tracker_ids = Tracker.pluck(:id)
-project.issue_custom_field_ids = [issue_cf.id]
+project.issue_custom_field_ids = [issue_cf.id, issue_multi_cf.id]
 project.save!
 
 category = IssueCategory.find_or_create_by!(project: project, name: "Contract Category") { |c| c.assigned_to = admin }
@@ -173,6 +174,7 @@ parent.reload
 # The custom field value goes through a separate save so it also works for
 # issues that already exist.
 set_cf(parent, issue_cf, "contract issue cf")
+set_cf(parent, issue_multi_cf, %w[one three])
 
 # Journals: a note, a private note, a status change, and an edited note.
 if closed.journals.empty?

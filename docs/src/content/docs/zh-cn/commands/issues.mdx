@@ -170,7 +170,7 @@ redmine issues create [flags]
 | `--estimated-hours` | 预估工时 |
 | `--private`         | 标记为私有 |
 | `--watcher`         | 初始观察者（名称、登录名、ID 或 `me`；可重复） |
-| `--custom-field`    | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+| `--custom-field`    | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](#自定义字段值) |
 | `--attach`          | 要附加的文件路径（可重复使用） |
 
 ```bash
@@ -186,7 +186,23 @@ redmine issues create --project myproject --subject "Bug report" \
 redmine issues create --project myproject --subject "Bug" \
   --custom-field "2=Value for field 2" \
   --custom-field "61=Value for 61"
+
+# 多值字段：对同一字段重复使用该标志
+redmine issues create --project myproject --subject "Cross-platform bug" \
+  --custom-field Platforms=Linux --custom-field Platforms=macOS
 ```
+
+### 自定义字段值
+
+`--custom-field` 接受 `key=value` 键值对，其中 key 为自定义字段名称或数字 ID。
+
+- 名称仅在该资源类型的自定义字段中解析，且需要管理员权限（`/custom_fields.json` 仅限管理员）。工单命令不会选中同名的工时自定义字段。
+- 非管理员请使用数字 ID，可在 JSON 输出的 `custom_fields` 中查到，例如 `redmine issues get 123 --jq '.custom_fields'`。
+- 值为第一个 `=` 之后的全部内容，原样保留，空格和后续的 `=` 都不会被丢弃。请用引号包住整个键值对，并为每个字段重复使用该标志。
+- 多值字段请重复使用同一字段：`--custom-field Platforms=Linux --custom-field Platforms=macOS`，顺序保持不变。
+- 为单值字段传入多个值会失败。按名称指定字段时由 CLI 在本地检查；按 ID 指定时由 Redmine 返回 `validation_failed`（“is invalid”），错误提示会指出重复的字段。
+- `--custom-field Name=` 会清空该字段，包括多值字段的所有值。空值不能与同一字段的其他值同时使用。
+- 同一标志也适用于 `projects create/update`、`time log/update`、`versions create/update`、`users create/update`、`my-account update` 和 `groups create/update`。
 
 ## update
 
@@ -203,7 +219,7 @@ redmine issues update <id> [flags]
 | `--done-ratio`     | 完成度百分比（0-100） |
 | `--start-date`     | 开始日期（传入空字符串可清除） |
 | `--due-date`       | 截止日期（传入空字符串可清除） |
-| `--custom-field`   | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复） |
+| `--custom-field`   | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](#自定义字段值) |
 | `--attach`         | 要附加的文件路径（可重复使用） |
 
 ```bash
@@ -214,6 +230,9 @@ redmine issues update 123 --note "Internal context" --private-notes
 
 # 按名称更新自定义字段
 redmine issues update 123 --custom-field Severity=Critical
+
+# 清除自定义字段
+redmine issues update 123 --custom-field Severity=
 ```
 
 ## close

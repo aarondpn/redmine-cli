@@ -196,7 +196,7 @@ redmine issues create [flags]
 | `--estimated-hours` | Estimated hours |
 | `--private`         | Mark as private |
 | `--watcher`         | Initial watcher (name, login, ID, or `me`; repeatable) |
-| `--custom-field`    | Custom field value as `name=value` or `id=value` (repeatable) |
+| `--custom-field`    | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](#custom-field-values) |
 | `--attach`          | File path to attach (repeatable) |
 
 ```bash
@@ -213,6 +213,10 @@ redmine issues create --project myproject --subject "Bug" \
   --custom-field "2=Value for field 2" \
   --custom-field "61=Value for 61"
 
+# Multi-value field: repeat the flag with the same field
+redmine issues create --project myproject --subject "Cross-platform bug" \
+  --custom-field Platforms=Linux --custom-field Platforms=macOS
+
 # Child issue under an epic, with a category
 redmine issues create --project myproject --parent 1234 --tracker Task \
   --category "Backend" --subject "Implement API endpoint"
@@ -227,6 +231,18 @@ redmine issues create --project myproject --subject "Spec" --description-file sp
 ```
 
 If Redmine starts the new issue in a different status than `--status` asked for (its workflow does not allow new issues of that tracker to start there for your role), the command prints a warning on stderr. It still exits `0`, because the issue was created and a retry would duplicate it.
+
+### Custom field values
+
+`--custom-field` takes `key=value` pairs, where the key is a custom field name or its numeric ID.
+
+- Names resolve against `GET /custom_fields.json`, which is admin-only, and only among the custom fields of the resource's type. An issue command never picks a time entry field of the same name.
+- Non-admins must use numeric IDs. Find them in the `custom_fields` array of the JSON output, for example `redmine issues get 123 --jq '.custom_fields'`.
+- The value is everything after the first `=`, verbatim. Spaces and further `=` characters are kept. Quote the whole pair and repeat the flag per field.
+- For a multi-value field, repeat the flag with the same field: `--custom-field Platforms=Linux --custom-field Platforms=macOS`. The order is kept.
+- A single-value field given several values fails. The CLI checks this when the field was given by name; when it was given by ID, Redmine answers `validation_failed` ("is invalid") and the error hint points at the repeated field.
+- `--custom-field Name=` clears the field, including every value of a multi-value field. An empty value cannot be combined with other values for the same field.
+- The same flag exists on `projects create/update`, `time log/update`, `versions create/update`, `users create/update`, `my-account update` and `groups create/update`.
 
 <Aside type="tip" title="Validation errors">
   Projects and trackers can make fields such as category, version, or custom
@@ -256,7 +272,7 @@ Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
 | `--done-ratio`     | Completion percentage (0-100) |
 | `--start-date`     | Start date (empty string clears) |
 | `--due-date`       | Due date (empty string clears) |
-| `--custom-field`   | Custom field value as `name=value` or `id=value` (repeatable) |
+| `--custom-field`   | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](#custom-field-values) |
 | `--attach`         | File path to attach (repeatable) |
 
 ```bash
@@ -267,6 +283,9 @@ redmine issues update 123 --note "Internal context" --private-notes
 
 # Update custom field by name
 redmine issues update 123 --custom-field Severity=Critical
+
+# Clear a custom field
+redmine issues update 123 --custom-field Severity=
 
 # Assign to a group by name, or clear the assignee
 redmine issues update 123 --assignee "Backend Team"

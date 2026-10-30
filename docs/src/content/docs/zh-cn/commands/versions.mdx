@@ -32,10 +32,14 @@ redmine versions create --name <name> [flags]
 | `--due-date`        | 截止日期（`YYYY-MM-DD` 或 `today`） |
 | `--description`     | 版本描述 |
 | `--wiki-page-title` | 关联的 Wiki 页面标题 |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 | `-o, --output`      | 输出格式 |
 
 ```bash
 redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30
+
+# 自定义字段（值为第一个 = 之后的全部内容）
+redmine versions create --project myproject --name 1.3.0 --custom-field "Release Manager=Jane Doe"
 ```
 
 ## list
@@ -91,6 +95,7 @@ redmine versions update <id-or-name> [flags]
 | `--due-date`        | 新截止日期（`YYYY-MM-DD` 或 `today`） |
 | `--description`     | 新版本描述 |
 | `--wiki-page-title` | 新关联的 Wiki 页面标题 |
+| `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 ```bash
 redmine versions update 42 --status closed

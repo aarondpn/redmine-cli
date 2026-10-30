@@ -100,6 +100,33 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
     seeded_time_entry_cf.role_ids = restricted_role_ids
     seeded_time_entry_cf.save!
 
+    # Fixtures for the --custom-field input tests (custom_field_input_test.go):
+    # a multi-value issue field, a name shared by an issue and a time entry
+    # field (type-scoped name resolution), and one writable field per other
+    # resource type. None is required: a required time entry field would make
+    # every other test that logs time fail. All are visible, so they carry no
+    # roles and stay valid under the Redmine 7.0 roles gate.
+    def seed_cf(klass, name, format, values, multiple, extra = {})
+      cf = klass.find_or_initialize_by(name: name)
+      cf.field_format = format if cf.field_format.blank?
+      cf.possible_values = values if values && cf.possible_values.blank?
+      cf.multiple = multiple
+      cf.is_required = false
+      cf.visible = true
+      extra.each { |k, v| cf.send("#{k}=", v) }
+      cf.save!
+      cf
+    end
+    all_trackers = { is_for_all: true, tracker_ids: Tracker.pluck(:id), is_filter: false }
+    tags_cf = seed_cf(IssueCustomField, "E2E Tags", "list", %w[Alpha Beta Gamma], true, all_trackers)
+    shared_issue_cf = seed_cf(IssueCustomField, "E2E Shared Code", "string", nil, false, all_trackers)
+    shared_entry_cf = seed_cf(TimeEntryCustomField, "E2E Shared Code", "string", nil, false)
+    entry_tags_cf = seed_cf(TimeEntryCustomField, "E2E Entry Tags", "list", %w[Billable Onsite Overtime], true)
+    project_labels_cf = seed_cf(ProjectCustomField, "E2E Project Labels", "list", %w[red green blue], true)
+    version_owner_cf = seed_cf(VersionCustomField, "E2E Version Owner", "string", nil, false)
+    user_skills_cf = seed_cf(UserCustomField, "E2E User Skills", "list", %w[Go Ruby SQL], true, { editable: true })
+    group_code_cf = seed_cf(GroupCustomField, "E2E Group Code", "string", nil, false)
+
     puts({
       rest_api_enabled: Setting.rest_api_enabled?,
       issue_group_assignment: Setting.issue_group_assignment?,
@@ -113,7 +140,15 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
       seeded_custom_field_name: seeded_custom_field.name,
       seeded_notes_custom_field_id: seeded_notes_field.id,
       seeded_time_entry_custom_field_id: seeded_time_entry_cf.id,
-      seeded_time_entry_custom_field_roles: seeded_time_entry_cf.roles.count
+      seeded_time_entry_custom_field_roles: seeded_time_entry_cf.roles.count,
+      seeded_multi_issue_custom_field_id: tags_cf.id,
+      seeded_shared_issue_custom_field_id: shared_issue_cf.id,
+      seeded_shared_time_entry_custom_field_id: shared_entry_cf.id,
+      seeded_entry_tags_custom_field_id: entry_tags_cf.id,
+      seeded_project_labels_custom_field_id: project_labels_cf.id,
+      seeded_version_owner_custom_field_id: version_owner_cf.id,
+      seeded_user_skills_custom_field_id: user_skills_cf.id,
+      seeded_group_code_custom_field_id: group_code_cf.id
     }.inspect)
   ' 2>/dev/null)
 

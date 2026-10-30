@@ -52,7 +52,7 @@ Then run `redmine auth login` for interactive configuration. Use `redmine config
 - **Errors go to stderr with a non-zero exit code**; on failure stdout is empty. Check the exit code — never merge stderr into stdout (`2>&1`) or discard it (`2>/dev/null`). Error code `jq_failed` means the command itself succeeded and only the filter failed — don't re-run writes (except `api -i` on a 4xx/5xx response, where the request failed).
 - **Use `--limit 0`** to fetch ALL results. The default limit is 100.
 - **Inspect attachments**: when reading an issue, add `--attachments` and look at any it has before answering (see below).
-- **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity) resolve human-readable names automatically. Don't look up IDs or option lists first — only when a name fails to resolve, check the valid values (e.g. `redmine projects get <project> --include trackers,issue_categories`) and ask the user if it's still unclear.
+- **All name-accepting flags** (--project, --tracker, --status, --priority, --assignee, --category, --version, --activity, --custom-field) resolve human-readable names automatically. Don't look up IDs or option lists first — only when a name fails to resolve, check the valid values (e.g. `redmine projects get <project> --include trackers,issue_categories`) and ask the user if it's still unclear. Custom field names need admin rights; otherwise use the numeric ID from the resource's `custom_fields` in JSON output.
 - **`--assignee me`** refers to the current API user.
 - **`--status "*"`** shows all issues regardless of status (default is `open`).
 
@@ -112,6 +112,8 @@ After downloading an image, open/read it and use what it shows.
 
 ## Non-Obvious Behaviors
 
+- `--custom-field name=value` works on `issues create/update`, `projects create/update`, `time log/update`, `versions create/update`, `users create/update`, `my-account update` and `groups create/update`. For multi-value fields repeat the same field (`--custom-field Tags=a --custom-field Tags=b`); `--custom-field Tags=` clears it. Values keep spaces and `=`: quote each pair and repeat the flag per field.
+- If `time log` fails with `validation_failed`, the server may require time entry custom fields or an activity: pass them with `--custom-field` / `--activity`.
 - `redmine issues get <id> --journals` includes comments/history.
 - `redmine issues get <id> --include allowed_statuses -o json` lists the statuses the current user may transition to.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.

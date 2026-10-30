@@ -71,8 +71,8 @@ redmine projects create [flags]
 | `--default-assignee`   | Default assignee for new issues (login, name, or numeric ID) |
 | `--tracker`            | Tracker name or ID to enable (repeatable or comma-separated) |
 | `--enable-module`      | Module to enable: `boards`, `calendar`, `documents`, `files`, `gantt`, `issue_tracking`, `news`, `repository`, `time_tracking`, `wiki` |
-| `--issue-custom-field` | Issue-level custom field name or ID to enable (repeatable) |
-| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable) |
+| `--issue-custom-field` | Issue-level custom field name or ID to enable (repeatable). Names match issue custom fields only |
+| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values). Names match project custom fields only |
 
 ```bash
 redmine projects create \
@@ -104,7 +104,7 @@ Every flag is optional; omitted flags leave the corresponding field untouched.
 | `--tracker`            | Replace the enabled tracker set |
 | `--enable-module`      | Replace the enabled module set |
 | `--issue-custom-field` | Replace the issue-level custom field set |
-| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable) |
+| `--custom-field`       | Project custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values). Names match project custom fields only |
 
 <Aside type="note">
   `--tracker`, `--enable-module`, and `--issue-custom-field` replace the current set when provided. Pass the full desired list, not just additions.
