@@ -110,7 +110,7 @@ redmine activities list --project <project>
 
 列出工时活动。不带 `--project` 时列出共享（全局）活动，并显示是否默认与是否启用。
 
-带 `--project`（名称、标识符或数字 ID）时，列出该项目可用的活动：仅包含已启用的活动，并包括项目级覆盖。覆盖活动拥有**自己的 ID**，与其所替换的全局活动不同，在该项目中记录工时必须使用覆盖活动。此模式下只显示 `ID` 和 `Name`，因为 Redmine 不返回其他信息。`--project` 必须显式指定，不会应用配置的默认项目。
+带 `--project`（名称、标识符或数字 ID）时，列出该项目可用的活动：仅包含已启用的活动，并包括项目级覆盖。覆盖活动拥有**自己的 ID**，与其所替换的全局活动不同，在该项目中记录工时必须使用覆盖活动。此模式下表格只显示 `ID` 和 `Name`，因为 Redmine 不返回其他信息；`-o json` 和 MCP 还会包含 `active`（始终为 true）和推导出的 `is_default`。`--project` 必须显式指定，不会应用配置的默认项目。
 
 <Aside type="note">
   在 Redmine 6.x 和 7.x 上，只有在该项目中拥有 `view_time_entries` 权限的用户才能获取项目活动，否则命令会报错并给出说明。Redmine 的 `/enumerations/time_entry_activities.json` 接口会忽略项目，因此项目视图是从项目数据中读取的。

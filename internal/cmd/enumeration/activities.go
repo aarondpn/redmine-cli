@@ -35,7 +35,7 @@ func newCmdActivitiesList(f *cmdutil.Factory) *cobra.Command {
 		Long: "List time entry activities. Without --project the shared (global) activities are " +
 			"listed with their default and active flags. With --project the activities available " +
 			"in that project (only active ones, project-specific overrides included) are listed " +
-			"with ID and name only; this needs the view_time_entries permission on Redmine 6.x/7.x. " +
+			"(table shows ID and name only; JSON also has active and a derived is_default); this needs the view_time_entries permission on Redmine 6.x/7.x. " +
 			"The default project is not applied here.",
 		Example: `  # Global activities
   redmine activities list

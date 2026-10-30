@@ -55,6 +55,19 @@ func splitList(s string) []string { return strings.Split(s, ",") }
 // redactedAPIKey is the one deliberate difference on the MCP side: the server
 // strips api_key from every result (internal/mcpserver/redact.go). Absent
 // makes the diff assert the redaction still happens.
+// projectActivityExtras: in project mode Redmine sends only id and name, the
+// CLI and MCP add active and is_default on purpose.
+var projectActivityExtras = []contract.Rule{
+	{
+		Path: "[].active", Kind: contract.KindExtra,
+		Reason: "added on purpose: Redmine omits it in project mode, and every listed activity is active",
+	},
+	{
+		Path: "[].is_default", Kind: contract.KindExtra, Optional: true,
+		Reason: "added on purpose: Redmine omits it in project mode; derived from the default shared activity of the same name",
+	},
+}
+
 var redactedAPIKey = contract.Rule{
 	Path: "**.api_key", Kind: contract.KindMissing, Absent: true,
 	Reason: "MCP redacts the API key from every tool result by design",
@@ -316,6 +329,8 @@ var contractCases = []contractCase{
 		Name: "activities_list_project", Raw: "/projects/{P}.json?include=time_entry_activities", Root: "project.time_entry_activities", List: true,
 		CLI: []string{"activities", "list", "--project", "{P}"},
 		MCP: &contractMCP{Tool: "list_time_entry_activities", Args: projArgs(nil), Key: "time_entry_activities"},
+		AllowCLI: projectActivityExtras,
+		AllowMCP: projectActivityExtras,
 	},
 	{
 		Name: "relations_get", Raw: "/relations/{relation}.json", Root: "relation",

@@ -117,7 +117,7 @@ redmine activities list --project <project>
 
 Lists time entry activities. Without `--project` the shared (global) activities are listed with their default and active flags.
 
-With `--project` (name, identifier, or numeric ID) the activities available in that project are listed: only active ones, including project-specific overrides. An override has its **own ID**, different from the global activity it replaces, and time entries logged in that project must use the override. In this mode only `ID` and `Name` are reported, because Redmine returns nothing else for them. `--project` is explicit only; the configured default project is not applied.
+With `--project` (name, identifier, or numeric ID) the activities available in that project are listed: only active ones, including project-specific overrides. An override has its **own ID**, different from the global activity it replaces, and time entries logged in that project must use the override. The table shows only `ID` and `Name`, because Redmine returns nothing else for them; `-o json` and MCP also carry `active` (always true) and a derived `is_default`. `--project` is explicit only; the configured default project is not applied.
 
 <Aside type="note">
   On Redmine 6.x and 7.x the project's activities are only returned to users with the `view_time_entries` permission in that project; otherwise the command fails with an explanatory error. Redmine's `/enumerations/time_entry_activities.json` endpoint ignores the project, which is why the project view is read from the project payload.

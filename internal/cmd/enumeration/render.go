@@ -18,7 +18,7 @@ func yesNo(b bool) string {
 }
 
 // renderEnumerations prints an enumeration list. With withFlags the Default and
-// Active columns are included; project-scoped activity lists only carry id and name.
+// Active columns are included; project-scoped activity tables only show id and name.
 func renderEnumerations(printer output.Printer, items []models.Enumeration, noun string, withFlags bool) {
 	if cmdutil.HandleEmpty(printer, items, noun) {
 		return
