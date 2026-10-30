@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -394,5 +395,65 @@ func TestUserUpdate_NewFlags(t *testing.T) {
 		if _, present := user[omitted]; present {
 			t.Errorf("user[%q] should be omitted when its flag was not set, got %v", omitted, user[omitted])
 		}
+	}
+}
+
+// Shapes copied from Redmine's users/show.api.rsb (non-admin caller viewing
+// someone else: no admin, no status, no api_key) and users/index.api.rsb
+// before 6.0 (admin present, status absent).
+const (
+	userShowNonAdminJSON = `{"id":5,"login":"bob","firstname":"Bob","lastname":"Ross","mail":"bob@example.com","created_on":"2025-01-01T00:00:00Z","last_login_on":"2025-06-15T08:00:00Z"}`
+	userIndexPre6JSON    = `{"id":5,"login":"bob","admin":false,"firstname":"Bob","lastname":"Ross","mail":"bob@example.com","created_on":"2025-01-01T00:00:00Z","last_login_on":"2025-06-15T08:00:00Z"}`
+)
+
+func TestUserGet_OmittedAdminStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user":` + userShowNonAdminJSON + `}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUserGet(f)
+	cmd.SetArgs([]string{"5"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	stdout := testutil.Stdout(f)
+	for _, row := range []string{`(?m)^Admin:\s+unknown$`, `(?m)^Status:\s+unknown$`} {
+		if !regexp.MustCompile(row).MatchString(stdout) {
+			t.Errorf("detail output should match %s:\n%s", row, stdout)
+		}
+	}
+
+	f = testutil.NewFactory(t, srv.URL)
+	cmd = newCmdUserGet(f)
+	cmd.SetArgs([]string{"5", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	out := testutil.Stdout(f)
+	for _, key := range []string{`"admin"`, `"status"`} {
+		if strings.Contains(out, key) {
+			t.Errorf("JSON output should omit %s:\n%s", key, out)
+		}
+	}
+}
+
+func TestUserList_PreSixStatusAbsent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"users":[` + userIndexPre6JSON + `],"total_count":1}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUserList(f)
+	cmd.SetArgs([]string{"--output", "table"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if stdout := testutil.Stdout(f); !strings.Contains(stdout, "unknown") {
+		t.Errorf("Status column should show unknown:\n%s", stdout)
 	}
 }

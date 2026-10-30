@@ -68,18 +68,13 @@ func newCmdUserGet(f *cmdutil.Factory) *cobra.Command {
 // `users me` in non-JSON output. Memberships, Groups, and Custom Fields rows
 // only appear when populated so simple users don't get noisy detail blocks.
 func userDetailRows(user *models.User) []output.KeyValue {
-	admin := "no"
-	if user.Admin {
-		admin = "yes"
-	}
-
 	pairs := []output.KeyValue{
 		{Key: "ID", Value: fmt.Sprintf("%d", user.ID)},
 		{Key: "Login", Value: user.Login},
 		{Key: "Name", Value: user.FirstName + " " + user.LastName},
 		{Key: "Email", Value: user.Mail},
-		{Key: "Admin", Value: admin},
-		{Key: "Status", Value: UserStatusName(user.Status)},
+		{Key: "Admin", Value: AdminLabel(user.Admin)},
+		{Key: "Status", Value: UserStatusLabel(user.Status)},
 	}
 
 	if user.MailNotification != "" {

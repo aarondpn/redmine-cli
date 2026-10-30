@@ -10,7 +10,7 @@ import (
 type SearchInput struct {
 	Query      string `json:"query" jsonschema:"Full-text search query."`
 	ProjectID  string `json:"project_id,omitempty" jsonschema:"Scope search to a single project (identifier or numeric ID)."`
-	Scope      string `json:"scope,omitempty" jsonschema:"One of 'all', 'my_projects', 'subprojects'."`
+	Scope      string `json:"scope,omitempty" jsonschema:"One of 'all', 'my_projects', 'bookmarks', 'subprojects'."`
 	Issues     bool   `json:"issues,omitempty" jsonschema:"Include issues in results."`
 	News       bool   `json:"news,omitempty" jsonschema:"Include news in results."`
 	Documents  bool   `json:"documents,omitempty" jsonschema:"Include documents in results."`
@@ -18,7 +18,7 @@ type SearchInput struct {
 	WikiPages  bool   `json:"wiki_pages,omitempty" jsonschema:"Include wiki pages in results."`
 	Messages   bool   `json:"messages,omitempty" jsonschema:"Include forum messages in results."`
 	Projects   bool   `json:"projects,omitempty" jsonschema:"Include projects in results."`
-	AllWords   bool   `json:"all_words,omitempty" jsonschema:"Require all query words to match."`
+	AllWords   *bool  `json:"all_words,omitempty" jsonschema:"Require all query words to match. Defaults to true when omitted; set false to match any word."`
 	TitlesOnly bool   `json:"titles_only,omitempty" jsonschema:"Match query against titles only."`
 	OpenIssues bool   `json:"open_issues,omitempty" jsonschema:"Limit issue results to open issues."`
 	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`

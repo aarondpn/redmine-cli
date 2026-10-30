@@ -58,7 +58,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 			cmdutil.RenderCollection(printer, users, []string{"ID", "Login", "Name", "Email", "Admin", "Status"},
 				func(u models.User) []string {
 					admin := ""
-					if u.Admin {
+					if u.Admin != nil && *u.Admin {
 						admin = "yes"
 					}
 					return []string{
@@ -67,7 +67,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 						u.FirstName + " " + u.LastName,
 						u.Mail,
 						admin,
-						UserStatusName(u.Status),
+						UserStatusLabel(u.Status),
 					}
 				},
 			)
@@ -89,6 +89,28 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteUserStatus)
 
 	return cmd
+}
+
+// UserStatusLabel renders a possibly-absent status. Redmine omits status in
+// several responses (users/show for non-admins, users/index before 6.0,
+// my/account), so nil is shown as "unknown" rather than a fake 0.
+func UserStatusLabel(status *int) string {
+	if status == nil {
+		return "unknown"
+	}
+	return UserStatusName(*status)
+}
+
+// AdminLabel renders a possibly-absent admin flag as yes/no/unknown.
+func AdminLabel(admin *bool) string {
+	switch {
+	case admin == nil:
+		return "unknown"
+	case *admin:
+		return "yes"
+	default:
+		return "no"
+	}
 }
 
 // UserStatusName renders a numeric Redmine user status as a human label.

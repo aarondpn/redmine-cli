@@ -23,7 +23,7 @@ type Issue struct {
 	Subject        string             `json:"subject"`
 	Description    string             `json:"description"`
 	DoneRatio      int                `json:"done_ratio"`
-	IsPrivate      bool               `json:"is_private,omitempty"`
+	IsPrivate      bool               `json:"is_private"`
 	CreatedOn      string             `json:"created_on"`
 	UpdatedOn      string             `json:"updated_on"`
 	StartDate      string             `json:"start_date,omitempty"`

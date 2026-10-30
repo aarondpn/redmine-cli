@@ -178,3 +178,63 @@ func TestGroupDelete_Force(t *testing.T) {
 		t.Errorf("stderr = %q, want success message", stderr)
 	}
 }
+
+// Fixture mirrors groups/show.api.rsb: membership entries carry id, project
+// and roles but no top-level name.
+const groupWithMembershipsBody = `{"group":{"id":1,"name":"Developers","memberships":[
+{"id":10,"project":{"id":3,"name":"Apollo"},"roles":[{"id":4,"name":"Developer"},{"id":5,"name":"Reporter","inherited":true}]}]}}`
+
+func TestGroupGet_IncludeMembershipsTable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("include"); got != "memberships" {
+			t.Errorf("include = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(groupWithMembershipsBody))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdGroupGet(f)
+	cmd.SetArgs([]string{"1", "--include-memberships"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	stdout := testutil.Stdout(f)
+	for _, want := range []string{"Apollo (ID: 3)", "Developer", "Reporter"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestGroupGet_IncludeMembershipsJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(groupWithMembershipsBody))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdGroupGet(f)
+	cmd.SetArgs([]string{"1", "--include-memberships", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Memberships []struct {
+			Project struct {
+				Name string `json:"name"`
+			} `json:"project"`
+			Roles []struct {
+				Name string `json:"name"`
+			} `json:"roles"`
+		} `json:"memberships"`
+	}
+	if err := json.Unmarshal([]byte(testutil.Stdout(f)), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Memberships) != 1 || got.Memberships[0].Project.Name != "Apollo" || len(got.Memberships[0].Roles) != 2 {
+		t.Errorf("memberships = %+v", got.Memberships)
+	}
+}

@@ -76,9 +76,16 @@ func newCmdGroupGet(f *cmdutil.Factory) *cobra.Command {
 			if includeMemberships && len(group.Memberships) > 0 {
 				names := make([]string, len(group.Memberships))
 				for i, m := range group.Memberships {
-					names[i] = fmt.Sprintf("%s (ID: %d)", m.Name, m.ID)
+					names[i] = fmt.Sprintf("%s (ID: %d)", m.Project.Name, m.Project.ID)
+					if len(m.Roles) > 0 {
+						roleNames := make([]string, len(m.Roles))
+						for j, r := range m.Roles {
+							roleNames[j] = r.Name
+						}
+						names[i] += " [" + strings.Join(roleNames, ", ") + "]"
+					}
 				}
-				details = append(details, output.KeyValue{Key: "Memberships", Value: strings.Join(names, ", ")})
+				details = append(details, output.KeyValue{Key: "Memberships", Value: strings.Join(names, "; ")})
 			}
 
 			printer.Detail(details)

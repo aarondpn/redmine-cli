@@ -4,14 +4,14 @@ package models
 type User struct {
 	ID               int                `json:"id"`
 	Login            string             `json:"login"`
-	Admin            bool               `json:"admin"`
+	Admin            *bool              `json:"admin,omitempty"`
 	FirstName        string             `json:"firstname"`
 	LastName         string             `json:"lastname"`
 	Mail             string             `json:"mail"`
 	CreatedOn        string             `json:"created_on"`
 	UpdatedOn        string             `json:"updated_on,omitempty"`
 	LastLoginOn      string             `json:"last_login_on,omitempty"`
-	Status           int                `json:"status"`
+	Status           *int               `json:"status,omitempty"`
 	APIKey           string             `json:"api_key,omitempty"`
 	MailNotification string             `json:"mail_notification,omitempty"`
 	MustChangePasswd *bool              `json:"must_change_passwd,omitempty"`

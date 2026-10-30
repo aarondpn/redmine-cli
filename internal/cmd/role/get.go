@@ -53,9 +53,6 @@ func newCmdRoleGet(f *cmdutil.Factory) *cobra.Command {
 			if role.Assignable != nil {
 				details = append(details, output.KeyValue{Key: "Assignable", Value: optionalBoolLabel(role.Assignable)})
 			}
-			if builtin := optionalBoolLabel(builtinPtr(*role)); builtin != "" {
-				details = append(details, output.KeyValue{Key: "Builtin", Value: builtin})
-			}
 			if role.IssuesVisibility != "" {
 				details = append(details, output.KeyValue{Key: "Issues Visibility", Value: role.IssuesVisibility})
 			}

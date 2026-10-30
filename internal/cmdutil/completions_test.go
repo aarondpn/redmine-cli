@@ -11,10 +11,10 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
-func TestCompleteRoles_FiltersBuiltInAndUnassignable(t *testing.T) {
+func TestCompleteRoles_FiltersUnassignable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"roles":[{"id":1,"name":"Manager","assignable":true},{"id":2,"name":"Reporter","assignable":false},{"id":3,"name":"Anonymous","builtin":true},{"id":4,"name":"Non member","is_builtin":true}]}`))
+		_, _ = w.Write([]byte(`{"roles":[{"id":1,"name":"Manager","assignable":true},{"id":2,"name":"Reporter","assignable":false}]}`))
 	}))
 	defer srv.Close()
 
