@@ -118,3 +118,21 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
   ' 2>/dev/null)
 
 printf '%s\n' "$bootstrap_output" | tail -n 1
+
+# Seed the "contract world" the contract tests diff against (see
+# e2e/seed-contract.rb for why it cannot be created over REST). It is piped in
+# over stdin and its output captured for the same reason as above: a failing
+# seed must abort the bootstrap, and the fixture gaps it reports (steps that
+# depend on Redmine internals) must be visible rather than swallowed.
+contract_err=$(mktemp)
+if ! contract_output=$(docker compose -f "$compose_file" exec -T "$container_service" \
+  bundle exec rails runner - <"$(dirname "$0")/seed-contract.rb" 2>"$contract_err"); then
+  echo "contract seed failed:" >&2
+  grep -v -E '^(DEPRECATION|W, \[|I, \[)' "$contract_err" | tail -n 40 >&2
+  printf '%s\n' "$contract_output" | tail -n 20 >&2
+  rm -f "$contract_err"
+  exit 1
+fi
+rm -f "$contract_err"
+
+printf '%s\n' "$contract_output" | tail -n 1

@@ -16,9 +16,17 @@
 //   - auth_test.go      - basic-auth profile.
 //   - api_test.go       - raw `api` passthrough (GET/POST).
 //   - errors_test.go    - error envelope and exit code paths.
+//   - contract_*_test.go - raw Redmine JSON vs CLI and MCP output, and the
+//     table of version-gated keys (see README.md).
+//
+// The remaining files are topical (wiki, users, groups, mcp_*, ...); README.md
+// lists them all.
 //
 // When adding a new feature area, create a new topical file and reuse the
-// helpers here; do not grow a single large test function.
+// helpers here; do not grow a single large test function. Do not re-assert
+// that decoded fields appear in JSON output: the contract tests cover that,
+// and key availability per Redmine release belongs in the gate table in
+// contract_gates_test.go, not behind an inline redmineAtLeast.
 package e2e
 
 import (

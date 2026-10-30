@@ -85,13 +85,9 @@ func TestIssuesList_SortDescending(t *testing.T) {
 }
 
 // TestIssuesList_IncludeRelations creates a relation between two issues and
-// verifies that `--include relations` is accepted by the CLI and reaches the
-// API. The typed Issue model intentionally omits the `relations` field (see
-// internal/models/issue.go), so the CLI strips it from the JSON output even
-// when the underlying request asks for it. We assert what is actually
-// observable today: the flag does not error out, and the relation itself is
-// retrievable via the raw `api` passthrough where the response is not run
-// through the typed decoder.
+// verifies that `--include relations` is accepted by the CLI and that the
+// relation exists on the server. The relations payload in the list output is
+// asserted by the issues_list contract case.
 func TestIssuesList_IncludeRelations(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
@@ -111,8 +107,7 @@ func TestIssuesList_IncludeRelations(t *testing.T) {
 		"-X", "POST", "--input", bodyPath)
 
 	// Smoke-test the flag: --include relations on `issues list` must not
-	// error and must still return both issues. The relations payload itself
-	// is dropped by the typed model and is not asserted here.
+	// error and must still return both issues.
 	var listed []map[string]any
 	r.runJSON(t, &listed, "issues", "list",
 		"--project", proj.Identifier, "--status", "*",

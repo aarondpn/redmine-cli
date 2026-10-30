@@ -9,3 +9,4 @@ docs/.astro/
 .redmine-cli.e2e.yaml
 dist/
 docker/.env
+e2e/_artifacts/
