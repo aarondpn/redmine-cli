@@ -17,6 +17,7 @@ func NewTestClient(httpClient *http.Client, baseURL string, log *debug.Logger) *
 	}
 	c.Attachments = &AttachmentService{client: c}
 	c.Categories = &CategoryService{client: c}
+	c.Journals = &JournalService{client: c}
 	c.Issues = &IssueService{client: c}
 	c.Files = &FileService{client: c}
 	c.Search = &SearchService{client: c}

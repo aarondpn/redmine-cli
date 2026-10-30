@@ -64,6 +64,7 @@ var commandOutputContracts = map[string]commandContract{
 	"redmine issues browse":            {Mode: outputContractInteractive, Reason: "launches the TUI browser"},
 	"redmine issues close":             {Mode: outputContractStructured},
 	"redmine issues comment":           {Mode: outputContractStructured},
+	"redmine issues comment edit":      {Mode: outputContractStructured},
 	"redmine issues create":            {Mode: outputContractStructured},
 	"redmine issues delete":            {Mode: outputContractStructured},
 	"redmine issues get":               {Mode: outputContractStructured},

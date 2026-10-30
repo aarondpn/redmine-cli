@@ -13,7 +13,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 
 | Command | Purpose |
 |---------|---------|
-| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
+| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; `issues comment edit <journal-id>` edits a comment (Redmine 5.0+; journal IDs come from `issues get <id> --journals`); manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
 | `attachments` | Inspect attachment metadata (`attachments get <id>`), download files (`attachments download <id>`) or thumbnails (`attachments thumbnail <id> --path <file>`), and edit or remove them (`attachments update <id> --filename/--description/--content-type`, `attachments delete <id>`) using the active profile's auth |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |

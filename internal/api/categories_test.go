@@ -30,6 +30,7 @@ func captureServer(t *testing.T, status int, resp string) (*Client, *capturedReq
 	c := newTestClient(ts)
 	c.Categories = &CategoryService{client: c}
 	c.Attachments = &AttachmentService{client: c}
+	c.Journals = &JournalService{client: c}
 	return c, rec
 }
 

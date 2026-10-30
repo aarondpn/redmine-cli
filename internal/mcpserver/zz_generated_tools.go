@@ -177,6 +177,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.UpdateIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.UpdateJournalInput, ops.MessageResult]{
+		Name:        "update_journal",
+		Description: "Edit the notes or privacy of an issue journal (comment) by journal ID; find IDs via get_issue with includes=[\"journals\"]. Needs Redmine 5.0+. An empty notes string removes the comment's text. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.UpdateJournal,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateMembershipInput, *models.Membership]{
 		Name:        "create_membership",
 		Description: "Add a user to a project with the given roles. Requires --enable-writes.",
@@ -557,6 +564,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_attachment", Description: "Rename an attachment or change its description or content type. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "update_journal", Description: "Edit the notes or privacy of an issue journal (comment) by journal ID; find IDs via get_issue with includes=[\"journals\"]. Needs Redmine 5.0+. An empty notes string removes the comment's text. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "delete_membership", Description: "Remove a project membership. Destructive. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "get_membership", Description: "Fetch a single project membership by ID.", Group: "memberships", Writes: false},
