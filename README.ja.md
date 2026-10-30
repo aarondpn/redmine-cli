@@ -53,23 +53,6 @@ curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.s
 
 OS とアーキテクチャを自動検出し、チェックサム検証付きで最新リリースをダウンロードして `~/.local/bin` にインストールします。新しめの [GitHub CLI](https://cli.github.com) がインストール済みでログインしている場合は、`gh attestation verify` でリリースのビルド attestation も検証し、失敗した場合はインストールを中止します。そのような `gh` がない場合はチェックサム検証のみでインストールし、警告と、リリースを自分で検証するためのコマンドを表示します。特定のリリースをインストールするには `REDMINE_CLI_VERSION=<tag>` を設定します。v2.11.2 より前のリリースには attestation がないため、ログイン済みの `gh` がある環境でそれらを指定する場合は `REDMINE_CLI_SKIP_ATTESTATION=1` も必要です。詳細は[インストールのドキュメント](https://redmine-cli.dev/getting-started/installation/)を参照してください。
 
-### Scoop（Windows）
-
-プロジェクトの bucket から Windows 版をインストールします。
-
-```powershell
-scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
-scoop install redmine
-```
-
-### winget（Windows）
-
-Windows パッケージ マネージャーのコミュニティ リポジトリから Windows 版をインストールします。
-
-```powershell
-winget install aarondpn.redmine-cli
-```
-
 ### Go でインストール
 
 ```bash

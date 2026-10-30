@@ -48,23 +48,6 @@ import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs
     </Aside>
   </TabItem>
 
-  <TabItem label="Scoop" icon="seti:powershell">
-    适用于 Windows。从项目的 bucket 安装 Windows 版本；使用 `scoop update redmine` 更新。
-
-    ```powershell
-    scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
-    scoop install redmine
-    ```
-  </TabItem>
-
-  <TabItem label="winget" icon="seti:powershell">
-    适用于 Windows。从 Windows 程序包管理器社区仓库安装；使用 `winget upgrade aarondpn.redmine-cli` 更新。
-
-    ```powershell
-    winget install aarondpn.redmine-cli
-    ```
-  </TabItem>
-
   <TabItem label="go install" icon="seti:go">
     通过 Go 工具链从源码构建，需要 Go 1.26 或更高版本（`go.mod` 中的 `go` 指令）；在默认的 `GOTOOLCHAIN=auto` 下，较旧的 Go 1.21+ 会自动下载合适的工具链。发行版二进制文件使用 Go 1.27.3 构建。
 
@@ -116,8 +99,6 @@ redmine update
 ```
 
 拉取最新版本，验证其 SHA256 校验和以及 GitHub artifact attestation，然后替换当前运行的二进制文件。参见 [自动更新](/zh-cn/commands/other/#自动更新) 了解详情和可用标志。
-
-如果你是通过 Scoop 或 winget 安装的，请改用对应的包管理器更新（`scoop update redmine` 或 `winget upgrade aarondpn.redmine-cli`），以保持其记录的版本一致。
 
 <Aside type="caution" title="校验和与证明验证">
   安装程序和自动更新程序在发行版校验和不匹配时均会拒绝执行。自动更新程序还会拒绝没有本仓库发布工作流签发的有效证明的版本；安装程序在有较新且已登录的 `gh` 时同样如此，否则只检查校验和并给出提示。请勿绕过失败的检查——请作为安全问题上报。

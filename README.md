@@ -53,23 +53,6 @@ curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.s
 
 Auto-detects your OS and architecture, downloads the latest release with checksum verification, and installs to `~/.local/bin`. If a recent [GitHub CLI](https://cli.github.com) is installed and logged in, it also verifies the release's build attestation with `gh attestation verify` and refuses to install if that fails. Without such a `gh`, it installs after the checksum check only and prints a warning with the command to verify the release yourself. Set `REDMINE_CLI_VERSION=<tag>` to install a specific release; releases older than v2.11.2 have no attestations, so pinning one of them with a logged-in `gh` also needs `REDMINE_CLI_SKIP_ATTESTATION=1`. See the [installation docs](https://redmine-cli.dev/getting-started/installation/) for details.
 
-### Scoop (Windows)
-
-Installs the Windows build from the project bucket.
-
-```powershell
-scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
-scoop install redmine
-```
-
-### winget (Windows)
-
-Installs the Windows build from the Windows Package Manager community repository.
-
-```powershell
-winget install aarondpn.redmine-cli
-```
-
 ### Install with Go
 
 ```bash

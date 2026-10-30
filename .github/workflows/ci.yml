@@ -53,8 +53,8 @@ jobs:
         run: go test -tags=e2e -run 'TestParseRedmineVersion|TestRedmineAtLeast' ./e2e
 
   # Windows is the only platform where `redmine update` must move the running
-  # binary aside, and where Scoop and winget installs are detected; the
-  # windows-only tests exercise that against a real running executable.
+  # binary aside and where install.ps1 runs; the windows-only tests exercise
+  # both against real executables and PowerShell.
   test-windows:
     runs-on: windows-latest
     steps:

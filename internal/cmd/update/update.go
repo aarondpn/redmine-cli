@@ -237,10 +237,6 @@ func runUpdateWithFormat(ctx context.Context, currentVersion string, stdout, std
 		return nil
 	}
 
-	if m, ok := detectManagedInstall(); ok {
-		return managedInstallError(m, release.TagName)
-	}
-
 	assetName := expectedAssetName()
 	checksumsName := expectedChecksumsName(release.TagName)
 	var downloadURL, checksumsURL string

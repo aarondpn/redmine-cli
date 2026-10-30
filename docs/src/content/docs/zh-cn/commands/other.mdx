@@ -199,7 +199,7 @@ gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli
 
 通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
 
-通过 Scoop 或 winget 安装时，不会替换二进制文件，而是提示有新版本并给出包管理器的命令（`scoop update redmine` 或 `winget upgrade aarondpn.redmine-cli`），以免包管理器记录的版本失准。在 Windows 上，正在运行的 `redmine.exe` 会先被重命名为 `redmine.exe.old`，再放入新的二进制文件；下次更新时会删除该文件。
+在 Windows 上，正在运行的 `redmine.exe` 会先被重命名为 `redmine.exe.old`，再放入新的二进制文件；下次更新时会删除该文件。
 
 | 标志 | 描述 |
 |------|------|

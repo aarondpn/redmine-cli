@@ -53,23 +53,6 @@ curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.s
 
 脚本会自动检测操作系统和架构，下载最新发布版本并通过校验和验证后，安装到 `~/.local/bin`。如果已安装较新的 [GitHub CLI](https://cli.github.com) 并已登录，脚本还会用 `gh attestation verify` 验证该版本的构建证明（attestation），验证失败时拒绝安装。没有这样的 `gh` 时，脚本只在校验和验证通过后安装，并打印警告以及自行验证该版本的命令。设置 `REDMINE_CLI_VERSION=<tag>` 可安装指定版本；v2.11.2 之前的版本没有构建证明，因此在已登录 `gh` 的环境中固定这些版本时，还需设置 `REDMINE_CLI_SKIP_ATTESTATION=1`。详情请参阅[安装文档](https://redmine-cli.dev/zh-cn/getting-started/installation/)。
 
-### Scoop（Windows）
-
-从项目的 bucket 安装 Windows 版本。
-
-```powershell
-scoop bucket add aarondpn https://github.com/aarondpn/scoop-bucket
-scoop install redmine
-```
-
-### winget（Windows）
-
-从 Windows 程序包管理器社区仓库安装 Windows 版本。
-
-```powershell
-winget install aarondpn.redmine-cli
-```
-
 ### 使用 Go 安装
 
 ```bash
