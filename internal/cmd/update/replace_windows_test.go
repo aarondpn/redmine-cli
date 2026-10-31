@@ -93,16 +93,31 @@ func TestReplaceBinary_RunningExecutable(t *testing.T) {
 		t.Errorf("expected the running binary at redmine.exe.old: %v", err)
 	}
 
-	// Once the old process has exited, the next update removes its .old file.
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	// The next update while that old binary still runs (e.g. a long-lived
+	// MCP server): its locked .old cannot be deleted, so it is renamed aside.
 	if err := replaceBinary(exe, []byte("newer")); err != nil {
-		t.Fatalf("second replaceBinary: %v", err)
+		t.Fatalf("second replaceBinary while redmine.exe.old runs: %v", err)
 	}
 	if got := readFile(t, exe); got != "newer" {
 		t.Errorf("redmine.exe content = %q, want %q", got, "newer")
 	}
 	if got := readFile(t, exe+".old"); got != "new" {
 		t.Errorf("redmine.exe.old content = %q, want the previous %q", got, "new")
+	}
+	aside, err := filepath.Glob(exe + ".old-*")
+	if err != nil || len(aside) != 1 {
+		t.Errorf("expected the running binary renamed to one redmine.exe.old-*, got %v (%v)", aside, err)
+	}
+
+	// After the old process exits, the next update still works; the leftovers
+	// are removed best-effort, so their removal is not asserted (Windows may
+	// keep an exited image locked for a moment).
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	if err := replaceBinary(exe, []byte("newest")); err != nil {
+		t.Fatalf("third replaceBinary: %v", err)
+	}
+	if got := readFile(t, exe); got != "newest" {
+		t.Errorf("redmine.exe content = %q, want %q", got, "newest")
 	}
 }

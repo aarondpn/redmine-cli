@@ -31,6 +31,31 @@ func TestSwapMovingAside(t *testing.T) {
 	}
 }
 
+// Leftovers of earlier updates, including ones renamed aside while their
+// process still ran, are removed before the swap.
+func TestSwapMovingAside_RemovesLeftovers(t *testing.T) {
+	dir := t.TempDir()
+	execPath := filepath.Join(dir, "redmine.exe")
+	tmpPath := filepath.Join(dir, ".redmine-update-1")
+	writeFile(t, execPath, "old")
+	writeFile(t, execPath+".old-123", "renamed aside earlier")
+	writeFile(t, filepath.Join(dir, "redmine.exe.older"), "unrelated")
+	writeFile(t, tmpPath, "new")
+
+	if err := swapMovingAside(tmpPath, execPath); err != nil {
+		t.Fatalf("swapMovingAside: %v", err)
+	}
+	if _, err := os.Stat(execPath + ".old-123"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("redmine.exe.old-123 still present: %v", err)
+	}
+	if got := readFile(t, filepath.Join(dir, "redmine.exe.older")); got != "unrelated" {
+		t.Errorf("an unrelated file was touched: %q", got)
+	}
+	if got := readFile(t, execPath); got != "new" {
+		t.Errorf("exec content = %q, want %q", got, "new")
+	}
+}
+
 func TestSwapMovingAside_RestoresOnFailure(t *testing.T) {
 	dir := t.TempDir()
 	execPath := filepath.Join(dir, "redmine.exe")

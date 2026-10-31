@@ -694,3 +694,41 @@ func TestFetchLatestRelease_SendsTokenAndHintsRateLimit(t *testing.T) {
 		t.Errorf("403 error = %v, want the rate limit hint", err)
 	}
 }
+
+func TestFetchLatestRelease_RetriesWithoutRejectedToken(t *testing.T) {
+	var auths []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auths = append(auths, r.Header.Get("Authorization"))
+		if r.Header.Get("Authorization") != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, `{"tag_name":"v9.9.9"}`)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "stale")
+	release, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err != nil {
+		t.Fatalf("expected the anonymous retry to succeed, got %v", err)
+	}
+	if release.TagName != "v9.9.9" {
+		t.Errorf("TagName = %q", release.TagName)
+	}
+	if len(auths) != 2 || auths[0] != "Bearer stale" || auths[1] != "" {
+		t.Errorf("requests sent Authorization %q, want the token once, then none", auths)
+	}
+}
+
+func TestFetchLatestRelease_UnauthorizedHint(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "stale")
+	_, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err == nil || !strings.Contains(err.Error(), "GITHUB_TOKEN or GH_TOKEN rejected") {
+		t.Errorf("401 error = %v, want the rejected token hint", err)
+	}
+}

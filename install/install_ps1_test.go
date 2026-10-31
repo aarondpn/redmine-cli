@@ -24,12 +24,23 @@ import (
 // (default: both flags install.ps1 needs; "none" lists neither).
 const psStubs = `$ErrorActionPreference = 'Stop'
 
+# A 404 as Invoke-WebRequest raises it: an exception with an HTTP response.
+function Throw-NotFound([string]$Uri) {
+  $ex = [System.Exception]::new("404 Not Found: $Uri")
+  $ex | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
+  throw $ex
+}
+
 function Invoke-WebRequest {
   param([string]$Uri, [string]$OutFile, [string]$Method, [switch]$UseBasicParsing)
   Add-Content -LiteralPath $env:STUB_LOG -Value $Uri
   if ($Uri -like '*/releases/latest') {
-    # The final URL after the redirect, as Windows PowerShell reports it.
+    # The final URL after the redirect, in the shape Windows PowerShell
+    # (ResponseUri) or, with RESPONSE_SHAPE=core, PowerShell 7 reports it.
     $final = [uri]"https://github.com/aarondpn/redmine-cli/releases/tag/$($env:LATEST_TAG)"
+    if ($env:RESPONSE_SHAPE -eq 'core') {
+      return [pscustomobject]@{ BaseResponse = [pscustomobject]@{ RequestMessage = [pscustomobject]@{ RequestUri = $final } } }
+    }
     return [pscustomobject]@{ BaseResponse = [pscustomobject]@{ ResponseUri = $final } }
   }
   # DROP_FIRST_DOWNLOAD simulates a transient network failure once.
@@ -38,9 +49,9 @@ function Invoke-WebRequest {
     New-Item -ItemType File -Path $dropped | Out-Null
     throw 'The request was aborted: The connection was closed unexpectedly.'
   }
-  if ($Uri -notlike "*/releases/download/$($env:FIXTURE_TAG)/*") { throw "404 Not Found: $Uri" }
+  if ($Uri -notlike "*/releases/download/$($env:FIXTURE_TAG)/*") { Throw-NotFound $Uri }
   $src = Join-Path $env:FIXTURE_DIR ($Uri -split '/')[-1]
-  if (-not (Test-Path -LiteralPath $src)) { throw "404 Not Found: $Uri" }
+  if (-not (Test-Path -LiteralPath $src)) { Throw-NotFound $Uri }
   Copy-Item -LiteralPath $src -Destination $OutFile
 }
 
@@ -73,6 +84,13 @@ if ($env:WITH_GH -eq '1') {
 
 # Same shape as ` + "`irm ... | iex`" + `: the script text runs as a script block.
 & ([scriptblock]::Create([IO.File]::ReadAllText($env:INSTALL_PS1)))
+
+# What the caller's session sees afterwards.
+if (Test-Path variable:global:LASTEXITCODE) {
+  "caller LASTEXITCODE: $global:LASTEXITCODE"
+} else {
+  'caller LASTEXITCODE: unset'
+}
 `
 
 const psArchive = "redmine-cli-windows-amd64.zip"
@@ -80,6 +98,7 @@ const psArchive = "redmine-cli-windows-amd64.zip"
 var psBinary = []byte("fake redmine.exe")
 
 type psEnv struct {
+	workDir    string // working directory of the script, default the test's
 	shell      string
 	dir        string
 	installDir string
@@ -169,6 +188,7 @@ func (e *psEnv) run(t *testing.T, withGh bool, extra map[string]string) (string,
 		t.Fatal(err)
 	}
 	cmd := exec.Command(e.shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", e.harness)
+	cmd.Dir = e.workDir
 	for _, kv := range os.Environ() {
 		name := strings.ToUpper(strings.SplitN(kv, "=", 2)[0])
 		switch {
@@ -232,6 +252,7 @@ func TestInstallPowerShellScript(t *testing.T) {
 		wantErr       bool
 		wantInstalled bool
 		wantOutput    []string
+		wantOutputNot []string
 		wantLog       []string
 		wantLogNot    []string
 	}{
@@ -243,8 +264,15 @@ func TestInstallPowerShellScript(t *testing.T) {
 				"Latest version: " + scriptFixtureTag, "Checksum verified.", "Attestation verified.",
 				"is not in your PATH (REDMINE_CLI_NO_MODIFY_PATH is set)", "redmine.exe' auth login",
 				"https://redmine-cli.dev/getting-started/configuration/",
+				"caller LASTEXITCODE: unset",
 			},
 			wantLog: []string{"/releases/latest", "/releases/download/" + scriptFixtureTag + "/" + psArchive, verifyArgs},
+		},
+		{
+			name:          "latest release from the PowerShell 7 response shape",
+			env:           map[string]string{"RESPONSE_SHAPE": "core"},
+			wantInstalled: true,
+			wantOutput:    []string{"Latest version: " + scriptFixtureTag},
 		},
 		{
 			name:          "pinned version without v prefix",
@@ -306,11 +334,13 @@ func TestInstallPowerShellScript(t *testing.T) {
 			wantOutput:    []string{"GitHub CLI (gh) not found", "gh attestation verify "},
 		},
 		{
+			// The failed `gh auth status` probe must not leave the caller's
+			// session (or a CI step) with a non-zero $LASTEXITCODE.
 			name:          "logged-out gh prints manual verification command",
 			withGh:        true,
 			env:           map[string]string{"GH_AUTH_EXIT": "1"},
 			wantInstalled: true,
-			wantOutput:    []string{"not logged in"},
+			wantOutput:    []string{"not logged in", "caller LASTEXITCODE: unset"},
 			wantLogNot:    []string{"zip --repo"},
 		},
 		{
@@ -325,6 +355,14 @@ func TestInstallPowerShellScript(t *testing.T) {
 			env:           map[string]string{"DROP_FIRST_DOWNLOAD": "1"},
 			wantInstalled: true,
 			wantOutput:    []string{"connection was closed unexpectedly", "retrying...", "Checksum verified."},
+		},
+		{
+			// A client error is final; only transient failures are retried.
+			name:          "a missing release asset is not retried",
+			env:           map[string]string{"REDMINE_CLI_VERSION": "v9.9.9"},
+			wantErr:       true,
+			wantOutput:    []string{"404 Not Found"},
+			wantOutputNot: []string{"retrying"},
 		},
 		{
 			name:       "invalid pinned tag",
@@ -364,6 +402,11 @@ func TestInstallPowerShellScript(t *testing.T) {
 							t.Errorf("expected output to contain %q, got:\n%s", s, out)
 						}
 					}
+					for _, s := range tt.wantOutputNot {
+						if strings.Contains(out, s) {
+							t.Errorf("expected output not to contain %q, got:\n%s", s, out)
+						}
+					}
 					log := env.stubLog(t)
 					for _, s := range tt.wantLog {
 						if !strings.Contains(log, s) {
@@ -389,8 +432,15 @@ func TestInstallPowerShellScript_ReplacesExisting(t *testing.T) {
 			if err := os.MkdirAll(env.installDir, 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(env.installDir, "redmine.exe"), []byte("old"), 0o755); err != nil {
-				t.Fatal(err)
+			for name, content := range map[string]string{
+				"redmine.exe":         "old",
+				"redmine.exe.old":     "older",
+				"redmine.exe.old-abc": "renamed aside by an earlier update",
+				"redmine.exe.older":   "unrelated",
+			} {
+				if err := os.WriteFile(filepath.Join(env.installDir, name), []byte(content), 0o755); err != nil {
+					t.Fatal(err)
+				}
 			}
 			out, err := env.run(t, false, nil)
 			if err != nil {
@@ -399,8 +449,35 @@ func TestInstallPowerShellScript_ReplacesExisting(t *testing.T) {
 			if !env.installed(t) {
 				t.Errorf("redmine.exe was not replaced\n%s", out)
 			}
-			if _, err := os.Stat(filepath.Join(env.installDir, "redmine.exe.old")); !os.IsNotExist(err) {
-				t.Errorf("redmine.exe.old left behind: %v", err)
+			for _, name := range []string{"redmine.exe.old", "redmine.exe.old-abc"} {
+				if _, err := os.Stat(filepath.Join(env.installDir, name)); !os.IsNotExist(err) {
+					t.Errorf("%s left behind: %v", name, err)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(env.installDir, "redmine.exe.older")); err != nil {
+				t.Errorf("an unrelated file was removed: %v", err)
+			}
+		})
+	}
+}
+
+// A relative REDMINE_INSTALL_DIR is resolved against the working directory,
+// so no relative entry can end up in the user PATH.
+func TestInstallPowerShellScript_RelativeInstallDir(t *testing.T) {
+	for _, shell := range powerShells(t) {
+		t.Run(filepath.Base(shell), func(t *testing.T) {
+			env := newPSEnv(t, shell)
+			env.workDir = env.dir
+			env.installDir = filepath.Join(env.dir, "rel dir")
+			out, err := env.run(t, false, map[string]string{"REDMINE_INSTALL_DIR": "rel dir"})
+			if err != nil {
+				t.Fatalf("install: %v\n%s", err, out)
+			}
+			if !env.installed(t) {
+				t.Errorf("redmine.exe not installed to %s\n%s", env.installDir, out)
+			}
+			if !strings.Contains(out, "to "+filepath.Join(env.installDir, "redmine.exe")) {
+				t.Errorf("expected the absolute install path in the output, got:\n%s", out)
 			}
 		})
 	}

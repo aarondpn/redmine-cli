@@ -16,8 +16,17 @@
 # into the calling session nor closes it: failures are thrown, never `exit`ed.
 
 & {
+  # `irm | iex` runs in the caller's scope, so their strict mode would apply
+  # here too; this only affects the script block.
+  Set-StrictMode -Off
   $ErrorActionPreference = 'Stop'
   $ProgressPreference = 'SilentlyContinue'
+
+  # gh calls set the global $LASTEXITCODE; a failed probe (e.g. `gh auth
+  # status` when logged out) must not make the caller's session or CI step
+  # look failed after a successful install.
+  $CallerHadExitCode = Test-Path variable:global:LASTEXITCODE
+  $CallerExitCode = if ($CallerHadExitCode) { $global:LASTEXITCODE } else { $null }
 
   $Repo = 'aarondpn/redmine-cli'
   $Binary = 'redmine.exe'
@@ -58,8 +67,18 @@
   # Windows PowerShell 5.1 does for redirected stderr.
   function Invoke-Gh {
     $ErrorActionPreference = 'Continue'
+    $errors = $global:Error.Count
     & gh @args *> $null
-    $LASTEXITCODE -eq 0
+    $ok = $LASTEXITCODE -eq 0
+    Remove-NewError $errors
+    $ok
+  }
+
+  # Windows PowerShell 5.1 records redirected native stderr in $Error; drop
+  # those entries so a probe does not litter the caller's $Error.
+  function Remove-NewError([int]$Before) {
+    $added = $global:Error.Count - $Before
+    if ($added -gt 0) { $global:Error.RemoveRange(0, $added) }
   }
 
   # gh 2.49 added 'gh attestation', but --signer-workflow and --source-ref came
@@ -67,8 +86,11 @@
   # a gh like a missing one instead of reporting a security incident.
   function Test-GhVerifySupport {
     $ErrorActionPreference = 'Continue'
+    $errors = $global:Error.Count
     $help = (& gh attestation verify --help 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) { return $false }
+    $ok = $LASTEXITCODE -eq 0
+    Remove-NewError $errors
+    if (-not $ok) { return $false }
     ($help -match '(?m)^\s*--signer-workflow\s') -and ($help -match '(?m)^\s*--source-ref\s')
   }
 
@@ -197,17 +219,24 @@
 
     $InstallDir = $env:REDMINE_INSTALL_DIR
     if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\redmine-cli' }
+    # A relative directory would end up as a relative, working-directory
+    # dependent entry in the user PATH.
+    $InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir)
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     $Target = Join-Path $InstallDir $Binary
 
     # A running redmine.exe cannot be overwritten, only renamed, so the old one
-    # is moved aside first, as `redmine update` does.
+    # is moved aside first, as `redmine update` does. Leftovers of earlier
+    # updates are removed; one that is still running (e.g. an MCP server)
+    # cannot be deleted, so it is renamed out of the way instead.
     $Old = "$Target.old"
+    Get-ChildItem -LiteralPath $InstallDir -File |
+      Where-Object { $_.Name -eq "$Binary.old" -or $_.Name.StartsWith("$Binary.old-", [StringComparison]::OrdinalIgnoreCase) } |
+      Remove-Item -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $Old) {
+      Rename-Item -LiteralPath $Old -NewName ("$Binary.old-" + [Guid]::NewGuid().ToString('N'))
+    }
     if (Test-Path -LiteralPath $Target) {
-      Remove-Item -LiteralPath $Old -Force -ErrorAction SilentlyContinue
-      if (Test-Path -LiteralPath $Old) {
-        throw "Could not remove $Old left by a previous update; close running redmine processes and retry"
-      }
       Move-Item -LiteralPath $Target -Destination $Old
     }
     try {
@@ -240,7 +269,7 @@
 
     if (-not $OnUserPath) {
       if (-not $ModifyPath) {
-        $RedmineCmd = "& '$Target'"
+        $RedmineCmd = "& '$($Target.Replace("'", "''"))'"
         Write-Warn "$InstallDir is not in your PATH (REDMINE_CLI_NO_MODIFY_PATH is set)."
       } else {
         $EnvKey.SetValue('Path', (($Entries + $InstallDir) -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
@@ -263,4 +292,10 @@
   Write-Info 'Next: connect to your Redmine server with'
   Write-Host "      $RedmineCmd auth login"
   Write-Info 'Docs: https://redmine-cli.dev/getting-started/configuration/'
+
+  if ($CallerHadExitCode) {
+    $global:LASTEXITCODE = $CallerExitCode
+  } else {
+    Remove-Item variable:global:LASTEXITCODE -ErrorAction SilentlyContinue
+  }
 }

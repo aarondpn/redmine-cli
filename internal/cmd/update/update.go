@@ -354,19 +354,15 @@ func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
 }
 
 func fetchLatestRelease(ctx context.Context, url string) (*GithubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	// As for attestations, a token only raises the anonymous rate limit,
-	// which shared IPs (CI runners, company networks) easily exhaust.
-	if token := githubToken(); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	// which shared IPs (CI runners, company networks) easily exhaust. A stale
+	// token must not break the lookup, so a rejected one is dropped once.
+	token := githubToken()
+	resp, err := getLatestRelease(ctx, url, token)
+	if err == nil && resp.StatusCode == http.StatusUnauthorized && token != "" {
+		resp.Body.Close()
+		resp, err = getLatestRelease(ctx, url, "")
 	}
-
-	resp, err := releaseHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -654,9 +650,15 @@ var moveRunningBinaryAside = runtime.GOOS == "windows"
 // stays locked until this process exits, so it is removed by the next update.
 func swapMovingAside(tmpPath, execPath string) error {
 	oldPath := execPath + ".old"
-	if err := os.Remove(oldPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		os.Remove(tmpPath)
-		return fmt.Errorf("removing %s left by a previous update: %w", oldPath, err)
+	removeOldBinaries(execPath)
+	// A previous binary that still runs (e.g. a long-lived `redmine mcp
+	// serve`) cannot be deleted, but a running image can be renamed.
+	if _, err := os.Lstat(oldPath); err == nil {
+		aside := fmt.Sprintf("%s.old-%d", execPath, time.Now().UnixNano())
+		if err := os.Rename(oldPath, aside); err != nil {
+			os.Remove(tmpPath)
+			return fmt.Errorf("moving %s left by a previous update out of the way: %w; close running redmine processes (e.g. MCP servers) and retry", oldPath, err)
+		}
 	}
 	if err := os.Rename(execPath, oldPath); err != nil {
 		os.Remove(tmpPath)
@@ -670,6 +672,34 @@ func swapMovingAside(tmpPath, execPath string) error {
 		return err
 	}
 	return nil
+}
+
+func getLatestRelease(ctx context.Context, url, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return releaseHTTPClient.Do(req)
+}
+
+// removeOldBinaries deletes the <exe>.old and <exe>.old-* files earlier
+// updates left behind. Best-effort: files of processes that still run stay.
+func removeOldBinaries(execPath string) {
+	dir, base := filepath.Split(execPath)
+	entries, err := os.ReadDir(filepath.Clean(dir))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if name := e.Name(); name == base+".old" || strings.HasPrefix(name, base+".old-") {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
 }
 
 // IsNewer returns true if version a is newer than version b.
