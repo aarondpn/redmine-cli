@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,10 +13,20 @@ import (
 // refreshSkew is how long before expiry an access token is refreshed.
 const refreshSkew = time.Minute
 
+// Credentials identify the OAuth application.
+type Credentials struct {
+	ClientID, ClientSecret string
+}
+
+// ErrStoreChanged is returned by Store.Save when the stored profile is gone
+// or no longer the one the tokens belong to.
+var ErrStoreChanged = errors.New("the stored profile changed")
+
 // Store keeps a profile's tokens across processes.
 type Store interface {
 	Lock(ctx context.Context) (unlock func(), err error)
-	Load() (Token, error)
+	// Load returns the stored tokens and the application they belong to.
+	Load() (Token, Credentials, error)
 	Save(Token) error
 }
 
@@ -28,7 +39,7 @@ type TokenSource struct {
 	store Store // nil: memory only
 	log   *debug.Logger
 
-	mu    sync.Mutex // serializes refreshes
+	mu    sync.Mutex // serializes refreshes; guards c
 	tmu   sync.RWMutex
 	token Token // guarded by tmu
 }
@@ -90,9 +101,16 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 
 	base := s.Current()
 	if s.store != nil {
-		stored, err := s.store.Load()
+		stored, creds, err := s.store.Load()
 		if err != nil {
 			return "", fmt.Errorf("reading the stored OAuth token: %w", err)
+		}
+		// A login with another application or secret since this process
+		// started: refresh with the stored credentials.
+		if creds.ClientID != "" && (creds.ClientID != s.c.ClientID || creds.ClientSecret != s.c.ClientSecret) {
+			c := *s.c
+			c.ClientID, c.ClientSecret = creds.ClientID, creds.ClientSecret
+			s.c = &c
 		}
 		// Another process refreshed, or the user logged in again.
 		if stored.RefreshToken != "" && stored.AccessToken != rejected && fresh(stored) {
@@ -113,10 +131,14 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 		next.Scopes = base.Scopes
 	}
 	if s.store != nil {
-		// The old refresh token stays valid until the new access token is
-		// used, so not adopting next loses nothing.
+		// A store that cannot be written (read-only config) must not make
+		// every request refresh again: the old refresh token is spent once
+		// the new access token is used, so keep the pair in memory.
 		if err := s.store.Save(next); err != nil {
-			return "", fmt.Errorf("saving the refreshed OAuth token: %w", err)
+			if errors.Is(err, ErrStoreChanged) {
+				return "", fmt.Errorf("saving the refreshed OAuth token: %w", err)
+			}
+			s.log.Printf("OAuth: could not save the refreshed token, keeping it in memory: %v", err)
 		}
 	}
 	s.set(next)

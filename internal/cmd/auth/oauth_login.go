@@ -60,13 +60,15 @@ func applyRelogin(f *cmdutil.Factory, opts *loginOptions) bool {
 	if name == "" {
 		return false
 	}
-	cfg, err := config.Load(configPath, name, f.DebugLogger())
-	if err != nil || cfg.AuthMethod != config.AuthMethodOAuth || cfg.OAuth.ClientID == "" || cfg.OAuth.ClientSecret == "" {
+	cfg, err := config.LoadStoredProfile(configPath, name)
+	if err != nil || cfg.AuthMethod != config.AuthMethodOAuth || cfg.OAuth.ClientID == "" || cfg.OAuth.ClientSecret == "" && opts.clientSecret == "" {
 		return false
 	}
 	opts.name = name
 	opts.clientID = cfg.OAuth.ClientID
-	opts.clientSecret = cfg.OAuth.ClientSecret
+	if opts.clientSecret == "" { // --client-secret-file: a rotated secret
+		opts.clientSecret = cfg.OAuth.ClientSecret
+	}
 	opts.relogin = true
 	opts.reloginServer = cfg.Server
 	return true
@@ -165,11 +167,16 @@ func oauthLoginError(err error) error {
 
 // revokeOAuthLogin revokes the stored OAuth login of a profile at Redmine.
 func revokeOAuthLogin(ctx context.Context, f *cmdutil.Factory, configPath, name string) error {
-	cfg, err := config.Load(configPath, name, f.DebugLogger())
+	cfg, err := config.LoadStoredProfile(configPath, name)
 	if err != nil {
 		return err
 	}
-	if cfg.OAuth.RefreshToken == "" {
+	return revokeStoredOAuth(ctx, f, &cfg)
+}
+
+// revokeStoredOAuth revokes cfg's refresh token at cfg's own server.
+func revokeStoredOAuth(ctx context.Context, f *cmdutil.Factory, cfg *config.Config) error {
+	if cfg.AuthMethod != config.AuthMethodOAuth || cfg.OAuth.RefreshToken == "" {
 		return nil
 	}
 	oc, err := api.NewOAuthClient(cfg, f.DebugLogger())

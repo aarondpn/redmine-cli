@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -487,5 +488,93 @@ func TestStatus_OAuthRefreshesExpiredToken(t *testing.T) {
 	saved := loadProfile(t, cfgPath, "work").OAuth
 	if saved.AccessToken == access || saved.RefreshToken == refresh {
 		t.Fatal("refreshed tokens were not written back")
+	}
+}
+
+func TestOAuthLogin_ReloginWithRotatedSecret(t *testing.T) {
+	l := newOAuthLogin(t, "")
+	if err := l.run(t); err != nil {
+		t.Fatal(err)
+	}
+	l.srv.ClientSecret = "rotated"
+	secretFile := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(secretFile, []byte("rotated\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	f, _ := loginFactory(t, "")
+	f.ConfigPath = l.cfgPath
+	l.opened = nil
+	if err := runLoginCmd(f, "--oauth", "--client-secret-file", secretFile); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadProfile(t, l.cfgPath, "work").OAuth.ClientSecret; got != "rotated" {
+		t.Fatalf("saved secret = %q, want rotated", got)
+	}
+}
+
+func TestOAuthLogin_ReloginRevokesPreviousGrant(t *testing.T) {
+	l := newOAuthLogin(t, "")
+	if err := l.run(t); err != nil {
+		t.Fatal(err)
+	}
+	first := loadProfile(t, l.cfgPath, "work")
+
+	// Logging in again revokes the replaced refresh token.
+	l.f.ServerOverride = l.srv.URL
+	if err := l.run(t); err != nil {
+		t.Fatal(err)
+	}
+	if l.srv.Revokes.Load() != 1 {
+		t.Fatalf("revokes = %d, want 1", l.srv.Revokes.Load())
+	}
+	resp, err := l.srv.Client().PostForm(l.srv.URL+"/oauth/token", url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {first.OAuth.RefreshToken},
+		"client_id":     {l.srv.ClientID},
+		"client_secret": {l.srv.ClientSecret},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		t.Fatal("the replaced refresh token still works")
+	}
+}
+
+func TestOAuthLogin_ReloginIgnoresEnvServer(t *testing.T) {
+	l := newOAuthLogin(t, "")
+	if err := l.run(t); err != nil {
+		t.Fatal(err)
+	}
+	var hits atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(other.Close)
+	t.Setenv("REDMINE_SERVER", other.URL)
+	t.Setenv("REDMINE_API_KEY", "envkey")
+
+	f, _ := loginFactory(t, "")
+	f.ConfigPath = l.cfgPath
+	l.opened = nil
+	if err := runLoginCmd(f, "--oauth"); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadProfile(t, l.cfgPath, "work"); got.Server != l.srv.URL || got.AuthMethod != config.AuthMethodOAuth {
+		t.Fatalf("profile = %q %q, want the stored server and oauth", got.Server, got.AuthMethod)
+	}
+
+	l.srv.Revokes.Store(0)
+	if err := revokeOAuthLogin(context.Background(), f, l.cfgPath, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if l.srv.Revokes.Load() != 1 {
+		t.Fatalf("revokes at the profile's server = %d, want 1", l.srv.Revokes.Load())
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("the env server got %d requests, want 0", hits.Load())
 	}
 }

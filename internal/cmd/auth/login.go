@@ -417,6 +417,14 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		f.Warn("credentials are stored in the plaintext config file; pass --keyring to use the system keyring instead")
 	}
 
+	// The grant this login replaces, read before saving overwrites it.
+	var replaced *config.Config
+	if existing != nil && existing.AuthMethod == config.AuthMethodOAuth {
+		if p, err := config.LoadStoredProfile(configPath, profileName); err == nil {
+			replaced = &p
+		}
+	}
+
 	// Step 7: Save profile
 	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
 		return fmt.Errorf("saving profile: %w", err)
@@ -424,6 +432,14 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 
 	if existing != nil && !storeInKeyring {
 		warnSkippedKeyringCleanup(printer, existing)
+	}
+
+	// Redmine keeps refresh tokens until revoked, so a replaced login would
+	// stay usable from old backups and keyring entries.
+	if replaced != nil {
+		if err := revokeStoredOAuth(ctx, f, replaced); err != nil {
+			printer.Warning("Could not revoke the previous OAuth token: " + err.Error())
+		}
 	}
 
 	// Set as active profile

@@ -19,6 +19,7 @@ import (
 type memStore struct {
 	mu      sync.Mutex // the "cross-process" lock
 	tok     Token
+	creds   Credentials // zero: the store does not know the application
 	loads   int
 	saves   int
 	saveErr error
@@ -29,9 +30,9 @@ func (m *memStore) Lock(ctx context.Context) (func(), error) {
 	return m.mu.Unlock, nil
 }
 
-func (m *memStore) Load() (Token, error) {
+func (m *memStore) Load() (Token, Credentials, error) {
 	m.loads++
-	return m.tok, nil
+	return m.tok, m.creds, nil
 }
 
 func (m *memStore) Save(t Token) error {
@@ -163,23 +164,61 @@ func TestTokenSourceStoreWithoutRefreshToken(t *testing.T) {
 	}
 }
 
-func TestTokenSourceSaveFailureKeepsOldToken(t *testing.T) {
+func TestTokenSourceSaveFailureKeepsNewToken(t *testing.T) {
 	srv := oauthtest.NewServer(t)
 	tok := issued(srv, time.Now().Add(-time.Minute))
-	store := &memStore{tok: tok, saveErr: errors.New("disk full")}
+	store := &memStore{tok: tok, saveErr: errors.New("permission denied")}
 	ts := NewTokenSource(newClient(srv), tok, store, nil)
 
-	_, err := ts.Token(context.Background())
-	if err == nil || !errors.Is(err, store.saveErr) {
-		t.Fatalf("Token() = %v, want the save error", err)
+	// A config that cannot be written must not refresh on every request.
+	var first string
+	for i := 0; i < 3; i++ {
+		got, err := ts.Token(context.Background())
+		if err != nil {
+			t.Fatalf("Token() = %v", err)
+		}
+		if i == 0 {
+			first = got
+		} else if got != first {
+			t.Fatalf("Token() = %q, want the kept %q", got, first)
+		}
+	}
+	if srv.Refreshes.Load() != 1 {
+		t.Errorf("Refreshes = %d, want 1", srv.Refreshes.Load())
+	}
+}
+
+func TestTokenSourceChangedProfileIsAnError(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	tok := issued(srv, time.Now().Add(-time.Minute))
+	store := &memStore{tok: tok, saveErr: ErrStoreChanged}
+	ts := NewTokenSource(newClient(srv), tok, store, nil)
+
+	if _, err := ts.Token(context.Background()); !errors.Is(err, ErrStoreChanged) {
+		t.Fatalf("Token() = %v, want ErrStoreChanged", err)
 	}
 	if ts.Current().AccessToken != tok.AccessToken {
-		t.Error("the new token was adopted although it could not be saved")
+		t.Error("the new token was adopted although the profile changed")
 	}
-	// Once saving works again the old refresh token is still usable.
-	store.saveErr = nil
+}
+
+func TestTokenSourceUsesStoredClientCredentials(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	tok := issued(srv, time.Now().Add(-time.Minute))
+	store := &memStore{tok: tok, creds: Credentials{ClientID: srv.ClientID, ClientSecret: srv.ClientSecret}}
+	// The process started with a secret that was rotated since.
+	stale := newClient(srv)
+	stale.ClientSecret = "old-secret"
+	ts := NewTokenSource(stale, tok, store, nil)
+
 	if _, err := ts.Token(context.Background()); err != nil {
-		t.Fatalf("Token() after the store recovered = %v", err)
+		t.Fatalf("Token() = %v, want a refresh with the stored secret", err)
+	}
+	if srv.Refreshes.Load() != 1 {
+		t.Errorf("Refreshes = %d, want 1", srv.Refreshes.Load())
+	}
+	if stale.ClientSecret != "old-secret" {
+		t.Error("the caller's client was modified")
 	}
 }
 
@@ -221,13 +260,13 @@ func (f fileStore) Lock(ctx context.Context) (func(), error) {
 	return func() { _ = l.Unlock() }, nil
 }
 
-func (f fileStore) Load() (Token, error) {
+func (f fileStore) Load() (Token, Credentials, error) {
 	var t Token
 	data, err := os.ReadFile(f.path)
 	if err != nil {
-		return t, err
+		return t, Credentials{}, err
 	}
-	return t, json.Unmarshal(data, &t)
+	return t, Credentials{}, json.Unmarshal(data, &t)
 }
 
 func (f fileStore) Save(t Token) error {

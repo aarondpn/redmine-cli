@@ -1,24 +1,44 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
-// LoadOAuthTokens returns the stored OAuth block of profile, with the
-// keyring secrets resolved for a keyring profile.
-func LoadOAuthTokens(path, profile string) (OAuthConfig, error) {
+// ErrProfileChanged is returned by SaveOAuthTokens when the profile is gone
+// or logged in again in the meantime.
+var ErrProfileChanged = errors.New("profile changed")
+
+type profileChangedError struct{ msg string }
+
+func (e profileChangedError) Error() string        { return e.msg }
+func (e profileChangedError) Is(target error) bool { return target == ErrProfileChanged }
+
+// LoadStoredProfile returns profile as stored, without environment or flag
+// overrides, with the keyring secrets resolved for a keyring profile.
+func LoadStoredProfile(path, profile string) (Config, error) {
 	log := debug.New(nil)
 	pc, err := LoadProfiles(path, log)
 	if err != nil {
-		return OAuthConfig{}, err
+		return Config{}, err
 	}
 	cfg, ok := pc.Profiles[profile]
 	if !ok {
-		return OAuthConfig{}, fmt.Errorf("profile %q not found", profile)
+		return Config{}, fmt.Errorf("profile %q not found", profile)
 	}
 	resolveKeyringSecrets(&cfg, log)
+	return cfg, nil
+}
+
+// LoadOAuthTokens returns the stored OAuth block of profile, with the
+// keyring secrets resolved for a keyring profile.
+func LoadOAuthTokens(path, profile string) (OAuthConfig, error) {
+	cfg, err := LoadStoredProfile(path, profile)
+	if err != nil {
+		return OAuthConfig{}, err
+	}
 	return cfg.OAuth, nil
 }
 
@@ -33,10 +53,10 @@ func SaveOAuthTokens(path, profile string, tok OAuthConfig) error {
 	}
 	cfg, ok := pc.Profiles[profile]
 	if !ok {
-		return fmt.Errorf("profile %q not found", profile)
+		return profileChangedError{fmt.Sprintf("profile %q not found", profile)}
 	}
 	if cfg.AuthMethod != AuthMethodOAuth || cfg.OAuth.ClientID != tok.ClientID {
-		return fmt.Errorf("profile %q changed while refreshing the OAuth token; run the command again", profile)
+		return profileChangedError{fmt.Sprintf("profile %q changed while refreshing the OAuth token; run the command again", profile)}
 	}
 	cfg.OAuth.AccessToken = tok.AccessToken
 	cfg.OAuth.RefreshToken = tok.RefreshToken
