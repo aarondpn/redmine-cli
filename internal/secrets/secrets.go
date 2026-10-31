@@ -21,6 +21,11 @@ const (
 	FieldPassword = "password"
 	// FieldMCPToken holds the profile's optional mcp.auth_token.
 	FieldMCPToken = "mcp_auth_token"
+	// FieldOAuthClientSecret, FieldOAuthAccessToken and FieldOAuthRefreshToken
+	// hold the secrets of an auth_method "oauth" profile.
+	FieldOAuthClientSecret = "oauth_client_secret"
+	FieldOAuthAccessToken  = "oauth_access_token"
+	FieldOAuthRefreshToken = "oauth_refresh_token"
 )
 
 // Store abstracts credential storage so the keyring backend can be swapped for

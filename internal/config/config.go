@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -19,6 +20,9 @@ import (
 // CredentialStoreKeyring is the credential_store value that stores the secret
 // fields in the OS keyring instead of the plaintext config file.
 const CredentialStoreKeyring = "keyring"
+
+// AuthMethodOAuth is the auth_method value for an OAuth2 login.
+const AuthMethodOAuth = "oauth"
 
 var errNoActiveProfile = errors.New("multiple profiles exist but no active profile set")
 
@@ -142,6 +146,12 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 	// Flags outrank file/env and must land before the keyring lookup.
 	applyOverrides(&cfg, ov)
 
+	// An API key from a flag or the environment outranks a stored OAuth
+	// login, and must never trigger a read of the OAuth keyring entries.
+	if cfg.AuthMethod == AuthMethodOAuth && (ov.APIKey != "" || os.Getenv("REDMINE_API_KEY") != "") {
+		cfg.AuthMethod = "apikey"
+	}
+
 	resolveKeyringSecrets(&cfg, log)
 
 	if keyringSecretMissing(&cfg) {
@@ -154,6 +164,7 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 
 	if selectedName != "" {
 		cfg.profileName = selectedName
+		cfg.configPath = configPath
 		cfg.profileServer = profileServer
 		cfg.storedSecret = storedSecretInUse(&cfg, ov)
 	}
@@ -164,6 +175,9 @@ func load(configPath string, profileName string, allowNoActiveProfile bool, ov O
 // storedSecretInUse reports whether the auth method's secret was read from the
 // profile (config file or keyring) rather than a flag or environment variable.
 func storedSecretInUse(cfg *Config, ov Overrides) bool {
+	if cfg.AuthMethod == AuthMethodOAuth {
+		return cfg.OAuth.RefreshToken != ""
+	}
 	if cfg.AuthMethod == "basic" {
 		return cfg.Password != "" && os.Getenv("REDMINE_PASSWORD") == ""
 	}
@@ -218,17 +232,29 @@ func resolveKeyringSecrets(cfg *Config, log *debug.Logger) {
 		return
 	}
 
+	if cfg.AuthMethod == AuthMethodOAuth {
+		loadKeyringSecret(cfg.KeyringID, secrets.FieldOAuthClientSecret, &cfg.OAuth.ClientSecret, log)
+		loadKeyringSecret(cfg.KeyringID, secrets.FieldOAuthAccessToken, &cfg.OAuth.AccessToken, log)
+		loadKeyringSecret(cfg.KeyringID, secrets.FieldOAuthRefreshToken, &cfg.OAuth.RefreshToken, log)
+		return
+	}
+
 	field := secrets.FieldAPIKey
 	target := &cfg.APIKey
 	if cfg.AuthMethod == "basic" {
 		field = secrets.FieldPassword
 		target = &cfg.Password
 	}
+	loadKeyringSecret(cfg.KeyringID, field, target, log)
+}
+
+// loadKeyringSecret fills *target from the keyring unless it is already set.
+func loadKeyringSecret(id, field string, target *string, log *debug.Logger) {
 	if *target != "" {
 		return
 	}
 
-	secret, ok, err := secrets.Default.Get(cfg.KeyringID, field)
+	secret, ok, err := secrets.Default.Get(id, field)
 	if err != nil {
 		log.Printf("Config: keyring lookup for %s failed: %v", field, err)
 		return
@@ -244,6 +270,9 @@ func resolveKeyringSecrets(cfg *Config, log *debug.Logger) {
 func keyringSecretMissing(cfg *Config) bool {
 	if cfg.CredentialStore != CredentialStoreKeyring {
 		return false
+	}
+	if cfg.AuthMethod == AuthMethodOAuth {
+		return cfg.OAuth.ClientSecret == "" || cfg.OAuth.RefreshToken == ""
 	}
 	if cfg.AuthMethod == "basic" {
 		return cfg.Password == ""
@@ -399,11 +428,14 @@ func SaveProfiles(pc *ProfileConfig, path string) error {
 				src.KeyringID = id
 				pc.Profiles[name] = src
 			}
-			if cfg.APIKey != "" || cfg.Password != "" || cfg.MCP.AuthToken != "" {
+			if cfg.APIKey != "" || cfg.Password != "" || cfg.MCP.AuthToken != "" || hasOAuthSecrets(cfg.OAuth) {
 				pending = append(pending, cfg)
 			}
 			cfg.APIKey = ""
 			cfg.Password = ""
+			cfg.OAuth.ClientSecret = ""
+			cfg.OAuth.AccessToken = ""
+			cfg.OAuth.RefreshToken = ""
 			cfg.MCP.AuthToken = plainMCPToken
 		}
 		toWrite.Profiles[name] = cfg
@@ -473,8 +505,36 @@ func persistKeyringSecrets(cfg Config) error {
 			return fmt.Errorf("storing MCP auth token in system keyring: %w", err)
 		}
 	}
+	for _, f := range []struct {
+		field, label, value string
+	}{
+		{secrets.FieldOAuthClientSecret, "client secret", cfg.OAuth.ClientSecret},
+		{secrets.FieldOAuthAccessToken, "access token", cfg.OAuth.AccessToken},
+		{secrets.FieldOAuthRefreshToken, "refresh token", cfg.OAuth.RefreshToken},
+	} {
+		if f.value == "" {
+			continue
+		}
+		if err := secrets.Default.Set(cfg.KeyringID, f.field, f.value); err != nil {
+			return fmt.Errorf("storing OAuth %s in system keyring: %w", f.label, err)
+		}
+	}
 	// A fresh write carries the full credential set: drop the counterpart
 	// left over from a previous auth method.
+	if (cfg.APIKey != "" || cfg.Password != "") && cfg.OAuth.RefreshToken == "" {
+		for _, field := range []string{secrets.FieldOAuthClientSecret, secrets.FieldOAuthAccessToken, secrets.FieldOAuthRefreshToken} {
+			if err := secrets.Default.Delete(cfg.KeyringID, field); err != nil {
+				return fmt.Errorf("removing stale OAuth credential from system keyring: %w", err)
+			}
+		}
+	}
+	if cfg.OAuth.RefreshToken != "" && cfg.APIKey == "" && cfg.Password == "" {
+		for _, field := range []string{secrets.FieldAPIKey, secrets.FieldPassword} {
+			if err := secrets.Default.Delete(cfg.KeyringID, field); err != nil {
+				return fmt.Errorf("removing stale %s from system keyring: %w", field, err)
+			}
+		}
+	}
 	if cfg.APIKey != "" && cfg.Password == "" {
 		if err := secrets.Default.Delete(cfg.KeyringID, secrets.FieldPassword); err != nil {
 			return fmt.Errorf("removing stale password from system keyring: %w", err)
@@ -488,6 +548,11 @@ func persistKeyringSecrets(cfg Config) error {
 	return nil
 }
 
+// hasOAuthSecrets reports whether any OAuth secret is set.
+func hasOAuthSecrets(o OAuthConfig) bool {
+	return o.ClientSecret != "" || o.AccessToken != "" || o.RefreshToken != ""
+}
+
 // newKeyringID returns a random opaque identifier for keyring entries.
 func newKeyringID() (string, error) {
 	b := make([]byte, 16)
@@ -498,7 +563,10 @@ func newKeyringID() (string, error) {
 }
 
 // keyringFields lists every secret a keyring profile may store.
-var keyringFields = []string{secrets.FieldAPIKey, secrets.FieldPassword, secrets.FieldMCPToken}
+var keyringFields = []string{
+	secrets.FieldAPIKey, secrets.FieldPassword, secrets.FieldMCPToken,
+	secrets.FieldOAuthClientSecret, secrets.FieldOAuthAccessToken, secrets.FieldOAuthRefreshToken,
+}
 
 // removeKeyringSecrets deletes all of a keyring profile's stored secrets.
 // Not-found is not an error; real backend failures are returned.
@@ -516,6 +584,12 @@ func removeKeyringSecrets(cfg Config) error {
 
 // SaveProfile writes a named profile to the config file.
 func SaveProfile(name string, cfg *Config, path string) error {
+	unlock, err := LockConfig(context.Background(), path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	log := debug.New(nil)
 	pc, err := LoadProfiles(path, log)
 	if err != nil {
@@ -609,6 +683,12 @@ func saveProfilesRemovingOrphan(pc *ProfileConfig, path, name string, orphan *Co
 
 // DeleteProfile removes a profile from the config file.
 func DeleteProfile(name string, path string) error {
+	unlock, err := LockConfig(context.Background(), path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	log := debug.New(nil)
 	pc, err := LoadProfiles(path, log)
 	if err != nil {
@@ -647,6 +727,12 @@ func DeleteProfile(name string, path string) error {
 
 // SetActiveProfile sets the active profile in the config file.
 func SetActiveProfile(name string, path string) error {
+	unlock, err := LockConfig(context.Background(), path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	log := debug.New(nil)
 	pc, err := LoadProfiles(path, log)
 	if err != nil {
