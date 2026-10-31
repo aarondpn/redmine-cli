@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -476,8 +477,22 @@ func TestInstallPowerShellScript_RelativeInstallDir(t *testing.T) {
 			if !env.installed(t) {
 				t.Errorf("redmine.exe not installed to %s\n%s", env.installDir, out)
 			}
-			if !strings.Contains(out, "to "+filepath.Join(env.installDir, "redmine.exe")) {
-				t.Errorf("expected the absolute install path in the output, got:\n%s", out)
+			// Compared as files: the runner's TEMP may use the 8.3 short name
+			// (RUNNER~1) while PowerShell prints the long one.
+			m := regexp.MustCompile(`Installed redmine \S+ to (.+redmine\.exe)`).FindStringSubmatch(out)
+			if m == nil || !filepath.IsAbs(m[1]) {
+				t.Fatalf("expected an absolute install path in the output, got:\n%s", out)
+			}
+			got, err := os.Stat(m[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.Stat(filepath.Join(env.installDir, "redmine.exe"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(got, want) {
+				t.Errorf("installed to %s, want %s", m[1], filepath.Join(env.installDir, "redmine.exe"))
 			}
 		})
 	}
