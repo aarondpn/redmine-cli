@@ -350,9 +350,20 @@ func logStep(printer output.Printer, w io.Writer, format string, args ...any) {
 
 // FetchLatestRelease fetches the latest release from GitHub.
 func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ReleaseURL, nil)
+	return fetchLatestRelease(ctx, ReleaseURL)
+}
+
+func fetchLatestRelease(ctx context.Context, url string) (*GithubRelease, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	// As for attestations, a token only raises the anonymous rate limit,
+	// which shared IPs (CI runners, company networks) easily exhaust.
+	if token := githubToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := releaseHTTPClient.Do(req)
@@ -362,7 +373,14 @@ func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+		hint := ""
+		switch resp.StatusCode {
+		case http.StatusForbidden, http.StatusTooManyRequests:
+			hint = " (rate limited? set GITHUB_TOKEN or GH_TOKEN)"
+		case http.StatusUnauthorized:
+			hint = " (GITHUB_TOKEN or GH_TOKEN rejected; unset it or use a valid token)"
+		}
+		return nil, fmt.Errorf("GitHub API returned status %d%s", resp.StatusCode, hint)
 	}
 
 	var release GithubRelease

@@ -656,3 +656,41 @@ func TestRunUpdate_RefusesOnChecksumMismatch(t *testing.T) {
 		t.Errorf("expected error to mention checksum verification failure, got: %v", err)
 	}
 }
+
+func TestFetchLatestRelease_SendsTokenAndHintsRateLimit(t *testing.T) {
+	var gotAuth string
+	status := http.StatusOK
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(status)
+		fmt.Fprint(w, `{"tag_name":"v9.9.9"}`)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	if _, err := fetchLatestRelease(context.Background(), ts.URL); err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "" {
+		t.Errorf("anonymous request sent Authorization %q", gotAuth)
+	}
+
+	t.Setenv("GH_TOKEN", "gh-token")
+	release, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "Bearer gh-token" {
+		t.Errorf("Authorization = %q, want the GH_TOKEN bearer", gotAuth)
+	}
+	if release.TagName != "v9.9.9" {
+		t.Errorf("TagName = %q", release.TagName)
+	}
+
+	status = http.StatusForbidden
+	_, err = fetchLatestRelease(context.Background(), ts.URL)
+	if err == nil || !strings.Contains(err.Error(), "rate limited? set GITHUB_TOKEN or GH_TOKEN") {
+		t.Errorf("403 error = %v, want the rate limit hint", err)
+	}
+}
