@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -113,6 +115,18 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 		}
 	}
 
+	if client != nil {
+		if tok, ok := client.OAuthToken(); ok {
+			expires := "never"
+			if !tok.Expiry.IsZero() {
+				expires = tok.Expiry.Local().Format(time.RFC3339)
+			}
+			kvs = append(kvs,
+				output.KeyValue{Key: "Token Expires", Value: expires},
+				output.KeyValue{Key: "Scopes", Value: strings.Join(tok.Scopes, " ")})
+		}
+	}
+
 	if cfg.DefaultProject != "" {
 		kvs = append(kvs, output.KeyValue{Key: "Default Project", Value: cfg.DefaultProject})
 	}
@@ -177,6 +191,9 @@ func classifyStatusError(err error, authMethod string) *statusFailure {
 		// Redmine also answers basic auth with 401 while two-factor
 		// authentication is active for the account.
 		credentialsHint = "Check the username and password and run 'redmine auth login' to update them. Accounts with two-factor authentication must use an API key (My account > API access key) instead."
+	}
+	if authMethod == config.AuthMethodOAuth {
+		credentialsHint = "Run 'redmine auth login --oauth' to log in again."
 	}
 	var apiErr *api.APIError
 	switch {

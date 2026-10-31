@@ -50,17 +50,19 @@ func runList(f *cmdutil.Factory) error {
 
 	if printer.Format() == output.FormatJSON {
 		type profileEntry struct {
-			Name   string `json:"name"`
-			Server string `json:"server"`
-			Active bool   `json:"active"`
+			Name       string `json:"name"`
+			Server     string `json:"server"`
+			AuthMethod string `json:"auth_method"`
+			Active     bool   `json:"active"`
 		}
 		profiles := make([]profileEntry, 0, len(names))
 		for _, name := range names {
 			p := pc.Profiles[name]
 			profiles = append(profiles, profileEntry{
-				Name:   name,
-				Server: p.Server,
-				Active: name == activeProfile,
+				Name:       name,
+				Server:     p.Server,
+				AuthMethod: authMethodOf(p),
+				Active:     name == activeProfile,
 			})
 		}
 		printer.JSON(profiles)
@@ -80,9 +82,18 @@ func runList(f *cmdutil.Factory) error {
 			marker = "* "
 		}
 		label := marker + name
-		kvs = append(kvs, output.KeyValue{Key: label, Value: p.Server})
+		kvs = append(kvs, output.KeyValue{Key: label, Value: fmt.Sprintf("%s (%s)", p.Server, authMethodOf(p))})
 	}
 
 	printer.Detail(kvs)
 	return nil
+}
+
+// authMethodOf returns the profile's auth method; profiles saved before the
+// field existed used an API key.
+func authMethodOf(p config.Config) string {
+	if p.AuthMethod == "" {
+		return "apikey"
+	}
+	return p.AuthMethod
 }
