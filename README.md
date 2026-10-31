@@ -62,7 +62,7 @@ Or download a binary from [GitHub Releases](https://github.com/aarondpn/redmine-
 # Configure your Redmine server and API key
 redmine auth login
 
-# Or log in with OAuth in the browser (Redmine 6.1+)
+# Or log in with OAuth (Redmine 6.1+, admin setup: https://redmine-cli.dev/commands/auth/#oauth-login)
 redmine auth login --oauth
 
 # List issues

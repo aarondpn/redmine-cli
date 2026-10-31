@@ -59,14 +59,14 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 redmine auth login --oauth
 ```
 
-CLI 会打开浏览器并等待重定向。没有浏览器时（SSH），加上 `--no-browser`，在其他设备打开打印出的 URL，再把地址栏中的最终 URL 粘贴回终端。
+再次运行即可续期登录；要登录其他 Redmine，请加上 `--server`。CLI 会打开浏览器并等待重定向。没有浏览器时（SSH），加上 `--no-browser`，在其他设备打开打印出的 URL，再把地址栏中的最终 URL 粘贴回终端。
 
 | 标志 | 描述 |
 |------|------|
 | `--oauth` | 使用 OAuth。使用下列任一标志时自动启用。 |
 | `--client-id` | Redmine 应用的客户端 ID。 |
 | `--client-secret-file` | 包含客户端密钥的文件，`-` 表示从标准输入读取。 |
-| `--scopes` | 要申请的范围，用逗号或空格分隔。`default` 表示 CLI 常用的范围集（`default,admin` 会额外加上 `admin`）。 |
+| `--scopes` | 要申请的范围，用逗号或空格分隔。`default` 表示 CLI 常用的范围集。 |
 | `--no-browser` | 打印 URL，而不打开浏览器。 |
 
 `read_only` 配置文件只申请读取范围；需要管理员专属命令（用户、组、自定义字段）的 Redmine 管理员请加上 `--scopes default,admin`。如果浏览器提示 scope 无效，请在应用上勾选缺少的范围，或使用 `--scopes`。
