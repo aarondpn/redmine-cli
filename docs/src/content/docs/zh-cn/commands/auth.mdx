@@ -48,6 +48,30 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 | `--api-key-file`、`--api-key` | 全局标志。API 密钥；跳过凭据提示。建议使用 `--api-key-file`，避免密钥出现在进程列表中。 |
 | `--default-project` | 保存为配置文件默认项目的项目标识符（会向服务器校验）。 |
 
+### OAuth 登录
+
+适用于 Redmine 6.1 及更高版本。在浏览器中登录，无需粘贴 API 密钥。
+
+1. 管理员先注册一次应用：管理 > 应用程序 > 新建，重定向 URI 填 `http://127.0.0.1/callback`，勾选所需范围。复制客户端 ID 和密钥。
+2. 登录：
+
+```bash
+redmine auth login --oauth
+echo "$SECRET" | redmine auth login --server https://redmine.example.com --client-id ID --client-secret-file -
+```
+
+CLI 会打开浏览器并等待重定向。没有浏览器时（SSH），加上 `--no-browser`，在其他设备打开打印出的 URL，再把地址栏中的最终 URL 粘贴回终端。
+
+| 标志 | 描述 |
+|------|------|
+| `--oauth` | 使用 OAuth。使用下列任一标志时自动启用。 |
+| `--client-id` | Redmine 应用的客户端 ID。 |
+| `--client-secret-file` | 包含客户端密钥的文件，`-` 表示从标准输入读取。 |
+| `--scopes` | 要申请的范围，用逗号或空格分隔。`default` 表示 CLI 常用的范围集（`default,admin` 会额外加上 `admin`）。 |
+| `--no-browser` | 打印 URL，而不打开浏览器。 |
+
+默认范围覆盖 CLI 的各个命令；`read_only` 配置文件只申请读取范围；绝不包含 `admin`。如果 Redmine 返回 `invalid_scope`，请在应用上勾选相应范围，或使用 `--scopes`。令牌会自动刷新；登录过期或被撤销后，请再次运行 `redmine auth login --oauth`。
+
 ### 服务器 URL 规范化
 
 URL 在保存前会被整理，若有改动，向导会告知：去除首尾空白、查询参数、片段和末尾斜杠；未指定协议时添加 `https://`（显式的 `http://` 会保留）；从浏览器复制的 Redmine 页面会被还原为基础 URL（`https://host/projects/foo/issues` 变为 `https://host`）。子路径部署会被保留：`https://host/redmine/issues/5` 变为 `https://host/redmine`。来自 `REDMINE_SERVER` 或配置文件的服务器值仅在缺少协议时补上 `https://`。
@@ -78,7 +102,7 @@ redmine auth switch
 redmine auth status
 ```
 
-显示活跃配置文件名称、服务器 URL、身份验证方式，以及凭据对应的用户。
+显示活跃配置文件名称、服务器 URL、身份验证方式，以及凭据对应的用户。OAuth 配置文件还会显示令牌过期时间和已授予的范围。
 
 检查失败时，输出会说明原因，而不是只显示失败：
 
@@ -98,7 +122,7 @@ redmine auth logout              # 当前配置文件
 redmine auth logout work         # 指定名称的配置文件
 ```
 
-移除前会提示你确认。
+移除前会提示你确认。OAuth 配置文件的令牌也会在 Redmine 中被撤销。
 
 <Aside type="caution" title="备份中的 API 密钥">
   退出登录后，如果 API 密钥可能存在于 shell 历史记录或备份中，请在 Redmine 中撤销对应的 API 密钥。
@@ -112,6 +136,12 @@ redmine auth logout work         # 指定名称的配置文件
     redmine auth login
     redmine auth login --name work
     redmine auth list
+    ```
+  </TabItem>
+  <TabItem label="OAuth">
+    ```bash
+    redmine auth login --oauth
+    redmine auth status
     ```
   </TabItem>
   <TabItem label="切换配置文件">

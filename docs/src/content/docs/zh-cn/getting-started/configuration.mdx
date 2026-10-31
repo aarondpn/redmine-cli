@@ -15,7 +15,7 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
    redmine auth login
    ```
 
-2. 提供你的 Redmine 服务器 URL 和身份验证方式（API 密钥或用户名/密码）。
+2. 提供你的 Redmine 服务器 URL 和身份验证方式（API 密钥、用户名/密码或 OAuth）。
 
 3. 可选：设置默认项目——该项目会在项目范围的命令中自动填充。
 
@@ -24,6 +24,16 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
 </Steps>
 
 没有终端时（CI、脚本、AI 代理）可跳过向导：`echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -`。参见 [`auth login`](/zh-cn/commands/auth/#非交互式登录)。
+
+## OAuth（Redmine 6.1+）
+
+在浏览器中登录，无需 API 密钥。管理员先注册一次应用（管理 > 应用程序，重定向 URI 填 `http://127.0.0.1/callback`），然后运行：
+
+```bash
+redmine auth login --oauth
+```
+
+客户端密钥和令牌的存储方式与 API 密钥相同（明文文件或 `--keyring`）。详情：[`auth login`](/zh-cn/commands/auth/#oauth-登录)。
 
 ## 多个配置文件
 

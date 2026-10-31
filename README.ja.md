@@ -62,6 +62,9 @@ irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | ie
 # Redmine サーバーと API キーを設定
 redmine auth login
 
+# または OAuth でブラウザからログイン（Redmine 6.1 以降）
+redmine auth login --oauth
+
 # issue を一覧表示
 redmine issues list
 

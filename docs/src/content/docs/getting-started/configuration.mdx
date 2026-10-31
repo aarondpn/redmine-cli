@@ -15,7 +15,7 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
    redmine auth login
    ```
 
-2. Provide your Redmine server URL and authentication method (API key or username/password).
+2. Provide your Redmine server URL and authentication method (API key, username/password, or OAuth).
 
 3. Optionally set a default project — it is prepopulated in project-scoped commands.
 
@@ -24,6 +24,16 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
 </Steps>
 
 Without a terminal (CI, scripts, AI agents), skip the wizard: `echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -`. See [`auth login`](/commands/auth/#non-interactive-login).
+
+## OAuth (Redmine 6.1+)
+
+Log in in the browser instead of using an API key. An administrator registers an application once (Administration > Applications, redirect URI `http://127.0.0.1/callback`), then:
+
+```bash
+redmine auth login --oauth
+```
+
+Client secret and tokens are stored like an API key (plaintext file or `--keyring`). Details: [`auth login`](/commands/auth/#oauth-login).
 
 ## Multiple profiles
 
