@@ -45,10 +45,15 @@ if [ -n "$VERSION" ]; then
   esac
   info "Requested version: ${TAG}"
 else
-  # Get latest release tag
+  # Get latest release tag from the github.com redirect to the release page.
+  # The REST API would work too, but its anonymous rate limit is easily hit
+  # from shared IPs such as CI runners and company networks.
   info "Fetching latest release..."
-  TAG=$(curl -fsSL --retry 3 "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
-  [ -z "$TAG" ] && error "Could not determine latest release"
+  LATEST_URL=$(curl -fsSIL --retry 3 -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest")
+  case "$LATEST_URL" in
+    */releases/tag/*) TAG="${LATEST_URL##*/}" ;;
+    *) error "Could not determine latest release" ;;
+  esac
   info "Latest version: ${TAG}"
 fi
 

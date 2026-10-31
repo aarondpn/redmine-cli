@@ -24,16 +24,14 @@ import (
 // (default: both flags install.ps1 needs; "none" lists neither).
 const psStubs = `$ErrorActionPreference = 'Stop'
 
-function Invoke-RestMethod {
-  param([string]$Uri, [switch]$UseBasicParsing)
-  Add-Content -LiteralPath $env:STUB_LOG -Value $Uri
-  if ($Uri -like '*/releases/latest') { return [pscustomobject]@{ tag_name = $env:LATEST_TAG } }
-  throw "404 Not Found: $Uri"
-}
-
 function Invoke-WebRequest {
-  param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
+  param([string]$Uri, [string]$OutFile, [string]$Method, [switch]$UseBasicParsing)
   Add-Content -LiteralPath $env:STUB_LOG -Value $Uri
+  if ($Uri -like '*/releases/latest') {
+    # The final URL after the redirect, as Windows PowerShell reports it.
+    $final = [uri]"https://github.com/aarondpn/redmine-cli/releases/tag/$($env:LATEST_TAG)"
+    return [pscustomobject]@{ BaseResponse = [pscustomobject]@{ ResponseUri = $final } }
+  }
   # DROP_FIRST_DOWNLOAD simulates a transient network failure once.
   $dropped = Join-Path $env:FIXTURE_DIR 'dropped'
   if ($env:DROP_FIRST_DOWNLOAD -eq '1' -and -not (Test-Path -LiteralPath $dropped)) {

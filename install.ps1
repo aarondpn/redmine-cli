@@ -99,9 +99,17 @@
     if (-not $Tag.StartsWith('v')) { $Tag = "v$Tag" }
     Write-Info "Requested version: $Tag"
   } else {
+    # Follow the github.com redirect to the release page. The REST API would
+    # work too, but its anonymous rate limit is easily hit from shared IPs
+    # such as CI runners and company networks.
     Write-Info 'Fetching latest release...'
-    $Tag = (Invoke-WithRetry { Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing }).tag_name
-    if (-not $Tag) { throw 'Could not determine latest release' }
+    $Response = Invoke-WithRetry { Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -Method Head -UseBasicParsing }
+    # Windows PowerShell exposes the final URL as ResponseUri, PowerShell 7
+    # through the request message.
+    $FinalUri = $Response.BaseResponse.ResponseUri
+    if (-not $FinalUri) { $FinalUri = $Response.BaseResponse.RequestMessage.RequestUri }
+    if ("$FinalUri" -notmatch '/releases/tag/([^/?#]+)$') { throw 'Could not determine latest release' }
+    $Tag = $Matches[1]
     Write-Info "Latest version: $Tag"
   }
 
