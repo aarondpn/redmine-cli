@@ -54,7 +54,7 @@ jobs:
 
   # Windows is the only platform where `redmine update` must move the running
   # binary aside and where install.ps1 runs; the windows-only tests exercise
-  # both against real executables and PowerShell.
+  # both against a running executable and a stubbed release.
   test-windows:
     runs-on: windows-latest
     steps:
@@ -72,13 +72,44 @@ jobs:
       - name: Test
         run: go test ./...
 
-      # The steps below use the real latest GitHub release instead of stubs:
-      # install.ps1 piped into Invoke-Expression as the docs show it, and a
-      # self-update of a running redmine.exe. They need network access.
+  # Installs and self-updates against the real latest GitHub release instead
+  # of stubs: the install scripts piped into a shell as the docs show them,
+  # and a running binary built from this tree updating itself to that
+  # release. Needs network access to GitHub and Sigstore.
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27.3"
+
+      - name: install.sh installs the latest release
+        if: runner.os != 'Windows'
+        env:
+          REDMINE_INSTALL_DIR: ${{ runner.temp }}/install-sh
+        run: |
+          out=$(bash < install.sh 2>&1)
+          printf '%s\n' "$out"
+          grep -qF 'Attestation verified.' <<<"$out" || { echo "install.sh did not verify the attestation"; exit 1; }
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          version=$("$REDMINE_INSTALL_DIR/redmine" --version)
+          echo "$version"
+          grep -qF "${latest#v}" <<<"$version" || { echo "expected version ${latest#v}"; exit 1; }
+
       - name: install.ps1 installs the latest release (Windows PowerShell 5.1)
+        if: runner.os == 'Windows'
         shell: powershell
         env:
-          GH_TOKEN: ${{ github.token }}
           REDMINE_INSTALL_DIR: ${{ runner.temp }}\install-ps51
           REDMINE_CLI_NO_MODIFY_PATH: "1"
         run: |
@@ -91,9 +122,9 @@ jobs:
           if ($version -notmatch [regex]::Escape($latest)) { throw "expected version $latest" }
 
       - name: install.ps1 installs the latest release (PowerShell 7)
+        if: runner.os == 'Windows'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
           REDMINE_INSTALL_DIR: ${{ runner.temp }}\install-pwsh
           REDMINE_CLI_NO_MODIFY_PATH: "1"
         run: |
@@ -106,9 +137,21 @@ jobs:
           if ($version -notmatch [regex]::Escape($latest)) { throw "expected version $latest" }
 
       - name: redmine update replaces the running binary with the latest release
+        if: runner.os != 'Windows'
+        run: |
+          dir="$RUNNER_TEMP/update"
+          mkdir -p "$dir"
+          exe="$dir/redmine"
+          go build -ldflags "-X main.version=2.0.0" -o "$exe" ./cmd/redmine
+          "$exe" update
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          version=$("$exe" --version)
+          echo "$version"
+          grep -qF "${latest#v}" <<<"$version" || { echo "expected version ${latest#v} after the update"; exit 1; }
+
+      - name: redmine update replaces the running binary with the latest release
+        if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'update'
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
