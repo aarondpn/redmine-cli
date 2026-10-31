@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
@@ -24,6 +25,11 @@ func TestDescribeAPIError(t *testing.T) {
 			name:      "auth",
 			err:       &api.APIError{StatusCode: http.StatusUnauthorized, URL: "/issues.json"},
 			wantParts: []string{"Authentication", "redmine auth login", "--name <profile>"},
+		},
+		{
+			name:      "oauth login expired",
+			err:       fmt.Errorf("refreshing: %w", oauth.ErrLoginRequired),
+			wantParts: []string{"OAuth login expired", "redmine auth login --oauth", "without a restart"},
 		},
 		{
 			name:      "forbidden",
@@ -145,5 +151,16 @@ func TestResourceError_InvalidPathSegment(t *testing.T) {
 		&api.InvalidPathSegmentError{Kind: "project identifier", Value: "..", Reason: "must not be a dot segment"}))
 	if err == nil || !strings.Contains(err.Error(), `Invalid argument: project identifier ".." must not be a dot segment`) {
 		t.Fatalf("resourceError() = %v", err)
+	}
+}
+
+func TestToolErrFromError_OAuthLoginExpired(t *testing.T) {
+	res, _, _ := toolErrFromError[struct{}](oauth.ErrLoginRequired)
+	if !res.IsError {
+		t.Fatal("IsError = false")
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "redmine auth login --oauth") {
+		t.Errorf("text = %q", text)
 	}
 }

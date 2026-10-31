@@ -14,6 +14,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 )
 
 // RawResponse holds the unprocessed HTTP response from DoRaw.
@@ -35,6 +36,9 @@ type Client struct {
 	dialer   *guardedDialer
 	baseURL  string
 	debugLog *debug.Logger
+	// oauthTokens supplies the bearer token of an OAuth profile; nil for
+	// other auth methods.
+	oauthTokens *oauth.TokenSource
 
 	Issues       *IssueService
 	Projects     *ProjectService
@@ -118,6 +122,29 @@ func scrubRequestError(err error) error {
 	return err
 }
 
+// requestError wraps a failed request. A login that expired or a rejected
+// OAuth client is returned as is: the "request failed: Get ..." prefix would
+// only bury the hint.
+func requestError(err error) error {
+	return requestErrorf("request failed", err)
+}
+
+func requestErrorf(prefix string, err error) error {
+	err = scrubRequestError(err)
+	if errors.Is(err, oauth.ErrLoginRequired) || errors.Is(err, oauth.ErrInvalidClient) {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			return urlErr.Err
+		}
+		return err
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
+}
+
+// authMethodNone attaches configured headers and the User-Agent but no
+// credentials (requests to the OAuth endpoints).
+const authMethodNone = "none"
+
 // authTransport applies authentication and configured headers to every request.
 type authTransport struct {
 	base       http.RoundTripper
@@ -125,6 +152,10 @@ type authTransport struct {
 	apiKey     string
 	username   string
 	password   string
+	// tokens supplies the bearer token for the oauth auth method.
+	tokens *oauth.TokenSource
+	// profile names the stored profile of the tokens, for the re-login hint.
+	profile string
 	// headers are the user-configured extra headers. Like credentials they are
 	// only sent to the configured origin, since they may carry proxy tokens.
 	headers map[string]string
@@ -187,6 +218,14 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		switch t.authMethod {
 		case "basic":
 			req.SetBasicAuth(t.username, t.password)
+		case authMethodNone:
+		case config.AuthMethodOAuth:
+			token, err := t.tokens.Token(req.Context())
+			if err != nil {
+				closeBody(req)
+				return nil, t.loginError(err)
+			}
+			req.Header.Set("Authorization", "Bearer "+token)
 		default:
 			req.Header.Set("X-Redmine-API-Key", t.apiKey)
 		}
@@ -199,6 +238,69 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if base == nil {
 		base = http.DefaultTransport
 	}
+	resp, err := base.RoundTrip(req)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized || t.authMethod != config.AuthMethodOAuth {
+		return resp, err
+	}
+	return t.retryUnauthorized(base, req, resp)
+}
+
+// LoginRequiredError is oauth.ErrLoginRequired for a stored profile, so the
+// hint can name the profile to log in to again.
+type LoginRequiredError struct {
+	Profile string
+	Err     error
+}
+
+func (e *LoginRequiredError) Error() string { return e.Err.Error() }
+func (e *LoginRequiredError) Unwrap() error { return e.Err }
+
+// ReloginCommand returns the command that fixes err, a failed OAuth refresh.
+func ReloginCommand(err error) string {
+	var lre *LoginRequiredError
+	if errors.As(err, &lre) && lre.Profile != "" {
+		return "redmine auth login --oauth --name " + lre.Profile
+	}
+	return "redmine auth login --oauth"
+}
+
+func (t *authTransport) loginError(err error) error {
+	if t.profile != "" && errors.Is(err, oauth.ErrLoginRequired) {
+		return &LoginRequiredError{Profile: t.profile, Err: err}
+	}
+	return err
+}
+
+// closeBody closes a request body that will not be sent.
+func closeBody(req *http.Request) {
+	if req.Body != nil {
+		_ = req.Body.Close()
+	}
+}
+
+// retryUnauthorized answers a 401 to a request that carried a bearer token:
+// Redmine rejected the access token, so refresh it and send the request once
+// more. A body that cannot be replayed gets no retry.
+func (t *authTransport) retryUnauthorized(base http.RoundTripper, req *http.Request, resp *http.Response) (*http.Response, error) {
+	sent, ok := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer ")
+	if !ok || (req.Body != nil && req.Body != http.NoBody && req.GetBody == nil) {
+		return resp, nil
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBodyBytes))
+	resp.Body.Close()
+
+	token, err := t.tokens.Refresh(req.Context(), sent)
+	if err != nil {
+		return nil, t.loginError(err)
+	}
+	if req.GetBody != nil {
+		body, err := req.GetBody()
+		if err != nil {
+			return nil, err
+		}
+		req.Body = body
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	return base.RoundTrip(req)
 }
 
@@ -213,6 +315,9 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	if cfg.Server == "" {
 		return nil, fmt.Errorf("server URL not configured. Run 'redmine auth login' to set up")
+	}
+	if cfg.AuthMethod == config.AuthMethodOAuth && cfg.OAuth.AccessToken == "" && cfg.OAuth.RefreshToken == "" {
+		return nil, errors.New("no OAuth login stored. Run 'redmine auth login --oauth'")
 	}
 	headerTimeout, err := responseHeaderTimeout()
 	if err != nil {
@@ -237,27 +342,38 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 		serverURL = &url.URL{}
 	}
 
-	guarded, dialer := newGuardedTransport(base, serverURL)
+	var tokens *oauth.TokenSource
+	var profile string
+	if cfg.AuthMethod == config.AuthMethodOAuth {
+		tokens = newTokenSource(cfg, log, base)
+		_, profile, _ = cfg.ProfileLocation()
+	}
 
-	serverOrigin := config.OriginOf(serverURL)
-	var transport http.RoundTripper = &authTransport{
-		base:       guarded,
-		authMethod: cfg.AuthMethod,
-		apiKey:     cfg.APIKey,
-		username:   cfg.Username,
-		password:   cfg.Password,
-		headers:    cfg.Headers,
-		origin:     &serverOrigin,
-	}
-	if cfg.ReadOnly {
-		transport = &readOnlyTransport{base: transport}
-	}
+	httpClient, dialer := newGuardedClient(base, serverURL, func(guarded http.RoundTripper) http.RoundTripper {
+		serverOrigin := config.OriginOf(serverURL)
+		var transport http.RoundTripper = &authTransport{
+			base:       guarded,
+			authMethod: cfg.AuthMethod,
+			apiKey:     cfg.APIKey,
+			username:   cfg.Username,
+			password:   cfg.Password,
+			tokens:     tokens,
+			profile:    profile,
+			headers:    cfg.Headers,
+			origin:     &serverOrigin,
+		}
+		if cfg.ReadOnly {
+			transport = &readOnlyTransport{base: transport}
+		}
+		return transport
+	})
 
 	c := &Client{
-		httpClient: &http.Client{Transport: transport, CheckRedirect: redirectPolicy(serverURL, base.Proxy)},
-		dialer:     dialer,
-		baseURL:    baseURL,
-		debugLog:   log,
+		httpClient:  httpClient,
+		dialer:      dialer,
+		baseURL:     baseURL,
+		debugLog:    log,
+		oauthTokens: tokens,
 	}
 
 	c.Issues = &IssueService{client: c}
@@ -284,6 +400,14 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 	c.Relations = &RelationService{client: c}
 
 	return c
+}
+
+// newGuardedClient builds the http.Client every request of a server goes
+// through: base behind the connection guard, wrapped by wrap, with the
+// redirect policy.
+func newGuardedClient(base *http.Transport, serverURL *url.URL, wrap func(guarded http.RoundTripper) http.RoundTripper) (*http.Client, *guardedDialer) {
+	guarded, dialer := newGuardedTransport(base, serverURL)
+	return &http.Client{Transport: wrap(guarded), CheckRedirect: redirectPolicy(serverURL, base.Proxy)}, dialer
 }
 
 // Get performs a GET request and decodes the response into out.
@@ -359,7 +483,7 @@ func (c *Client) DoRaw(ctx context.Context, method, path string, params url.Valu
 	if err != nil {
 		err = scrubRequestError(err)
 		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, requestError(err)
 	}
 	defer resp.Body.Close()
 
@@ -386,7 +510,7 @@ func (c *Client) do(req *http.Request, out interface{}) error {
 	if err != nil {
 		err = scrubRequestError(err)
 		c.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
-		return fmt.Errorf("request failed: %w", err)
+		return requestError(err)
 	}
 	defer resp.Body.Close()
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -273,5 +274,40 @@ func TestWithHint_PassThrough(t *testing.T) {
 	wrapped := WithHint(base, "x")
 	if !errors.Is(wrapped, base) || wrapped.Error() != "boom" {
 		t.Errorf("WithHint should wrap transparently, got %v", wrapped)
+	}
+}
+
+func TestOAuthErrors_HintAndCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantHint string
+	}{
+		{"login expired", fmt.Errorf("refreshing: %w", oauth.ErrLoginRequired), "redmine auth login --oauth"},
+		{"invalid client", oauth.ErrInvalidClient, "client ID and secret"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if hint := ErrorHint(tt.err); !strings.Contains(hint, tt.wantHint) {
+				t.Errorf("hint = %q, want it to contain %q", hint, tt.wantHint)
+			}
+			env := BuildErrorEnvelope(tt.err)
+			if env.Error.Code != output.ErrCodeAuthFailed {
+				t.Errorf("code = %q, want %q", env.Error.Code, output.ErrCodeAuthFailed)
+			}
+			if env.Error.Hint == "" {
+				t.Error("envelope has no hint")
+			}
+		})
+	}
+}
+
+func TestErrorHint_LoginRequiredNamesProfile(t *testing.T) {
+	err := fmt.Errorf("wrapped: %w", &api.LoginRequiredError{Profile: "work", Err: oauth.ErrLoginRequired})
+	if got := ErrorHint(err); !strings.Contains(got, "'redmine auth login --oauth --name work'") {
+		t.Errorf("ErrorHint = %q, want the profile named", got)
+	}
+	if got := ErrorHint(oauth.ErrLoginRequired); !strings.Contains(got, "'redmine auth login --oauth'") {
+		t.Errorf("ErrorHint = %q, want the plain command", got)
 	}
 }

@@ -62,6 +62,9 @@ irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | ie
 # 配置 Redmine 服务器和 API 密钥
 redmine auth login
 
+# 或通过 OAuth 登录（Redmine 6.1+，需管理员先注册应用：https://redmine-cli.dev/zh-cn/commands/auth/#oauth-登录）
+redmine auth login --oauth
+
 # 列出 issue
 redmine issues list
 

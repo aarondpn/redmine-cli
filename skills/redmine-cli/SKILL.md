@@ -48,7 +48,7 @@ If the `redmine` command is not found, install it:
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-Then run `redmine auth login` for interactive configuration, or without a terminal: `echo "$KEY" | redmine auth login --server <url> --api-key-file -`. Use `redmine config` to verify an existing setup.
+Then run `redmine auth login` for interactive configuration, or without a terminal: `echo "$KEY" | redmine auth login --server <url> --api-key-file -`. On Redmine 6.1+ a human can use `redmine auth login --oauth` (browser). Use `redmine config` to verify an existing setup.
 
 ## Critical Rules
 

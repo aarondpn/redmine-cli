@@ -25,12 +25,24 @@ type loginOptions struct {
 	useKeyring     bool
 	keyringSet     bool
 	defaultProject string
+
+	oauth            bool
+	clientID         string
+	clientSecretFile string
+	scopes           string
+	noBrowser        bool
+
+	// Resolved by RunE for runLogin.
+	clientSecret  string
+	relogin       bool
+	reloginServer string
 }
 
 // loginNeedsTerminalError is returned when values are missing and there is no
 // terminal to prompt on.
 const loginNeedsTerminalError = `redmine auth login needs a terminal to prompt for missing values; pass them as flags instead, e.g.
   redmine auth login --server https://redmine.example.com --api-key-file -
+  redmine auth login --server https://redmine.example.com --oauth --client-id ID --client-secret-file -
 (the API key is read from standard input; --api-key-file also accepts a file path)`
 
 // NewCmdLogin creates the auth login command.
@@ -54,14 +66,38 @@ A server URL without a scheme gets https://, and a URL pasted from the browser
 sub-path such as /redmine is kept.
 
 Headers passed with the global --header flag are used for the connection test
-and saved to the profile, for servers behind a firewall or proxy that require them.`,
+and saved to the profile, for servers behind a firewall or proxy that require them.
+
+With --oauth you log in through the browser (Redmine 6.1 or newer). An administrator
+registers the application under Administration > Applications with the redirect
+URI http://127.0.0.1/callback. Running 'redmine auth login --oauth' again for an
+OAuth profile reuses its client and logs in anew.`,
 		Example: `  redmine auth login
   redmine auth login --name work
   redmine auth login --header "User-Agent: Mozilla/5.0"
   echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
-  redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --default-project web -o json`,
+  redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --default-project web -o json
+  echo "$SECRET" | redmine auth login --server https://redmine.example.com --client-id ID --client-secret-file -
+  redmine auth login --oauth --no-browser --scopes default,admin`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.oauth = opts.oauth || opts.clientID != "" || opts.clientSecretFile != "" || opts.scopes != "" || opts.noBrowser
+			if opts.oauth && (f.APIKeyOverride != "" || f.APIKeyFile != "") {
+				return errors.New("--oauth cannot be combined with --api-key or --api-key-file")
+			}
+			if opts.clientSecretFile != "" {
+				secret, err := cmdutil.ReadSecretFile("--client-secret-file", opts.clientSecretFile, f.IOStreams.In)
+				if err != nil {
+					return err
+				}
+				opts.clientSecret = secret
+			}
 			nonInteractive := f.ServerOverride != "" && (f.APIKeyOverride != "" || f.APIKeyFile != "")
+			if opts.oauth {
+				nonInteractive = f.ServerOverride != "" && opts.clientID != "" && opts.clientSecret != ""
+				if !nonInteractive {
+					nonInteractive = applyRelogin(f, &opts)
+				}
+			}
 			if !nonInteractive {
 				if !hasTerminal(f) {
 					return errors.New(loginNeedsTerminalError)
@@ -81,6 +117,11 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 	cmd.Flags().StringVar(&opts.name, "name", "", "Profile name (default: derived from server hostname)")
 	cmd.Flags().BoolVar(&opts.useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
 	cmd.Flags().StringVar(&opts.defaultProject, "default-project", "", "Default project identifier to save in the profile")
+	cmd.Flags().BoolVar(&opts.oauth, "oauth", false, "Log in with OAuth in the browser (Redmine 6.1+)")
+	cmd.Flags().StringVar(&opts.clientID, "client-id", "", "OAuth application client ID (implies --oauth)")
+	cmd.Flags().StringVar(&opts.clientSecretFile, "client-secret-file", "", `File with the OAuth client secret, or "-" for standard input (implies --oauth)`)
+	cmd.Flags().StringVar(&opts.scopes, "scopes", "", `OAuth scopes, comma or space separated; "default" adds the CLI's usual set (implies --oauth)`)
+	cmd.Flags().BoolVar(&opts.noBrowser, "no-browser", false, "Print the login URL instead of opening a browser (implies --oauth)")
 
 	return cmd
 }
@@ -104,6 +145,9 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		return err
 	}
 	server := f.ServerOverride
+	if opts.relogin {
+		server = opts.reloginServer
+	}
 	f.ServerOverride, f.APIKeyOverride, f.APIKeyFile = "", "", ""
 
 	var (
@@ -114,8 +158,12 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	profileName := opts.name
 	defProject := opts.defaultProject
 
-	if apiKey != "" {
+	clientID, clientSecret := opts.clientID, opts.clientSecret
+	switch {
+	case apiKey != "":
 		authMethod = "apikey"
+	case opts.oauth:
+		authMethod = config.AuthMethodOAuth
 	}
 
 	// Step 1: Server URL and auth method, for whatever the flags did not give
@@ -136,6 +184,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 			Options(
 				huh.NewOption("API Key (recommended)", "apikey"),
 				huh.NewOption("Username & Password", "basic"),
+				huh.NewOption("OAuth (browser login)", config.AuthMethodOAuth),
 			).
 			Value(&authMethod))
 	}
@@ -199,7 +248,32 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	warnCleartextServer(f, server)
 
 	// Step 3: Credentials
-	if apiKey == "" {
+	if authMethod == config.AuthMethodOAuth {
+		if clientID == "" && existing != nil && existing.AuthMethod == config.AuthMethodOAuth && config.SameServerHost(existing.Server, server) {
+			clientID = existing.OAuth.ClientID
+		}
+		var fields []huh.Field
+		if opts.clientID == "" {
+			fields = append(fields, huh.NewInput().
+				Title("Client ID").
+				Description("Administration > Applications").
+				Value(&clientID).
+				Validate(requireValue("client ID")))
+		}
+		if clientSecret == "" {
+			fields = append(fields, huh.NewInput().
+				Title("Client secret").
+				Description("Administration > Applications").
+				EchoMode(huh.EchoModePassword).
+				Value(&clientSecret).
+				Validate(requireValue("client secret")))
+		}
+		if len(fields) > 0 {
+			if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
+				return err
+			}
+		}
+	} else if apiKey == "" {
 		if authMethod == "apikey" {
 			err = huh.NewForm(
 				huh.NewGroup(
@@ -259,6 +333,24 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		Username:   username,
 		Password:   password,
 		Headers:    headers,
+	}
+
+	if authMethod == config.AuthMethodOAuth {
+		cfg.OAuth = config.OAuthConfig{ClientID: clientID, ClientSecret: clientSecret}
+		readOnly := existing != nil && existing.ReadOnly || f.ReadOnly != nil && *f.ReadOnly
+		// A new login keeps the scopes the profile was granted before.
+		var previous []string
+		if existing != nil && existing.AuthMethod == config.AuthMethodOAuth && existing.OAuth.ClientID == clientID && config.SameServer(existing.Server, server) {
+			previous = existing.OAuth.Scopes
+		}
+		tok, err := runOAuthFlow(ctx, f, printer, cfg, opts, readOnly, previous)
+		if err != nil {
+			return err
+		}
+		cfg.OAuth.AccessToken = tok.AccessToken
+		cfg.OAuth.RefreshToken = tok.RefreshToken
+		cfg.OAuth.Expiry = tok.Expiry
+		cfg.OAuth.Scopes = tok.Scopes
 	}
 
 	stop := printer.Spinner("Testing connection...")
@@ -330,6 +422,14 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		f.Warn("credentials are stored in the plaintext config file; pass --keyring to use the system keyring instead")
 	}
 
+	// The grant this login replaces, read before saving overwrites it.
+	var replaced *config.Config
+	if existing != nil && existing.AuthMethod == config.AuthMethodOAuth {
+		if p, err := config.LoadStoredProfile(configPath, profileName); err == nil {
+			replaced = &p
+		}
+	}
+
 	// Step 7: Save profile
 	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
 		return fmt.Errorf("saving profile: %w", err)
@@ -337,6 +437,14 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 
 	if existing != nil && !storeInKeyring {
 		warnSkippedKeyringCleanup(printer, existing)
+	}
+
+	// Redmine keeps refresh tokens until revoked, so a replaced login would
+	// stay usable from old backups and keyring entries.
+	if replaced != nil {
+		if err := revokeStoredOAuth(ctx, f, replaced); err != nil {
+			printer.Warning("Could not revoke the previous OAuth token: " + err.Error())
+		}
 	}
 
 	// Set as active profile
@@ -408,6 +516,7 @@ const loginForbiddenHint = `Redmine permissions are not the cause: every logged-
 const (
 	loginUnauthorizedAPIKeyHint = `Check the API key (My account > API access key) and run the login again; a locked account is rejected the same way.`
 	loginUnauthorizedBasicHint  = `Check the username and password and run the login again; a locked account is rejected the same way.`
+	loginUnauthorizedOAuthHint  = `Redmine rejected the new token; check that the application and the account are active, then run the login again.`
 )
 
 // loginNotFoundHint is attached when the server answers but has no
@@ -436,6 +545,9 @@ func loginConnectError(err error, authMethod string, assumedHTTPS bool) error {
 	}
 	switch {
 	case apiErr.IsAuthError():
+		if authMethod == config.AuthMethodOAuth {
+			return cmdutil.WithHint(wrapped, loginUnauthorizedOAuthHint)
+		}
 		if authMethod == "basic" {
 			return cmdutil.WithHint(wrapped, loginUnauthorizedBasicHint)
 		}

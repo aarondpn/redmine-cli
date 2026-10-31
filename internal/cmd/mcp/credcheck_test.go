@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 )
 
 func newProbeFactory(t *testing.T) (*cmdutil.Factory, *bytes.Buffer) {
@@ -274,3 +276,34 @@ func TestServeUnconfigured(t *testing.T) {
 type nopWriteCloser struct{ io.Writer }
 
 func (nopWriteCloser) Close() error { return nil }
+
+func TestCredentialWarning_OAuth(t *testing.T) {
+	oauthCfg := func(refresh string) *config.Config {
+		return &config.Config{Server: "https://r.example.com", AuthMethod: config.AuthMethodOAuth, OAuth: config.OAuthConfig{RefreshToken: refresh}}
+	}
+	unauthorized := &api.APIError{StatusCode: http.StatusUnauthorized}
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		err  error
+		want []string
+	}{
+		{"login expired", oauthCfg("r"), fmt.Errorf("x: %w", oauth.ErrLoginRequired), []string{"https://r.example.com", "OAuth login expired", "no restart needed"}},
+		{"login expired without config", nil, oauth.ErrLoginRequired, []string{"OAuth login expired"}},
+		{"401", oauthCfg("r"), unauthorized, []string{"the OAuth login is wrong", "redmine auth login --oauth"}},
+		{"401 without refresh token", oauthCfg(""), unauthorized, []string{"no OAuth login is configured", "redmine auth login --oauth"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := credentialWarning(tt.cfg, tt.err)
+			for _, w := range tt.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("warning %q missing %q", got, w)
+				}
+			}
+			if strings.Contains(got, "REDMINE_API_KEY") || strings.Contains(got, "API key") {
+				t.Errorf("warning %q mentions the API key", got)
+			}
+		})
+	}
+}

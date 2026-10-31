@@ -76,6 +76,7 @@ Redmine instance. The suite is split into topical files:
 | `attachments_test.go`, `attachments_write_test.go` | `attachments get` / `download`; `update` (filename, description, content type), `delete` with confirmation / `--force`, `thumbnail` (real PNG, `--size`, `--path -`, no-clobber; skipped when the server lacks ImageMagick), non-image -> `not_found`, MCP `update_attachment` / `delete_attachment` |
 | `search_test.go`         | `search --issues` and `search --projects` scope |
 | `auth_test.go`           | basic-auth profile against `/users/current.json` (needs `REDMINE_E2E_PASSWORD`) |
+| `oauth_test.go`          | OAuth login (Redmine 6.1+, needs `REDMINE_E2E_PASSWORD`; the test plays the browser over HTTP): `auth status` / `list`, commands with the bearer token, refresh with rotated tokens, concurrent refresh, remotely revoked login, `auth logout` revoking the tokens (needs `script(1)` for the confirmation prompt), wrong client secret, scopes beyond the application, `--read-only` scopes, `REDMINE_API_KEY` overriding the profile, MCP stdio following rotated tokens; below 6.1 the "needs Redmine 6.1" error |
 | `api_test.go`            | raw `api` passthrough GET + POST + PUT with `--input` |
 | `errors_test.go`         | error envelope codes: `not_found`, `auth_failed` |
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
@@ -88,6 +89,12 @@ Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
 `runner_test.go` (CLI runner + profile constructors), `helpers_test.go`
 (envelope types + env accessors) and `fixtures_test.go` (project / issue
 fixtures, tracker / activity lookups).
+
+`oauth-app.sh` (run by `make e2e-test`, like `admin-api-key.sh`) creates or renews
+two OAuth applications on Redmine 6.1+ (`redmine-cli-e2e` with every scope plus
+`admin`, `redmine-cli-e2e-narrow` with `view_issues` only; redirect URI
+`http://127.0.0.1/callback`) and prints their `<client id> <secret>` lines.
+Each run renews the secrets, because Redmine shows them only once.
 
 `bootstrap-redmine.sh` seeds the fixtures that have no REST endpoint: a public
 saved query, an issue custom field (`E2E Severity`, applied to all projects)
@@ -168,6 +175,7 @@ make e2e-down
 - `REDMINE_E2E_USERNAME`
 - `REDMINE_E2E_API_KEY`
 - `REDMINE_E2E_PASSWORD` - admin password forced by `bootstrap-redmine.sh` and used by basic-auth tests. `make e2e-up` / `make e2e-test` default this to `admintest123`. Tests that need basic auth are skipped when this is empty.
+- `REDMINE_E2E_OAUTH_APPS` - the two `<client id> <secret>` lines from `oauth-app.sh`; `make e2e-test` sets it. OAuth tests are skipped below Redmine 6.1.
 - `REDMINE_E2E_TIMEOUT_SECONDS`
 - `REDMINE_E2E_CONFIG_PATH`
 - `REDMINE_E2E_PROFILE_NAME`

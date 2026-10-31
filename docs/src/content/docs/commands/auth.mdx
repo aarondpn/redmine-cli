@@ -52,6 +52,29 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 | `--api-key-file`, `--api-key` | Global flags. API key; skip the credential prompt. Prefer `--api-key-file` so the key stays out of the process list. |
 | `--default-project` | Project identifier saved as the profile's default (checked against the server). |
 
+### OAuth login
+
+For Redmine 6.1 or newer. Log in through the browser instead of pasting an API key.
+
+1. An administrator registers the app once: Administration > Applications > New Application, redirect URI `http://127.0.0.1/callback`, click Check all under Scopes. Copy the UID (client ID) and Secret.
+2. Log in; the wizard asks for the server, client ID and secret:
+
+```bash
+redmine auth login --oauth
+```
+
+Run it again to renew the login; add `--server` to log in to another Redmine. The CLI opens the browser and waits for the redirect. Without a browser (SSH), add `--no-browser`, open the printed URL elsewhere, and paste the final URL from the address bar back into the terminal.
+
+| Flag | Description |
+|------|-------------|
+| `--oauth` | Use OAuth. Implied by the flags below. |
+| `--client-id` | Client ID of the Redmine application. |
+| `--client-secret-file` | File with the client secret, or `-` for standard input. |
+| `--scopes` | Scopes to request, comma or space separated. `default` is the CLI's usual set. |
+| `--no-browser` | Print the URL instead of opening a browser. |
+
+A `read_only` profile requests only read scopes; Redmine admins who need admin-only commands (users, groups, custom fields) add `--scopes default,admin`. If the browser says the scope is invalid, tick the missing scopes on the application or pass `--scopes`.
+
 ### Server URL normalization
 
 The URL is cleaned up before it is saved, and the wizard tells you when it changed it: surrounding whitespace, query, fragment and trailing slashes are dropped, `https://` is added when no scheme is given (an explicit `http://` is kept), and a Redmine page copied from the browser is reduced to the base URL (`https://host/projects/foo/issues` becomes `https://host`). A sub-path installation is preserved: `https://host/redmine/issues/5` becomes `https://host/redmine`. Server values from `REDMINE_SERVER` or a profile only get `https://` added when the scheme is missing.
@@ -66,7 +89,7 @@ The URL is cleaned up before it is saved, and the wizard tells you when it chang
 redmine auth list
 ```
 
-Shows each profile's server URL and which one is currently active.
+Shows each profile's server URL, authentication method, and which one is active.
 
 ## switch
 
@@ -82,7 +105,7 @@ Opens an interactive selector. The picked profile becomes the default for subseq
 redmine auth status
 ```
 
-Displays the active profile name, server URL, authentication method, and the user the credentials resolve to.
+Displays the active profile name, server URL, authentication method, and the user the credentials resolve to. OAuth profiles also show the token expiry and granted scopes.
 
 When the check fails, the output says why instead of a bare failure:
 
@@ -102,7 +125,7 @@ redmine auth logout              # current profile
 redmine auth logout work         # named profile
 ```
 
-You will be prompted to confirm before removal.
+You will be prompted to confirm before removal. For an OAuth profile the tokens are also revoked in Redmine.
 
 <Aside type="caution" title="API keys in backups">
   After logout, revoke the corresponding API key in Redmine if it may exist in shell history or backups.

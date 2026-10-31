@@ -11,6 +11,7 @@ import (
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 )
 
 // runStatusAgainst runs `auth status` for an apikey profile pointing at
@@ -172,5 +173,28 @@ func TestClassifyStatusError_BasicAuthHint(t *testing.T) {
 	}
 	if hint := classifyStatusError(err, "apikey").hint; !strings.Contains(hint, "API key") || strings.Contains(hint, "password") {
 		t.Errorf("api key hint = %q, want it to talk about the API key", hint)
+	}
+}
+
+func TestClassifyStatusError_OAuthLoginFailures(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantHint string
+	}{
+		{"expired login", oauth.ErrLoginRequired, "redmine auth login --oauth'"},
+		{"expired login of a profile", &api.LoginRequiredError{Profile: "work", Err: oauth.ErrLoginRequired}, "--oauth --name work'"},
+		{"wrong client", oauth.ErrInvalidClient, "client ID and secret"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := classifyStatusError(tt.err, "oauth")
+			if f.reason != reasonCredentialsRejected || f.anonymous {
+				t.Errorf("reason = %q anonymous = %v, want credentials_rejected", f.reason, f.anonymous)
+			}
+			if !strings.Contains(f.hint, tt.wantHint) {
+				t.Errorf("hint = %q, want it to contain %q", f.hint, tt.wantHint)
+			}
+		})
 	}
 }

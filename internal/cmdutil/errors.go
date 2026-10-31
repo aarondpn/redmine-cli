@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -70,6 +71,12 @@ func ErrorHint(err error) string {
 	var hinted *HintError
 	if errors.As(err, &hinted) && hinted.Hint != "" {
 		return hinted.Hint
+	}
+	switch {
+	case errors.Is(err, oauth.ErrLoginRequired):
+		return "Run '" + api.ReloginCommand(err) + "' to log in again."
+	case errors.Is(err, oauth.ErrInvalidClient):
+		return "Check the client ID and secret (Administration > Applications), then run 'redmine auth login --oauth --client-secret-file -' (new application: add --server URL --client-id ID)."
 	}
 	var apiErr *api.APIError
 	if errors.As(err, &apiErr) {
@@ -192,6 +199,9 @@ func BuildErrorEnvelope(err error) output.ErrorEnvelope {
 		case apiErr.StatusCode >= 500:
 			env.Error.Code = output.ErrCodeServerError
 		}
+	}
+	if errors.Is(err, oauth.ErrLoginRequired) || errors.Is(err, oauth.ErrInvalidClient) {
+		env.Error.Code = output.ErrCodeAuthFailed
 	}
 	// Redmine answers 200 but withholds the data; treat it as a permission
 	// failure so callers can branch on the code.

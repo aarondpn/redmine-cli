@@ -15,7 +15,7 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
    redmine auth login
    ```
 
-2. 提供你的 Redmine 服务器 URL 和身份验证方式（API 密钥或用户名/密码）。
+2. 提供你的 Redmine 服务器 URL 和身份验证方式（API 密钥、用户名/密码，或 Redmine 6.1+ 上的 [OAuth](/zh-cn/commands/auth/#oauth-登录)）。
 
 3. 可选：设置默认项目——该项目会在项目范围的命令中自动填充。
 
@@ -85,7 +85,7 @@ profiles:
 
 ## 系统密钥环（可选）
 
-你可以将 API 密钥（或密码）保存在操作系统的密钥环中，而不是配置文件里。此功能完全需要主动启用，并向后兼容：现有的明文配置文件将继续照常工作。
+你可以将 API 密钥（或密码，或 OAuth 密钥和令牌）保存在操作系统的密钥环中，而不是配置文件里。此功能完全需要主动启用，并向后兼容：现有的明文配置文件将继续照常工作。
 
 <Steps>
 

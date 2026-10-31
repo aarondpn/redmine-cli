@@ -1,12 +1,14 @@
 package config
 
+import "time"
+
 // Config holds the CLI configuration for a single profile.
 type Config struct {
 	Server     string `mapstructure:"server" yaml:"server,omitempty"`
 	APIKey     string `mapstructure:"api_key" yaml:"api_key,omitempty"`
 	Username   string `mapstructure:"username" yaml:"username,omitempty"`
 	Password   string `mapstructure:"password" yaml:"password,omitempty"`
-	AuthMethod string `mapstructure:"auth_method" yaml:"auth_method,omitempty"` // "apikey" or "basic"
+	AuthMethod string `mapstructure:"auth_method" yaml:"auth_method,omitempty"` // "apikey", "basic" or "oauth"
 	// CredentialStore selects where the secret fields live: "" or "file" keeps
 	// them plaintext in this file (legacy default); "keyring" stores them in the
 	// OS keyring and omits them from the file.
@@ -23,14 +25,31 @@ type Config struct {
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
 	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`
 	MCP     MCPConfig         `mapstructure:"mcp" yaml:"mcp,omitempty"`
+	// OAuth holds the client and tokens of an auth_method "oauth" profile.
+	OAuth OAuthConfig `mapstructure:"oauth" yaml:"oauth,omitempty"`
 
 	// Set by Load, never persisted: the selected profile, the server it was
-	// saved with (before --server / REDMINE_SERVER), and whether the secret in
+	// saved with (before --server / REDMINE_SERVER), whether the secret in
 	// use came from that profile (config file or keyring) rather than a flag
-	// or environment variable.
+	// or environment variable, and the config file it was read from.
 	profileName   string
 	profileServer string
 	storedSecret  bool
+	configPath    string
+}
+
+// OAuthConfig is an OAuth profile's client registration and tokens.
+// ClientSecret, AccessToken and RefreshToken are secrets: like api_key they
+// live in the config file or, for a keyring profile, in the system keyring.
+type OAuthConfig struct {
+	ClientID     string `mapstructure:"client_id" yaml:"client_id,omitempty"`
+	ClientSecret string `mapstructure:"client_secret" yaml:"client_secret,omitempty"`
+	AccessToken  string `mapstructure:"access_token" yaml:"access_token,omitempty"`
+	RefreshToken string `mapstructure:"refresh_token" yaml:"refresh_token,omitempty"`
+	// Expiry is when AccessToken expires; zero means it does not.
+	Expiry time.Time `mapstructure:"expiry" yaml:"expiry,omitempty"`
+	// Scopes are the scopes Redmine granted.
+	Scopes []string `mapstructure:"scopes" yaml:"scopes,omitempty"`
 }
 
 // StoredCredentialServer reports the profile whose stored secret (config file
@@ -52,6 +71,16 @@ func (c *Config) ProfileServer() (profile, server string, ok bool) {
 		return "", "", false
 	}
 	return c.profileName, c.profileServer, true
+}
+
+// ProfileLocation reports the config file and profile Load selected, so
+// refreshed OAuth tokens can be written back. ok is false when no profile was
+// selected.
+func (c *Config) ProfileLocation() (configPath, profile string, ok bool) {
+	if c == nil || c.profileName == "" || c.configPath == "" {
+		return "", "", false
+	}
+	return c.configPath, c.profileName, true
 }
 
 // MCPConfig holds per-profile defaults for the `redmine mcp serve` command.

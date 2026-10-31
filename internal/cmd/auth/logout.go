@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -25,14 +26,14 @@ func NewCmdLogout(f *cmdutil.Factory) *cobra.Command {
 			if err := cmdutil.PrepareInteractiveCommand(cmd, f); err != nil {
 				return err
 			}
-			return runLogout(f, args)
+			return runLogout(cmdutil.Context(cmd), f, args)
 		},
 	}
 
 	return cmd
 }
 
-func runLogout(f *cmdutil.Factory, args []string) error {
+func runLogout(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
 		configPath = f.ConfigPath
@@ -76,6 +77,12 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 	if !confirm {
 		printer.Outcome(false, output.ActionLoggedOut, "profile", name, "Logout cancelled")
 		return nil
+	}
+
+	if deleted.AuthMethod == config.AuthMethodOAuth {
+		if err := revokeOAuthLogin(ctx, f, configPath, name); err != nil {
+			printer.Warning("Could not revoke the OAuth token: " + err.Error())
+		}
 	}
 
 	if err := config.DeleteProfile(name, configPath); err != nil {

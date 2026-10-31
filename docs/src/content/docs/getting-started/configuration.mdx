@@ -15,7 +15,7 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
    redmine auth login
    ```
 
-2. Provide your Redmine server URL and authentication method (API key or username/password).
+2. Provide your Redmine server URL and authentication method (API key, username/password, or [OAuth](/commands/auth/#oauth-login) on Redmine 6.1+).
 
 3. Optionally set a default project — it is prepopulated in project-scoped commands.
 
@@ -87,7 +87,7 @@ The CLI writes the config file atomically with mode `0600`: a new file is writte
 
 ## System keyring (optional)
 
-You can keep the API key (or password) out of the config file and in your operating system keyring instead. It is fully opt-in and backward compatible: existing plaintext profiles keep working unchanged.
+You can keep the API key (or password, or OAuth secret and tokens) out of the config file and in your operating system keyring instead. It is fully opt-in and backward compatible: existing plaintext profiles keep working unchanged.
 
 <Steps>
 

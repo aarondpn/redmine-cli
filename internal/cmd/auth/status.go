@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
@@ -113,6 +116,18 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 		}
 	}
 
+	if client != nil {
+		if tok, ok := client.OAuthToken(); ok {
+			expires := "never"
+			if !tok.Expiry.IsZero() {
+				expires = tok.Expiry.Local().Format(time.RFC3339)
+			}
+			kvs = append(kvs,
+				output.KeyValue{Key: "Token Expires", Value: expires},
+				output.KeyValue{Key: "Scopes", Value: strings.Join(tok.Scopes, " ")})
+		}
+	}
+
 	if cfg.DefaultProject != "" {
 		kvs = append(kvs, output.KeyValue{Key: "Default Project", Value: cfg.DefaultProject})
 	}
@@ -178,6 +193,9 @@ func classifyStatusError(err error, authMethod string) *statusFailure {
 		// authentication is active for the account.
 		credentialsHint = "Check the username and password and run 'redmine auth login' to update them. Accounts with two-factor authentication must use an API key (My account > API access key) instead."
 	}
+	if authMethod == config.AuthMethodOAuth {
+		credentialsHint = "Run 'redmine auth login --oauth' to log in again."
+	}
 	var apiErr *api.APIError
 	switch {
 	case errors.As(err, &apiErr) && apiErr.IsAuthError():
@@ -195,6 +213,20 @@ func classifyStatusError(err error, authMethod string) *statusFailure {
 			message:   "Redmine refused the credentials check with 403, which it does for every login-requiring request while the REST API is disabled (or when a proxy blocks the request).",
 			hint:      "Ask a Redmine administrator to enable Administration > Settings > API > Enable REST web service, or check any proxy or firewall in front of Redmine.",
 			anonymous: true,
+		}
+	case errors.Is(err, oauth.ErrLoginRequired):
+		return &statusFailure{
+			user:    "authentication failed",
+			reason:  reasonCredentialsRejected,
+			message: "The OAuth login expired or was revoked.",
+			hint:    "Run '" + api.ReloginCommand(err) + "' to log in again.",
+		}
+	case errors.Is(err, oauth.ErrInvalidClient):
+		return &statusFailure{
+			user:    "authentication failed",
+			reason:  reasonCredentialsRejected,
+			message: "Redmine rejected the OAuth client ID or secret.",
+			hint:    cmdutil.ErrorHint(err),
 		}
 	default:
 		return &statusFailure{
