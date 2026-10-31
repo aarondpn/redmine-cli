@@ -98,7 +98,7 @@ jobs:
         env:
           REDMINE_INSTALL_DIR: ${{ runner.temp }}/install-sh
         run: |
-          out=$(bash < install.sh 2>&1)
+          out=$(bash < install.sh 2>&1) || { printf '%s\n' "$out"; echo "install.sh failed"; exit 1; }
           printf '%s\n' "$out"
           grep -qF 'Attestation verified.' <<<"$out" || { echo "install.sh did not verify the attestation"; exit 1; }
           latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
