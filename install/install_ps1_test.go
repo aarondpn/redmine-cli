@@ -17,7 +17,8 @@ import (
 // psStubs replace the cmdlets and the gh command install.ps1 calls; functions
 // take precedence over cmdlets and executables in PowerShell. They serve a
 // fake release from $env:FIXTURE_DIR for $env:FIXTURE_TAG, log every URL and
-// gh call to $env:STUB_LOG, and make gh exit with $env:GH_AUTH_EXIT for
+// gh call to $env:STUB_LOG (DROP_FIRST_DOWNLOAD=1 fails the first download
+// like a dropped connection), and make gh exit with $env:GH_AUTH_EXIT for
 // `auth status` and $env:GH_VERIFY_EXIT for `attestation verify`.
 // `attestation verify --help` lists the flags in $env:GH_VERIFY_FLAGS
 // (default: both flags install.ps1 needs; "none" lists neither).
@@ -33,6 +34,12 @@ function Invoke-RestMethod {
 function Invoke-WebRequest {
   param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
   Add-Content -LiteralPath $env:STUB_LOG -Value $Uri
+  # DROP_FIRST_DOWNLOAD simulates a transient network failure once.
+  $dropped = Join-Path $env:FIXTURE_DIR 'dropped'
+  if ($env:DROP_FIRST_DOWNLOAD -eq '1' -and -not (Test-Path -LiteralPath $dropped)) {
+    New-Item -ItemType File -Path $dropped | Out-Null
+    throw 'The request was aborted: The connection was closed unexpectedly.'
+  }
   if ($Uri -notlike "*/releases/download/$($env:FIXTURE_TAG)/*") { throw "404 Not Found: $Uri" }
   $src = Join-Path $env:FIXTURE_DIR ($Uri -split '/')[-1]
   if (-not (Test-Path -LiteralPath $src)) { throw "404 Not Found: $Uri" }
@@ -314,6 +321,12 @@ func TestInstallPowerShellScript(t *testing.T) {
 			env:        map[string]string{"GH_AUTH_EXIT": "1", "GH_TOKEN": "x", "GH_VERIFY_EXIT": "1"},
 			wantErr:    true,
 			wantOutput: []string{"Attestation verification failed"},
+		},
+		{
+			name:          "a dropped connection is retried",
+			env:           map[string]string{"DROP_FIRST_DOWNLOAD": "1"},
+			wantInstalled: true,
+			wantOutput:    []string{"connection was closed unexpectedly", "retrying...", "Checksum verified."},
 		},
 		{
 			name:       "invalid pinned tag",

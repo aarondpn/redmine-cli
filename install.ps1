@@ -36,6 +36,23 @@
     $Value -in @('1', 'true')
   }
 
+  # Runs a web request, retrying transient failures such as Windows
+  # PowerShell 5.1's "The connection was closed unexpectedly". Client errors
+  # (4xx, e.g. a missing release or a rate limit) fail immediately.
+  function Invoke-WithRetry([scriptblock]$Request) {
+    for ($attempt = 1; ; $attempt++) {
+      try {
+        return & $Request
+      } catch {
+        $status = 0
+        if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+        if ($attempt -ge 3 -or ($status -ge 400 -and $status -lt 500)) { throw }
+        Write-Warn "Request failed ($($_.Exception.Message)); retrying..."
+        Start-Sleep -Seconds (2 * $attempt)
+      }
+    }
+  }
+
   # Runs gh with its output discarded and reports success. Native stderr must
   # not become a terminating error under ErrorActionPreference=Stop, which
   # Windows PowerShell 5.1 does for redirected stderr.
@@ -83,7 +100,7 @@
     Write-Info "Requested version: $Tag"
   } else {
     Write-Info 'Fetching latest release...'
-    $Tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing).tag_name
+    $Tag = (Invoke-WithRetry { Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing }).tag_name
     if (-not $Tag) { throw 'Could not determine latest release' }
     Write-Info "Latest version: $Tag"
   }
@@ -106,8 +123,8 @@
     $ChecksumsPath = Join-Path $TmpDir 'checksums.txt'
 
     Write-Info "Downloading $BaseUrl/$Archive..."
-    Invoke-WebRequest -Uri "$BaseUrl/$Archive" -OutFile $ArchivePath -UseBasicParsing
-    Invoke-WebRequest -Uri "$BaseUrl/$ChecksumsName" -OutFile $ChecksumsPath -UseBasicParsing
+    Invoke-WithRetry { Invoke-WebRequest -Uri "$BaseUrl/$Archive" -OutFile $ArchivePath -UseBasicParsing }
+    Invoke-WithRetry { Invoke-WebRequest -Uri "$BaseUrl/$ChecksumsName" -OutFile $ChecksumsPath -UseBasicParsing }
 
     Write-Info 'Verifying checksum...'
     $Expected = $null

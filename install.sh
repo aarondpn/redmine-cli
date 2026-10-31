@@ -47,7 +47,7 @@ if [ -n "$VERSION" ]; then
 else
   # Get latest release tag
   info "Fetching latest release..."
-  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
+  TAG=$(curl -fsSL --retry 3 "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
   [ -z "$TAG" ] && error "Could not determine latest release"
   info "Latest version: ${TAG}"
 fi
@@ -68,8 +68,8 @@ trap 'rm -rf "$TMPDIR"' EXIT
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/redmine-cli_${TAG#v}_checksums.txt"
 
 info "Downloading ${URL}..."
-curl -fsSL -o "${TMPDIR}/${ARCHIVE}" "$URL"
-curl -fsSL -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL"
+curl -fsSL --retry 3 -o "${TMPDIR}/${ARCHIVE}" "$URL"
+curl -fsSL --retry 3 -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL"
 
 # Verify checksum
 info "Verifying checksum..."
