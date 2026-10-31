@@ -49,7 +49,7 @@ redmine --version
 redmine update
 ```
 
-Homebrew installs are updated with `brew upgrade`. The Docker image is updated with `docker pull ghcr.io/aarondpn/redmine-mcp`. See [self-update](/commands/other/#self-update) for details.
+Homebrew installs are updated with `brew upgrade`. For the Docker image, pull it and recreate the container (or restart your MCP client): `docker pull ghcr.io/aarondpn/redmine-mcp`, or `docker compose pull && docker compose up -d`. See [self-update](/commands/other/#self-update) for details.
 
 ## Script options
 
@@ -61,3 +61,13 @@ Both install scripts verify the release checksum, and the build attestation when
 | `REDMINE_CLI_SKIP_ATTESTATION=1` | Skip the attestation check (not recommended) |
 | `REDMINE_INSTALL_DIR` | Install to another directory |
 | `REDMINE_CLI_NO_MODIFY_PATH=1` | PowerShell only: leave `PATH` unchanged |
+
+The variable goes to the shell that runs the script, not to `curl`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | REDMINE_CLI_VERSION=v2.17.0 bash
+```
+
+```powershell
+$env:REDMINE_CLI_VERSION = 'v2.17.0'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+```

@@ -49,7 +49,7 @@ redmine --version
 redmine update
 ```
 
-通过 Homebrew 安装时使用 `brew upgrade` 更新。Docker 镜像使用 `docker pull ghcr.io/aarondpn/redmine-mcp` 更新。详见[自更新](/zh-cn/commands/other/#自动更新)。
+通过 Homebrew 安装时使用 `brew upgrade` 更新。Docker 镜像需拉取后重新创建容器（或重启 MCP 客户端）：`docker pull ghcr.io/aarondpn/redmine-mcp`，或 `docker compose pull && docker compose up -d`。详见[自更新](/zh-cn/commands/other/#自动更新)。
 
 ## 脚本选项
 
@@ -61,3 +61,13 @@ redmine update
 | `REDMINE_CLI_SKIP_ATTESTATION=1` | 跳过构建证明检查（不推荐） |
 | `REDMINE_INSTALL_DIR` | 安装到其他目录 |
 | `REDMINE_CLI_NO_MODIFY_PATH=1` | 仅 PowerShell：不修改 `PATH` |
+
+变量要传给运行脚本的 shell，而不是 `curl`：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | REDMINE_CLI_VERSION=v2.17.0 bash
+```
+
+```powershell
+$env:REDMINE_CLI_VERSION = 'v2.17.0'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+```

@@ -187,7 +187,7 @@ redmine update
 1. **校验和**：归档文件的 SHA256 必须与该版本的校验和文件一致。
 2. **证明（attestation）**：归档文件的 SHA256 必须具有 [GitHub artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations)（SLSA 构建来源证明，经 Sigstore 签名并记录在其透明日志中），且由本仓库的 `release.yml` 工作流针对正在安装的这个版本标签签发。
 
-除仓库外，内置检查还会固定签名工作流和源引用，因此比单独运行 `gh attestation verify --repo aarondpn/redmine-cli` 更严格。等效的 `gh` 命令如下（Windows 归档文件以 `.zip` 结尾）。安装了较新且已登录的 `gh` 时，`install.sh` 会运行该命令；否则脚本只校验校验和后即安装，并打印该命令供你自行验证（参见[安装](/zh-cn/getting-started/installation/)）：
+除仓库外，内置检查还会固定签名工作流和源引用，因此比单独运行 `gh attestation verify --repo aarondpn/redmine-cli` 更严格。等效的 `gh` 命令如下（Windows 归档文件以 `.zip` 结尾）。安装了较新且已登录的 `gh` 时，`install.sh` 和 `install.ps1` 会运行该命令；否则脚本只校验校验和后即安装，并打印该命令供你自行验证（参见[安装](/zh-cn/getting-started/installation/)）：
 
 ```bash
 gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli \
@@ -199,7 +199,7 @@ gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli
 
 通过 Homebrew 安装时，将委托给 `brew upgrade` 执行。
 
-在 Windows 上，正在运行的 `redmine.exe` 会先被重命名为 `redmine.exe.old`，再放入新的二进制文件；下次更新时会删除该文件。
+在 Windows 上，正在运行的 `redmine.exe` 会先被重命名为 `redmine.exe.old`，再放入新的二进制文件；下次更新时会删除该文件，若该旧二进制文件仍在运行（例如作为 MCP 服务器），则会将其改名移开。
 
 | 标志 | 描述 |
 |------|------|
@@ -211,7 +211,7 @@ gh attestation verify redmine-cli-<os>-<arch>.tar.gz --repo aarondpn/redmine-cli
   `--skip-attestation` 仅适用于屏蔽了验证端点的网络环境。如果验证*失败*（而不是无法访问），请不要绕过，而应将其作为安全问题报告。[安装脚本](/zh-cn/getting-started/installation/)中的等效开关 `REDMINE_CLI_SKIP_ATTESTATION=1` 同样如此。
 </Aside>
 
-如果二进制文件所在目录不可写，错误信息会建议使用同一版本标签下的 `install.sh` 重新安装，而不是使用 `main` 分支上的脚本。
+如果二进制文件所在目录不可写，错误信息会建议使用同一版本标签下的安装脚本（`install.sh`，Windows 上为 `install.ps1`）重新安装，而不是使用 `main` 分支上的脚本。
 
 ### 启动时更新检查
 

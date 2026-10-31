@@ -9,7 +9,7 @@ const installers = [
     label: t('install.script'),
     code: 'curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash',
   },
-  { id: 'powershell', label: 'PowerShell', code: 'irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex' },
+  { id: 'powershell', label: 'PowerShell', prompt: '>', code: 'irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex' },
   { id: 'brew', label: 'Homebrew', code: 'brew install aarondpn/tap/redmine' },
 ];
 ---
@@ -42,7 +42,7 @@ const installers = [
       data-panel={inst.id}
       hidden={i !== 0}
     >
-      <code class="rc-install__code"><span class="rc-install__prompt" aria-hidden="true">$</span> {inst.code}</code>
+      <code class="rc-install__code"><span class="rc-install__prompt" aria-hidden="true">{inst.prompt ?? '$'}</span> {inst.code}</code>
       <button type="button" class="rc-install__copy" data-code={inst.code} aria-label={t('install.copy')}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
