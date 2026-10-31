@@ -101,7 +101,7 @@ VS Code 会提示输入 URL 与 API 密钥，并将密钥作为机密保存。Cu
 
 如需启用写入或收窄工具范围，可在镜像名之后添加标志（`... ghcr.io/aarondpn/redmine-mcp --enable-writes --enable-groups issues,time`），或转发对应的 `REDMINE_MCP_*` 变量。
 
-已有包含配置档的 `~/.redmine-cli.yaml`？以只读方式挂载并选择配置档。`redmine auth login` 以 `0600` 权限写入该文件，`--user` 可确保容器内仍能读取。将密钥保存在系统密钥环中的配置档无法在容器内读取，请为其提供 `REDMINE_API_KEY`。
+已有包含配置档的 `~/.redmine-cli.yaml`？以只读方式挂载并选择配置档。`redmine auth login` 以 `0600` 权限写入该文件，`--user` 可确保容器内仍能读取。将密钥保存在系统密钥环中或使用 OAuth 登录的配置档无法在容器内使用，请为其提供 `REDMINE_API_KEY`。
 
 ```bash
 docker run -i --rm --user "$(id -u):$(id -g)" \

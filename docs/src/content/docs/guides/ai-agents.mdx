@@ -113,7 +113,7 @@ VS Code prompts for the URL and API key and stores the key as a secret. Cursor i
 
 To enable writes or narrow the tool surface, add flags after the image name (`... ghcr.io/aarondpn/redmine-mcp --enable-writes --enable-groups issues,time`) or forward the matching `REDMINE_MCP_*` variable.
 
-Already have a `~/.redmine-cli.yaml` with profiles? Mount it read-only and pick a profile. `--user` keeps the file readable even though `redmine auth login` writes it with mode `0600`. Profiles that store their secret in the system keyring can't be read inside the container; supply `REDMINE_API_KEY` for those.
+Already have a `~/.redmine-cli.yaml` with profiles? Mount it read-only and pick a profile. `--user` keeps the file readable even though `redmine auth login` writes it with mode `0600`. Profiles that keep their secret in the system keyring or log in with OAuth can't be used inside the container; supply `REDMINE_API_KEY` for those.
 
 ```bash
 docker run -i --rm --user "$(id -u):$(id -g)" \

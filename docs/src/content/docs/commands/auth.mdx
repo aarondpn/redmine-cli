@@ -56,7 +56,7 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 
 For Redmine 6.1 or newer. Log in through the browser instead of pasting an API key.
 
-1. An administrator registers the app once: Administration > Applications > New, redirect URI `http://127.0.0.1/callback`, click Check all under Scopes. Copy the client ID and secret.
+1. An administrator registers the app once: Administration > Applications > New, redirect URI `http://127.0.0.1/callback`, click Check all under Scopes. Copy the UID (client ID) and Secret.
 2. Log in; the wizard asks for the server, client ID and secret:
 
 ```bash
@@ -73,7 +73,7 @@ The CLI opens the browser and waits for the redirect. Without a browser (SSH), a
 | `--scopes` | Scopes to request, comma or space separated. `default` is the CLI's usual set (`default,admin` adds `admin`). |
 | `--no-browser` | Print the URL instead of opening a browser. |
 
-A `read_only` profile requests only read scopes; `admin` is never requested unless you pass it in `--scopes`. If Redmine answers `invalid_scope`, tick the missing scopes on the application or pass `--scopes`. Tokens refresh automatically; if the login expires or is revoked, run `redmine auth login --oauth` again.
+A `read_only` profile requests only read scopes; Redmine admins who need admin-only commands (users, groups, custom fields) add `--scopes default,admin`. If the browser says the scope is invalid, tick the missing scopes on the application or pass `--scopes`.
 
 ### Server URL normalization
 

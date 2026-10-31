@@ -52,7 +52,7 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 
 适用于 Redmine 6.1 及更高版本。在浏览器中登录，无需粘贴 API 密钥。
 
-1. 管理员先注册一次应用：管理 > Applications > 新建，重定向 URI 填 `http://127.0.0.1/callback`，在 Scopes 下点击“全选”。复制客户端 ID 和密钥。
+1. 管理员先注册一次应用：管理 > Applications > New Application，重定向 URI 填 `http://127.0.0.1/callback`，在 Scopes 下点击“全选”。复制 UID（客户端 ID）和 Secret。
 2. 登录；向导会询问服务器、客户端 ID 和密钥：
 
 ```bash
@@ -69,7 +69,7 @@ CLI 会打开浏览器并等待重定向。没有浏览器时（SSH），加上 
 | `--scopes` | 要申请的范围，用逗号或空格分隔。`default` 表示 CLI 常用的范围集（`default,admin` 会额外加上 `admin`）。 |
 | `--no-browser` | 打印 URL，而不打开浏览器。 |
 
-`read_only` 配置文件只申请读取范围；除非通过 `--scopes` 指定，否则绝不申请 `admin`。如果 Redmine 返回 `invalid_scope`，请在应用上勾选缺少的范围，或使用 `--scopes`。令牌会自动刷新；登录过期或被撤销后，请再次运行 `redmine auth login --oauth`。
+`read_only` 配置文件只申请读取范围；需要管理员专属命令（用户、组、自定义字段）的 Redmine 管理员请加上 `--scopes default,admin`。如果浏览器提示 scope 无效，请在应用上勾选缺少的范围，或使用 `--scopes`。
 
 ### 服务器 URL 规范化
 
