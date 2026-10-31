@@ -25,19 +25,21 @@ var scriptTools = []string{
 	"mv", "cp", "cat", "sha256sum", "shasum",
 }
 
-// curlStub serves release assets from $FIXTURE_DIR for $FIXTURE_TAG and a
-// releases/latest API response naming $LATEST_TAG. Every URL is logged.
+// curlStub serves release assets from $FIXTURE_DIR for $FIXTURE_TAG and
+// answers releases/latest with the effective URL of the $LATEST_TAG release
+// page, as `curl -w '%{url_effective}'` prints it. Every URL is logged.
 const curlStub = `out=""; url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift 2 ;;
+    --retry|-w) shift 2 ;;
     -*) shift ;;
     *)  url="$1"; shift ;;
   esac
 done
 printf '%s\n' "$url" >> "$STUB_LOG"
 case "$url" in
-  */releases/latest) printf '{"tag_name": "%s"}\n' "$LATEST_TAG"; exit 0 ;;
+  */releases/latest) printf 'https://github.com/aarondpn/redmine-cli/releases/tag/%s' "$LATEST_TAG"; exit 0 ;;
   */releases/download/"$FIXTURE_TAG"/*) ;;
   *) exit 22 ;;
 esac
@@ -227,7 +229,7 @@ func TestInstallScript(t *testing.T) {
 			name:          "latest release with verified attestation",
 			withGh:        true,
 			wantInstalled: true,
-			wantOutput:    []string{"Latest version: " + scriptFixtureTag, "Attestation verified."},
+			wantOutput:    []string{"Latest version: " + scriptFixtureTag, "Attestation verified.", "is not in your PATH", "/redmine auth login' to connect to your Redmine server", "https://redmine-cli.dev/getting-started/configuration/"},
 			wantLog:       []string{"/releases/latest", "/releases/download/" + scriptFixtureTag + "/", "gh attestation verify ", verifyArgs},
 		},
 		{

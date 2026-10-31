@@ -9,7 +9,7 @@
       "name": "redmine",
       "source": "./",
       "description": "Drive Redmine from Claude Code: bundled agent skill plus MCP server for issues, time tracking, projects, wiki, and more.",
-      "homepage": "https://aarondpn.github.io/redmine-cli",
+      "homepage": "https://redmine-cli.dev",
       "repository": "https://github.com/aarondpn/redmine-cli",
       "license": "MIT",
       "category": "External integrations",

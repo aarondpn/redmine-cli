@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
@@ -91,6 +93,7 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 		{Key: "Auth Method", Value: cfg.AuthMethod},
 	}
 	authOK := true
+	var failure *statusFailure
 
 	// Try to fetch current user
 	client, err := f.ApiClient()
@@ -103,7 +106,10 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 			kvs = append(kvs, output.KeyValue{Key: "User", Value: fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)})
 		} else {
 			authOK = false
-			kvs = append(kvs, output.KeyValue{Key: "User", Value: "authentication failed"})
+			failure = classifyStatusError(err, cfg.AuthMethod)
+			kvs = append(kvs, output.KeyValue{Key: "User", Value: failure.user})
+			kvs = append(kvs, output.KeyValue{Key: "Reason", Value: failure.reason})
+			kvs = append(kvs, output.KeyValue{Key: "Hint", Value: failure.hint})
 		}
 	}
 
@@ -117,12 +123,87 @@ func runStatus(ctx context.Context, f *cmdutil.Factory) error {
 		for _, kv := range kvs {
 			payload[jsonKey(kv.Key)] = kv.Value
 		}
+		if failure != nil {
+			payload["message"] = failure.message
+			if failure.anonymous {
+				payload["anonymous"] = true
+			}
+		}
 		printer.JSON(payload)
 		return nil
 	}
 
 	printer.Detail(kvs)
+	if failure != nil {
+		printer.Warning(failure.message)
+	}
 	return nil
+}
+
+// statusFailure describes why the current-user probe failed. reason is a
+// stable machine-readable code (a JSON field); message and hint are prose.
+type statusFailure struct {
+	user    string
+	reason  string
+	message string
+	hint    string
+	// anonymous is set when Redmine answered the probe as it does for a
+	// request without a login, so the configured credentials are not in
+	// effect and requests run as anonymous.
+	anonymous bool
+}
+
+// Stable values of the "reason" field when the current-user probe fails.
+const (
+	reasonCredentialsRejected = "credentials_rejected"
+	reasonRESTAPIDisabled     = "rest_api_disabled"
+	reasonRequestFailed       = "request_failed"
+)
+
+// classifyStatusError separates "Redmine answered and rejected us" from "we
+// could not talk to Redmine". /users/current.json needs a login but no role
+// permission, so against a reachable Redmine only these outcomes exist:
+//
+//   - 401: the key was not recognised and Redmine fell back to anonymous.
+//     Public endpoints keep answering with public data, which is why list
+//     commands can succeed with a bogus key.
+//   - 403: Redmine answers every login-requiring request with 403 while the
+//     REST API is disabled, whatever the key. A proxy can do the same.
+//
+// authMethod picks the credential the 401 hint talks about.
+func classifyStatusError(err error, authMethod string) *statusFailure {
+	credentialsHint := "Check the API key (My account > API access key) and run 'redmine auth login' to configure a valid one."
+	if authMethod == "basic" {
+		// Redmine also answers basic auth with 401 while two-factor
+		// authentication is active for the account.
+		credentialsHint = "Check the username and password and run 'redmine auth login' to update them. Accounts with two-factor authentication must use an API key (My account > API access key) instead."
+	}
+	var apiErr *api.APIError
+	switch {
+	case errors.As(err, &apiErr) && apiErr.IsAuthError():
+		return &statusFailure{
+			user:      "authentication failed",
+			reason:    reasonCredentialsRejected,
+			message:   "Redmine rejected the configured credentials and treats requests as anonymous; commands may return only public data or fail.",
+			hint:      credentialsHint,
+			anonymous: true,
+		}
+	case errors.As(err, &apiErr) && apiErr.IsForbidden():
+		return &statusFailure{
+			user:      "authentication failed",
+			reason:    reasonRESTAPIDisabled,
+			message:   "Redmine refused the credentials check with 403, which it does for every login-requiring request while the REST API is disabled (or when a proxy blocks the request).",
+			hint:      "Ask a Redmine administrator to enable Administration > Settings > API > Enable REST web service, or check any proxy or firewall in front of Redmine.",
+			anonymous: true,
+		}
+	default:
+		return &statusFailure{
+			user:    fmt.Sprintf("unavailable: %s", err),
+			reason:  reasonRequestFailed,
+			message: "Could not verify the credentials; the request to Redmine failed.",
+			hint:    "Check the server URL and your network connection, then run 'redmine auth status' again.",
+		}
+	}
 }
 
 // jsonKey converts a human label ("Default Project") into a stable snake_case

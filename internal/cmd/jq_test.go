@@ -327,7 +327,6 @@ func TestJQ_RejectedForCommandsWithoutJSONOutput(t *testing.T) {
 func TestRootCmd_InteractiveCommandsRejectJQFlag(t *testing.T) {
 	clearRedmineEnv(t)
 	for _, args := range [][]string{
-		{"auth", "login", "--jq", "."},
 		{"auth", "logout", "--jq", "."},
 		{"auth", "switch", "--jq", "."},
 		{"issues", "browse", "--jq", "."},

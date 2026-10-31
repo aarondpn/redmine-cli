@@ -38,6 +38,13 @@ func (f *Factory) apiKeyOverride() (string, error) {
 	return key, nil
 }
 
+// APIKeyFromFlags returns the API key given by --api-key or --api-key-file
+// ("" when neither is set). It shares the cached read with Config, so a key
+// read from stdin is available to both.
+func (f *Factory) APIKeyFromFlags() (string, error) {
+	return f.apiKeyOverride()
+}
+
 // ReadSecretFile reads the secret named by a file flag such as
 // --api-key-file from path, or from stdin when path is "-", so the secret
 // never appears in argv. Surrounding whitespace (such as the trailing newline

@@ -23,12 +23,12 @@ func TestDescribeAPIError(t *testing.T) {
 		{
 			name:      "auth",
 			err:       &api.APIError{StatusCode: http.StatusUnauthorized, URL: "/issues.json"},
-			wantParts: []string{"Authentication", "--profile"},
+			wantParts: []string{"Authentication", "redmine auth login", "--name <profile>"},
 		},
 		{
 			name:      "forbidden",
 			err:       &api.APIError{StatusCode: http.StatusForbidden},
-			wantParts: []string{"Forbidden"},
+			wantParts: []string{"Forbidden", "permission", "REST API is disabled"},
 		},
 		{
 			name:      "not found",

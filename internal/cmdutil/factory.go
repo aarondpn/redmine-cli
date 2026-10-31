@@ -120,12 +120,12 @@ func (f *Factory) Config() (*config.Config, error) {
 
 	// A stored secret is bound to the server it was saved for; following a
 	// --server / REDMINE_SERVER override elsewhere hands it to another host.
-	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, cfg.Server) {
+	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, config.EnsureScheme(cfg.Server)) {
 		f.Warn(storedCredentialOverrideMessage(cfg, profile, server))
 	}
 	// Profile headers can hold proxy tokens bound to the same server; only
 	// those not replaced by a --header on this invocation are checked.
-	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, cfg.Server) {
+	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, config.EnsureScheme(cfg.Server)) {
 		if names := profileHeadersInUse(cfg.Headers, f.Headers); len(names) > 0 {
 			f.Warn(profileHeadersOverrideMessage(cfg, profile, server, names))
 		}

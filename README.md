@@ -36,48 +36,25 @@
 
 ## Installation
 
-### Homebrew (macOS & Linux)
+**Homebrew** (macOS, Linux):
 
 ```bash
-brew tap aarondpn/tap
-brew install redmine
+brew install aarondpn/tap/redmine
 ```
 
-This also installs shell completions for bash, zsh, and fish.
-
-### Quick Install Script
+**Install script** (macOS, Linux):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
 ```
 
-Auto-detects your OS and architecture, downloads the latest release with checksum verification, and installs to `~/.local/bin`. If a recent [GitHub CLI](https://cli.github.com) is installed and logged in, it also verifies the release's build attestation with `gh attestation verify` and refuses to install if that fails. Without such a `gh`, it installs after the checksum check only and prints a warning with the command to verify the release yourself. Set `REDMINE_CLI_VERSION=<tag>` to install a specific release; releases older than v2.11.2 have no attestations, so pinning one of them with a logged-in `gh` also needs `REDMINE_CLI_SKIP_ATTESTATION=1`. See the [installation docs](https://redmine-cli.dev/getting-started/installation/) for details.
+**PowerShell** (Windows):
 
-### Install with Go
-
-```bash
-go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
+```powershell
+irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
 ```
 
-### Manual Download
-
-Grab the latest release for your platform from [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest):
-
-| Platform      | Architecture | Download |
-|---------------|-------------|----------|
-| Linux         | x86_64      | `redmine-cli-linux-amd64.tar.gz` |
-| Linux         | ARM64       | `redmine-cli-linux-arm64.tar.gz` |
-| macOS         | Intel       | `redmine-cli-darwin-amd64.tar.gz` |
-| macOS         | Apple Silicon | `redmine-cli-darwin-arm64.tar.gz` |
-| Windows       | x86_64      | `redmine-cli-windows-amd64.zip` |
-
-### Updating
-
-```bash
-redmine update
-```
-
-Downloads the latest release and verifies its SHA256 checksum and its GitHub artifact attestation (SLSA provenance from this repository's release workflow, verified via Sigstore) before replacing the binary. The update is refused if either check fails; `--skip-attestation` falls back to checksum-only verification with a warning.
+Or download a binary from [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest). Update with `redmine update`. More options: [installation docs](https://redmine-cli.dev/getting-started/installation/).
 
 ## Getting Started
 

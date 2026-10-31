@@ -76,9 +76,11 @@ func describeAPIError(err error) string {
 	if errors.As(err, &ae) {
 		switch {
 		case ae.IsAuthError():
-			return "Authentication failed. Check the API key or run 'redmine auth login --profile <name>'."
+			return "Authentication failed: Redmine did not accept the credentials (invalid, revoked or missing API key, or a locked account). The user must fix them outside the chat: run 'redmine auth login' in a terminal (add --name <profile> to update a specific profile), or update REDMINE_API_KEY in the MCP host config, then restart the MCP server."
 		case ae.IsForbidden():
-			return "Forbidden. The account does not have permission for this operation."
+			// Redmine answers 403 both for a missing permission and for every
+			// login-requiring request while the REST API is disabled.
+			return "Forbidden: either the account lacks the permission for this operation, or the REST API is disabled. If other tools work, it is a missing permission; don't retry with other credentials. If every tool is denied, an administrator must enable Administration > Settings > API > Enable REST web service."
 		case ae.IsNotFound():
 			return "Resource not found: " + ae.URL
 		case ae.IsValidationError():

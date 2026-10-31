@@ -57,6 +57,34 @@ func TestInstallScriptMatchesGoReleaser(t *testing.T) {
 	}
 }
 
+// TestPowerShellInstallScriptMatchesGoReleaser does the same for install.ps1,
+// which downloads the Windows zip.
+func TestPowerShellInstallScriptMatchesGoReleaser(t *testing.T) {
+	repoRoot := filepath.Join("..")
+
+	cfg := loadGoReleaser(t, filepath.Join(repoRoot, ".goreleaser.yaml"))
+	script := string(readFile(t, filepath.Join(repoRoot, "install.ps1")))
+
+	// install.ps1 only installs the Windows build; {{ .Arch }} and
+	// {{ .Version }} map to its $Arch and $Version.
+	data := map[string]string{
+		"ProjectName": cfg.ProjectName,
+		"Os":          "windows",
+		"Arch":        "${Arch}",
+		"Version":     "${Version}",
+	}
+
+	wantArchive := render(t, cfg.archiveNameTemplate(), data) + ".zip"
+	wantChecksum := render(t, cfg.checksumNameTemplate(), data)
+
+	if got := extractPowerShellVar(script, "Archive"); got != wantArchive {
+		t.Errorf("install.ps1 $Archive = %q, want %q", got, wantArchive)
+	}
+	if got := extractPowerShellVar(script, "ChecksumsName"); got != wantChecksum {
+		t.Errorf("install.ps1 $ChecksumsName = %q, want %q", got, wantChecksum)
+	}
+}
+
 type goreleaserConfig struct {
 	ProjectName string `yaml:"project_name"`
 	Archives    []struct {
@@ -118,6 +146,12 @@ func extractShellVar(script, name string) string {
 		return ""
 	}
 	return rest[:end]
+}
+
+// extractPowerShellVar returns the double-quoted value of the first
+// $Name = "..." assignment in a PowerShell script.
+func extractPowerShellVar(script, name string) string {
+	return extractShellVar(strings.Replace(script, "$"+name+" = \"", name+"=\"", 1), name)
 }
 
 func readFile(t *testing.T, path string) []byte {

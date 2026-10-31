@@ -288,6 +288,7 @@ func TestNewCmdUpdate_SkipAttestationWarns(t *testing.T) {
 func TestNotWritableError(t *testing.T) {
 	tests := []struct {
 		name    string
+		goos    string // default linux
 		tag     string
 		want    []string
 		wantNot []string
@@ -308,6 +309,13 @@ func TestNotWritableError(t *testing.T) {
 			wantNot: []string{"/main/install.sh"},
 		},
 		{
+			name:    "windows suggests install.ps1",
+			goos:    "windows",
+			tag:     "v9.8.7",
+			want:    []string{"$env:REDMINE_CLI_VERSION='v9.8.7'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/v9.8.7/install.ps1 | iex"},
+			wantNot: []string{"curl", "install.sh"},
+		},
+		{
 			// The tag comes from the GitHub API; never paste an unexpected
 			// value into a command the user may copy into a shell.
 			name:    "unsafe tag falls back to the releases page",
@@ -318,6 +326,14 @@ func TestNotWritableError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			goos := tt.goos
+			if goos == "" {
+				goos = "linux"
+			}
+			orig := hostOS
+			t.Cleanup(func() { hostOS = orig })
+			hostOS = goos
+
 			msg := notWritableError("/usr/local/bin", tt.tag).Error()
 			if !strings.HasPrefix(msg, "cannot update: /usr/local/bin is not writable") {
 				t.Errorf("unexpected prefix:\n%s", msg)

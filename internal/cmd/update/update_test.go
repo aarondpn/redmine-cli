@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +24,15 @@ import (
 )
 
 // --- Homebrew detection ---
+
+// skipHomebrewOnWindows skips tests that need Unix paths or a shell-script
+// brew shim. Homebrew does not exist on Windows.
+func skipHomebrewOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Homebrew is not available on Windows")
+	}
+}
 
 func stubBrewEnv(t *testing.T, execPath, prefix string, prefixErr error) {
 	t.Helper()
@@ -37,6 +47,7 @@ func stubBrewEnv(t *testing.T, execPath, prefix string, prefixErr error) {
 }
 
 func TestDefaultCheckHomebrew_ExecUnderCaskDir(t *testing.T) {
+	skipHomebrewOnWindows(t)
 	stubBrewEnv(t, "/opt/homebrew/Caskroom/redmine/2.1.1/redmine", "/opt/homebrew", nil)
 	if !defaultCheckHomebrew() {
 		t.Error("expected true when exec path resolves into the redmine cask dir")
@@ -82,6 +93,7 @@ func TestDefaultCheckHomebrew_BrewNotInstalled(t *testing.T) {
 // original PATH is restored via t.Cleanup.
 func withBrewShim(t *testing.T, body string) {
 	t.Helper()
+	skipHomebrewOnWindows(t)
 	dir := t.TempDir()
 	script := "#!/bin/sh\n" + body + "\n"
 	shimPath := filepath.Join(dir, "brew")
@@ -642,5 +654,81 @@ func TestRunUpdate_RefusesOnChecksumMismatch(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "checksum verification failed") {
 		t.Errorf("expected error to mention checksum verification failure, got: %v", err)
+	}
+}
+
+func TestFetchLatestRelease_SendsTokenAndHintsRateLimit(t *testing.T) {
+	var gotAuth string
+	status := http.StatusOK
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(status)
+		fmt.Fprint(w, `{"tag_name":"v9.9.9"}`)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	if _, err := fetchLatestRelease(context.Background(), ts.URL); err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "" {
+		t.Errorf("anonymous request sent Authorization %q", gotAuth)
+	}
+
+	t.Setenv("GH_TOKEN", "gh-token")
+	release, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "Bearer gh-token" {
+		t.Errorf("Authorization = %q, want the GH_TOKEN bearer", gotAuth)
+	}
+	if release.TagName != "v9.9.9" {
+		t.Errorf("TagName = %q", release.TagName)
+	}
+
+	status = http.StatusForbidden
+	_, err = fetchLatestRelease(context.Background(), ts.URL)
+	if err == nil || !strings.Contains(err.Error(), "rate limited? set GITHUB_TOKEN or GH_TOKEN") {
+		t.Errorf("403 error = %v, want the rate limit hint", err)
+	}
+}
+
+func TestFetchLatestRelease_RetriesWithoutRejectedToken(t *testing.T) {
+	var auths []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auths = append(auths, r.Header.Get("Authorization"))
+		if r.Header.Get("Authorization") != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, `{"tag_name":"v9.9.9"}`)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "stale")
+	release, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err != nil {
+		t.Fatalf("expected the anonymous retry to succeed, got %v", err)
+	}
+	if release.TagName != "v9.9.9" {
+		t.Errorf("TagName = %q", release.TagName)
+	}
+	if len(auths) != 2 || auths[0] != "Bearer stale" || auths[1] != "" {
+		t.Errorf("requests sent Authorization %q, want the token once, then none", auths)
+	}
+}
+
+func TestFetchLatestRelease_UnauthorizedHint(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer ts.Close()
+
+	t.Setenv("GITHUB_TOKEN", "stale")
+	_, err := fetchLatestRelease(context.Background(), ts.URL)
+	if err == nil || !strings.Contains(err.Error(), "GITHUB_TOKEN or GH_TOKEN rejected") {
+		t.Errorf("401 error = %v, want the rejected token hint", err)
 	}
 }

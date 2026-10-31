@@ -45,10 +45,15 @@ if [ -n "$VERSION" ]; then
   esac
   info "Requested version: ${TAG}"
 else
-  # Get latest release tag
+  # Get latest release tag from the github.com redirect to the release page.
+  # The REST API would work too, but its anonymous rate limit is easily hit
+  # from shared IPs such as CI runners and company networks.
   info "Fetching latest release..."
-  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
-  [ -z "$TAG" ] && error "Could not determine latest release"
+  LATEST_URL=$(curl -fsSIL --retry 3 -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest")
+  case "$LATEST_URL" in
+    */releases/tag/*) TAG="${LATEST_URL##*/}" ;;
+    *) error "Could not determine latest release" ;;
+  esac
   info "Latest version: ${TAG}"
 fi
 
@@ -68,8 +73,8 @@ trap 'rm -rf "$TMPDIR"' EXIT
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/redmine-cli_${TAG#v}_checksums.txt"
 
 info "Downloading ${URL}..."
-curl -fsSL -o "${TMPDIR}/${ARCHIVE}" "$URL"
-curl -fsSL -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL"
+curl -fsSL --retry 3 -o "${TMPDIR}/${ARCHIVE}" "$URL"
+curl -fsSL --retry 3 -o "${TMPDIR}/checksums.txt" "$CHECKSUMS_URL"
 
 # Verify checksum
 info "Verifying checksum..."
@@ -145,8 +150,13 @@ mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 info "Installed ${BINARY} ${TAG} to ${INSTALL_DIR}/${BINARY}"
 
 # Check if INSTALL_DIR is in PATH
+REDMINE_CMD="$BINARY"
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
-  *) printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
+  *) REDMINE_CMD="${INSTALL_DIR}/${BINARY}"
+     printf "\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n" "$INSTALL_DIR"
      printf "Add this to your shell profile:\n\n  export PATH=\"%s:\$PATH\"\n\n" "$INSTALL_DIR" ;;
 esac
+
+info "Next: run '${REDMINE_CMD} auth login' to connect to your Redmine server"
+info "Docs: https://redmine-cli.dev/getting-started/configuration/"

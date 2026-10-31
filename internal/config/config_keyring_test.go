@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -530,6 +531,11 @@ func TestPlaintextSwitchKeyringFailureLeavesProfileUntouched(t *testing.T) {
 }
 
 func TestPlaintextSwitchWriteFailureRestoresKeyringSecret(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The read-only config does not make SaveProfile fail on Windows
+		// runners; unexplained so far, so the rollback is only covered on Unix.
+		t.Skip("read-only config does not force a write failure on Windows")
+	}
 	keyring.MockInit()
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 
@@ -698,5 +704,33 @@ profiles:
 	_, err := LoadWithOverrides(cfgPath, "", Overrides{Server: "https://other.example.com"}, debug.New(nil))
 	if err == nil || !strings.Contains(err.Error(), "keyring") {
 		t.Fatalf("Load error = %v, want a clear keyring error (only --server supplied)", err)
+	}
+}
+
+func TestLoadKeyringSecretErrorIsDetectable(t *testing.T) {
+	t.Setenv("REDMINE_NO_KEYRING", "1")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: work
+profiles:
+  work:
+    server: https://work.example.com
+    auth_method: apikey
+    credential_store: keyring
+    keyring_id: srv-id
+    mcp:
+      http: 127.0.0.1:9
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadWithOverrides(cfgPath, "", Overrides{}, debug.New(nil))
+	if !IsKeyringSecretError(err) {
+		t.Fatalf("IsKeyringSecretError(%v) = false, want true", err)
+	}
+	if got := KeyringSecretMCPHTTP(err); got != "127.0.0.1:9" {
+		t.Errorf("KeyringSecretMCPHTTP = %q, want the profile's mcp.http", got)
+	}
+	if IsKeyringSecretError(errors.New("other")) || KeyringSecretMCPHTTP(errors.New("other")) != "" {
+		t.Error("unrelated errors must not match")
 	}
 }

@@ -3,129 +3,71 @@ title: Installation
 description: How to install redmine-cli on your system.
 ---
 
-import { Tabs, TabItem, Steps, Aside, LinkCard, CardGrid, Badge } from '@astrojs/starlight/components';
-
-Pick the install path that suits your platform. All methods produce the same `redmine` binary.
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## Install
 
 <Tabs syncKey="installer">
   <TabItem label="Homebrew" icon="apple">
-    For macOS and Linux. Ships shell completions for bash, zsh, and fish.
+    macOS and Linux. Includes shell completions.
 
     ```bash
-    brew tap aarondpn/tap
-    brew install redmine
+    brew install aarondpn/tap/redmine
     ```
   </TabItem>
 
   <TabItem label="Install script" icon="seti:shell">
-    Auto-detects OS and architecture, verifies the SHA256 checksum, installs to `~/.local/bin`.
+    macOS and Linux. Installs to `~/.local/bin`.
 
     ```bash
     curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | bash
     ```
-
-    The checksum check always runs and a mismatch always aborts. Whether the script also checks the release's build provenance depends on the [GitHub CLI](https://cli.github.com):
-
-    - **Attestation verified.** If `gh` is installed, recent enough (`gh attestation verify` with `--signer-workflow` and `--source-ref`; any current release qualifies) and logged in (`gh auth login`, or `GH_TOKEN` / `GITHUB_TOKEN` set), the script runs `gh attestation verify` on the archive and refuses to install if the build provenance does not check out.
-    - **Checksum only.** If `gh` is missing, too old, or not logged in, the script installs after the checksum check alone. It prints a warning naming the reason and the `gh attestation verify` command to check the release yourself.
-
-    If `gh` cannot complete the check because of your environment (a proxy that blocks Sigstore, or `gh` logged in to GitHub Enterprise Server only), set `REDMINE_CLI_SKIP_ATTESTATION=1` to install with checksum verification only. The script prints a warning and the command to verify the release yourself. As with [`redmine update --skip-attestation`](/commands/other/#self-update), the checksums come from the same place as the archive, so a tampered release would not be detected; never use it to get past an attestation that is actually invalid.
-
-    To install a specific release instead of the latest, set `REDMINE_CLI_VERSION` and fetch the script from that same tag:
-
-    ```bash
-    curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/<tag>/install.sh | REDMINE_CLI_VERSION=<tag> bash
-    ```
-
-    The `install.sh` of releases up to v2.14.1 ignores `REDMINE_CLI_VERSION` and installs the latest release; to pin one of those, fetch the script from `main` instead.
-
-    Attestations exist only for v2.11.2 and later. Pinning an older release with a logged-in `gh` fails attestation verification and the script refuses to install; set `REDMINE_CLI_SKIP_ATTESTATION=1` as well to install it with checksum verification only.
-
-    <Aside type="tip" title="PATH">
-      Make sure `~/.local/bin` is on your `PATH`. Most modern shells add it automatically.
-    </Aside>
   </TabItem>
 
-  <TabItem label="go install" icon="seti:go">
-    Builds from source via the Go toolchain. Requires Go 1.26 or later (the `go` directive in `go.mod`); with the default `GOTOOLCHAIN=auto`, an older Go 1.21+ downloads a suitable toolchain itself. Release binaries are built with Go 1.27.3.
+  <TabItem label="PowerShell" icon="seti:powershell">
+    Windows. Installs to `%LOCALAPPDATA%\Programs\redmine-cli` and adds it to your `PATH`.
 
-    ```bash
-    go install github.com/aarondpn/redmine-cli/v2/cmd/redmine@latest
+    ```powershell
+    irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
     ```
   </TabItem>
 
   <TabItem label="Manual" icon="download">
-    Grab a prebuilt release for your platform.
-
-    | Platform | Architecture | Asset |
-    |----------|--------------|-------|
-    | Linux    | x86_64       | `redmine-cli-linux-amd64.tar.gz` |
-    | Linux    | ARM64        | `redmine-cli-linux-arm64.tar.gz` |
-    | macOS    | Intel        | `redmine-cli-darwin-amd64.tar.gz` |
-    | macOS    | Apple Silicon| `redmine-cli-darwin-arm64.tar.gz` |
-    | Windows  | x86_64       | `redmine-cli-windows-amd64.zip` |
-
-    Downloads live on [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest).
+    Download the archive for your platform from [GitHub Releases](https://github.com/aarondpn/redmine-cli/releases/latest) and put `redmine` on your `PATH`.
   </TabItem>
 </Tabs>
 
-## Verify
+Check that it works, then [log in](/getting-started/configuration/):
 
-<Steps>
-
-1. Confirm the binary is resolvable and prints its version:
-
-   ```bash
-   redmine --version
-   ```
-
-2. Run the built-in health check to smoke-test the install:
-
-   ```bash
-   redmine --help
-   ```
-
-3. Continue to [Configuration](/getting-started/configuration/) to wire up your Redmine server.
-
-</Steps>
+```bash
+redmine --version
+```
 
 ## Update
 
-<Badge text="self-update" variant="tip" />
 ```bash
 redmine update
 ```
 
-Pulls the latest release, verifies its SHA256 checksum and its GitHub artifact attestation, then replaces the running binary. See [Self-Update](/commands/other/#self-update) for details and flags.
+Homebrew installs are updated with `brew upgrade`. For the Docker image, pull it and recreate the container (or restart your MCP client): `docker pull ghcr.io/aarondpn/redmine-mcp`, or `docker compose pull && docker compose up -d`. See [self-update](/commands/other/#self-update) for details.
 
-<Aside type="caution" title="Checksum and attestation verification">
-  The installer and self-updater both fail closed if the release checksum does not match. The self-updater also refuses a release without a valid attestation from this repository's release workflow, and so does the installer when a recent, logged-in `gh` is available; otherwise the installer only checks the checksum and says so. Never bypass a failed check — report it as a security issue.
-</Aside>
+## Script options
 
-### Docker
+Both install scripts verify the release checksum, and the build attestation when a logged-in [GitHub CLI](https://cli.github.com) is installed. Set these environment variables before running a script:
 
-The [MCP server image](/guides/ai-agents/#run-with-docker) does not update itself. Pull the new release, then restart your MCP client or recreate the container:
+| Variable | Effect |
+|---|---|
+| `REDMINE_CLI_VERSION` | Install a specific release, e.g. `v2.17.0` |
+| `REDMINE_CLI_SKIP_ATTESTATION=1` | Skip the attestation check (not recommended) |
+| `REDMINE_INSTALL_DIR` | Install to another directory |
+| `REDMINE_CLI_NO_MODIFY_PATH=1` | PowerShell only: leave `PATH` unchanged |
+
+The variable goes to the shell that runs the script, not to `curl`:
 
 ```bash
-docker pull ghcr.io/aarondpn/redmine-mcp
-
-# Docker Compose
-docker compose pull && docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.sh | REDMINE_CLI_VERSION=v2.17.0 bash
 ```
 
-## Next
-
-<CardGrid>
-  <LinkCard
-    title="Configure"
-    href="/getting-started/configuration/"
-    description="Set up your server, auth profile, and defaults."
-  />
-  <LinkCard
-    title="Quick Start"
-    href="/getting-started/quick-start/"
-    description="Issues, time tracking, and search in 5 minutes."
-  />
-</CardGrid>
+```powershell
+$env:REDMINE_CLI_VERSION = 'v2.17.0'; irm https://raw.githubusercontent.com/aarondpn/redmine-cli/main/install.ps1 | iex
+```

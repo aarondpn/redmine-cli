@@ -350,19 +350,33 @@ func logStep(printer output.Printer, w io.Writer, format string, args ...any) {
 
 // FetchLatestRelease fetches the latest release from GitHub.
 func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ReleaseURL, nil)
-	if err != nil {
-		return nil, err
-	}
+	return fetchLatestRelease(ctx, ReleaseURL)
+}
 
-	resp, err := releaseHTTPClient.Do(req)
+func fetchLatestRelease(ctx context.Context, url string) (*GithubRelease, error) {
+	// As for attestations, a token only raises the anonymous rate limit,
+	// which shared IPs (CI runners, company networks) easily exhaust. A stale
+	// token must not break the lookup, so a rejected one is dropped once.
+	token := githubToken()
+	resp, err := getLatestRelease(ctx, url, token)
+	if err == nil && resp.StatusCode == http.StatusUnauthorized && token != "" {
+		resp.Body.Close()
+		resp, err = getLatestRelease(ctx, url, "")
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+		hint := ""
+		switch resp.StatusCode {
+		case http.StatusForbidden, http.StatusTooManyRequests:
+			hint = " (rate limited? set GITHUB_TOKEN or GH_TOKEN)"
+		case http.StatusUnauthorized:
+			hint = " (GITHUB_TOKEN or GH_TOKEN rejected; unset it or use a valid token)"
+		}
+		return nil, fmt.Errorf("GitHub API returned status %d%s", resp.StatusCode, hint)
 	}
 
 	var release GithubRelease
@@ -562,15 +576,25 @@ func notWritableError(dir, tag string) error {
 			dir, RepoOwner, RepoName,
 		)
 	}
+	reinstall := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash",
+		RepoOwner, RepoName, tag, tag)
+	if hostOS == "windows" {
+		reinstall = fmt.Sprintf("$env:REDMINE_CLI_VERSION='%s'; irm https://raw.githubusercontent.com/%s/%s/%s/install.ps1 | iex",
+			tag, RepoOwner, RepoName, tag)
+	}
 	return fmt.Errorf(
 		"cannot update: %s is not writable\n\n"+
 			"Reinstall to a user-writable location:\n"+
-			"  curl -fsSL https://raw.githubusercontent.com/%s/%s/%s/install.sh | REDMINE_CLI_VERSION=%s bash\n\n"+
+			"  %s\n\n"+
 			"Or download manually from:\n"+
 			"  https://github.com/%s/%s/releases/tag/%s",
-		dir, RepoOwner, RepoName, tag, tag, RepoOwner, RepoName, tag,
+		dir, reinstall, RepoOwner, RepoName, tag,
 	)
 }
+
+// hostOS is runtime.GOOS, a variable so tests can render the reinstall
+// command of another platform.
+var hostOS = runtime.GOOS
 
 func replaceBinary(execPath string, newBinary []byte) error {
 	dir := filepath.Dir(execPath)
@@ -603,6 +627,10 @@ func replaceBinary(execPath string, newBinary []byte) error {
 		return err
 	}
 
+	if moveRunningBinaryAside {
+		return swapMovingAside(tmpPath, execPath)
+	}
+
 	// Atomic rename
 	if err := os.Rename(tmpPath, execPath); err != nil {
 		os.Remove(tmpPath)
@@ -610,6 +638,68 @@ func replaceBinary(execPath string, newBinary []byte) error {
 	}
 
 	return nil
+}
+
+// moveRunningBinaryAside is true where a running executable cannot be
+// replaced, only renamed: Windows refuses to overwrite redmine.exe while it
+// runs. A variable so tests can exercise the Windows path on any OS.
+var moveRunningBinaryAside = runtime.GOOS == "windows"
+
+// swapMovingAside renames the running binary to <exe>.old, then moves the new
+// binary into place, restoring the old one if that fails. The .old file
+// stays locked until this process exits, so it is removed by the next update.
+func swapMovingAside(tmpPath, execPath string) error {
+	oldPath := execPath + ".old"
+	removeOldBinaries(execPath)
+	// A previous binary that still runs (e.g. a long-lived `redmine mcp
+	// serve`) cannot be deleted, but a running image can be renamed.
+	if _, err := os.Lstat(oldPath); err == nil {
+		aside := fmt.Sprintf("%s.old-%d", execPath, time.Now().UnixNano())
+		if err := os.Rename(oldPath, aside); err != nil {
+			os.Remove(tmpPath)
+			return fmt.Errorf("moving %s left by a previous update out of the way: %w; close running redmine processes (e.g. MCP servers) and retry", oldPath, err)
+		}
+	}
+	if err := os.Rename(execPath, oldPath); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, execPath); err != nil {
+		if restoreErr := os.Rename(oldPath, execPath); restoreErr != nil {
+			return fmt.Errorf("%w; restoring the previous binary from %s also failed: %v", err, oldPath, restoreErr)
+		}
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+func getLatestRelease(ctx context.Context, url, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return releaseHTTPClient.Do(req)
+}
+
+// removeOldBinaries deletes the <exe>.old and <exe>.old-* files earlier
+// updates left behind. Best-effort: files of processes that still run stay.
+func removeOldBinaries(execPath string) {
+	dir, base := filepath.Split(execPath)
+	entries, err := os.ReadDir(filepath.Clean(dir))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if name := e.Name(); name == base+".old" || strings.HasPrefix(name, base+".old-") {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
 }
 
 // IsNewer returns true if version a is newer than version b.
