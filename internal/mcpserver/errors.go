@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 )
 
@@ -40,7 +41,7 @@ func toolErrFromError[T any](err error) (*mcp.CallToolResult, T, error) {
 		ae *api.APIError
 		pe *api.InvalidPathSegmentError
 	)
-	if errors.As(err, &ae) || errors.As(err, &pe) {
+	if errors.As(err, &ae) || errors.As(err, &pe) || errors.Is(err, oauth.ErrLoginRequired) {
 		return toolErrFromAPI[T](err)
 	}
 	return toolErr[T](err.Error())
@@ -71,6 +72,9 @@ func describeAPIError(err error) string {
 	var pe *api.InvalidPathSegmentError
 	if errors.As(err, &pe) {
 		return fmt.Sprintf("Invalid argument: %s %q %s. The request was not sent to Redmine; pass the value as Redmine shows it (for a project, its identifier or numeric ID).", pe.Kind, pe.Value, pe.Reason)
+	}
+	if errors.Is(err, oauth.ErrLoginRequired) {
+		return "The OAuth login expired or was revoked. The user must run 'redmine auth login --oauth' in a terminal; the MCP server picks up the new login without a restart."
 	}
 	var ae *api.APIError
 	if errors.As(err, &ae) {

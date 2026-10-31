@@ -64,7 +64,7 @@ func (s *AttachmentService) Download(ctx context.Context, att *models.Attachment
 	if err != nil {
 		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
-		return 0, fmt.Errorf("download request failed: %w", err)
+		return 0, requestErrorf("download request failed", err)
 	}
 	defer resp.Body.Close()
 
@@ -115,7 +115,7 @@ func (s *AttachmentService) Thumbnail(ctx context.Context, id, size int, w io.Wr
 	if err != nil {
 		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
-		return 0, fmt.Errorf("thumbnail request failed: %w", err)
+		return 0, requestErrorf("thumbnail request failed", err)
 	}
 	defer resp.Body.Close()
 
@@ -172,7 +172,7 @@ func (s *AttachmentService) Upload(ctx context.Context, filename string, body io
 	if err != nil {
 		err = scrubRequestError(err)
 		s.client.debugLog.Printf("HTTP %s %s -> error (%s): %v", req.Method, debug.ScrubURL(req.URL.String()), duration.Round(time.Millisecond), err)
-		return "", fmt.Errorf("upload request failed: %w", err)
+		return "", requestErrorf("upload request failed", err)
 	}
 	defer resp.Body.Close()
 
