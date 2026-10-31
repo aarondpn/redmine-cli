@@ -40,16 +40,6 @@ func LoadStoredProfile(path, profile string) (Config, error) {
 	return cfg, nil
 }
 
-// LoadOAuthTokens returns the stored OAuth block of profile, with the
-// keyring secrets resolved for a keyring profile.
-func LoadOAuthTokens(path, profile string) (OAuthConfig, error) {
-	cfg, err := LoadStoredProfile(path, profile)
-	if err != nil {
-		return OAuthConfig{}, err
-	}
-	return cfg.OAuth, nil
-}
-
 // SaveOAuthTokens replaces the tokens, expiry and scopes of profile's OAuth
 // block, keeping its client. The caller holds LockConfig. It fails when the
 // profile is gone or now has another auth method, client ID or server

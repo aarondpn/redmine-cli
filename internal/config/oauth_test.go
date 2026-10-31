@@ -282,14 +282,15 @@ func TestSaveOAuthTokens(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got, err := LoadOAuthTokens(cfgPath, "work")
+			gotCfg, err := LoadStoredProfile(cfgPath, "work")
 			if err != nil {
 				t.Fatal(err)
 			}
+			got := gotCfg.OAuth
 			want := newTokens
 			want.ClientSecret = "client-secret"
 			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("LoadOAuthTokens = %+v, want %+v", got, want)
+				t.Fatalf("stored OAuth = %+v, want %+v", got, want)
 			}
 
 			pc, err := LoadProfiles(cfgPath, debug.New(nil))

@@ -99,6 +99,9 @@ func (s *profileTokenStore) Load() (oauth.Token, oauth.Credentials, error) {
 		return oauth.Token{}, oauth.Credentials{}, fmt.Errorf("%w: profile %q now points at another server", oauth.ErrStoreChanged, s.profile)
 	}
 	o := stored.OAuth
+	if stored.CredentialStore == config.CredentialStoreKeyring && (o.RefreshToken == "" || o.ClientSecret == "") {
+		return oauth.Token{}, oauth.Credentials{}, errors.New("reading the OAuth login from the system keyring failed")
+	}
 	s.clientID = o.ClientID // Save writes for the application Load saw
 	tok := oauth.Token{AccessToken: o.AccessToken, RefreshToken: o.RefreshToken, Expiry: o.Expiry, Scopes: o.Scopes}
 	return tok, oauth.Credentials{ClientID: o.ClientID, ClientSecret: o.ClientSecret}, nil

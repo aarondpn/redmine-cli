@@ -258,10 +258,11 @@ func TestOAuthProfile_PersistsRotatedTokens(t *testing.T) {
 				t.Fatal("token was not refreshed")
 			}
 
-			stored, err := config.LoadOAuthTokens(path, "work")
+			storedCfg, err := config.LoadStoredProfile(path, "work")
 			if err != nil {
 				t.Fatal(err)
 			}
+			stored := storedCfg.OAuth
 			if stored.AccessToken != now.AccessToken || stored.RefreshToken != now.RefreshToken || stored.RefreshToken == refresh {
 				t.Errorf("stored = %+v, want the rotated pair %+v", stored, now)
 			}
@@ -308,10 +309,11 @@ func TestOAuthProfile_ServerOverrideKeepsTokensOut(t *testing.T) {
 	if now.AccessToken == access {
 		t.Fatal("token was not refreshed")
 	}
-	stored, err := config.LoadOAuthTokens(path, "work")
+	storedCfg, err := config.LoadStoredProfile(path, "work")
 	if err != nil {
 		t.Fatal(err)
 	}
+	stored := storedCfg.OAuth
 	if stored.AccessToken != access || stored.RefreshToken != refresh {
 		t.Errorf("stored = %+v, want the original pair untouched", stored)
 	}

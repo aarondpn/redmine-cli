@@ -24,6 +24,7 @@ type memStore struct {
 	loads   int
 	saves   int
 	saveErr error
+	loadErr error
 }
 
 func (m *memStore) Lock(ctx context.Context) (func(), error) {
@@ -33,6 +34,9 @@ func (m *memStore) Lock(ctx context.Context) (func(), error) {
 
 func (m *memStore) Load() (Token, Credentials, error) {
 	m.loads++
+	if m.loadErr != nil {
+		return Token{}, Credentials{}, m.loadErr
+	}
 	return m.tok, m.creds, nil
 }
 
@@ -162,6 +166,16 @@ func TestTokenSourceStoreWithoutRefreshToken(t *testing.T) {
 	ts := NewTokenSource(newClient(srv), tok, &memStore{}, nil)
 	if _, err := ts.Token(context.Background()); !errors.Is(err, ErrLoginRequired) {
 		t.Fatalf("Token() = %v, want ErrLoginRequired", err)
+	}
+}
+
+func TestTokenSourceStoreReadErrorIsNotLoginRequired(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	tok := issued(srv, time.Now().Add(-time.Minute))
+	ts := NewTokenSource(newClient(srv), tok, &memStore{loadErr: errors.New("keyring locked")}, nil)
+	_, err := ts.Token(context.Background())
+	if err == nil || errors.Is(err, ErrLoginRequired) {
+		t.Fatalf("Token() = %v, want a store read error", err)
 	}
 }
 

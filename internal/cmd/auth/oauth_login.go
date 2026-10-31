@@ -159,6 +159,8 @@ func oauthLoginError(err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return cmdutil.WithHint(errors.New("timed out waiting for the browser login"), oauthTimeoutHint)
+	case errors.Is(err, oauth.ErrInvalidClient):
+		return cmdutil.WithHint(err, "Check the client ID and secret (Administration > Applications).")
 	case errors.Is(err, oauth.ErrInvalidScope):
 		return cmdutil.WithHint(err, oauthScopeHint)
 	}
