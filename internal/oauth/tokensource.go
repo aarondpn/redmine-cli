@@ -10,6 +10,10 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
 )
 
+// refreshTimeout bounds the token request made while the config lock is held,
+// so a stalled Redmine cannot block other redmine processes for long.
+var refreshTimeout = 20 * time.Second
+
 // refreshSkew is how long before expiry an access token is refreshed.
 const refreshSkew = time.Minute
 
@@ -39,10 +43,13 @@ type TokenSource struct {
 	store Store // nil: memory only
 	log   *debug.Logger
 
-	mu    sync.Mutex // serializes refreshes; guards c and spent
-	spent string     // the refresh token this process last used
-	tmu   sync.RWMutex
-	token Token // guarded by tmu
+	mu sync.Mutex // serializes refreshes; guards c and unsaved
+	// unsaved is the stored refresh token that refreshes could not replace
+	// because saving failed; while the store still holds it, our token is
+	// newer.
+	unsaved string
+	tmu     sync.RWMutex
+	token   Token // guarded by tmu
 }
 
 // NewTokenSource returns a TokenSource starting from initial. store may be
@@ -102,6 +109,7 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 	}
 
 	base := s.Current()
+	var storedRefresh string
 	if s.store != nil {
 		stored, creds, err := s.store.Load()
 		if err != nil {
@@ -114,14 +122,17 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 			c.ClientID, c.ClientSecret = creds.ClientID, creds.ClientSecret
 			s.c = &c
 		}
-		// The store still holds the refresh token this process spent (it
-		// could not be written): ours is newer.
-		if s.spent == "" || stored.RefreshToken != s.spent {
+		storedRefresh = stored.RefreshToken
+		// The store still holds the refresh token our refreshes could not
+		// replace (it could not be written): ours is newer.
+		if s.unsaved == "" || stored.RefreshToken != s.unsaved {
 			// Another process refreshed, or the user logged in again.
 			if stored.RefreshToken != "" && stored.AccessToken != rejected && fresh(stored) {
+				s.unsaved = ""
 				s.set(stored)
 				return stored.AccessToken, nil
 			}
+			s.unsaved = ""
 			base = stored
 		}
 	}
@@ -129,11 +140,12 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 		return "", ErrLoginRequired
 	}
 
-	next, err := s.c.Refresh(ctx, base.RefreshToken)
+	rctx, cancel := context.WithTimeout(ctx, refreshTimeout)
+	defer cancel()
+	next, err := s.c.Refresh(rctx, base.RefreshToken)
 	if err != nil {
 		return "", err
 	}
-	s.spent = base.RefreshToken
 	if len(next.Scopes) == 0 {
 		next.Scopes = base.Scopes
 	}
@@ -145,7 +157,10 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 			if errors.Is(err, ErrStoreChanged) {
 				return "", fmt.Errorf("saving the refreshed OAuth token: %w", err)
 			}
+			s.unsaved = storedRefresh
 			s.log.Printf("OAuth: could not save the refreshed token, keeping it in memory: %v", err)
+		} else {
+			s.unsaved = ""
 		}
 	}
 	s.set(next)

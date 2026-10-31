@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/textsafe"
 )
 
 // preflightRedirect is the redirect URI an admin registers; Doorkeeper
@@ -87,10 +88,11 @@ func (c *Client) exchange(ctx context.Context, code, verifier, redirectURI strin
 	return toToken(tok, scopes), nil
 }
 
-// Preflight exchanges a dummy code to catch the two common setup errors, an
-// unsupported Redmine and wrong client credentials, before a browser opens.
-// Any other OAuth error (expected: invalid_grant) means the endpoint and the
-// client are fine.
+// Preflight exchanges a dummy code to catch setup errors (an unsupported
+// Redmine, wrong client credentials, a proxy answering the token endpoint
+// with something other than OAuth) before a browser opens. Only an OAuth
+// error such as the expected invalid_grant means the endpoint and the client
+// are fine.
 func (c *Client) Preflight(ctx context.Context) error {
 	cfg := c.oauth2Config(preflightRedirect, nil)
 	_, err := cfg.Exchange(c.httpContext(ctx), "redmine-cli-preflight")
@@ -101,10 +103,18 @@ func (c *Client) Preflight(ctx context.Context) error {
 	if !errors.As(err, &re) {
 		return err
 	}
-	if mapped := tokenError(err, false); errors.Is(mapped, ErrUnsupported) || errors.Is(mapped, ErrInvalidClient) {
-		return mapped
+	if re.ErrorCode != "" {
+		if mapped := tokenError(err, false); errors.Is(mapped, ErrUnsupported) || errors.Is(mapped, ErrInvalidClient) {
+			return mapped
+		}
+		return nil
 	}
-	return nil
+	if re.Response != nil && re.Response.StatusCode >= 300 && re.Response.StatusCode < 400 {
+		if loc := re.Response.Header.Get("Location"); loc != "" {
+			return fmt.Errorf("Redmine redirects the token request to %s; log in with that server URL", textsafe.Terminal(loc))
+		}
+	}
+	return tokenError(err, false)
 }
 
 // Refresh trades a refresh token for a new token pair. When Redmine returns no

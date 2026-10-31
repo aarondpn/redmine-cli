@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -348,6 +349,52 @@ func TestTokenSourceUsesKeptTokenWhenSaveFailed(t *testing.T) {
 	// The store still holds the spent pair; the kept one must be refreshed.
 	if _, err := ts.Token(context.Background()); err != nil {
 		t.Fatalf("second Token() = %v", err)
+	}
+}
+
+func TestTokenSourceKeepsRefreshingWhenSaveKeepsFailing(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	srv.ExpiresIn = 30 // always inside refreshSkew
+	srv.Mux.Handle("/probe", srv.RequireBearer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	tok := issued(srv, time.Now().Add(-time.Minute))
+	store := &memStore{tok: tok, saveErr: errors.New("read-only file system")}
+	ts := NewTokenSource(newClient(srv), tok, store, nil)
+
+	for i := 1; i <= 5; i++ {
+		access, err := ts.Token(context.Background())
+		if err != nil {
+			t.Fatalf("Token() #%d = %v", i, err)
+		}
+		// Using the new token makes Redmine revoke the previous grant.
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/probe", nil)
+		req.Header.Set("Authorization", "Bearer "+access)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("probe #%d = %v, %v", i, resp, err)
+		}
+		_ = resp.Body.Close()
+	}
+}
+
+func TestTokenSourceRefreshTimesOut(t *testing.T) {
+	orig := refreshTimeout
+	refreshTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { refreshTimeout = orig })
+
+	release := make(chan struct{})
+	stalled := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer stalled.Close()
+	defer close(release)
+
+	tok := Token{AccessToken: "a", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute)}
+	store := &memStore{tok: tok}
+	ts := NewTokenSource(&Client{Server: stalled.URL, ClientID: "a", ClientSecret: "b", HTTPClient: stalled.Client()}, tok, store, nil)
+	start := time.Now()
+	if _, err := ts.Token(context.Background()); err == nil {
+		t.Fatal("Token() succeeded against a stalled server")
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatal("refresh did not time out")
 	}
 }
 

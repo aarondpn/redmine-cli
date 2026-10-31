@@ -338,7 +338,12 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	if authMethod == config.AuthMethodOAuth {
 		cfg.OAuth = config.OAuthConfig{ClientID: clientID, ClientSecret: clientSecret}
 		readOnly := existing != nil && existing.ReadOnly || f.ReadOnly != nil && *f.ReadOnly
-		tok, err := runOAuthFlow(ctx, f, printer, cfg, opts, readOnly)
+		// A new login keeps the scopes the profile was granted before.
+		var previous []string
+		if existing != nil && existing.AuthMethod == config.AuthMethodOAuth && existing.OAuth.ClientID == clientID && config.SameServer(existing.Server, server) {
+			previous = existing.OAuth.Scopes
+		}
+		tok, err := runOAuthFlow(ctx, f, printer, cfg, opts, readOnly, previous)
 		if err != nil {
 			return err
 		}

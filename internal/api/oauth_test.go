@@ -279,6 +279,61 @@ func TestOAuthProfile_PersistsRotatedTokens(t *testing.T) {
 	}
 }
 
+func TestOAuthProfile_ServerOverrideKeepsTokensOut(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	access, refresh := srv.Issue([]string{"view_issues"})
+	issuesEndpoint(srv)
+	cfg := oauthTestConfig(srv, access, refresh, time.Now().Add(-time.Minute))
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := config.SaveProfile("work", cfg, path); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(path, "work", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another name for the same host, as --server would give.
+	loaded.Server = strings.Replace(loaded.Server, "127.0.0.1", "localhost", 1)
+	if loaded.Server == cfg.Server {
+		t.Skip("test server is not on 127.0.0.1")
+	}
+	client, err := NewClient(loaded, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(context.Background(), "/issues.json", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	now, _ := client.OAuthToken()
+	if now.AccessToken == access {
+		t.Fatal("token was not refreshed")
+	}
+	stored, err := config.LoadOAuthTokens(path, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.AccessToken != access || stored.RefreshToken != refresh {
+		t.Errorf("stored = %+v, want the original pair untouched", stored)
+	}
+}
+
+func TestProfileTokenStore_RefusesOtherServer(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	access, refresh := srv.Issue([]string{"view_issues"})
+	cfg := oauthTestConfig(srv, access, refresh, time.Now().Add(time.Hour))
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := config.SaveProfile("work", cfg, path); err != nil {
+		t.Fatal(err)
+	}
+	store := &profileTokenStore{configPath: path, profile: "work", server: "https://other.example.com", clientID: cfg.OAuth.ClientID}
+	if _, _, err := store.Load(); !errors.Is(err, oauth.ErrStoreChanged) {
+		t.Errorf("Load() = %v, want ErrStoreChanged", err)
+	}
+	if err := store.Save(oauth.Token{AccessToken: "x", RefreshToken: "y"}); !errors.Is(err, oauth.ErrStoreChanged) {
+		t.Errorf("Save() = %v, want ErrStoreChanged", err)
+	}
+}
+
 func TestOAuthEndpoints_DoNotFollowRedirects(t *testing.T) {
 	var leaked []string
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

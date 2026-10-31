@@ -59,7 +59,11 @@ func newOAuthClient(cfg *config.Config, log *debug.Logger, base *http.Transport)
 func newTokenSource(cfg *config.Config, log *debug.Logger, base *http.Transport) *oauth.TokenSource {
 	var store oauth.Store
 	if path, profile, ok := cfg.ProfileLocation(); ok {
-		store = &profileTokenStore{configPath: path, profile: profile, clientID: cfg.OAuth.ClientID}
+		// With --server or REDMINE_SERVER pointing elsewhere the stored
+		// tokens are not for this server: neither read nor overwrite them.
+		if _, server, hasServer := cfg.ProfileServer(); !hasServer || config.SameServer(cfg.Server, server) {
+			store = &profileTokenStore{configPath: path, profile: profile, server: cfg.Server, clientID: cfg.OAuth.ClientID}
+		}
 	}
 	initial := oauth.Token{
 		AccessToken:  cfg.OAuth.AccessToken,
@@ -73,6 +77,9 @@ func newTokenSource(cfg *config.Config, log *debug.Logger, base *http.Transport)
 // profileTokenStore persists refreshed tokens to the profile they came from.
 type profileTokenStore struct {
 	configPath, profile string
+	// server is the server the tokens are for; Load and Save fail when the
+	// profile points at another one now.
+	server string
 	// clientID is the application the tokens belong to (as last loaded);
 	// SaveOAuthTokens refuses to write them over a profile that logged in
 	// with another.
@@ -84,17 +91,21 @@ func (s *profileTokenStore) Lock(ctx context.Context) (func(), error) {
 }
 
 func (s *profileTokenStore) Load() (oauth.Token, oauth.Credentials, error) {
-	o, err := config.LoadOAuthTokens(s.configPath, s.profile)
+	stored, err := config.LoadStoredProfile(s.configPath, s.profile)
 	if err != nil {
 		return oauth.Token{}, oauth.Credentials{}, err
 	}
+	if !config.SameServer(stored.Server, s.server) {
+		return oauth.Token{}, oauth.Credentials{}, fmt.Errorf("%w: profile %q now points at another server", oauth.ErrStoreChanged, s.profile)
+	}
+	o := stored.OAuth
 	s.clientID = o.ClientID // Save writes for the application Load saw
 	tok := oauth.Token{AccessToken: o.AccessToken, RefreshToken: o.RefreshToken, Expiry: o.Expiry, Scopes: o.Scopes}
 	return tok, oauth.Credentials{ClientID: o.ClientID, ClientSecret: o.ClientSecret}, nil
 }
 
 func (s *profileTokenStore) Save(t oauth.Token) error {
-	err := config.SaveOAuthTokens(s.configPath, s.profile, config.OAuthConfig{
+	err := config.SaveOAuthTokens(s.configPath, s.profile, s.server, config.OAuthConfig{
 		ClientID:     s.clientID,
 		AccessToken:  t.AccessToken,
 		RefreshToken: t.RefreshToken,

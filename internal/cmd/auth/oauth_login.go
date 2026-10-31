@@ -22,7 +22,6 @@ var openBrowser = browser.Open
 const (
 	oauthTimeoutHint = "Check that the REST API is enabled, the application's redirect URI is http://127.0.0.1/callback and its scopes cover the request (Redmine shows scope errors only in the browser)."
 	oauthScopeHint   = "Tick the scopes on the application (Administration > Applications), or pass --scopes."
-	oauthClientHint  = "Check the client ID and secret (Administration > Applications)."
 )
 
 // requireValue returns a huh validator that rejects an empty answer.
@@ -75,14 +74,17 @@ func applyRelogin(f *cmdutil.Factory, opts *loginOptions) bool {
 }
 
 // runOAuthFlow performs the browser login for cfg's server and OAuth client
-// and returns the issued token.
-func runOAuthFlow(ctx context.Context, f *cmdutil.Factory, printer output.Printer, cfg *config.Config, opts loginOptions, readOnly bool) (oauth.Token, error) {
+// and returns the issued token. Without --scopes it asks for previous, the
+// scopes an earlier login of this profile was granted, or the defaults.
+func runOAuthFlow(ctx context.Context, f *cmdutil.Factory, printer output.Printer, cfg *config.Config, opts loginOptions, readOnly bool, previous []string) (oauth.Token, error) {
 	scopes := oauth.DefaultScopes(readOnly)
 	if opts.scopes != "" {
 		var err error
 		if scopes, err = oauth.ParseScopes(opts.scopes, readOnly); err != nil {
 			return oauth.Token{}, err
 		}
+	} else if len(previous) > 0 {
+		scopes = previous
 	}
 
 	oc, err := api.NewOAuthClient(cfg, f.DebugLogger())
@@ -159,8 +161,6 @@ func oauthLoginError(err error) error {
 		return cmdutil.WithHint(errors.New("timed out waiting for the browser login"), oauthTimeoutHint)
 	case errors.Is(err, oauth.ErrInvalidScope):
 		return cmdutil.WithHint(err, oauthScopeHint)
-	case errors.Is(err, oauth.ErrInvalidClient):
-		return cmdutil.WithHint(err, oauthClientHint)
 	}
 	return err
 }

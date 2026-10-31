@@ -76,7 +76,7 @@ func ErrorHint(err error) string {
 	case errors.Is(err, oauth.ErrLoginRequired):
 		return "Run '" + api.ReloginCommand(err) + "' to log in again."
 	case errors.Is(err, oauth.ErrInvalidClient):
-		return "Check the client ID and secret (Administration > Applications), then run 'redmine auth login --oauth'."
+		return "Check the client ID and secret (Administration > Applications), then run 'redmine auth login --oauth --client-secret-file -' (new application: add --server URL --client-id ID)."
 	}
 	var apiErr *api.APIError
 	if errors.As(err, &apiErr) {

@@ -278,7 +278,7 @@ func TestSaveOAuthTokens(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := SaveOAuthTokens(cfgPath, "work", newTokens); err != nil {
+			if err := SaveOAuthTokens(cfgPath, "work", "", newTokens); err != nil {
 				t.Fatal(err)
 			}
 
@@ -328,7 +328,7 @@ func TestSaveOAuthTokensErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := SaveOAuthTokens(cfgPath, tt.profile, tt.tok)
+			err := SaveOAuthTokens(cfgPath, tt.profile, "", tt.tok)
 			if err == nil || err.Error() != tt.want {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}

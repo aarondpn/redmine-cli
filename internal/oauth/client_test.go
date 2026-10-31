@@ -84,6 +84,49 @@ func TestPreflight(t *testing.T) {
 	})
 }
 
+func TestPreflightNonOAuthFailure(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		want    string
+	}{
+		{
+			name: "redirect",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, "https://redmine.example.com/oauth/token", http.StatusMovedPermanently)
+			},
+			want: "redirects the token request to https://redmine.example.com/oauth/token",
+		},
+		{
+			name: "forbidden",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "<html>blocked</html>", http.StatusForbidden)
+			},
+			want: "HTTP 403",
+		},
+		{
+			name: "server error",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "<html>oops</html>", http.StatusBadGateway)
+			},
+			want: "HTTP 502",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(tt.handler)
+			defer srv.Close()
+			hc := srv.Client()
+			hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			c := &Client{Server: srv.URL, ClientID: "a", ClientSecret: "b", HTTPClient: hc}
+			err := c.Preflight(context.Background())
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Preflight() = %v, want it to contain %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestExchange(t *testing.T) {
 	srv := oauthtest.NewServer(t)
 	srv.ExpiresIn = 600

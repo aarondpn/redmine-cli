@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -357,6 +358,26 @@ func TestOAuthLogin_ReloginReusesClient(t *testing.T) {
 	}
 	if second.OAuth.AccessToken == first.OAuth.AccessToken || second.OAuth.RefreshToken == first.OAuth.RefreshToken {
 		t.Fatal("tokens were not replaced")
+	}
+}
+
+func TestOAuthLogin_ReloginKeepsGrantedScopes(t *testing.T) {
+	l := newOAuthLogin(t, "")
+	if err := l.run(t, "--scopes", "default,admin"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(loadProfile(t, l.cfgPath, "work").OAuth.Scopes, "admin") {
+		t.Fatal("first login was not granted admin")
+	}
+
+	f, _ := loginFactory(t, "")
+	f.ConfigPath = l.cfgPath
+	l.opened = nil
+	if err := runLoginCmd(f, "--oauth"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(l.scopesRequested(t), "admin") {
+		t.Fatalf("re-login asked for %v, want admin kept", l.scopesRequested(t))
 	}
 }
 
