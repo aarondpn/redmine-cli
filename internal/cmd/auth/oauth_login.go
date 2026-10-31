@@ -20,7 +20,7 @@ import (
 var openBrowser = browser.Open
 
 const (
-	oauthTimeoutHint = "Check that the REST API is enabled and the application's redirect URI is http://127.0.0.1/callback."
+	oauthTimeoutHint = "Check that the REST API is enabled, the application's redirect URI is http://127.0.0.1/callback and its scopes cover the request (Redmine shows scope errors only in the browser)."
 	oauthScopeHint   = "Tick the scopes on the application (Administration > Applications), or pass --scopes."
 	oauthClientHint  = "Check the client ID and secret (Administration > Applications)."
 )

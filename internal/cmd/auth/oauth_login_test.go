@@ -298,8 +298,8 @@ func TestOAuthLogin_TimeoutHint(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "timed out waiting for the browser login") {
 		t.Fatalf("error = %v", err)
 	}
-	if !strings.Contains(cmdutil.ErrorHint(err), "http://127.0.0.1/callback") {
-		t.Fatalf("hint = %q", cmdutil.ErrorHint(err))
+	if hint := cmdutil.ErrorHint(err); !strings.Contains(hint, "http://127.0.0.1/callback") || !strings.Contains(hint, "scopes") {
+		t.Fatalf("hint = %q", hint)
 	}
 	assertNothingWritten(t, l.cfgPath)
 }

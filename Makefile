@@ -61,6 +61,7 @@ e2e-test:
 		REDMINE_E2E_VERSION=$(E2E_VERSION) \
 		COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) \
 		REDMINE_E2E_API_KEY="$$(COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) ./e2e/admin-api-key.sh)" \
+		REDMINE_E2E_OAUTH_APPS="$$(COMPOSE_PROJECT_NAME=$(E2E_PROJECT_NAME) ./e2e/oauth-app.sh)" \
 		go test -tags=e2e ./e2e -v $(if $(E2E_RUN),-run '$(E2E_RUN)')
 
 e2e-logs:
