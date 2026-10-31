@@ -74,7 +74,7 @@ func describeAPIError(err error) string {
 		return fmt.Sprintf("Invalid argument: %s %q %s. The request was not sent to Redmine; pass the value as Redmine shows it (for a project, its identifier or numeric ID).", pe.Kind, pe.Value, pe.Reason)
 	}
 	if errors.Is(err, oauth.ErrLoginRequired) {
-		return "The OAuth login expired or was revoked. The user must run 'redmine auth login --oauth' in a terminal; the MCP server picks up the new login without a restart."
+		return "The OAuth login expired or was revoked. The user must run '" + api.ReloginCommand(err) + "' in a terminal; the MCP server picks up the new login without a restart."
 	}
 	var ae *api.APIError
 	if errors.As(err, &ae) {

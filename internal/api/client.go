@@ -154,6 +154,8 @@ type authTransport struct {
 	password   string
 	// tokens supplies the bearer token for the oauth auth method.
 	tokens *oauth.TokenSource
+	// profile names the stored profile of the tokens, for the re-login hint.
+	profile string
 	// headers are the user-configured extra headers. Like credentials they are
 	// only sent to the configured origin, since they may carry proxy tokens.
 	headers map[string]string
@@ -221,7 +223,7 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			token, err := t.tokens.Token(req.Context())
 			if err != nil {
 				closeBody(req)
-				return nil, err
+				return nil, t.loginError(err)
 			}
 			req.Header.Set("Authorization", "Bearer "+token)
 		default:
@@ -241,6 +243,32 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 	return t.retryUnauthorized(base, req, resp)
+}
+
+// LoginRequiredError is oauth.ErrLoginRequired for a stored profile, so the
+// hint can name the profile to log in to again.
+type LoginRequiredError struct {
+	Profile string
+	Err     error
+}
+
+func (e *LoginRequiredError) Error() string { return e.Err.Error() }
+func (e *LoginRequiredError) Unwrap() error { return e.Err }
+
+// ReloginCommand returns the command that fixes err, a failed OAuth refresh.
+func ReloginCommand(err error) string {
+	var lre *LoginRequiredError
+	if errors.As(err, &lre) && lre.Profile != "" {
+		return "redmine auth login --oauth --name " + lre.Profile
+	}
+	return "redmine auth login --oauth"
+}
+
+func (t *authTransport) loginError(err error) error {
+	if t.profile != "" && errors.Is(err, oauth.ErrLoginRequired) {
+		return &LoginRequiredError{Profile: t.profile, Err: err}
+	}
+	return err
 }
 
 // closeBody closes a request body that will not be sent.
@@ -263,7 +291,7 @@ func (t *authTransport) retryUnauthorized(base http.RoundTripper, req *http.Requ
 
 	token, err := t.tokens.Refresh(req.Context(), sent)
 	if err != nil {
-		return nil, err
+		return nil, t.loginError(err)
 	}
 	if req.GetBody != nil {
 		body, err := req.GetBody()
@@ -315,8 +343,10 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 	}
 
 	var tokens *oauth.TokenSource
+	var profile string
 	if cfg.AuthMethod == config.AuthMethodOAuth {
 		tokens = newTokenSource(cfg, log, base)
+		_, profile, _ = cfg.ProfileLocation()
 	}
 
 	httpClient, dialer := newGuardedClient(base, serverURL, func(guarded http.RoundTripper) http.RoundTripper {
@@ -328,6 +358,7 @@ func newClient(cfg *config.Config, log *debug.Logger, base *http.Transport) *Cli
 			username:   cfg.Username,
 			password:   cfg.Password,
 			tokens:     tokens,
+			profile:    profile,
 			headers:    cfg.Headers,
 			origin:     &serverOrigin,
 		}

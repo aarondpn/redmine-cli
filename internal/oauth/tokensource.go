@@ -39,7 +39,8 @@ type TokenSource struct {
 	store Store // nil: memory only
 	log   *debug.Logger
 
-	mu    sync.Mutex // serializes refreshes; guards c
+	mu    sync.Mutex // serializes refreshes; guards c and spent
+	spent string     // the refresh token this process last used
 	tmu   sync.RWMutex
 	token Token // guarded by tmu
 }
@@ -64,9 +65,10 @@ func (s *TokenSource) set(t Token) {
 }
 
 // fresh reports whether the access token is usable for a while. A zero
-// expiry counts as fresh.
+// expiry counts as fresh. Round(0) drops the monotonic reading, which stops
+// while the machine sleeps.
 func fresh(t Token) bool {
-	return t.AccessToken != "" && (t.Expiry.IsZero() || time.Until(t.Expiry) > refreshSkew)
+	return t.AccessToken != "" && (t.Expiry.IsZero() || time.Until(t.Expiry.Round(0)) > refreshSkew)
 }
 
 // Token returns an access token, refreshing it first when it is about to
@@ -112,12 +114,16 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 			c.ClientID, c.ClientSecret = creds.ClientID, creds.ClientSecret
 			s.c = &c
 		}
-		// Another process refreshed, or the user logged in again.
-		if stored.RefreshToken != "" && stored.AccessToken != rejected && fresh(stored) {
-			s.set(stored)
-			return stored.AccessToken, nil
+		// The store still holds the refresh token this process spent (it
+		// could not be written): ours is newer.
+		if s.spent == "" || stored.RefreshToken != s.spent {
+			// Another process refreshed, or the user logged in again.
+			if stored.RefreshToken != "" && stored.AccessToken != rejected && fresh(stored) {
+				s.set(stored)
+				return stored.AccessToken, nil
+			}
+			base = stored
 		}
-		base = stored
 	}
 	if base.RefreshToken == "" {
 		return "", ErrLoginRequired
@@ -127,6 +133,7 @@ func (s *TokenSource) Refresh(ctx context.Context, rejected string) (string, err
 	if err != nil {
 		return "", err
 	}
+	s.spent = base.RefreshToken
 	if len(next.Scopes) == 0 {
 		next.Scopes = base.Scopes
 	}

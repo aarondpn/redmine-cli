@@ -13,6 +13,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	"github.com/aarondpn/redmine-cli/v2/internal/oauth"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
@@ -212,6 +213,20 @@ func classifyStatusError(err error, authMethod string) *statusFailure {
 			message:   "Redmine refused the credentials check with 403, which it does for every login-requiring request while the REST API is disabled (or when a proxy blocks the request).",
 			hint:      "Ask a Redmine administrator to enable Administration > Settings > API > Enable REST web service, or check any proxy or firewall in front of Redmine.",
 			anonymous: true,
+		}
+	case errors.Is(err, oauth.ErrLoginRequired):
+		return &statusFailure{
+			user:    "authentication failed",
+			reason:  reasonCredentialsRejected,
+			message: "The OAuth login expired or was revoked.",
+			hint:    "Run '" + api.ReloginCommand(err) + "' to log in again.",
+		}
+	case errors.Is(err, oauth.ErrInvalidClient):
+		return &statusFailure{
+			user:    "authentication failed",
+			reason:  reasonCredentialsRejected,
+			message: "Redmine rejected the OAuth client ID or secret.",
+			hint:    cmdutil.ErrorHint(err),
 		}
 	default:
 		return &statusFailure{

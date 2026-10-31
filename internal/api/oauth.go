@@ -41,6 +41,10 @@ func newOAuthClient(cfg *config.Config, log *debug.Logger, base *http.Transport)
 			origin:     &serverOrigin,
 		}
 	})
+	// The client secret and refresh token are already in these requests
+	// when the transport sees them, so a redirect would carry them along.
+	// Redmine answers the token endpoints directly.
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &oauth.Client{
 		Server:       server,
 		ClientID:     cfg.OAuth.ClientID,

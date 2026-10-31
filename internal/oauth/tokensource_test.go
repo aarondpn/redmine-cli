@@ -323,3 +323,39 @@ func TestTokenSourceTwoProcessesShareOneRefresh(t *testing.T) {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 }
+
+func TestTokenSourceUsesKeptTokenWhenSaveFailed(t *testing.T) {
+	srv := oauthtest.NewServer(t)
+	srv.ExpiresIn = 30
+	srv.Mux.Handle("/probe", srv.RequireBearer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	tok := issued(srv, time.Now().Add(-time.Minute))
+	store := &memStore{tok: tok, saveErr: errors.New("read-only file system")}
+	ts := NewTokenSource(newClient(srv), tok, store, nil)
+
+	first, err := ts.Token(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Using the new token makes Redmine revoke the old grant.
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/probe", nil)
+	req.Header.Set("Authorization", "Bearer "+first)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("probe = %v, %v", resp, err)
+	}
+	resp.Body.Close()
+
+	// The store still holds the spent pair; the kept one must be refreshed.
+	if _, err := ts.Token(context.Background()); err != nil {
+		t.Fatalf("second Token() = %v", err)
+	}
+}
+
+func TestFreshIgnoresMonotonicClock(t *testing.T) {
+	if !fresh(Token{AccessToken: "a", Expiry: time.Now().Add(time.Hour)}) {
+		t.Error("token expiring in an hour is not fresh")
+	}
+	if fresh(Token{AccessToken: "a", Expiry: time.Now().Add(-time.Second)}) {
+		t.Error("expired token is fresh")
+	}
+}

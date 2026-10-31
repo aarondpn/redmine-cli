@@ -58,7 +58,7 @@ func credentialWarning(cfg *config.Config, err error) string {
 		}
 	}
 	if loginExpired {
-		return fmt.Sprintf("Redmine at %s: the OAuth login expired or was revoked. Run 'redmine auth login --oauth'; no restart needed.", target)
+		return fmt.Sprintf("Redmine at %s: the OAuth login expired or was revoked. Run '%s'; no restart needed.", target, api.ReloginCommand(err))
 	}
 	secretVar, secret, missing := "REDMINE_API_KEY", "API key", cfg != nil && cfg.APIKey == ""
 	if cfg != nil && cfg.AuthMethod == "basic" {

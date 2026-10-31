@@ -301,3 +301,13 @@ func TestOAuthErrors_HintAndCode(t *testing.T) {
 		})
 	}
 }
+
+func TestErrorHint_LoginRequiredNamesProfile(t *testing.T) {
+	err := fmt.Errorf("wrapped: %w", &api.LoginRequiredError{Profile: "work", Err: oauth.ErrLoginRequired})
+	if got := ErrorHint(err); !strings.Contains(got, "'redmine auth login --oauth --name work'") {
+		t.Errorf("ErrorHint = %q, want the profile named", got)
+	}
+	if got := ErrorHint(oauth.ErrLoginRequired); !strings.Contains(got, "'redmine auth login --oauth'") {
+		t.Errorf("ErrorHint = %q, want the plain command", got)
+	}
+}

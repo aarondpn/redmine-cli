@@ -175,6 +175,11 @@ func TestOAuth_RevokedLoginAsksForNewLogin(t *testing.T) {
 	if !strings.Contains(string(stderr), "auth login") {
 		t.Fatalf("error does not point at 'redmine auth login':\n%s", stderr)
 	}
+
+	stdout, _, _ := r.runRaw("auth", "status", "-o", "json")
+	if !strings.Contains(string(stdout), "credentials_rejected") {
+		t.Fatalf("auth status does not report the rejected login:\n%s", stdout)
+	}
 }
 
 func TestOAuth_LogoutRevokesTokens(t *testing.T) {

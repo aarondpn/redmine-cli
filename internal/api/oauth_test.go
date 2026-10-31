@@ -278,3 +278,30 @@ func TestOAuthProfile_PersistsRotatedTokens(t *testing.T) {
 		})
 	}
 }
+
+func TestOAuthEndpoints_DoNotFollowRedirects(t *testing.T) {
+	var leaked []string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		leaked = append(leaked, r.Header.Get("Authorization")+string(data))
+	}))
+	defer other.Close()
+
+	srv := oauthtest.NewServer(t)
+	access, refresh := srv.Issue([]string{"view_issues"})
+	srv.Mux.HandleFunc("POST /sub/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusTemporaryRedirect)
+	})
+	cfg := oauthTestConfig(srv, access, refresh, time.Now().Add(-time.Minute))
+	cfg.Server = srv.URL + "/sub"
+	c, err := NewOAuthClient(cfg, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Refresh(context.Background(), refresh); err == nil {
+		t.Fatal("Refresh succeeded through a redirect")
+	}
+	if len(leaked) != 0 {
+		t.Errorf("redirect target received %q", leaked)
+	}
+}
