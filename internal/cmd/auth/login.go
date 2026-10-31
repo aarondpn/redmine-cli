@@ -68,7 +68,7 @@ sub-path such as /redmine is kept.
 Headers passed with the global --header flag are used for the connection test
 and saved to the profile, for servers behind a firewall or proxy that require them.
 
-With --oauth you log in in the browser (Redmine 6.1 or newer). An administrator
+With --oauth you log in through the browser (Redmine 6.1 or newer). An administrator
 registers the application under Administration > Applications with the redirect
 URI http://127.0.0.1/callback. Running 'redmine auth login --oauth' again for an
 OAuth profile reuses its client and logs in anew.`,

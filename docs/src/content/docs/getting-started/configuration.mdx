@@ -27,13 +27,7 @@ Without a terminal (CI, scripts, AI agents), skip the wizard: `echo "$KEY" | red
 
 ## OAuth (Redmine 6.1+)
 
-Log in in the browser instead of using an API key. An administrator registers an application once (Administration > Applications, redirect URI `http://127.0.0.1/callback`), then:
-
-```bash
-redmine auth login --oauth
-```
-
-Client secret and tokens are stored like an API key (plaintext file or `--keyring`). Details: [`auth login`](/commands/auth/#oauth-login).
+`redmine auth login --oauth` logs in through the browser. An administrator registers the app once; see [`auth login`](/commands/auth/#oauth-login). Client secret and tokens are stored like an API key (plaintext file or `--keyring`).
 
 ## Multiple profiles
 

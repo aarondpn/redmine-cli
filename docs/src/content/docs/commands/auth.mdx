@@ -54,14 +54,13 @@ redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --
 
 ### OAuth login
 
-For Redmine 6.1 or newer. Log in in the browser instead of pasting an API key.
+For Redmine 6.1 or newer. Log in through the browser instead of pasting an API key.
 
-1. An administrator registers the app once: Administration > Applications > New, redirect URI `http://127.0.0.1/callback`, tick the scopes. Copy the client ID and secret.
-2. Log in:
+1. An administrator registers the app once: Administration > Applications > New, redirect URI `http://127.0.0.1/callback`, click Check all under Scopes. Copy the client ID and secret.
+2. Log in; the wizard asks for the server, client ID and secret:
 
 ```bash
 redmine auth login --oauth
-echo "$SECRET" | redmine auth login --server https://redmine.example.com --client-id ID --client-secret-file -
 ```
 
 The CLI opens the browser and waits for the redirect. Without a browser (SSH), add `--no-browser`, open the printed URL elsewhere, and paste the final URL from the address bar back into the terminal.
@@ -74,7 +73,7 @@ The CLI opens the browser and waits for the redirect. Without a browser (SSH), a
 | `--scopes` | Scopes to request, comma or space separated. `default` is the CLI's usual set (`default,admin` adds `admin`). |
 | `--no-browser` | Print the URL instead of opening a browser. |
 
-The default scopes cover the CLI's commands, only read scopes for a `read_only` profile, and never `admin`. If Redmine answers `invalid_scope`, tick the scopes on the application or pass `--scopes`. Tokens refresh automatically; if the login expires or is revoked, run `redmine auth login --oauth` again.
+A `read_only` profile requests only read scopes; `admin` is never requested unless you pass it in `--scopes`. If Redmine answers `invalid_scope`, tick the missing scopes on the application or pass `--scopes`. Tokens refresh automatically; if the login expires or is revoked, run `redmine auth login --oauth` again.
 
 ### Server URL normalization
 
@@ -90,7 +89,7 @@ The URL is cleaned up before it is saved, and the wizard tells you when it chang
 redmine auth list
 ```
 
-Shows each profile's server URL and which one is currently active.
+Shows each profile's server URL, authentication method, and which one is active.
 
 ## switch
 
@@ -140,12 +139,6 @@ You will be prompted to confirm before removal. For an OAuth profile the tokens 
     redmine auth login
     redmine auth login --name work
     redmine auth list
-    ```
-  </TabItem>
-  <TabItem label="OAuth">
-    ```bash
-    redmine auth login --oauth
-    redmine auth status
     ```
   </TabItem>
   <TabItem label="Switch profile">
