@@ -60,7 +60,7 @@ func runLogout(f *cmdutil.Factory, args []string) error {
 
 	// Confirm deletion
 	var confirm bool
-	err = huh.NewForm(
+	err = cmdutil.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(fmt.Sprintf("Remove profile %q (%s)?", name, pc.Profiles[name].Server)).

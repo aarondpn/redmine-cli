@@ -118,44 +118,39 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		authMethod = "apikey"
 	}
 
-	// Step 1: Server URL and auth method, for whatever the flags did not give
-	var fields []huh.Field
+	// The printer applies the config's no_color, which the login UI's
+	// styles must see before they are first rendered.
+	printer := f.Printer("")
+	ui := newLoginUI(f.IOStreams.ErrOut, !nonInteractive)
+	ui.start()
+
+	// Step 1: Server URL, unless given as a flag. One question per form, so
+	// each answer is confirmed by its step line before the next prompt.
 	if server == "" {
-		fields = append(fields, huh.NewInput().
-			Title("Redmine Server URL").
-			Description("e.g., https://redmine.example.com").
+		err := ui.run(huh.NewInput().
+			Title("Server URL").
+			Description("The address you open Redmine at, e.g. https://redmine.example.com").
+			Prompt(loginPrompt).
 			Value(&server).
 			Validate(func(s string) error {
 				_, err := config.NormalizeServerURL(s)
 				return err
 			}))
-	}
-	if authMethod == "" {
-		fields = append(fields, huh.NewSelect[string]().
-			Title("Authentication Method").
-			Options(
-				huh.NewOption("API Key (recommended)", "apikey"),
-				huh.NewOption("Username & Password", "basic"),
-			).
-			Value(&authMethod))
-	}
-	if len(fields) > 0 {
-		if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
+		if err != nil {
 			return err
 		}
 	}
-
-	printer := f.Printer("")
 
 	assumedHTTPS := server != "" && config.EnsureScheme(server) != server
 	normalized, err := config.NormalizeServerURL(server)
 	if err != nil {
 		return err
 	}
-	if normalized != strings.TrimSpace(server) {
+	if normalized != strings.TrimSpace(server) && nonInteractive {
 		printer.Success(fmt.Sprintf("Using server URL %s", normalized))
 	}
 	server = normalized
+	ui.step("Server", server)
 
 	// Derive default profile name from server URL
 	defaultName := config.ProfileNameFromURL(server)
@@ -166,15 +161,14 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	// Step 2: Profile name (with default from hostname)
 	if profileName == "" {
 		if !nonInteractive {
-			err = huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("Profile name").
-						Description("A short name for this connection").
-						Placeholder(defaultName).
-						Value(&profileName),
-				),
-			).Run()
+			err = ui.run(
+				huh.NewInput().
+					Title("Profile name").
+					Description(fmt.Sprintf("A short name for this connection; press enter to use %q", defaultName)).
+					Prompt(loginPrompt).
+					Placeholder(defaultName).
+					Value(&profileName),
+			)
 			if err != nil {
 				return err
 			}
@@ -183,6 +177,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 			profileName = defaultName
 		}
 	}
+	ui.step("Profile", profileName)
 
 	configPath := config.DefaultConfigPath()
 	if f.ConfigPath != "" {
@@ -195,43 +190,72 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		}
 	}
 
-	// Pointed out before the credentials are entered.
+	// Step 3: Auth method, unless implied by an API key flag
+	if authMethod == "" {
+		err := ui.run(huh.NewSelect[string]().
+			Title("Authentication method").
+			Options(
+				huh.NewOption("API key (recommended)", "apikey"),
+				huh.NewOption("Username & password", "basic"),
+			).
+			Value(&authMethod))
+		if err != nil {
+			return err
+		}
+	}
+	ui.step("Authentication", authMethodLabel(authMethod))
+
+	// Pointed out before the credentials are entered, below the header.
+	ui.flush()
 	warnCleartextServer(f, server)
 
-	// Step 3: Credentials
+	// Step 4: Credentials
 	if apiKey == "" {
 		if authMethod == "apikey" {
-			err = huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("API Key").
-						Description("Found at My Account > API access key").
-						EchoMode(huh.EchoModePassword).
-						Value(&apiKey).
-						Validate(func(s string) error {
-							if s == "" {
-								return fmt.Errorf("API key is required")
-							}
-							return nil
-						}),
-				),
-			).Run()
+			err = ui.run(
+				huh.NewInput().
+					Title("API key").
+					Description(fmt.Sprintf("Open %s/my/account and click Show under API access key", server)).
+					Prompt(loginPrompt).
+					EchoMode(huh.EchoModePassword).
+					Value(&apiKey).
+					Validate(func(s string) error {
+						if strings.TrimSpace(s) == "" {
+							return fmt.Errorf("API key is required")
+						}
+						return nil
+					}),
+			)
 		} else {
-			err = huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("Username").
-						Value(&username),
-					huh.NewInput().
-						Title("Password").
-						EchoMode(huh.EchoModePassword).
-						Value(&password),
-				),
-			).Run()
+			err = ui.run(
+				huh.NewInput().
+					Title("Username").
+					Prompt(loginPrompt).
+					Value(&username).
+					Validate(func(s string) error {
+						if strings.TrimSpace(s) == "" {
+							return fmt.Errorf("username is required")
+						}
+						return nil
+					}),
+				huh.NewInput().
+					Title("Password").
+					Prompt(loginPrompt).
+					EchoMode(huh.EchoModePassword).
+					Value(&password),
+			)
 		}
 		if err != nil {
 			return err
 		}
+		// A pasted key or name often carries a stray space or newline.
+		apiKey, username = strings.TrimSpace(apiKey), strings.TrimSpace(username)
+	}
+	if authMethod == "basic" {
+		ui.step("Username", username)
+		ui.step("Password", maskSecret(password))
+	} else {
+		ui.step("API key", maskSecret(apiKey))
 	}
 
 	// --header values are merged over the profile's existing headers, used for
@@ -251,7 +275,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		return err
 	}
 
-	// Step 4: Test connection
+	// Step 5: Test connection
 	cfg := &config.Config{
 		Server:     server,
 		AuthMethod: authMethod,
@@ -272,13 +296,22 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	user, err := client.Users.Current(ctx, nil)
 	stop()
 	if err != nil {
-		printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
+		if nonInteractive {
+			printer.Error("Connection failed: " + cmdutil.FormatErrorMessage(err))
+		} else {
+			ui.fail("Connection", "failed")
+			fmt.Fprintln(f.IOStreams.ErrOut)
+		}
 		return loginConnectError(err, authMethod, assumedHTTPS)
 	}
 
-	printer.Success(fmt.Sprintf("Connected as %s %s (%s)", user.FirstName, user.LastName, user.Login))
+	connectedAs := fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)
+	if nonInteractive {
+		printer.Success("Connected as " + connectedAs)
+	}
+	ui.step("Connected as", connectedAs)
 
-	// Step 5: Default project (optional)
+	// Step 6: Default project (optional)
 	var projects []models.Project
 	switch {
 	case defProject != "":
@@ -293,22 +326,24 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 
 	if err == nil && len(projects) > 0 && defProject == "" {
 		options := []huh.Option[string]{
-			huh.NewOption("(none)", ""),
+			huh.NewOption("No default project", ""),
 		}
 		for _, p := range projects {
 			options = append(options, huh.NewOption(output.SanitizeTerminal(p.Name), p.Identifier))
 		}
 
-		_ = huh.NewForm(
-			huh.NewGroup(
-				huh.NewSelect[string]().
-					Title("Default Project (optional)").
-					Description("Used when --project is not specified").
-					Options(options...).
-					Value(&defProject).
-					Height(5),
-			),
-		).Run()
+		// Only a cancel stops the login; any other failure leaves no default.
+		err := ui.run(
+			huh.NewSelect[string]().
+				Title("Default project").
+				Description("Used when --project is not given; type / to filter").
+				Options(options...).
+				Value(&defProject).
+				Height(8),
+		)
+		if errors.Is(err, huh.ErrUserAborted) {
+			return err
+		}
 	}
 
 	// A non-interactive re-login (e.g. to refresh the key) keeps the
@@ -318,8 +353,13 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	}
 	cfg.DefaultProject = defProject
 	cfg.OutputFormat = "table"
+	if defProject != "" {
+		ui.step("Default project", projectLabel(projects, defProject))
+	} else {
+		ui.stepMuted("Default project", "none")
+	}
 
-	// Step 6: Credential storage choice
+	// Step 7: Credential storage choice
 	storeInKeyring, err := resolveKeyringChoice(f, profileName, existing, opts.useKeyring, opts.keyringSet, nonInteractive)
 	if err != nil {
 		return err
@@ -329,8 +369,13 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	} else if nonInteractive && !opts.keyringSet && secrets.Default.Available() {
 		f.Warn("credentials are stored in the plaintext config file; pass --keyring to use the system keyring instead")
 	}
+	if storeInKeyring {
+		ui.step("Credentials", "System keyring")
+	} else {
+		ui.step("Credentials", "Config file (plaintext)")
+	}
 
-	// Step 7: Save profile
+	// Step 8: Save profile
 	if err := config.SaveProfile(profileName, cfg, configPath); err != nil {
 		return fmt.Errorf("saving profile: %w", err)
 	}
@@ -344,10 +389,25 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		return fmt.Errorf("setting active profile: %w", err)
 	}
 
+	if !nonInteractive {
+		ui.done(profileName, configPath)
+		return nil
+	}
 	printer.Action(output.ActionLoggedIn, "profile", profileName,
 		fmt.Sprintf("Profile %q saved and activated (%s)", profileName, configPath))
 
 	return nil
+}
+
+// projectLabel returns "Name (identifier)" for a project picked from the
+// list, or the identifier alone when the project was not listed.
+func projectLabel(projects []models.Project, identifier string) string {
+	for _, p := range projects {
+		if p.Identifier == identifier {
+			return fmt.Sprintf("%s (%s)", p.Name, p.Identifier)
+		}
+	}
+	return identifier
 }
 
 // resolveKeyringChoice decides whether to store credentials in the system
@@ -374,18 +434,21 @@ func resolveKeyringChoice(f *cmdutil.Factory, profileName string, existing *conf
 		return false, nil
 	}
 
-	confirm := true
-	if err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Store credentials in system keyring?").
-				Description("Keeps secrets out of the plaintext config file").
-				Value(&confirm),
-		),
-	).Run(); err != nil {
+	useKeyring := true
+	if err := runLoginForm(true,
+		huh.NewSelect[bool]().
+			Title("Where should the credentials be stored?").
+			// Value before Options: Options preselects the option matching
+			// the bound value, and the zero value false would scroll the list.
+			Value(&useKeyring).
+			Options(
+				huh.NewOption("System keyring (recommended)", true),
+				huh.NewOption("Config file (plaintext)", false),
+			),
+	); err != nil {
 		return false, err
 	}
-	return confirm, nil
+	return useKeyring, nil
 }
 
 // warnCleartextServer warns when the server URL would send the credentials
