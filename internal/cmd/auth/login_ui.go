@@ -181,7 +181,7 @@ func (u *loginUI) done(profile, configPath string) {
 	fmt.Fprintf(u.w, "  %s\n", loginOKStyle.Bold(true).Render(
 		fmt.Sprintf("Logged in. Profile %q is saved and active.", output.SanitizeTerminal(profile))))
 	fmt.Fprintf(u.w, "  %s\n\n", loginMutedStyle.Render("Config: "+output.SanitizeTerminal(configPath)))
-	fmt.Fprintf(u.w, "  %s %s\n", loginMutedStyle.Render("Next:"), loginCmdStyle.Render("redmine issue list"))
+	fmt.Fprintf(u.w, "  %s %s\n", loginMutedStyle.Render("Next:"), loginCmdStyle.Render("redmine issues list"))
 	fmt.Fprintln(u.w)
 }
 
