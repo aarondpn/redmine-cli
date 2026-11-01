@@ -76,7 +76,7 @@ func runSwitch(f *cmdutil.Factory, args []string, format string) error {
 			options = append(options, huh.NewOption(label, n))
 		}
 
-		err = huh.NewForm(
+		err = cmdutil.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Select profile").
