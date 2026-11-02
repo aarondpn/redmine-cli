@@ -198,7 +198,7 @@ jobs:
       # Bump version and hash together: the hash is the sha256 of
       # mcp-publisher_linux_amd64.tar.gz from that release's checksums file.
       # renovate: datasource=github-releases depName=modelcontextprotocol/registry
-      MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_VERSION: v1.8.6
       MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
