@@ -827,6 +827,7 @@ func TestSaveProfileStoresCACertAsGiven(t *testing.T) {
 }
 
 func TestLoadEnvOverridesCACert(t *testing.T) {
+	t.Setenv("REDMINE_CA_CERT", "") // the developer's own environment must not leak in
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	content := `active_profile: test
 profiles:
