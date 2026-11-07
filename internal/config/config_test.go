@@ -786,3 +786,95 @@ func TestParseBoolEnv(t *testing.T) {
 		}
 	}
 }
+
+// auth login decides ca_cert itself (keep, replace or remove), so SaveProfile
+// stores the value it is given.
+func TestSaveProfileStoresCACertAsGiven(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	first := &Config{
+		Server:     "https://redmine.example.com",
+		AuthMethod: "apikey",
+		APIKey:     "k",
+		CACert:     "/etc/ssl/company-ca.pem",
+	}
+	if err := SaveProfile("test", first, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+
+	relogin := &Config{Server: "https://redmine.example.com", AuthMethod: "apikey", APIKey: "k2"}
+	if err := SaveProfile("test", relogin, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	pc, err := LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := pc.Profiles["test"].CACert; got != "" {
+		t.Fatalf("ca_cert = %q after saving without one, want removed", got)
+	}
+
+	replaced := &Config{Server: "https://redmine.example.com", AuthMethod: "apikey", APIKey: "k3", CACert: "/etc/ssl/new-ca.pem"}
+	if err := SaveProfile("test", replaced, cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	pc, err = LoadProfiles(cfgPath, debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := pc.Profiles["test"].CACert; got != "/etc/ssl/new-ca.pem" {
+		t.Fatalf("ca_cert = %q after re-login with a new value, want replaced", got)
+	}
+}
+
+func TestLoadEnvOverridesCACert(t *testing.T) {
+	t.Setenv("REDMINE_CA_CERT", "") // the developer's own environment must not leak in
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `active_profile: test
+profiles:
+  test:
+    server: https://file.example.com
+    api_key: file-key
+    ca_cert: /from/file.pem
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CACert != "/from/file.pem" {
+		t.Fatalf("ca_cert = %q, want value from file", cfg.CACert)
+	}
+
+	t.Setenv("REDMINE_CA_CERT", "/from/env.pem")
+	cfg, err = Load(cfgPath, "", debug.New(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CACert != "/from/env.pem" {
+		t.Fatalf("ca_cert = %q, want REDMINE_CA_CERT", cfg.CACert)
+	}
+}
+
+func TestExpandHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+
+	tests := []struct{ in, want string }{
+		{"~", home},
+		{"~/certs/ca.pem", filepath.Join(home, "certs", "ca.pem")},
+		{"~" + string(filepath.Separator) + "ca.pem", filepath.Join(home, "ca.pem")},
+		{"~other/ca.pem", "~other/ca.pem"},
+		{"/abs/ca.pem", "/abs/ca.pem"},
+		{"rel/ca.pem", "rel/ca.pem"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := ExpandHome(tt.in); got != tt.want {
+			t.Errorf("ExpandHome(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}

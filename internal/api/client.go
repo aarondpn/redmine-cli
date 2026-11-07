@@ -3,12 +3,15 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -225,7 +228,40 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 		withScheme.Server = server
 		cfg = &withScheme
 	}
-	return newClient(cfg, log, newBaseTransport(headerTimeout)), nil
+	base := newBaseTransport(headerTimeout)
+	if cfg.CACert != "" {
+		pool, err := LoadCACertPool(cfg.CACert)
+		if err != nil {
+			// Name where the value came from, so a bad path is looked for in
+			// the right place.
+			source := "ca_cert"
+			if os.Getenv(config.CACertEnv) == cfg.CACert {
+				source = config.CACertEnv
+			}
+			return nil, fmt.Errorf("%s: %w", source, err)
+		}
+		base.TLSClientConfig = &tls.Config{RootCAs: pool}
+	}
+	return newClient(cfg, log, base), nil
+}
+
+// LoadCACertPool returns the system roots plus the PEM certificates in the
+// file at path (a leading ~ is the home directory). It fails if the file
+// cannot be read or holds no PEM certificate.
+func LoadCACertPool(path string) (*x509.CertPool, error) {
+	path = config.ExpandHome(path)
+	pemData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("%s contains no PEM certificates (a binary DER file must be converted to PEM first)", path)
+	}
+	return pool, nil
 }
 
 // newClient wires a Client around base, the transport all requests share.

@@ -125,6 +125,9 @@ export REDMINE_READ_ONLY=1
 
 # 彻底禁用可选的系统密钥环
 export REDMINE_NO_KEYRING=1
+
+# 在系统根证书之外，额外信任此 PEM 文件中的 CA 证书
+export REDMINE_CA_CERT=/etc/ssl/certs/company-ca.crt
 ```
 
 参见 [自动更新](/zh-cn/commands/other/#启动时更新检查) 了解更新检查的详细信息。
@@ -204,6 +207,28 @@ redmine auth login --header "User-Agent: Mozilla/5.0"
 <Aside type="caution" title="请求头以明文存储">
   请求头始终写入配置文件，即使配置文件的凭据存储在系统密钥环中。如果请求头包含令牌，请像对待其他机密一样保护该文件。
 </Aside>
+
+## 自定义 CA 证书
+
+如果你的 Redmine 服务器使用由私有或企业 CA 签发的证书，请求会报错 `x509: certificate signed by unknown authority`。可通过 `ca_cert` 为配置文件指定 CA 证书路径：
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  work:
+    server: https://redmine.internal
+    auth_method: apikey
+    api_key: your-api-key
+    ca_cert: /etc/ssl/certs/company-ca.crt      # Linux / macOS
+    # ca_cert: 'C:\certs\company-ca.crt'        # Windows（使用单引号，或写成 C:/certs/company-ca.crt）
+```
+
+- 文件必须是 PEM 格式（以 `-----BEGIN CERTIFICATE-----` 开头的文本），与扩展名（`.crt`、`.pem`、`.cer`）无关。一个文件可包含多个证书。二进制 DER 证书需先转换：`openssl x509 -inform der -in ca.cer -out ca.crt`，Windows 上可用 `certutil -encode ca.cer ca.crt`。
+- 这些证书会在系统根证书之外额外被信任，因此公网服务器仍可正常访问。它们只作用于本 CLI 自身的 HTTPS 连接（Redmine 服务器及其重定向到的地址），不会修改系统信任库，也不影响其他程序。
+- 未设置 `ca_cert` 时，行为与之前一致，仅使用系统根证书。文件不存在、无法读取或不含 PEM 证书时会直接报错，不会被静默忽略。
+- 开头的 `~` 表示用户主目录。相对路径按当前工作目录解析，因此在配置文件中建议使用绝对路径。
+- 首次登录此类服务器时，可通过 `redmine auth login --ca-cert ca.crt` 指定证书文件；它会在任何提示之前被校验，用于连接测试，并以绝对路径保存到配置文件中。如果登录因证书不受信任而失败，错误提示会指向 `--ca-cert`。
+- 再次登录同一服务器时若未传入 `--ca-cert`，会保留已有的 `ca_cert`；`--ca-cert=""` 会将其移除。若配置文件改为指向其他服务器，旧的 `ca_cert` 不会被沿用，登录时会给出提示。
+- `REDMINE_CA_CERT` 可在单个 shell、CI 任务或容器中覆盖配置文件的 `ca_cert`。`redmine auth login` 会用它进行连接测试，但不会保存；如需保存到配置文件，请传入 `--ca-cert`。
 
 ## 查看当前配置
 

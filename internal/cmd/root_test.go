@@ -194,3 +194,34 @@ func TestRootRejectsMalformedHeaderFlag(t *testing.T) {
 		t.Fatal("expected PersistentPreRunE to reject a malformed --header")
 	}
 }
+
+func TestConfigCommandShowsCACert(t *testing.T) {
+	t.Setenv("REDMINE_CA_CERT", "")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := `server: https://only.example.com
+api_key: only-key
+ca_cert: /etc/ssl/company-ca.pem
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, format := range []string{"table", "json"} {
+		out := &strings.Builder{}
+		f := &cmdutil.Factory{
+			ConfigPath:   cfgPath,
+			OutputFormat: format,
+			IOStreams: &cmdutil.IOStreams{
+				In:     strings.NewReader(""),
+				Out:    out,
+				ErrOut: &strings.Builder{},
+			},
+		}
+		if err := newCmdConfig(f).Execute(); err != nil {
+			t.Fatalf("%s: unexpected error: %v", format, err)
+		}
+		if !strings.Contains(out.String(), "/etc/ssl/company-ca.pem") {
+			t.Errorf("%s: expected ca_cert in output, got:\n%s", format, out)
+		}
+	}
+}

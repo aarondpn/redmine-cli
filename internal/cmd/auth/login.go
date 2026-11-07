@@ -2,9 +2,12 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -25,6 +28,8 @@ type loginOptions struct {
 	useKeyring     bool
 	keyringSet     bool
 	defaultProject string
+	caCert         string
+	caCertSet      bool
 }
 
 // loginNeedsTerminalError is returned when values are missing and there is no
@@ -54,10 +59,16 @@ A server URL without a scheme gets https://, and a URL pasted from the browser
 sub-path such as /redmine is kept.
 
 Headers passed with the global --header flag are used for the connection test
-and saved to the profile, for servers behind a firewall or proxy that require them.`,
+and saved to the profile, for servers behind a firewall or proxy that require them.
+
+For a server whose certificate is signed by a private or corporate CA, pass
+--ca-cert with a PEM file; it is used for the connection test and saved to the
+profile as an absolute path. Logging in again to the same server without
+--ca-cert keeps the profile's ca_cert; --ca-cert="" removes it.`,
 		Example: `  redmine auth login
   redmine auth login --name work
   redmine auth login --header "User-Agent: Mozilla/5.0"
+  redmine auth login --ca-cert ~/certs/company-ca.pem
   echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
   redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --default-project web -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,6 +85,7 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 				f.OutputFormat = output.FormatTable
 			}
 			opts.keyringSet = cmd.Flags().Changed("keyring")
+			opts.caCertSet = cmd.Flags().Changed("ca-cert")
 			return runLogin(cmdutil.Context(cmd), f, opts, nonInteractive)
 		},
 	}
@@ -81,6 +93,7 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 	cmd.Flags().StringVar(&opts.name, "name", "", "Profile name (default: derived from server hostname)")
 	cmd.Flags().BoolVar(&opts.useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
 	cmd.Flags().StringVar(&opts.defaultProject, "default-project", "", "Default project identifier to save in the profile")
+	cmd.Flags().StringVar(&opts.caCert, "ca-cert", "", `PEM file with CA certificates to trust for this server, in addition to the system roots (--ca-cert="" removes the profile's)`)
 
 	return cmd
 }
@@ -113,6 +126,18 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	)
 	profileName := opts.name
 	defProject := opts.defaultProject
+
+	// --ca-cert is saved as an absolute path so later commands find it from
+	// any directory. An unusable file fails here, before any prompt.
+	caCertFlag := ""
+	if opts.caCert != "" {
+		if caCertFlag, err = filepath.Abs(config.ExpandHome(opts.caCert)); err != nil {
+			return fmt.Errorf("--ca-cert: %w", err)
+		}
+		if _, err := api.LoadCACertPool(caCertFlag); err != nil {
+			return fmt.Errorf("--ca-cert: %w", err)
+		}
+	}
 
 	if apiKey != "" {
 		authMethod = "apikey"
@@ -187,6 +212,36 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	if pc, loadErr := config.LoadProfiles(configPath, f.DebugLogger()); loadErr == nil {
 		if p, ok := pc.Profiles[profileName]; ok {
 			existing = &p
+		}
+	}
+
+	// --ca-cert sets the profile's ca_cert (--ca-cert="" removes it). Without
+	// the flag the existing one is kept while the host is unchanged, since a
+	// different server likely needs a different CA. REDMINE_CA_CERT overrides
+	// it for the connection test, as for every other command, but is not
+	// saved; --ca-cert wins over it.
+	caCert := caCertFlag
+	if !opts.caCertSet && existing != nil && existing.CACert != "" {
+		if config.SameServerHost(existing.Server, server) {
+			caCert = existing.CACert
+		} else {
+			printer.Warning(fmt.Sprintf("Profile %q pointed at a different server; its ca_cert was not carried over (pass --ca-cert to set one)", profileName))
+		}
+	}
+	testCACert, testCACertLabel := caCert, caCert
+	if env := os.Getenv(config.CACertEnv); env != "" && !opts.caCertSet {
+		testCACert, testCACertLabel = env, env+" ("+config.CACertEnv+")"
+	}
+	// --ca-cert was checked above; a stale inherited value fails here too,
+	// before the credential prompts.
+	if testCACert != "" && !opts.caCertSet {
+		if _, err := api.LoadCACertPool(testCACert); err != nil {
+			if testCACert != caCert {
+				return cmdutil.WithHint(fmt.Errorf("%s: %w", config.CACertEnv, err),
+					`Fix or unset `+config.CACertEnv+`, or pass --ca-cert=<file>.`)
+			}
+			return cmdutil.WithHint(fmt.Errorf("ca_cert of profile %q: %w", profileName, err),
+				`Pass --ca-cert=<file> to replace it, or --ca-cert="" to remove it.`)
 		}
 	}
 
@@ -284,10 +339,20 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		Password:   password,
 		Headers:    headers,
 	}
+	cfg.CACert = caCert
+	testCfg := cfg
+	if testCACert != caCert {
+		withEnv := *cfg
+		withEnv.CACert = testCACert
+		testCfg = &withEnv
+	}
+	if testCACertLabel != "" {
+		ui.step("CA certificate", testCACertLabel)
+	}
 
 	stop := printer.Spinner("Testing connection...")
 
-	client, err := api.NewClient(cfg, f.DebugLogger())
+	client, err := api.NewClient(testCfg, f.DebugLogger())
 	if err != nil {
 		stop()
 		return fmt.Errorf("failed to create client: %w", err)
@@ -302,7 +367,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 			ui.fail("Connection", "failed")
 			fmt.Fprintln(f.IOStreams.ErrOut)
 		}
-		return loginConnectError(err, authMethod, assumedHTTPS)
+		return loginConnectError(err, authMethod, assumedHTTPS, testCACert)
 	}
 
 	connectedAs := fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Login)
@@ -480,15 +545,57 @@ const loginNotFoundHint = `The server answered, but not as a Redmine REST API. C
 // loginUnreachableHint is attached when the probe got no HTTP response.
 const loginUnreachableHint = `Check the server URL and that the host is reachable from this machine (DNS, VPN, proxy or firewall).`
 
+// loginUntrustedCertHint is attached when the server's certificate could not
+// be verified for a reason other than a host name mismatch or expiry.
+const loginUntrustedCertHint = `The server's certificate is not trusted by this machine. If it is signed by a private or corporate CA, pass that CA's certificate as a PEM file with --ca-cert, e.g. redmine auth login --ca-cert ~/certs/company-ca.pem`
+
+// loginWrongCAHint replaces loginUntrustedCertHint when a CA certificate was
+// already used; %s is its path.
+const loginWrongCAHint = `The server's certificate is not signed by a CA in %s. Check that the file holds the CA that issued it, or that CA's root.`
+
 // loginHTTPSAssumedHint is appended to the unreachable hint when the login
 // added https:// to a server URL typed without a scheme.
 const loginHTTPSAssumedHint = ` The URL had no scheme, so https:// was assumed; if the server only serves plain HTTP, pass http:// explicitly.`
 
+// isUntrustedCertError reports whether err is a failed verification of the
+// server's certificate that a CA certificate could fix. On macOS the platform
+// verifier does not always return a typed x509 error, so any verification
+// failure counts except a host name mismatch or an expired certificate.
+func isUntrustedCertError(err error) bool {
+	var unknownCA x509.UnknownAuthorityError
+	if errors.As(err, &unknownCA) {
+		return true
+	}
+	var verifyErr *tls.CertificateVerificationError
+	if !errors.As(err, &verifyErr) {
+		return false
+	}
+	var hostErr x509.HostnameError
+	var invalid x509.CertificateInvalidError
+	if errors.As(err, &hostErr) || (errors.As(err, &invalid) && invalid.Reason == x509.Expired) {
+		return false
+	}
+	return true
+}
+
 // loginConnectError wraps a failed connection probe, attaching the
 // login-specific hints. authMethod selects the 401 wording; assumedHTTPS
-// reports that the scheme was added by the login.
-func loginConnectError(err error, authMethod string, assumedHTTPS bool) error {
+// reports that the scheme was added by the login; caCert is the CA file used
+// for the probe, if any.
+func loginConnectError(err error, authMethod string, assumedHTTPS bool, caCert string) error {
 	wrapped := fmt.Errorf("could not connect to Redmine server: %w", err)
+	if isUntrustedCertError(err) {
+		if caCert != "" {
+			return cmdutil.WithHint(wrapped, fmt.Sprintf(loginWrongCAHint, caCert))
+		}
+		return cmdutil.WithHint(wrapped, loginUntrustedCertHint)
+	}
+	// A host name mismatch or an expired certificate: the server was reached,
+	// so the DNS/VPN hint below would mislead.
+	var verifyErr *tls.CertificateVerificationError
+	if errors.As(err, &verifyErr) {
+		return wrapped
+	}
 	var apiErr *api.APIError
 	if !errors.As(err, &apiErr) {
 		hint := loginUnreachableHint

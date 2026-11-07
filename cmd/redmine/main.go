@@ -1,3 +1,9 @@
+// Disable the EDNS0 header in queries from Go's built-in DNS resolver, which
+// the CGO_ENABLED=0 release builds use on Linux: some VPN DNS proxies (e.g.
+// Sangfor) fail queries that carry it, so the server cannot be resolved. Set
+// GODEBUG=netedns0=1 to send it again.
+
+//go:debug netedns0=0
 package main
 
 import (

@@ -215,6 +215,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 					"output_format":   cfg.OutputFormat,
 					"read_only":       strconv.FormatBool(cfg.ReadOnly),
 					"headers":         strings.Join(headerNames, ", "),
+					"ca_cert":         cfg.CACert,
 				})
 				return nil
 			}
@@ -226,6 +227,7 @@ func newCmdConfig(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Output Format", Value: cfg.OutputFormat},
 				{Key: "Read Only", Value: strconv.FormatBool(cfg.ReadOnly)},
 				{Key: "Headers", Value: strings.Join(headerNames, ", ")},
+				{Key: "CA Cert", Value: cfg.CACert},
 			})
 			return nil
 		},
