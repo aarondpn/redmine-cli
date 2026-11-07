@@ -121,6 +121,8 @@ docker run -i --rm --user "$(id -u):$(id -g)" \
   ghcr.io/aarondpn/redmine-mcp --config /config.yaml --profile work
 ```
 
+A profile's `ca_cert` points at a path on the host, which does not exist in the container. Mount the CA file and point `REDMINE_CA_CERT` at it: `-v "$HOME/certs/company-ca.pem:/ca.pem:ro" -e REDMINE_CA_CERT=/ca.pem`.
+
 #### Shared: HTTP server with Docker Compose
 
 To run one server for a whole team, use the HTTP transport. The repository ships a ready-made [`compose.yaml`](https://github.com/aarondpn/redmine-cli/blob/main/docker/compose.yaml) and [`.env.example`](https://github.com/aarondpn/redmine-cli/blob/main/docker/.env.example):

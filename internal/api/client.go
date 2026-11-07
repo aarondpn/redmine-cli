@@ -230,23 +230,38 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	}
 	base := newBaseTransport(headerTimeout)
 	if cfg.CACert != "" {
-		// The certificates are trusted in addition to the system roots, so
-		// public servers keep working.
-		caPath := config.ExpandHome(cfg.CACert)
-		pemData, err := os.ReadFile(caPath)
+		pool, err := LoadCACertPool(cfg.CACert)
 		if err != nil {
-			return nil, fmt.Errorf("reading ca_cert: %w", err)
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil || pool == nil {
-			pool = x509.NewCertPool()
-		}
-		if !pool.AppendCertsFromPEM(pemData) {
-			return nil, fmt.Errorf("ca_cert %s: no PEM certificates found", caPath)
+			// Name where the value came from, so a bad path is looked for in
+			// the right place.
+			source := "ca_cert"
+			if os.Getenv(config.CACertEnv) == cfg.CACert {
+				source = config.CACertEnv
+			}
+			return nil, fmt.Errorf("%s: %w", source, err)
 		}
 		base.TLSClientConfig = &tls.Config{RootCAs: pool}
 	}
 	return newClient(cfg, log, base), nil
+}
+
+// LoadCACertPool returns the system roots plus the PEM certificates in the
+// file at path (a leading ~ is the home directory). It fails if the file
+// cannot be read or holds no PEM certificate.
+func LoadCACertPool(path string) (*x509.CertPool, error) {
+	path = config.ExpandHome(path)
+	pemData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("%s contains no PEM certificates (a binary DER file must be converted to PEM first)", path)
+	}
+	return pool, nil
 }
 
 // newClient wires a Client around base, the transport all requests share.

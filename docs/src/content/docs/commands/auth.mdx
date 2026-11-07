@@ -30,11 +30,11 @@ redmine auth login --header "User-Agent: Mozilla/5.0"   # server behind a picky 
 | `--name` | Profile name (default: derived from server hostname) |
 | `--keyring` | Store credentials in the system keyring instead of the plaintext config file. See [Configuration](/getting-started/configuration/#system-keyring-optional). |
 | `--header` | Global flag. Headers are used for the connection test and saved to the profile. See [Custom HTTP headers](/getting-started/configuration/#custom-http-headers). |
-| `--ca-cert` | PEM file with CA certificates to trust for this server, in addition to the system roots. Used for the connection test and saved to the profile as an absolute path. See [Custom CA certificate](/getting-started/configuration/#custom-ca-certificate). |
+| `--ca-cert` | PEM file with CA certificates to trust for this server, in addition to the system roots. Used for the connection test and saved to the profile as an absolute path; `--ca-cert ""` removes it. See [Custom CA certificate](/getting-started/configuration/#custom-ca-certificate). |
 
 The API key and password prompts are masked. If the server URL uses `http://` and the host is not loopback, the wizard points out once, before asking for credentials, that they will be sent unencrypted; plain `http://` is still accepted (see [Connection security](/getting-started/configuration/#connection-security)).
 
-Logging in again keeps the profile's `read_only` and `mcp` settings, and its `ca_cert` unless `--ca-cert` replaces it.
+Logging in again keeps the profile's `read_only` and `mcp` settings. Its `ca_cert` is kept while the server is unchanged, unless `--ca-cert` replaces or removes it.
 
 ### Non-interactive login
 

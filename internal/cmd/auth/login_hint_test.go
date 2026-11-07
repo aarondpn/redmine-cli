@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -52,6 +55,11 @@ func TestLoginConnectError_Hints(t *testing.T) {
 		{name: "not found", err: &api.APIError{StatusCode: 404}, want: loginNotFoundHint},
 		{name: "unreachable", err: errors.New("dial tcp: connection refused"), want: loginUnreachableHint},
 		{name: "server error", err: &api.APIError{StatusCode: 500}, want: ""},
+		{name: "unknown authority", err: fmt.Errorf("request failed: %w", x509.UnknownAuthorityError{}), want: loginUntrustedCertHint},
+		// The macOS verifier can report an untrusted chain without a typed x509 error.
+		{name: "untyped verification failure", err: fmt.Errorf("request failed: %w", &tls.CertificateVerificationError{Err: errors.New(`x509: "localhost" certificate is not trusted`)}), want: loginUntrustedCertHint},
+		{name: "host name mismatch", err: &tls.CertificateVerificationError{Err: x509.HostnameError{Host: "x"}}, want: loginUnreachableHint},
+		{name: "expired certificate", err: &tls.CertificateVerificationError{Err: x509.CertificateInvalidError{Reason: x509.Expired}}, want: loginUnreachableHint},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

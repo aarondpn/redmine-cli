@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
+	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
 // tlsLoginServer is a TLS server answering /users/current.json, plus a PEM
@@ -53,8 +55,12 @@ func TestLoginCACertFlag(t *testing.T) {
 	// Without a CA the connection test fails on the unknown certificate.
 	f, _ := loginFactory(t, "")
 	f.ServerOverride, f.APIKeyOverride = srv.URL, "secret"
-	if err := runLoginCmd(f, "--name", "w"); err == nil || !strings.Contains(err.Error(), "certificate") {
+	err := runLoginCmd(f, "--name", "w")
+	if err == nil || !strings.Contains(err.Error(), "certificate") {
 		t.Fatalf("login without --ca-cert: err = %v, want certificate error", err)
+	}
+	if hint := cmdutil.ErrorHint(err); hint != loginUntrustedCertHint {
+		t.Fatalf("hint = %q, want the --ca-cert hint", hint)
 	}
 
 	// A relative --ca-cert works and is saved as an absolute path.
@@ -86,15 +92,29 @@ func TestLoginCACertFlag(t *testing.T) {
 	}
 }
 
-func TestLoginCACertFlagMissingFileFailsFast(t *testing.T) {
-	f, cfgPath := loginFactory(t, "")
-	f.ServerOverride, f.APIKeyOverride = "https://redmine.example.com", "secret"
-	err := runLoginCmd(f, "--name", "w", "--ca-cert", filepath.Join(t.TempDir(), "missing.pem"))
-	if err == nil || !strings.Contains(err.Error(), "--ca-cert") {
-		t.Fatalf("err = %v, want --ca-cert error", err)
+func TestLoginCACertFlagUnusableFileFailsFast(t *testing.T) {
+	dir := t.TempDir()
+	notPEM := filepath.Join(dir, "ca.der")
+	if err := os.WriteFile(notPEM, []byte{0x30, 0x82, 0x01}, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if _, statErr := os.Stat(cfgPath); !os.IsNotExist(statErr) {
-		t.Fatalf("config written despite the error: %v", statErr)
+	for name, path := range map[string]string{
+		"missing file": filepath.Join(dir, "missing.pem"),
+		"not PEM":      notPEM,
+		"directory":    dir,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// No server answers at this address: the check must fail first.
+			f, cfgPath := loginFactory(t, "")
+			f.ServerOverride, f.APIKeyOverride = "https://127.0.0.1:1", "secret"
+			err := runLoginCmd(f, "--name", "w", "--ca-cert", path)
+			if err == nil || !strings.HasPrefix(err.Error(), "--ca-cert: ") {
+				t.Fatalf("err = %v, want --ca-cert error", err)
+			}
+			if _, statErr := os.Stat(cfgPath); !os.IsNotExist(statErr) {
+				t.Fatalf("config written despite the error: %v", statErr)
+			}
+		})
 	}
 }
 
@@ -110,4 +130,90 @@ func TestLoginCACertEnvUsedForTestButNotSaved(t *testing.T) {
 	if got := loadProfile(t, cfgPath, "w").CACert; got != "" {
 		t.Fatalf("ca_cert = %q, want REDMINE_CA_CERT not saved", got)
 	}
+}
+
+func writeProfile(t *testing.T, cfgPath, server, caCert string) {
+	t.Helper()
+	yaml := "active_profile: w\nprofiles:\n  w:\n    server: " + server + "\n    api_key: old\n    auth_method: apikey\n    ca_cert: " + caCert + "\n"
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoginCACertEmptyFlagRemovesStaleValue(t *testing.T) {
+	t.Setenv("REDMINE_CA_CERT", "")
+	srv := loginServer(t)
+	stale := filepath.Join(t.TempDir(), "deleted.pem")
+
+	// The profile's ca_cert no longer exists: logging in again fails on it...
+	f, cfgPath := loginFactory(t, "")
+	writeProfile(t, cfgPath, srv.URL, stale)
+	f.ServerOverride, f.APIKeyOverride = srv.URL, "new"
+	if err := runLoginCmd(f, "--name", "w"); err == nil || !strings.Contains(err.Error(), "ca_cert") {
+		t.Fatalf("re-login with a stale ca_cert: err = %v, want ca_cert error", err)
+	}
+
+	// ...and --ca-cert "" removes it.
+	f.ServerOverride, f.APIKeyOverride = srv.URL, "new"
+	if err := runLoginCmd(f, "--name", "w", "--ca-cert", ""); err != nil {
+		t.Fatalf("re-login with --ca-cert \"\": %v", err)
+	}
+	if p := loadProfile(t, cfgPath, "w"); p.CACert != "" || p.APIKey != "new" {
+		t.Fatalf("profile = %+v, want ca_cert removed and new key", p)
+	}
+}
+
+func TestLoginCACertNotCarriedToOtherServer(t *testing.T) {
+	t.Setenv("REDMINE_CA_CERT", "")
+	srv := loginServer(t)
+	_, caFile := tlsLoginServer(t)
+
+	f, cfgPath := loginFactory(t, "")
+	writeProfile(t, cfgPath, "https://redmine.corp.example", caFile)
+	f.ServerOverride, f.APIKeyOverride = srv.URL, "new"
+	if err := runLoginCmd(f, "--name", "w"); err != nil {
+		t.Fatal(err)
+	}
+	if p := loadProfile(t, cfgPath, "w"); p.CACert != "" {
+		t.Fatalf("ca_cert = %q, want it dropped for the other server", p.CACert)
+	}
+	if !strings.Contains(testutil.Stderr(f), "ca_cert was not carried over") {
+		t.Fatalf("missing warning:\n%s", testutil.Stderr(f))
+	}
+}
+
+func TestLoginCACertPrecedence(t *testing.T) {
+	srv, caFile := tlsLoginServer(t)
+	_, otherCA := tlsLoginServer(t) // a valid PEM that does not sign srv
+
+	t.Run("flag beats REDMINE_CA_CERT", func(t *testing.T) {
+		t.Setenv("REDMINE_CA_CERT", otherCA)
+		f, cfgPath := loginFactory(t, "")
+		f.ServerOverride, f.APIKeyOverride = srv.URL, "secret"
+		if err := runLoginCmd(f, "--name", "w", "--ca-cert", caFile); err != nil {
+			t.Fatalf("login: %v", err)
+		}
+		if got := loadProfile(t, cfgPath, "w").CACert; got != caFile {
+			t.Fatalf("ca_cert = %q, want %q", got, caFile)
+		}
+		if strings.Contains(testutil.Stderr(f), "not saved") {
+			t.Fatalf("unexpected env warning with --ca-cert:\n%s", testutil.Stderr(f))
+		}
+	})
+
+	t.Run("REDMINE_CA_CERT beats the profile for the test, profile value is saved", func(t *testing.T) {
+		t.Setenv("REDMINE_CA_CERT", caFile)
+		f, cfgPath := loginFactory(t, "")
+		writeProfile(t, cfgPath, srv.URL, otherCA)
+		f.ServerOverride, f.APIKeyOverride = srv.URL, "new"
+		if err := runLoginCmd(f, "--name", "w"); err != nil {
+			t.Fatalf("login: %v", err)
+		}
+		if got := loadProfile(t, cfgPath, "w").CACert; got != otherCA {
+			t.Fatalf("ca_cert = %q, want the profile's %q kept", got, otherCA)
+		}
+		if !strings.Contains(testutil.Stderr(f), "REDMINE_CA_CERT is used for the connection test but not saved") {
+			t.Fatalf("missing env warning:\n%s", testutil.Stderr(f))
+		}
+	})
 }

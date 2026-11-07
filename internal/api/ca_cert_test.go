@@ -45,8 +45,8 @@ func TestNewClientCACert(t *testing.T) {
 	if err := get(""); err == nil || !strings.Contains(err.Error(), "certificate") {
 		t.Fatalf("without ca_cert: err = %v, want certificate error", err)
 	}
-	if err := get(filepath.Join(dir, "missing.crt")); err == nil || !strings.Contains(err.Error(), "reading ca_cert") {
-		t.Fatalf("missing file: err = %v, want reading ca_cert error", err)
+	if err := get(filepath.Join(dir, "missing.crt")); err == nil || !strings.HasPrefix(err.Error(), "ca_cert: open ") {
+		t.Fatalf("missing file: err = %v, want ca_cert open error", err)
 	}
 	if err := get(notPEM); err == nil || !strings.Contains(err.Error(), "no PEM certificates") {
 		t.Fatalf("non-PEM file: err = %v, want no PEM certificates error", err)
@@ -57,5 +57,12 @@ func TestNewClientCACert(t *testing.T) {
 	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
 	if err := get("~/ca.crt"); err != nil {
 		t.Fatalf("with ca_cert under ~: %v", err)
+	}
+
+	// An error names REDMINE_CA_CERT when the value came from it.
+	missing := filepath.Join(dir, "missing.crt")
+	t.Setenv("REDMINE_CA_CERT", missing)
+	if err := get(missing); err == nil || !strings.HasPrefix(err.Error(), "REDMINE_CA_CERT: ") {
+		t.Fatalf("missing file from env: err = %v, want REDMINE_CA_CERT error", err)
 	}
 }

@@ -787,7 +787,9 @@ func TestParseBoolEnv(t *testing.T) {
 	}
 }
 
-func TestSaveProfileReloginPreservesCACert(t *testing.T) {
+// auth login decides ca_cert itself (keep, replace or remove), so SaveProfile
+// stores the value it is given.
+func TestSaveProfileStoresCACertAsGiven(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	first := &Config{
 		Server:     "https://redmine.example.com",
@@ -807,8 +809,8 @@ func TestSaveProfileReloginPreservesCACert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := pc.Profiles["test"].CACert; got != "/etc/ssl/company-ca.pem" {
-		t.Fatalf("ca_cert = %q after re-login, want preserved", got)
+	if got := pc.Profiles["test"].CACert; got != "" {
+		t.Fatalf("ca_cert = %q after saving without one, want removed", got)
 	}
 
 	replaced := &Config{Server: "https://redmine.example.com", AuthMethod: "apikey", APIKey: "k3", CACert: "/etc/ssl/new-ca.pem"}

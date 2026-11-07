@@ -45,6 +45,10 @@ func DefaultConfigPath() string {
 	return filepath.Join(home, ".redmine-cli.yaml")
 }
 
+// CACertEnv names the environment variable that overrides a profile's
+// ca_cert.
+const CACertEnv = "REDMINE_CA_CERT"
+
 // ExpandHome replaces a leading "~" (alone, or followed by a path separator)
 // with the user's home directory. Other paths, including "~user", are
 // returned unchanged, as is the path when the home directory is unknown.
@@ -557,9 +561,6 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
-	if entry.CACert == "" {
-		entry.CACert = old.CACert
-	}
 	// auth login never sets the mcp block. A token kept in the keyring stays
 	// there under the reused KeyringID.
 	if reflect.ValueOf(entry.MCP).IsZero() {
@@ -710,7 +711,7 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		"REDMINE_PASSWORD":        &cfg.Password,
 		"REDMINE_DEFAULT_PROJECT": &cfg.DefaultProject,
 		"REDMINE_OUTPUT_FORMAT":   &cfg.OutputFormat,
-		"REDMINE_CA_CERT":         &cfg.CACert,
+		CACertEnv:                 &cfg.CACert,
 	}
 
 	for envVar, field := range envMap {

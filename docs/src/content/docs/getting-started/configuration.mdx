@@ -271,8 +271,9 @@ profiles:
 - The certificates are trusted in addition to the system roots, so public servers keep working. They only apply to this CLI's connections to the Redmine server; the system trust store and other programs are not changed.
 - Without `ca_cert`, the system roots are used as before. A missing or unreadable file, or one without a PEM certificate, is reported as an error instead of being ignored.
 - A leading `~` is your home directory. A relative path is resolved against the current working directory, so prefer an absolute path in the config file.
-- To log in to such a server for the first time, pass the file to `redmine auth login --ca-cert ca.crt`; it is used for the connection test and saved to the profile as an absolute path. Logging in again without `--ca-cert` keeps the existing `ca_cert`.
-- `REDMINE_CA_CERT` overrides the profile's `ca_cert` for a single shell or CI job (it is not saved).
+- To log in to such a server for the first time, pass the file to `redmine auth login --ca-cert ca.crt`; it is checked before any prompt, used for the connection test and saved to the profile as an absolute path. If the login fails because the certificate is not trusted, the error points to `--ca-cert`.
+- Logging in again to the same server without `--ca-cert` keeps the existing `ca_cert`; `--ca-cert ""` removes it. When the profile is pointed at a different server, the old `ca_cert` is not carried over and the login says so.
+- `REDMINE_CA_CERT` overrides the profile's `ca_cert` for a single shell, CI job or container. `redmine auth login` uses it for the connection test but does not save it, and warns about that; pass `--ca-cert` to save the file to the profile.
 
 ## Connection security
 

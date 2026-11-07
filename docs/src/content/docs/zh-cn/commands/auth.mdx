@@ -30,7 +30,9 @@ redmine auth login --header "User-Agent: Mozilla/5.0"   # 服务器位于有特�
 | `--name` | 配置文件名称（默认：从服务器主机名派生） |
 | `--keyring` | 将凭据存储到系统密钥环，而非明文配置文件。参见 [配置](/zh-cn/getting-started/configuration/#系统密钥环可选)。 |
 | `--header` | 全局标志。请求头用于连接测试并保存到配置文件中。参见 [自定义 HTTP 请求头](/zh-cn/getting-started/configuration/#自定义-http-请求头)。 |
-| `--ca-cert` | 包含 CA 证书的 PEM 文件，在系统根证书之外额外信任，用于此服务器。会用于连接测试，并以绝对路径保存到配置文件中。参见 [自定义 CA 证书](/zh-cn/getting-started/configuration/#自定义-ca-证书)。 |
+| `--ca-cert` | 包含 CA 证书的 PEM 文件，在系统根证书之外额外信任，用于此服务器。会用于连接测试，并以绝对路径保存到配置文件中；`--ca-cert ""` 会将其移除。参见 [自定义 CA 证书](/zh-cn/getting-started/configuration/#自定义-ca-证书)。 |
+
+再次登录会保留配置文件的 `read_only` 与 `mcp` 设置。服务器不变时也会保留其 `ca_cert`，除非 `--ca-cert` 替换或移除它。
 
 ### 非交互式登录
 

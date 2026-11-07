@@ -109,6 +109,8 @@ docker run -i --rm --user "$(id -u):$(id -g)" \
   ghcr.io/aarondpn/redmine-mcp --config /config.yaml --profile work
 ```
 
+配置档中的 `ca_cert` 指向宿主机上的路径，容器内并不存在。请挂载 CA 文件并用 `REDMINE_CA_CERT` 指向它：`-v "$HOME/certs/company-ca.pem:/ca.pem:ro" -e REDMINE_CA_CERT=/ca.pem`。
+
 #### 共享：使用 Docker Compose 运行 HTTP 服务器
 
 若要为整个团队运行一个服务器，请使用 HTTP 传输。仓库提供了现成的 [`compose.yaml`](https://github.com/aarondpn/redmine-cli/blob/main/docker/compose.yaml) 与 [`.env.example`](https://github.com/aarondpn/redmine-cli/blob/main/docker/.env.example)：
