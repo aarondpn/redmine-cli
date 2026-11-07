@@ -284,6 +284,9 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		Password:   password,
 		Headers:    headers,
 	}
+	if existing != nil {
+		cfg.CACert = existing.CACert
+	}
 
 	stop := printer.Spinner("Testing connection...")
 

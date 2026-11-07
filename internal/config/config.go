@@ -543,6 +543,9 @@ func reconcileProfileEntry(pc *ProfileConfig, name string, cfg *Config) (Config,
 		return entry, nil
 	}
 	entry.ReadOnly = old.ReadOnly
+	if entry.CACert == "" {
+		entry.CACert = old.CACert
+	}
 	// auth login never sets the mcp block. A token kept in the keyring stays
 	// there under the reused KeyringID.
 	if reflect.ValueOf(entry.MCP).IsZero() {

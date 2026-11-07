@@ -250,6 +250,26 @@ Headers are only sent to the configured server, never to hosts it redirects to. 
   Headers are always written to the config file, even for profiles that keep their credentials in the system keyring. If a header carries a token, treat the file like any other secret.
 </Aside>
 
+## Custom CA certificate
+
+If your Redmine server uses a certificate signed by a private or corporate CA, requests fail with `x509: certificate signed by unknown authority`. Point the profile at the CA certificate with `ca_cert`:
+
+```yaml title="~/.redmine-cli.yaml"
+profiles:
+  work:
+    server: https://redmine.internal
+    auth_method: apikey
+    api_key: your-api-key
+    ca_cert: /etc/ssl/certs/company-ca.crt      # Linux / macOS
+    # ca_cert: 'C:\certs\company-ca.crt'        # Windows (single quotes, or C:/certs/company-ca.crt)
+```
+
+- The file must be PEM encoded (text starting with `-----BEGIN CERTIFICATE-----`); the extension (`.crt`, `.pem`, `.cer`) does not matter. A file may hold several certificates. Convert a binary DER certificate first with `openssl x509 -inform der -in ca.cer -out ca.crt` or, on Windows, `certutil -encode ca.cer ca.crt`.
+- The certificates are trusted in addition to the system roots, so public servers keep working. They only apply to this CLI's connections to the Redmine server; the system trust store and other programs are not changed.
+- Without `ca_cert`, the system roots are used as before. A missing or unreadable file, or one without a PEM certificate, is reported as an error instead of being ignored.
+- Use an absolute path; a relative path is resolved against the current working directory, and `~` is not expanded.
+- `redmine auth login` keeps an existing `ca_cert` when you log in again. To log in to such a server for the first time, add `ca_cert` to the profile in the config file first, then run the login.
+
 ## Connection security
 
 Use an `https://` server URL where you can. Plain `http://` is supported, for example for an internal instance, but the API key or password then crosses the network unencrypted. `redmine auth login` points this out once when you enter a plain `http://` URL for a host other than loopback (`localhost` and names under it such as `dev.localhost`, `127.0.0.0/8`, `::1`); other commands connect without a warning.

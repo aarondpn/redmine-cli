@@ -22,7 +22,10 @@ type Config struct {
 	// Headers are extra HTTP headers sent with every request to the configured
 	// server, e.g. a User-Agent a firewall insists on or a reverse-proxy token.
 	Headers map[string]string `mapstructure:"headers" yaml:"headers,omitempty"`
-	MCP     MCPConfig         `mapstructure:"mcp" yaml:"mcp,omitempty"`
+	// CACert is the path to a PEM file with extra CA certificates trusted
+	// (in addition to the system pool) when connecting to the server.
+	CACert string    `mapstructure:"ca_cert" yaml:"ca_cert,omitempty"`
+	MCP    MCPConfig `mapstructure:"mcp" yaml:"mcp,omitempty"`
 
 	// Set by Load, never persisted: the selected profile, the server it was
 	// saved with (before --server / REDMINE_SERVER), and whether the secret in
