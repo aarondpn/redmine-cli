@@ -132,6 +132,9 @@ export REDMINE_READ_ONLY=1
 # hard-disable the optional system keyring
 export REDMINE_NO_KEYRING=1
 
+# trust the CA certificates in this PEM file, in addition to the system roots
+export REDMINE_CA_CERT=/etc/ssl/certs/company-ca.crt
+
 # wait at most 5 minutes for the server to start responding (default 0: no limit)
 export REDMINE_HTTP_TIMEOUT=5m
 # hide the environment from --jq expressions (env / $ENV evaluate to {})
@@ -267,8 +270,9 @@ profiles:
 - The file must be PEM encoded (text starting with `-----BEGIN CERTIFICATE-----`); the extension (`.crt`, `.pem`, `.cer`) does not matter. A file may hold several certificates. Convert a binary DER certificate first with `openssl x509 -inform der -in ca.cer -out ca.crt` or, on Windows, `certutil -encode ca.cer ca.crt`.
 - The certificates are trusted in addition to the system roots, so public servers keep working. They only apply to this CLI's connections to the Redmine server; the system trust store and other programs are not changed.
 - Without `ca_cert`, the system roots are used as before. A missing or unreadable file, or one without a PEM certificate, is reported as an error instead of being ignored.
-- Use an absolute path; a relative path is resolved against the current working directory, and `~` is not expanded.
-- `redmine auth login` keeps an existing `ca_cert` when you log in again. To log in to such a server for the first time, add `ca_cert` to the profile in the config file first, then run the login.
+- A leading `~` is your home directory. A relative path is resolved against the current working directory, so prefer an absolute path in the config file.
+- To log in to such a server for the first time, pass the file to `redmine auth login --ca-cert ca.crt`; it is used for the connection test and saved to the profile as an absolute path. Logging in again without `--ca-cert` keeps the existing `ca_cert`.
+- `REDMINE_CA_CERT` overrides the profile's `ca_cert` for a single shell or CI job (it is not saved).
 
 ## Connection security
 

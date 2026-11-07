@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -25,6 +26,7 @@ type loginOptions struct {
 	useKeyring     bool
 	keyringSet     bool
 	defaultProject string
+	caCert         string
 }
 
 // loginNeedsTerminalError is returned when values are missing and there is no
@@ -54,10 +56,16 @@ A server URL without a scheme gets https://, and a URL pasted from the browser
 sub-path such as /redmine is kept.
 
 Headers passed with the global --header flag are used for the connection test
-and saved to the profile, for servers behind a firewall or proxy that require them.`,
+and saved to the profile, for servers behind a firewall or proxy that require them.
+
+For a server whose certificate is signed by a private or corporate CA, pass
+--ca-cert with a PEM file; it is used for the connection test and saved to the
+profile as an absolute path. Logging in again without --ca-cert keeps the
+profile's ca_cert.`,
 		Example: `  redmine auth login
   redmine auth login --name work
   redmine auth login --header "User-Agent: Mozilla/5.0"
+  redmine auth login --ca-cert ~/certs/company-ca.pem
   echo "$KEY" | redmine auth login --server https://redmine.example.com --api-key-file -
   redmine auth login --server redmine.example.com --api-key-file ~/.redmine-key --default-project web -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -81,6 +89,7 @@ and saved to the profile, for servers behind a firewall or proxy that require th
 	cmd.Flags().StringVar(&opts.name, "name", "", "Profile name (default: derived from server hostname)")
 	cmd.Flags().BoolVar(&opts.useKeyring, "keyring", false, "Store credentials in the system keyring instead of the plaintext config file")
 	cmd.Flags().StringVar(&opts.defaultProject, "default-project", "", "Default project identifier to save in the profile")
+	cmd.Flags().StringVar(&opts.caCert, "ca-cert", "", "PEM file with CA certificates to trust for this server, in addition to the system roots")
 
 	return cmd
 }
@@ -113,6 +122,18 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	)
 	profileName := opts.name
 	defProject := opts.defaultProject
+
+	// --ca-cert is saved as an absolute path so later commands find it from
+	// any directory. A missing file fails here, before any prompt.
+	caCertFlag := ""
+	if opts.caCert != "" {
+		if caCertFlag, err = filepath.Abs(config.ExpandHome(opts.caCert)); err != nil {
+			return fmt.Errorf("--ca-cert: %w", err)
+		}
+		if _, err := os.Stat(caCertFlag); err != nil {
+			return fmt.Errorf("--ca-cert: %w", err)
+		}
+	}
 
 	if apiKey != "" {
 		authMethod = "apikey"
@@ -284,13 +305,28 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		Password:   password,
 		Headers:    headers,
 	}
-	if existing != nil {
+	// --ca-cert replaces the profile's ca_cert, which is kept otherwise.
+	// REDMINE_CA_CERT overrides the profile's value for the connection test,
+	// as it does for every other command, but is not saved.
+	switch {
+	case caCertFlag != "":
+		cfg.CACert = caCertFlag
+	case existing != nil:
 		cfg.CACert = existing.CACert
+	}
+	testCfg := cfg
+	if env := os.Getenv("REDMINE_CA_CERT"); env != "" && caCertFlag == "" {
+		withEnv := *cfg
+		withEnv.CACert = env
+		testCfg = &withEnv
+	}
+	if testCfg.CACert != "" {
+		ui.step("CA certificate", testCfg.CACert)
 	}
 
 	stop := printer.Spinner("Testing connection...")
 
-	client, err := api.NewClient(cfg, f.DebugLogger())
+	client, err := api.NewClient(testCfg, f.DebugLogger())
 	if err != nil {
 		stop()
 		return fmt.Errorf("failed to create client: %w", err)

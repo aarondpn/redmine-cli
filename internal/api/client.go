@@ -230,7 +230,10 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 	}
 	base := newBaseTransport(headerTimeout)
 	if cfg.CACert != "" {
-		pem, err := os.ReadFile(cfg.CACert)
+		// The certificates are trusted in addition to the system roots, so
+		// public servers keep working.
+		caPath := config.ExpandHome(cfg.CACert)
+		pemData, err := os.ReadFile(caPath)
 		if err != nil {
 			return nil, fmt.Errorf("reading ca_cert: %w", err)
 		}
@@ -238,10 +241,10 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 		if err != nil || pool == nil {
 			pool = x509.NewCertPool()
 		}
-		if !pool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("ca_cert %s: no PEM certificates found", cfg.CACert)
+		if !pool.AppendCertsFromPEM(pemData) {
+			return nil, fmt.Errorf("ca_cert %s: no PEM certificates found", caPath)
 		}
-		base.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+		base.TLSClientConfig = &tls.Config{RootCAs: pool}
 	}
 	return newClient(cfg, log, base), nil
 }

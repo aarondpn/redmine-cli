@@ -45,6 +45,20 @@ func DefaultConfigPath() string {
 	return filepath.Join(home, ".redmine-cli.yaml")
 }
 
+// ExpandHome replaces a leading "~" (alone, or followed by a path separator)
+// with the user's home directory. Other paths, including "~user", are
+// returned unchanged, as is the path when the home directory is unknown.
+func ExpandHome(path string) string {
+	if path != "~" && !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, "~"+string(filepath.Separator)) {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	return filepath.Join(home, path[1:])
+}
+
 // Load reads configuration and returns the active profile's Config.
 // If profileName is non-empty, that profile is used instead of the active one.
 // Environment variables (REDMINE_*) override file values.
@@ -696,6 +710,7 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		"REDMINE_PASSWORD":        &cfg.Password,
 		"REDMINE_DEFAULT_PROJECT": &cfg.DefaultProject,
 		"REDMINE_OUTPUT_FORMAT":   &cfg.OutputFormat,
+		"REDMINE_CA_CERT":         &cfg.CACert,
 	}
 
 	for envVar, field := range envMap {

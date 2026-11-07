@@ -51,4 +51,11 @@ func TestNewClientCACert(t *testing.T) {
 	if err := get(notPEM); err == nil || !strings.Contains(err.Error(), "no PEM certificates") {
 		t.Fatalf("non-PEM file: err = %v, want no PEM certificates error", err)
 	}
+
+	// A leading ~ is the home directory.
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
+	if err := get("~/ca.crt"); err != nil {
+		t.Fatalf("with ca_cert under ~: %v", err)
+	}
 }
