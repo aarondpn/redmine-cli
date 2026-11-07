@@ -1,3 +1,6 @@
+// Some VPN DNS proxies (e.g. Sangfor) answer EDNS0 queries with NXDOMAIN.
+
+//go:debug netedns0=0
 package main
 
 import (

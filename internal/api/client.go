@@ -3,12 +3,15 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -225,7 +228,22 @@ func NewClient(cfg *config.Config, log *debug.Logger) (*Client, error) {
 		withScheme.Server = server
 		cfg = &withScheme
 	}
-	return newClient(cfg, log, newBaseTransport(headerTimeout)), nil
+	base := newBaseTransport(headerTimeout)
+	if cfg.CACert != "" {
+		pem, err := os.ReadFile(cfg.CACert)
+		if err != nil {
+			return nil, fmt.Errorf("reading ca_cert: %w", err)
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca_cert %s: no PEM certificates found", cfg.CACert)
+		}
+		base.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	}
+	return newClient(cfg, log, base), nil
 }
 
 // newClient wires a Client around base, the transport all requests share.
