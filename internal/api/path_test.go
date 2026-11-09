@@ -209,7 +209,7 @@ var projectScopedCalls = []projectScopedCall{
 		return err
 	}},
 	{"Wikis.GetVersion", "GET /projects/%s/wiki/Page/2.json", func(c *Client, id string) error {
-		_, err := c.Wikis.GetVersion(context.Background(), id, "Page", 2)
+		_, err := c.Wikis.GetVersion(context.Background(), id, "Page", 2, nil)
 		return err
 	}},
 	{"Wikis.Create", "PUT /projects/%s/wiki/Page.json", func(c *Client, id string) error {

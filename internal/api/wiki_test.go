@@ -70,7 +70,7 @@ func TestWikiService_GetVersion(t *testing.T) {
 	c := newTestClient(ts)
 	c.Wikis = &WikiService{client: c}
 
-	_, err := c.Wikis.GetVersion(context.Background(), "proj", "Test", 3)
+	_, err := c.Wikis.GetVersion(context.Background(), "proj", "Test", 3, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

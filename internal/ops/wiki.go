@@ -28,7 +28,8 @@ type WikiPagesListResult struct {
 type GetWikiPageInput struct {
 	ProjectID string   `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 	Page      string   `json:"page" jsonschema:"Wiki page title (slug)."`
-	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include: attachments."`
+	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include: attachments. With version, the attachments are those the page has now, not at that version."`
+	Version   *int     `json:"version,omitempty" jsonschema:"Fetch this historical version of the page instead of the latest. Requires the view_wiki_edits permission."`
 }
 
 type CreateWikiPageInput struct {
@@ -52,12 +53,23 @@ type UpdateWikiPageInput struct {
 	Uploads     []models.Upload `json:"-"`
 	Section     *int            `json:"section,omitempty" jsonschema:"Section number (1-based) to update instead of the full page."`
 	SectionHash *string         `json:"section_hash,omitempty" jsonschema:"Hash of the original section content, used by Redmine for conflict detection on section edits."`
+
+	IsStartPage           bool  `json:"is_start_page,omitempty" jsonschema:"Set true to make this page the wiki start page. Requires the manage_wiki permission; Redmine ignores it otherwise. false does nothing: a start page is replaced by designating another page."`
+	RedirectExistingLinks *bool `json:"redirect_existing_links,omitempty" jsonschema:"On a rename (title), whether to keep a redirect from the old title. Redmine defaults to true; pass false to drop it. Only valid together with title."`
+	DeletedAttachmentIDs  []int `json:"deleted_attachment_ids,omitempty" jsonschema:"IDs of attachments of this page to delete. Destructive. get_wiki_page with includes [\"attachments\"] lists them. IDs of other pages' attachments are ignored. Requires permission to delete wiki attachments."`
 }
 
 type DeleteWikiPageInput struct {
 	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 	Page      string `json:"page" jsonschema:"Wiki page title (slug) to delete. Destructive."`
+	Todo      string `json:"todo,omitempty" jsonschema:"What to do with the page's child pages: 'nullify' (children become root pages, the default) or 'destroy' (delete all descendants too; destructive). To keep the children under another page, move them first with update_wiki_page and parent_title."`
 }
+
+// Values of DeleteWikiPageInput.Todo.
+const (
+	WikiTodoNullify = api.WikiTodoNullify
+	WikiTodoDestroy = api.WikiTodoDestroy
+)
 
 //mcpgen:tool list_wiki_pages
 //mcpgen:description List wiki pages for a project.
@@ -74,6 +86,12 @@ func ListWikiPages(ctx context.Context, client *api.Client, input ListWikiPagesI
 //mcpgen:description Fetch a single wiki page.
 //mcpgen:category wiki
 func GetWikiPage(ctx context.Context, client *api.Client, input GetWikiPageInput) (*models.WikiPage, error) {
+	if input.Version != nil {
+		if *input.Version < 1 {
+			return nil, fmt.Errorf("version must be >= 1")
+		}
+		return client.Wikis.GetVersion(ctx, input.ProjectID, input.Page, *input.Version, input.Includes)
+	}
 	return client.Wikis.Get(ctx, input.ProjectID, input.Page, input.Includes)
 }
 
@@ -128,9 +146,26 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 	if input.SectionHash != nil && input.Section == nil {
 		return MessageResult{}, fmt.Errorf("section_hash requires section")
 	}
+	if input.RedirectExistingLinks != nil && (input.Title == nil || *input.Title == "") {
+		return MessageResult{}, fmt.Errorf("redirect_existing_links only applies to a rename and requires title")
+	}
+	for _, id := range input.DeletedAttachmentIDs {
+		if id < 1 {
+			return MessageResult{}, fmt.Errorf("deleted_attachment_ids must be positive attachment IDs, got %d", id)
+		}
+	}
+	var redirect *string
+	if input.RedirectExistingLinks != nil {
+		v := "0"
+		if *input.RedirectExistingLinks {
+			v = "1"
+		}
+		redirect = &v
+	}
 	// A rename is dropped under the same rule as a parent change, so it never
 	// counts as a change that may have landed without the parent.
-	otherChanges := input.Text != nil || input.Comments != nil || len(input.Uploads) > 0
+	otherChanges := input.Text != nil || input.Comments != nil || len(input.Uploads) > 0 ||
+		input.IsStartPage || len(input.DeletedAttachmentIDs) > 0
 	if input.Text == nil {
 		// Redmine requires the text on every update and answers 422 "Text
 		// cannot be blank" without it, so a title, comment or parent change
@@ -162,6 +197,10 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 		Uploads:     input.Uploads,
 		Section:     input.Section,
 		SectionHash: input.SectionHash,
+
+		IsStartPage:           input.IsStartPage,
+		RedirectExistingLinks: redirect,
+		DeletedAttachmentIDs:  input.DeletedAttachmentIDs,
 	}); err != nil {
 		if input.ParentTitle != nil {
 			title := ""
@@ -231,10 +270,19 @@ func droppedWikiTitle(page *models.WikiPage, title string) string {
 //mcpgen:category wiki
 //mcpgen:writes
 func DeleteWikiPage(ctx context.Context, client *api.Client, input DeleteWikiPageInput) (MessageResult, error) {
-	if err := client.Wikis.Delete(ctx, input.ProjectID, input.Page); err != nil {
+	switch input.Todo {
+	case "", WikiTodoNullify, WikiTodoDestroy:
+	default:
+		return MessageResult{}, fmt.Errorf("todo must be nullify or destroy, got %q", input.Todo)
+	}
+	if err := client.Wikis.DeleteWithTodo(ctx, input.ProjectID, input.Page, input.Todo); err != nil {
 		return MessageResult{}, err
 	}
-	return MessageResult{Message: fmt.Sprintf("Deleted wiki page %s/%s", input.ProjectID, input.Page)}, nil
+	msg := fmt.Sprintf("Deleted wiki page %s/%s", input.ProjectID, input.Page)
+	if input.Todo == WikiTodoDestroy {
+		msg += " and its descendants"
+	}
+	return MessageResult{Message: msg}, nil
 }
 
 // WikiParentNotAppliedError reports that Redmine saved a wiki page but left

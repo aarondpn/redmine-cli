@@ -175,6 +175,7 @@ func TestDirectStdoutWritesAreAllowlisted(t *testing.T) {
 		"completion/completion.go": "shell completion generator streams directly to stdout",
 		"issue/get.go":             "human journal rendering still prints directly after detail output",
 		"news/get.go":              "section headings between the detail block and the comment/attachment tables",
+		"wiki/get.go":              "section heading between the detail block and the attachment table",
 		"update/check.go":          "background update notice writes directly to an arbitrary writer",
 	}
 	patterns := []string{

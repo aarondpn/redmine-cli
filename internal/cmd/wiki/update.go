@@ -26,6 +26,10 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		ensureCurrent bool
 		section       int
 		sectionHash   string
+		startPage     bool
+		redirectLinks bool
+		removeAttach  []int
+		force         bool
 	)
 
 	cmd := &cobra.Command{
@@ -46,7 +50,13 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			"applies this when you have the rename_wiki_pages permission, so the " +
 			"page is read back afterwards and the command fails if the parent did " +
 			"not change (or warns, if the parent may have been resolved through a " +
-			"rename redirect).",
+			"rename redirect).\n\n" +
+			"A rename keeps a redirect from the old title; pass " +
+			"--redirect-existing-links=false together with --title to drop it. " +
+			"--start-page makes the page the wiki start page (needs the manage_wiki " +
+			"permission). --remove-attachment deletes an attachment of the page by ID " +
+			"(see 'redmine wiki get --include attachments') after asking for confirmation " +
+			"unless --force is given. Redmine silently ignores these when you lack the permission.",
 		Example: `  # Update page content
   redmine wiki update MyPage --project myproject --text "Updated content"
 
@@ -58,6 +68,15 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
   # Rename a page
   redmine wiki update MyPage --project myproject --title "New Title"
+
+  # Rename a page without leaving a redirect from the old title
+  redmine wiki update MyPage --project myproject --title "New Title" --redirect-existing-links=false
+
+  # Make a page the wiki start page
+  redmine wiki update MyPage --project myproject --start-page
+
+  # Remove attachments (IDs from "wiki get --include attachments")
+  redmine wiki update MyPage --project myproject --remove-attachment 12 --remove-attachment 15 --force
 
   # Move a page under another page
   redmine wiki update MyPage --project myproject --parent "User Guide"
@@ -88,6 +107,18 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmdutil.Context(cmd)
 
+			for _, id := range removeAttach {
+				if id < 1 {
+					return fmt.Errorf("invalid attachment ID %d: --remove-attachment takes positive attachment IDs", id)
+				}
+			}
+			// The prompt reads standard input, which a "-" file flag consumes.
+			if len(removeAttach) > 0 && !force && cmd.Flags().Changed("text-file") {
+				if path, _ := cmd.Flags().GetString("text-file"); path == "-" {
+					return fmt.Errorf("--text-file - reads standard input, so --remove-attachment cannot ask for confirmation: add --force")
+				}
+			}
+
 			textSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text)
 			if err != nil {
 				return err
@@ -115,6 +146,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				return fmt.Errorf("--section-hash requires --section")
 			}
 
+			if cmd.Flags().Changed("redirect-existing-links") && !cmd.Flags().Changed("title") {
+				return fmt.Errorf("--redirect-existing-links only applies to a rename and requires --title")
+			}
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -158,6 +192,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("comments") {
 				input.Comments = &comments
 			}
+			input.IsStartPage = startPage
+			if cmd.Flags().Changed("redirect-existing-links") {
+				input.RedirectExistingLinks = &redirectLinks
+			}
+			input.DeletedAttachmentIDs = removeAttach
 			if cmd.Flags().Changed("section") {
 				s := section
 				input.Section = &s
@@ -181,6 +220,14 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 					return err
 				}
 				input.Uploads = uploads
+			}
+
+			if len(removeAttach) > 0 && !force {
+				msg := fmt.Sprintf("Remove %d attachment(s) from wiki page %q? This cannot be undone.", len(removeAttach), args[0])
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Outcome(false, output.ActionUpdated, "wiki_page", args[0], "Update cancelled")
+					return nil
+				}
 			}
 
 			stop := printer.Spinner("Updating wiki page...")
@@ -227,6 +274,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&ensureCurrent, "ensure-current", false, "Refetch the page first and assert its current version on update. Mutually exclusive with --expect-version.")
 	cmd.Flags().IntVar(&section, "section", 0, "Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires --text or --text-file.")
 	cmd.Flags().StringVar(&sectionHash, "section-hash", "", "Hash of the original section content, used by Redmine for conflict detection on section edits. Only meaningful with --section.")
+
+	cmd.Flags().BoolVar(&startPage, "start-page", false, "Make this page the wiki start page (needs the manage_wiki permission)")
+	cmd.Flags().BoolVar(&redirectLinks, "redirect-existing-links", true, "On a rename, keep a redirect from the old title; use =false to drop it. Requires --title.")
+	cmd.Flags().IntSliceVar(&removeAttach, "remove-attachment", nil, "Attachment ID to remove from the page (repeatable; asks for confirmation)")
+	cmdutil.AddForceFlag(cmd, &force)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 

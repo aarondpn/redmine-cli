@@ -49,8 +49,14 @@ func (s *WikiService) Get(ctx context.Context, projectID, page string, includes 
 	return &resp.WikiPage, nil
 }
 
-// GetVersion retrieves a specific version of a wiki page.
-func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, version int) (*models.WikiPage, error) {
+// GetVersion retrieves a specific version of a wiki page. With includes
+// (attachments), the attachments are the page's current ones, not those of
+// that version.
+func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, version int, includes []string) (*models.WikiPage, error) {
+	params := url.Values{}
+	if len(includes) > 0 {
+		params.Set("include", joinStrings(includes, ","))
+	}
 	path, err := wikiPagePath(projectID, page)
 	if err != nil {
 		return nil, err
@@ -58,7 +64,7 @@ func (s *WikiService) GetVersion(ctx context.Context, projectID, page string, ve
 	var resp struct {
 		WikiPage models.WikiPage `json:"wiki_page"`
 	}
-	if err := s.client.Get(ctx, fmt.Sprintf("%s/%d.json", path, version), nil, &resp); err != nil {
+	if err := s.client.Get(ctx, fmt.Sprintf("%s/%d.json", path, version), params, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.WikiPage, nil
@@ -113,13 +119,35 @@ func (s *WikiService) Update(ctx context.Context, projectID, page string, update
 	return s.client.Put(ctx, path+".json", body)
 }
 
-// Delete deletes a wiki page.
+// Delete deletes a wiki page. Its children become root pages.
 func (s *WikiService) Delete(ctx context.Context, projectID, page string) error {
+	return s.DeleteWithTodo(ctx, projectID, page, "")
+}
+
+// Wiki delete "todo" values for the children of the deleted page.
+const (
+	WikiTodoNullify = "nullify"
+	WikiTodoDestroy = "destroy"
+)
+
+// DeleteWithTodo deletes a wiki page and tells Redmine what to do with its
+// children: WikiTodoNullify makes them root pages, WikiTodoDestroy deletes
+// the whole subtree. An empty todo sends none, which the API treats like
+// nullify. Redmine's "reassign" needs a reassign_to_id and is not offered.
+func (s *WikiService) DeleteWithTodo(ctx context.Context, projectID, page, todo string) error {
 	path, err := wikiPagePath(projectID, page)
 	if err != nil {
 		return err
 	}
-	return s.client.Delete(ctx, path+".json")
+	path += ".json"
+	switch todo {
+	case "":
+	case WikiTodoNullify, WikiTodoDestroy:
+		path += "?todo=" + todo
+	default:
+		return fmt.Errorf("unsupported wiki delete todo %q", todo)
+	}
+	return s.client.Delete(ctx, path)
 }
 
 // wikiPagePath returns the escaped /projects/<project>/wiki/<page> prefix

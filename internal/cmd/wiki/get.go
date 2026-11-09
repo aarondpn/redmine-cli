@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
@@ -55,17 +54,17 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			pageTitle := args[0]
 
 			stop := printer.Spinner("Fetching wiki page...")
-			var page *models.WikiPage
-			if version > 0 {
-				// no ops equivalent for versioned fetch
-				page, err = client.Wikis.GetVersion(ctx, projectID, pageTitle, version)
-			} else {
-				page, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
-					ProjectID: projectID,
-					Page:      pageTitle,
-					Includes:  cmdutil.MergeIncludes(include),
-				})
+			getInput := ops.GetWikiPageInput{
+				ProjectID: projectID,
+				Page:      pageTitle,
+				Includes:  cmdutil.MergeIncludes(include),
 			}
+			if version > 0 {
+				// With --include attachments, a versioned fetch lists the
+				// page's current attachments, not those of that version.
+				getInput.Version = &version
+			}
+			page, err := ops.GetWikiPage(ctx, client, getInput)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get wiki page %q: %w", pageTitle, err)
@@ -99,24 +98,26 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				output.KeyValue{Key: "Updated", Value: page.UpdatedOn},
 			)
 
-			if len(page.Attachments) > 0 {
-				pairs = append(pairs, output.KeyValue{
-					Key:   "Attachments",
-					Value: fmt.Sprintf("%d file(s)", len(page.Attachments)),
-				})
-				for _, a := range page.Attachments {
-					pairs = append(pairs, output.KeyValue{
-						Key:   fmt.Sprintf("  %s", a.Filename),
-						Value: fmt.Sprintf("%s (%d bytes)", a.Description, a.Filesize),
-					})
-				}
-			}
-
 			if page.Text != "" {
 				pairs = append(pairs, output.KeyValue{Key: "Content", Value: page.Text})
 			}
 
 			printer.Detail(pairs)
+
+			if len(page.Attachments) > 0 {
+				fmt.Fprintln(f.IOStreams.Out)
+				fmt.Fprintln(f.IOStreams.Out, "Attachments:")
+				rows := make([][]string, len(page.Attachments))
+				for i, a := range page.Attachments {
+					rows[i] = []string{
+						strconv.Itoa(a.ID),
+						a.Filename,
+						strconv.FormatInt(a.Filesize, 10),
+						a.ContentType,
+					}
+				}
+				printer.Table([]string{"ID", "Filename", "Size", "Content-Type"}, rows)
+			}
 
 			return nil
 		},
