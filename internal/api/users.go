@@ -112,11 +112,21 @@ func (s *UserService) Current(ctx context.Context, includes []string) (*models.U
 	return &resp.User, nil
 }
 
+// userBody builds a users or my-account write body: the user attributes
+// under "user" and preferences, when given, as the sibling "pref" object.
+func userBody(user any, pref models.UserPreferences) map[string]interface{} {
+	body := map[string]interface{}{"user": user}
+	if len(pref) > 0 {
+		body["pref"] = pref
+	}
+	return body
+}
+
 // Create creates a new user. When sendInformation is true, the server emails
 // the new account holder; the flag is encoded as a sibling of the "user"
-// object, not nested inside it.
+// object, not nested inside it, as is user.Pref ("pref").
 func (s *UserService) Create(ctx context.Context, user models.UserCreate, sendInformation bool) (*models.User, error) {
-	body := map[string]interface{}{"user": user}
+	body := userBody(user, user.Pref)
 	if sendInformation {
 		body["send_information"] = true
 	}
@@ -130,9 +140,10 @@ func (s *UserService) Create(ctx context.Context, user models.UserCreate, sendIn
 	return &resp.User, nil
 }
 
-// Update updates an existing user.
+// Update updates an existing user. update.Pref is sent as the sibling "pref"
+// object.
 func (s *UserService) Update(ctx context.Context, id int, update models.UserUpdate) error {
-	body := map[string]interface{}{"user": update}
+	body := userBody(update, update.Pref)
 	return s.client.Put(ctx, fmt.Sprintf("/users/%d.json", id), body)
 }
 
@@ -161,8 +172,9 @@ func (s *MyAccountService) Get(ctx context.Context) (*models.User, error) {
 	return &resp.User, nil
 }
 
-// Update updates the authenticated user's own account.
+// Update updates the authenticated user's own account. update.Pref is sent
+// as the sibling "pref" object.
 func (s *MyAccountService) Update(ctx context.Context, update models.MyAccountUpdate) error {
-	body := map[string]interface{}{"user": update}
+	body := userBody(update, update.Pref)
 	return s.client.Put(ctx, "/my/account.json", body)
 }

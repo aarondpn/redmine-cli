@@ -25,25 +25,27 @@ type GetVersionInput struct {
 }
 
 type CreateVersionInput struct {
-	ProjectID         string                   `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	Name              string                   `json:"name" jsonschema:"Version name."`
-	Status            string                   `json:"status,omitempty" jsonschema:"Version status: open, locked, or closed."`
-	Sharing           string                   `json:"sharing,omitempty" jsonschema:"Version sharing: none, descendants, hierarchy, tree, or system."`
-	DueDate           string                   `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
-	Description       string                   `json:"description,omitempty" jsonschema:"Version description."`
-	WikiPageTitle     string                   `json:"wiki_page_title,omitempty" jsonschema:"Associated wiki page title."`
-	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Version custom field values keyed by numeric custom field ID (list_custom_fields, customized_type version). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
+	ProjectID             string                   `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Name                  string                   `json:"name" jsonschema:"Version name."`
+	Status                string                   `json:"status,omitempty" jsonschema:"Version status: open, locked, or closed."`
+	Sharing               string                   `json:"sharing,omitempty" jsonschema:"Version sharing: none, descendants, hierarchy, tree, or system."`
+	DueDate               string                   `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
+	Description           string                   `json:"description,omitempty" jsonschema:"Version description."`
+	WikiPageTitle         string                   `json:"wiki_page_title,omitempty" jsonschema:"Associated wiki page title."`
+	DefaultProjectVersion bool                     `json:"default_project_version,omitempty" jsonschema:"true makes this version the default version of its project for new issues. false has no effect; clear the default with update_project default_version_id 0."`
+	CustomFieldValues     models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Version custom field values keyed by numeric custom field ID (list_custom_fields, customized_type version). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type UpdateVersionInput struct {
-	ID                int                      `json:"id" jsonschema:"Numeric version (milestone) ID."`
-	Name              *string                  `json:"name,omitempty" jsonschema:"New version name."`
-	Status            *string                  `json:"status,omitempty" jsonschema:"New status: open, locked, or closed."`
-	Sharing           *string                  `json:"sharing,omitempty" jsonschema:"New sharing: none, descendants, hierarchy, tree, or system."`
-	DueDate           *string                  `json:"due_date,omitempty" jsonschema:"New due date (YYYY-MM-DD)."`
-	Description       *string                  `json:"description,omitempty" jsonschema:"New description."`
-	WikiPageTitle     *string                  `json:"wiki_page_title,omitempty" jsonschema:"New associated wiki page title."`
-	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Version custom field values keyed by numeric custom field ID (list_custom_fields, customized_type version). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
+	ID                    int                      `json:"id" jsonschema:"Numeric version (milestone) ID."`
+	Name                  *string                  `json:"name,omitempty" jsonschema:"New version name."`
+	Status                *string                  `json:"status,omitempty" jsonschema:"New status: open, locked, or closed."`
+	Sharing               *string                  `json:"sharing,omitempty" jsonschema:"New sharing: none, descendants, hierarchy, tree, or system."`
+	DueDate               *string                  `json:"due_date,omitempty" jsonschema:"New due date (YYYY-MM-DD)."`
+	Description           *string                  `json:"description,omitempty" jsonschema:"New description."`
+	WikiPageTitle         *string                  `json:"wiki_page_title,omitempty" jsonschema:"New associated wiki page title."`
+	DefaultProjectVersion bool                     `json:"default_project_version,omitempty" jsonschema:"true makes this version the default version of its project for new issues. false has no effect; clear the default with update_project default_version_id 0."`
+	CustomFieldValues     models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Version custom field values keyed by numeric custom field ID (list_custom_fields, customized_type version). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
 type DeleteVersionInput struct {
@@ -116,13 +118,14 @@ func GetVersion(ctx context.Context, client *api.Client, input GetVersionInput) 
 //mcpgen:writes
 func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionInput) (*models.Version, error) {
 	return client.Versions.Create(ctx, input.ProjectID, models.VersionCreate{
-		Name:              input.Name,
-		Status:            input.Status,
-		Sharing:           input.Sharing,
-		DueDate:           input.DueDate,
-		Description:       input.Description,
-		WikiPageTitle:     input.WikiPageTitle,
-		CustomFieldValues: input.CustomFieldValues,
+		Name:                  input.Name,
+		Status:                input.Status,
+		Sharing:               input.Sharing,
+		DueDate:               input.DueDate,
+		Description:           input.Description,
+		WikiPageTitle:         input.WikiPageTitle,
+		CustomFieldValues:     input.CustomFieldValues,
+		DefaultProjectVersion: input.DefaultProjectVersion,
 	})
 }
 
@@ -132,13 +135,14 @@ func CreateVersion(ctx context.Context, client *api.Client, input CreateVersionI
 //mcpgen:writes
 func UpdateVersion(ctx context.Context, client *api.Client, input UpdateVersionInput) (MessageResult, error) {
 	err := client.Versions.Update(ctx, input.ID, models.VersionUpdate{
-		Name:              input.Name,
-		Status:            input.Status,
-		Sharing:           input.Sharing,
-		DueDate:           input.DueDate,
-		Description:       input.Description,
-		WikiPageTitle:     input.WikiPageTitle,
-		CustomFieldValues: input.CustomFieldValues,
+		Name:                  input.Name,
+		Status:                input.Status,
+		Sharing:               input.Sharing,
+		DueDate:               input.DueDate,
+		Description:           input.Description,
+		WikiPageTitle:         input.WikiPageTitle,
+		CustomFieldValues:     input.CustomFieldValues,
+		DefaultProjectVersion: input.DefaultProjectVersion,
 	})
 	if err != nil {
 		return MessageResult{}, err

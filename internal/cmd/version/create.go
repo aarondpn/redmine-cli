@@ -19,6 +19,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 		dueDate        string
 		description    string
 		wikiPageTitle  string
+		defaultVersion bool
 		format         string
 		customFieldRaw []string
 	)
@@ -35,6 +36,9 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
   # Create a version for a specific project
   redmine versions create --project myproject --name 1.2.0 --due-date 2026-06-30 --description "Release 1.2.0"
 
+  # Create a version and make it the project's default for new issues
+  redmine versions create --project myproject --name 1.2.1 --default-project-version
+
   # Set version custom fields (repeat a field for multi-value fields)
   redmine versions create --project myproject --name 1.3.0 --custom-field "Release Manager=Jane Doe"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -48,7 +52,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			input := ops.CreateVersionInput{ProjectID: project, Name: name}
+			input := ops.CreateVersionInput{ProjectID: project, Name: name, DefaultProjectVersion: defaultVersion}
 			if status != "" {
 				input.Status = status
 			}
@@ -91,6 +95,7 @@ func newCmdVersionCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&description, "description", "", "Version description")
 	cmd.Flags().StringVar(&wikiPageTitle, "wiki-page-title", "", "Wiki page title")
+	cmd.Flags().BoolVar(&defaultVersion, "default-project-version", false, "Make this version the project's default version for new issues (to clear the default, use projects update --default-version \"\")")
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Version custom field", models.CustomizedTypeVersion)
 	cmdutil.AddOutputFlag(cmd, &format)
 

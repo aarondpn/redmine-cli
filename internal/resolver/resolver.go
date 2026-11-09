@@ -623,6 +623,26 @@ func ResolveQueryOfType(ctx context.Context, client *api.Client, input, projectI
 	}
 }
 
+// ResolveGlobalQuery resolves a saved issue query that belongs to no project
+// by numeric ID or name (case-insensitive). Queries of a project are not
+// candidates, so their names can neither match nor make a match ambiguous.
+// A numeric input is used as given, without a lookup.
+func ResolveGlobalQuery(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "global query", client, func() ([]Option, error) {
+		queries, _, err := client.Queries.List(ctx, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch saved queries: %w", err)
+		}
+		var opts []Option
+		for _, q := range queries {
+			if q.ProjectID == nil {
+				opts = append(opts, Option{ID: q.ID, Name: q.Name})
+			}
+		}
+		return opts, nil
+	})
+}
+
 // ResolvePriority resolves a priority by name or numeric ID.
 func ResolvePriority(ctx context.Context, client *api.Client, input string) (int, error) {
 	return Resolve(input, "priority", client, func() ([]Option, error) {
@@ -746,7 +766,18 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 
 // ResolveGroup resolves a group by name or numeric ID.
 func ResolveGroup(ctx context.Context, client *api.Client, input string) (int, error) {
-	return Resolve(input, "group", client, func() ([]Option, error) {
+	return Resolve(input, "group", client, groupOptions(ctx, client))
+}
+
+// ResolveGroupNames resolves a batch of group inputs (names or numeric IDs)
+// to numeric IDs, fetching /groups.json at most once. Blank inputs are
+// skipped, as in ResolveAll.
+func ResolveGroupNames(ctx context.Context, client *api.Client, inputs []string) ([]int, error) {
+	return ResolveAll(ctx, client, inputs, "group", groupOptions(ctx, client))
+}
+
+func groupOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
+	return func() ([]Option, error) {
 		groups, _, err := client.Groups.List(ctx, models.GroupFilter{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch groups: %w", err)
@@ -756,7 +787,7 @@ func ResolveGroup(ctx context.Context, client *api.Client, input string) (int, e
 			opts[i] = Option{ID: g.ID, Name: g.Name}
 		}
 		return opts, nil
-	})
+	}
 }
 
 // ResolveActivity resolves a time entry activity by name or numeric ID.

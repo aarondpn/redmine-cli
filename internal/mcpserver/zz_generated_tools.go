@@ -193,7 +193,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateMembershipInput, *models.Membership]{
 		Name:        "create_membership",
-		Description: "Add a user to a project with the given roles. Requires --enable-writes.",
+		Description: "Add a user or group, or several at once with user_ids, to a project with the given roles. Requires --enable-writes.",
 		Category:    "memberships",
 		Writes:      true,
 		Call:        ops.CreateMembership,
@@ -534,7 +534,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateUserInput, ops.MessageResult]{
 		Name:        "update_user",
-		Description: "Update an existing Redmine user. Requires --enable-writes.",
+		Description: "Update an existing Redmine user. Passwords cannot be set through this tool. Requires --enable-writes.",
 		Category:    "users",
 		Writes:      true,
 		Call:        ops.UpdateUser,
@@ -606,7 +606,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "update_attachment", Description: "Rename an attachment or change its description or content type. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_issue", Description: "Update fields on an existing Redmine issue, move it to another project (project_id) or remove attachments (deleted_attachment_ids). When status_id or project_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow, listing allowed statuses on Redmine 5.0+) or the move. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_journal", Description: "Edit the notes or privacy of an issue journal (comment) by journal ID; find IDs via get_issue with includes=[\"journals\"]. Needs Redmine 5.0+. An empty notes string removes the comment's text. Requires --enable-writes.", Group: "issues", Writes: true},
-		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
+		{Name: "create_membership", Description: "Add a user or group, or several at once with user_ids, to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "delete_membership", Description: "Remove a project membership. Destructive. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "get_membership", Description: "Fetch a single project membership by ID.", Group: "memberships", Writes: false},
 		{Name: "list_memberships", Description: "List memberships for a project.", Group: "memberships", Writes: false},
@@ -659,7 +659,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "get_user", Description: "Fetch a single Redmine user by numeric ID. Supports memberships, groups and auth_source includes.", Group: "users", Writes: false},
 		{Name: "list_users", Description: "List Redmine users matching the given filter. Supports the auth_source include.", Group: "users", Writes: false},
 		{Name: "me", Description: "Return the currently authenticated Redmine user. Supports memberships, groups and auth_source includes.", Group: "users", Writes: false},
-		{Name: "update_user", Description: "Update an existing Redmine user. Requires --enable-writes.", Group: "users", Writes: true},
+		{Name: "update_user", Description: "Update an existing Redmine user. Passwords cannot be set through this tool. Requires --enable-writes.", Group: "users", Writes: true},
 		{Name: "create_wiki_page", Description: "Create (or overwrite) a wiki page. Requires --enable-writes.", Group: "wiki", Writes: true},
 		{Name: "delete_wiki_page", Description: "Delete a wiki page. Destructive. Requires --enable-writes.", Group: "wiki", Writes: true},
 		{Name: "get_wiki_page", Description: "Fetch a single wiki page.", Group: "wiki", Writes: false},

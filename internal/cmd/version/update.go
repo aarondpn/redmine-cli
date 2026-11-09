@@ -20,6 +20,7 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 		dueDate        string
 		description    string
 		wikiPageTitle  string
+		defaultVersion bool
 		customFieldRaw []string
 	)
 
@@ -29,9 +30,15 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Update a project version",
 		Long:    "Update an existing Redmine project version. Accepts a numeric ID or version name (uses the default project, or pass --project).",
 		Example: `  # Set a version custom field
-  redmine versions update 1.3.0 --project myproject --custom-field "Release Manager=John Roe"`,
+  redmine versions update 1.3.0 --project myproject --custom-field "Release Manager=John Roe"
+
+  # Make the version the project's default version for new issues
+  redmine versions update 1.3.0 --project myproject --default-project-version`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("default-project-version") && !defaultVersion {
+				return fmt.Errorf("--default-project-version=false is not supported: Redmine cannot unset the default this way; use `redmine projects update <project> --default-version \"\"`")
+			}
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -43,7 +50,7 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
-			input := ops.UpdateVersionInput{ID: id}
+			input := ops.UpdateVersionInput{ID: id, DefaultProjectVersion: defaultVersion}
 			if cmd.Flags().Changed("name") {
 				input.Name = &name
 			}
@@ -89,6 +96,7 @@ func newCmdVersionUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&description, "description", "", "Version description")
 	cmd.Flags().StringVar(&wikiPageTitle, "wiki-page-title", "", "Wiki page title")
+	cmd.Flags().BoolVar(&defaultVersion, "default-project-version", false, "Make this version the project's default version for new issues (to clear the default, use projects update --default-version \"\")")
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Version custom field", models.CustomizedTypeVersion)
 
 	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))

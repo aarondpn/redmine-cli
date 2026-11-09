@@ -24,6 +24,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		inheritMembers    bool
 		defaultAssignee   string
 		defaultVersion    string
+		defaultIssueQuery string
 		trackers          []string
 		enabledModules    []string
 		issueCustomFields []string
@@ -99,6 +100,14 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				input.DefaultVersionID = &id
 			}
 
+			if cmd.Flags().Changed("default-issue-query") {
+				id, err := resolveOptionalQueryID(ctx, client, defaultIssueQuery, identifier)
+				if err != nil {
+					return err
+				}
+				input.DefaultIssueQueryID = &id
+			}
+
 			if cmd.Flags().Changed("tracker") {
 				ids, err := resolver.ResolveTrackerNames(ctx, client, trackers)
 				if err != nil {
@@ -145,6 +154,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&inheritMembers, "inherit-members", false, "Toggle inheriting members from the parent project")
 	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
 	cmd.Flags().StringVar(&defaultVersion, "default-version", "", "Default version for new issues (name or numeric ID). Pass empty to attempt to clear; some Redmine versions ignore the clear and treat 0 as 'no change'.")
+	cmd.Flags().StringVar(&defaultIssueQuery, "default-issue-query", "", "Public issue query (name or ID) shown as the project's default issue list; empty clears it (Redmine 5.0+, older versions ignore it; write-only: no API response returns it)")
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (replaces current set)")
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module name to enable (replaces current set): boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki")
@@ -197,4 +207,18 @@ func resolveOptionalVersionID(ctx context.Context, client *api.Client, input, pr
 		return 0, fmt.Errorf("resolve --default-version: %w", err)
 	}
 	return id, nil
+}
+
+// resolveOptionalQueryID returns 0 for an empty input (clears the default
+// issue query) and otherwise resolves the input via ResolveQuery, preferring
+// a query of the project being updated over a global one of the same name.
+func resolveOptionalQueryID(ctx context.Context, client *api.Client, input, projectIdentifier string) (int, error) {
+	if input == "" {
+		return 0, nil
+	}
+	q, err := resolver.ResolveQuery(ctx, client, input, projectIdentifier)
+	if err != nil {
+		return 0, fmt.Errorf("resolve --default-issue-query: %w", err)
+	}
+	return q.ID, nil
 }

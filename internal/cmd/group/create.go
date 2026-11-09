@@ -13,6 +13,7 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
 		name           string
 		userIDs        []int
+		twofaRequired  bool
 		format         string
 		customFieldRaw []string
 	)
@@ -23,7 +24,10 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Create a new group",
 		Aliases: []string{"new"},
 		Example: `  # Create a group with a custom field
-  redmine groups create --name Backend --custom-field "Cost Center=CC-42"`,
+  redmine groups create --name Backend --custom-field "Cost Center=CC-42"
+
+  # Create a group whose members must use two-factor authentication (Redmine 5.0+)
+  redmine groups create --name Admins --twofa-required`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -32,6 +36,9 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			input := ops.CreateGroupInput{Name: name, UserIDs: userIDs}
+			if cmd.Flags().Changed("twofa-required") {
+				input.TwofaRequired = &twofaRequired
+			}
 			if len(customFieldRaw) > 0 {
 				values, err := cmdutil.ParseCustomFieldValues(cmdutil.Context(cmd), client, customFieldRaw, models.CustomizedTypeGroup)
 				if err != nil {
@@ -54,6 +61,7 @@ func newCmdGroupCreate(f *cmdutil.Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "Group name (required)")
 	cmd.Flags().IntSliceVar(&userIDs, "user-ids", nil, "User IDs to add to the group")
+	cmd.Flags().BoolVar(&twofaRequired, "twofa-required", false, "Require two-factor authentication for the group's members (Redmine 5.0+, older versions ignore it; write-only: groups get does not show it)")
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Group custom field", models.CustomizedTypeGroup)
 	cmd.MarkFlagRequired("name")
 	cmdutil.AddOutputFlag(cmd, &format)

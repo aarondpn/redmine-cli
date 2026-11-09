@@ -2,7 +2,10 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
@@ -26,7 +29,8 @@ type GetMembershipInput struct {
 
 type CreateMembershipInput struct {
 	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	UserID    int    `json:"user_id" jsonschema:"Numeric user ID to add as a member."`
+	UserID    int    `json:"user_id,omitempty" jsonschema:"Numeric ID of the user or group to add as a member. Set either user_id or user_ids."`
+	UserIDs   []int  `json:"user_ids,omitempty" jsonschema:"Numeric IDs of several users or groups to add with the same roles in one request, instead of user_id. Redmine adds all of them or none: if one is invalid or already a member, the call fails and nobody is added. The result is the first membership; list_memberships shows the others."`
 	RoleIDs   []int  `json:"role_ids" jsonschema:"One or more role IDs to grant. Use list_roles to discover valid values."`
 }
 
@@ -58,14 +62,92 @@ func GetMembership(ctx context.Context, client *api.Client, input GetMembershipI
 }
 
 //mcpgen:tool create_membership
-//mcpgen:description Add a user to a project with the given roles. Requires --enable-writes.
+//mcpgen:description Add a user or group, or several at once with user_ids, to a project with the given roles. Requires --enable-writes.
 //mcpgen:category memberships
 //mcpgen:writes
 func CreateMembership(ctx context.Context, client *api.Client, input CreateMembershipInput) (*models.Membership, error) {
-	return client.Memberships.Create(ctx, input.ProjectID, models.MembershipCreate{
-		UserID:  input.UserID,
-		RoleIDs: input.RoleIDs,
-	})
+	memberships, err := CreateMemberships(ctx, client, input)
+	if err != nil {
+		return nil, err
+	}
+	return &memberships[0], nil
+}
+
+// BatchRejectedMessage is the error for a rejected membership[user_ids]
+// request. Redmine saves such a batch in one transaction, so nobody was added.
+const BatchRejectedMessage = "Redmine rejected the batch, no member was added; add the principals one at a time to see which one fails"
+
+// CreateMemberships adds the principal in input.UserID, or every principal in
+// input.UserIDs (duplicates dropped), to the project and returns their
+// memberships in input order. Several principals go out in one request as
+// membership[user_ids]. Redmine saves that batch all or nothing and answers
+// with the first membership only, so after a success the others are read
+// back from the project. A rejected batch (422, or the 500 Redmine answers
+// when a later principal is invalid) becomes one validation error.
+func CreateMemberships(ctx context.Context, client *api.Client, input CreateMembershipInput) ([]models.Membership, error) {
+	var ids []int
+	switch {
+	case input.UserID != 0 && len(input.UserIDs) > 0:
+		return nil, fmt.Errorf("set either user_id or user_ids, not both")
+	case input.UserID != 0:
+		ids = []int{input.UserID}
+	case len(input.UserIDs) == 0:
+		return nil, fmt.Errorf("user_id or user_ids is required")
+	default:
+		ids = uniqueInts(input.UserIDs)
+	}
+	if len(ids) == 1 {
+		m, err := client.Memberships.Create(ctx, input.ProjectID, models.MembershipCreate{UserID: ids[0], RoleIDs: input.RoleIDs})
+		if err != nil {
+			return nil, err
+		}
+		return []models.Membership{*m}, nil
+	}
+
+	if _, err := client.Memberships.Create(ctx, input.ProjectID, models.MembershipCreate{UserIDs: ids, RoleIDs: input.RoleIDs}); err != nil {
+		var apiErr *api.APIError
+		if errors.As(err, &apiErr) && (apiErr.IsValidationError() || apiErr.StatusCode >= 500) {
+			msg := BatchRejectedMessage
+			if apiErr.IsValidationError() && len(apiErr.Errors) > 0 {
+				msg += " (Redmine: " + strings.Join(apiErr.Errors, "; ") + ")"
+			}
+			return nil, &api.APIError{StatusCode: http.StatusUnprocessableEntity, URL: apiErr.URL, Errors: []string{msg}}
+		}
+		return nil, err
+	}
+
+	existing, _, err := client.Memberships.List(ctx, input.ProjectID, 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("memberships were added, but reading them back from project %s failed: %w", input.ProjectID, err)
+	}
+	byPrincipal := make(map[int]models.Membership, len(existing))
+	for _, m := range existing {
+		if p := m.Principal(); p != nil {
+			byPrincipal[p.ID] = m
+		}
+	}
+	found := make([]models.Membership, 0, len(ids))
+	for _, id := range ids {
+		m, ok := byPrincipal[id]
+		if !ok {
+			return nil, fmt.Errorf("memberships were added, but project %s lists none for principal %d", input.ProjectID, id)
+		}
+		found = append(found, m)
+	}
+	return found, nil
+}
+
+// uniqueInts returns ids without repeats, in first-seen order.
+func uniqueInts(ids []int) []int {
+	seen := make(map[int]bool, len(ids))
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 //mcpgen:tool update_membership

@@ -101,16 +101,25 @@ redmine users create [flags]
 | `--lastname`           | Last name — <Badge text="required" variant="danger" /> |
 | `--mail`               | Email address — <Badge text="required" variant="danger" /> |
 | `--admin`              | Grant admin privileges |
-| `--mail-notification`  | Email notification preference: `all`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+| `--status`             | Initial status: `1` active (Redmine's default), `2` registered, `3` locked |
+| `--language`           | Interface language code such as `en`, `de` or `pt-BR`. Write-only: no API response returns it |
+| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `only_my_watches` (Redmine 7.0+), `none` |
 | `--must-change-passwd` | Force the user to change their password on next login |
 | `--generate-password`  | Let the server generate a random password (omit `--password`) |
 | `--auth-source-id`     | Numeric authentication source ID for external auth |
 | `--send-information`   | Email the account info to the new user |
+| `--pref`               | User preference as `key=value` (repeatable). Write-only: no API response returns it. See [preferences](#preferences) |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 <Aside type="caution" title="Passwords on the command line">
-  Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or pipe the password from a secure source.
+  Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or set the password afterwards with `users update --password-file`.
 </Aside>
+
+```bash
+# Locked user with a German interface and a hidden email address
+redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com \
+  --generate-password --status 3 --language de --pref hide_mail=1
+```
 
 ## update
 
@@ -118,12 +127,56 @@ redmine users create [flags]
 redmine users update <id-or-name> [flags]
 ```
 
-Accepts the same flags as [`create`](#create) (all optional, except `--send-information` which is create-only). The user argument accepts a numeric ID, login, full name, or `me`. Only fields whose flags are explicitly set are sent to the server, so partial updates do not clobber other fields.
+Aliases: `edit`. The user argument accepts a numeric ID, login, full name, or `me`. Only fields whose flags are explicitly set are sent to the server, so partial updates do not clobber other fields.
+
+| Flag | Description |
+|------|-------------|
+| `--firstname`          | First name |
+| `--lastname`           | Last name |
+| `--mail`               | Email address |
+| `--admin`              | Admin privileges (`--admin=false` revokes them) |
+| `--status`             | User status: `1` active, `2` registered, `3` locked |
+| `--password-file`      | Set a new password read from a file, or from standard input with `-` (one trailing newline is removed). With `-` in a terminal it prompts twice with hidden input instead. Cannot be combined with `--generate-password`, and `-` not with `--api-key-file -` |
+| `--generate-password`  | Let the server generate a random password |
+| `--must-change-passwd` | Force the user to change their password on next login |
+| `--language`           | Interface language code such as `en`, `de` or `pt-BR`; empty for the server default. Write-only: no API response returns it |
+| `--group`              | Group name or ID the user belongs to (repeatable). Replaces the user's groups; `--group ""` removes the user from all groups |
+| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `only_my_watches` (Redmine 7.0+), `none`. `selected` notifies about the `--notified-project` set |
+| `--notified-project`   | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects the user is a member of count. Replaces the current set; `""` clears it. Write-only: no API response returns it |
+| `--auth-source-id`     | Numeric authentication source ID for external auth |
+| `--pref`               | User preference as `key=value` (repeatable). Write-only: no API response returns it. See [preferences](#preferences) |
+| `--custom-field`       | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it) |
 
 ```bash
 # Multi-value custom field: repeat the flag
 redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL
+
+# New password: prompted in a terminal, piped from a secret store, or read from a file
+redmine users update jdoe --password-file -
+pass show redmine/jdoe | redmine users update jdoe --password-file -
+redmine users update jdoe --password-file ~/.jdoe-password
+
+# Two groups, and notifications only for one project
+redmine users update jdoe --group Developers --group QA --mail-notification selected --notified-project web
 ```
+
+<Aside type="note" title="No plain password flag on update">
+  `users update` has no `--password` flag, so a new password never ends up in shell history or the process list. The MCP `update_user` tool cannot set passwords at all.
+</Aside>
+
+### Preferences
+
+`--pref key=value` sets a user preference. Redmine reads preferences from a `pref` object next to the user attributes and silently ignores keys it does not know, so the CLI only checks the `key=value` form and does not restrict the keys. Repeating a key keeps the last value. Common keys:
+
+| Key | Values |
+|-----|--------|
+| `hide_mail` | `1` hides the email address from other non-admin users, `0` shows it |
+| `time_zone` | A Rails time zone name such as `Berlin`, `UTC` or `Eastern Time (US & Canada)`; empty for the server default |
+| `comments_sorting` | `asc` or `desc` (order of the issue history) |
+| `no_self_notified` | `1` skips email notifications about the user's own changes, `0` sends them |
+| `warn_on_leaving_unsaved` | `1` or `0`: warn before leaving a page with unsaved text |
+
+Other keys depend on the Redmine version, for example `textarea_font`, `recently_used_projects`, `history_default_tab` and `toolbar_language_options`, and from Redmine 5.0 `default_issue_query` and `default_project_query`. List-valued preference keys are not supported. Boolean preferences take `1` or `0`: the CLI rejects `true` and `false`, which Redmine would store as text and read as off. Preferences are write-only: no API response returns them. The same flag works on [`my-account update`](./my_account/).
 
 ## delete
 

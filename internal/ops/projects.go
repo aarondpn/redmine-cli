@@ -40,6 +40,7 @@ type CreateProjectInput struct {
 	InheritMembers      bool                     `json:"inherit_members,omitempty" jsonschema:"Inherit members from the parent project."`
 	DefaultAssignedToID int                      `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues."`
 	DefaultVersionID    int                      `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. Only effective on update; versions cannot be referenced at project creation."`
+	DefaultIssueQueryID int                      `json:"default_issue_query_id,omitempty" jsonschema:"Numeric ID of a public global issue query (list_queries) used as the project's default issue list. Redmine 5.0+; older versions ignore it. Write-only: get_project does not return it."`
 	TrackerIDs          []int                    `json:"tracker_ids,omitempty" jsonschema:"Numeric IDs of trackers enabled for this project. Replaces the current set when provided."`
 	EnabledModuleNames  []string                 `json:"enabled_module_names,omitempty" jsonschema:"Module names enabled for this project (boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki). Replaces the current set when provided."`
 	IssueCustomFieldIDs []int                    `json:"issue_custom_field_ids,omitempty" jsonschema:"Numeric IDs of issue-level custom fields enabled for this project."`
@@ -56,6 +57,7 @@ type UpdateProjectInput struct {
 	InheritMembers      *bool                    `json:"inherit_members,omitempty" jsonschema:"Toggle inheriting members from the parent project."`
 	DefaultAssignedToID *int                     `json:"default_assigned_to_id,omitempty" jsonschema:"Numeric user ID set as the default assignee for new issues. 0 clears the default."`
 	DefaultVersionID    *int                     `json:"default_version_id,omitempty" jsonschema:"Numeric version ID set as the default version for new issues. 0 clears the default."`
+	DefaultIssueQueryID *int                     `json:"default_issue_query_id,omitempty" jsonschema:"Numeric ID of a public issue query (list_queries), global or of this project, used as the project's default issue list; 0 clears it. Redmine 5.0+; older versions ignore it. Write-only: get_project does not return it."`
 	TrackerIDs          []int                    `json:"tracker_ids,omitempty" jsonschema:"Replace the enabled tracker set with the given IDs."`
 	EnabledModuleNames  []string                 `json:"enabled_module_names,omitempty" jsonschema:"Replace the enabled module set with the given names."`
 	IssueCustomFieldIDs []int                    `json:"issue_custom_field_ids,omitempty" jsonschema:"Replace the enabled issue custom-field set with the given IDs."`
@@ -130,6 +132,7 @@ func CreateProject(ctx context.Context, client *api.Client, input CreateProjectI
 		InheritMembers:      input.InheritMembers,
 		DefaultAssignedToID: input.DefaultAssignedToID,
 		DefaultVersionID:    input.DefaultVersionID,
+		DefaultIssueQueryID: input.DefaultIssueQueryID,
 		TrackerIDs:          input.TrackerIDs,
 		EnabledModuleNames:  input.EnabledModuleNames,
 		IssueCustomFieldIDs: input.IssueCustomFieldIDs,
@@ -151,6 +154,7 @@ func UpdateProject(ctx context.Context, client *api.Client, input UpdateProjectI
 		InheritMembers:      input.InheritMembers,
 		DefaultAssignedToID: input.DefaultAssignedToID,
 		DefaultVersionID:    input.DefaultVersionID,
+		DefaultIssueQueryID: input.DefaultIssueQueryID,
 		TrackerIDs:          input.TrackerIDs,
 		EnabledModuleNames:  input.EnabledModuleNames,
 		IssueCustomFieldIDs: input.IssueCustomFieldIDs,

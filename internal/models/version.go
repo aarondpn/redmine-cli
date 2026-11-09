@@ -29,6 +29,9 @@ type VersionCreate struct {
 	Description       string            `json:"description,omitempty"`
 	WikiPageTitle     string            `json:"wiki_page_title,omitempty"`
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
+	// DefaultProjectVersion makes the version the project's default version.
+	// Redmine only acts on true; false does not unset the default.
+	DefaultProjectVersion bool `json:"default_project_version,omitempty"`
 }
 
 // VersionUpdate defines fields for updating a project version.
@@ -40,4 +43,7 @@ type VersionUpdate struct {
 	Description       *string           `json:"description,omitempty"`
 	WikiPageTitle     *string           `json:"wiki_page_title,omitempty"`
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
+	// DefaultProjectVersion makes the version the project's default version.
+	// Redmine only acts on true; false does not unset the default.
+	DefaultProjectVersion bool `json:"default_project_version,omitempty"`
 }

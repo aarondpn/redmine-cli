@@ -22,6 +22,9 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		generatePassword bool
 		authSourceID     int
 		sendInformation  bool
+		status           int
+		language         string
+		prefRaw          []string
 		format           string
 		customFieldRaw   []string
 	)
@@ -32,13 +35,20 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 		Short:   "Create a new user",
 		Aliases: []string{"new"},
 		Example: `  # Create a user with a custom field
-  redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com --generate-password --custom-field Department=QA`,
+  redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com --generate-password --custom-field Department=QA
+
+  # Create a locked user with German UI and a hidden email address
+  redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com --generate-password --status 3 --language de --pref hide_mail=1`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := ValidateMailNotification(mailNotification); err != nil {
 				return err
 			}
 			if password == "" && !generatePassword {
 				return fmt.Errorf("either --password or --generate-password is required")
+			}
+			prefs, err := ParsePrefs(prefRaw)
+			if err != nil {
+				return err
 			}
 
 			client, err := f.ApiClient()
@@ -55,6 +65,15 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 				Mail:            mail,
 				Admin:           admin,
 				SendInformation: sendInformation,
+				Pref:            prefs,
+			}
+			if cmd.Flags().Changed("status") {
+				v := status
+				input.Status = &v
+			}
+			if cmd.Flags().Changed("language") {
+				v := language
+				input.Language = &v
 			}
 			if cmd.Flags().Changed("mail-notification") {
 				v := mailNotification
@@ -99,17 +118,19 @@ func newCmdUserCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&lastname, "lastname", "", "Last name (required)")
 	cmd.Flags().StringVar(&mail, "mail", "", "Email address (required)")
 	cmd.Flags().BoolVar(&admin, "admin", false, "Grant admin privileges")
-	cmd.Flags().StringVar(&mailNotification, "mail-notification", "", "Email notification preference (all, only_my_events, only_assigned, only_owner, none)")
+	cmd.Flags().IntVar(&status, "status", 0, "Initial user status (1=active, 2=registered, 3=locked; Redmine's default is active)")
+	AddLanguageFlag(cmd, &language)
+	AddMailNotificationFlag(cmd, &mailNotification, false)
 	cmd.Flags().BoolVar(&mustChangePasswd, "must-change-passwd", false, "Force the user to change their password on next login")
 	cmd.Flags().BoolVar(&generatePassword, "generate-password", false, "Let the server generate a random password")
 	cmd.Flags().IntVar(&authSourceID, "auth-source-id", 0, "Numeric authentication source ID for external auth")
 	cmd.Flags().BoolVar(&sendInformation, "send-information", false, "Email the account info to the new user")
+	AddPrefFlag(cmd, &prefRaw)
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "User custom field", models.CustomizedTypeUser)
 	cmd.MarkFlagRequired("login")
 	cmd.MarkFlagRequired("firstname")
 	cmd.MarkFlagRequired("lastname")
 	cmd.MarkFlagRequired("mail")
-	_ = cmd.RegisterFlagCompletionFunc("mail-notification", CompleteMailNotification)
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd
 }

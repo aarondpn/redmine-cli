@@ -52,6 +52,8 @@ redmine groups create [flags]
 | Flag | Description |
 |------|-------------|
 | `--name` | Group name — <Badge text="required" variant="danger" /> |
+| `--user-ids` | User IDs to add to the group |
+| `--twofa-required` | Require two-factor authentication for the group's members. <Badge text="Redmine 5.0+" variant="note" /> Older versions ignore it; `groups get` does not show it |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 ## update
@@ -63,6 +65,8 @@ redmine groups update <id-or-name> [flags]
 | Flag | Description |
 |------|-------------|
 | `--name` | New group name |
+| `--user-ids` | User IDs (replaces the current members) |
+| `--twofa-required` | Require two-factor authentication for the group's members; `--twofa-required=false` stops requiring it. <Badge text="Redmine 5.0+" variant="note" /> Older versions ignore it; `groups get` does not show it |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 ## add-user

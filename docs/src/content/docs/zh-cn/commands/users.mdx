@@ -101,16 +101,25 @@ redmine users create [flags]
 | `--lastname`           | 姓 — <Badge text="必填" variant="danger" /> |
 | `--mail`               | 邮箱地址 — <Badge text="必填" variant="danger" /> |
 | `--admin`              | 授予管理员权限 |
-| `--mail-notification`  | 邮件通知偏好：`all`、`only_my_events`、`only_assigned`、`only_owner`、`none` |
+| `--status`             | 初始状态：`1` 活动（Redmine 默认）、`2` 已注册、`3` 已锁定 |
+| `--language`           | 界面语言代码，例如 `en`、`de` 或 `pt-BR`。只写：没有任何 API 响应会返回该值 |
+| `--mail-notification`  | 邮件通知偏好：`all`、`selected`、`only_my_events`、`only_assigned`、`only_owner`、`only_my_watches`（Redmine 7.0+）、`none` |
 | `--must-change-passwd` | 强制用户在下次登录时修改密码 |
 | `--generate-password`  | 由服务器生成随机密码（可省略 `--password`） |
 | `--auth-source-id`     | 外部认证源的数字 ID |
 | `--send-information`   | 将账户信息通过邮件发送给新用户 |
+| `--pref`               | 用户偏好设置，格式为 `key=value`（可重复）。只写：没有任何 API 响应会返回该值。参见[偏好设置](#偏好设置) |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 <Aside type="caution" title="命令行中的密码">
-  在命令行中传入 `--password` 可能会将密码泄露至 shell 历史记录。建议使用 `--generate-password` 搭配 `--send-information`，或通过安全来源以管道方式传入密码。
+  在命令行中传入 `--password` 可能会将密码泄露至 shell 历史记录。建议使用 `--generate-password` 搭配 `--send-information`，或之后通过 `users update --password-file` 设置密码。
 </Aside>
+
+```bash
+# 已锁定的用户，界面为德语，并隐藏邮箱地址
+redmine users create --login jdoe --firstname Jane --lastname Doe --mail jdoe@example.com \
+  --generate-password --status 3 --language de --pref hide_mail=1
+```
 
 ## update
 
@@ -118,12 +127,56 @@ redmine users create [flags]
 redmine users update <id-or-name> [flags]
 ```
 
-接受与 [`create`](#create) 相同的标志（均为可选，`--send-information` 仅在 create 时可用）。用户参数接受数字 ID、登录名、全名或 `me`。仅显式设置的字段会发送到服务器，因此局部更新不会覆盖其他字段。
+别名：`edit`。用户参数接受数字 ID、登录名、全名或 `me`。仅显式设置的字段会发送到服务器，因此局部更新不会覆盖其他字段。
+
+| 标志 | 描述 |
+|------|------|
+| `--firstname`          | 名 |
+| `--lastname`           | 姓 |
+| `--mail`               | 邮箱地址 |
+| `--admin`              | 管理员权限（`--admin=false` 撤销） |
+| `--status`             | 用户状态：`1` 活动、`2` 已注册、`3` 已锁定 |
+| `--password-file`      | 从文件读取新密码，`-` 表示从标准输入读取（去掉一个结尾换行符）。使用 `-` 且处于终端时，会改为以隐藏输入提示两次。不能与 `--generate-password` 同时使用，`-` 也不能与 `--api-key-file -` 同时使用 |
+| `--generate-password`  | 由服务器生成随机密码 |
+| `--must-change-passwd` | 强制用户在下次登录时修改密码 |
+| `--language`           | 界面语言代码，例如 `en`、`de` 或 `pt-BR`；留空表示使用服务器默认值。只写：没有任何 API 响应会返回该值 |
+| `--group`              | 用户所属的组名称或 ID（可重复）。替换用户当前的组；`--group ""` 将用户移出所有组 |
+| `--mail-notification`  | 邮件通知偏好：`all`、`selected`、`only_my_events`、`only_assigned`、`only_owner`、`only_my_watches`（Redmine 7.0+）、`none`。`selected` 针对 `--notified-project` 指定的项目发送通知 |
+| `--notified-project`   | 在 `--mail-notification selected` 下接收全部通知的项目（标识符、名称或 ID，可重复）。仅统计用户是成员的项目。替换当前集合；`""` 表示清空。只写：没有任何 API 响应会返回该值 |
+| `--auth-source-id`     | 外部认证源的数字 ID |
+| `--pref`               | 用户偏好设置，格式为 `key=value`（可重复）。只写：没有任何 API 响应会返回该值。参见[偏好设置](#偏好设置) |
+| `--custom-field`       | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空） |
 
 ```bash
 # 多值自定义字段：重复使用该标志
 redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL
+
+# 新密码：在终端中提示输入、从密钥管理工具通过管道传入，或从文件读取
+redmine users update jdoe --password-file -
+pass show redmine/jdoe | redmine users update jdoe --password-file -
+redmine users update jdoe --password-file ~/.jdoe-password
+
+# 加入两个组，并只接收一个项目的通知
+redmine users update jdoe --group Developers --group QA --mail-notification selected --notified-project web
 ```
+
+<Aside type="note" title="update 没有明文密码标志">
+  `users update` 没有 `--password` 标志，因此新密码不会出现在 shell 历史记录或进程列表中。MCP 的 `update_user` 工具完全无法设置密码。
+</Aside>
+
+### 偏好设置
+
+`--pref key=value` 设置一项用户偏好。Redmine 从与用户属性并列的 `pref` 对象读取偏好设置，并会静默忽略未知的键，因此 CLI 只检查 `key=value` 格式，不限制键名。重复同一个键时以最后一个值为准。常用键：
+
+| 键 | 取值 |
+|----|------|
+| `hide_mail` | `1` 对其他非管理员用户隐藏邮箱地址，`0` 显示 |
+| `time_zone` | Rails 时区名称，例如 `Berlin`、`UTC` 或 `Eastern Time (US & Canada)`；留空表示使用服务器默认值 |
+| `comments_sorting` | `asc` 或 `desc`（问题历史的排序） |
+| `no_self_notified` | `1` 不再接收关于自己所做更改的邮件通知，`0` 接收 |
+| `warn_on_leaving_unsaved` | `1` 或 `0`：离开含有未保存文本的页面前是否提醒 |
+
+其他键取决于 Redmine 版本，例如 `textarea_font`、`recently_used_projects`、`history_default_tab` 和 `toolbar_language_options`，以及 Redmine 5.0 起的 `default_issue_query` 和 `default_project_query`。不支持取值为列表的偏好键。布尔型偏好取 `1` 或 `0`：CLI 会拒绝 `true` 和 `false`，因为 Redmine 会把它们当作文本保存并视为关闭。偏好设置是只写的：没有任何 API 响应会返回它们。同样的标志也适用于 [`my-account update`](./my_account/)。
 
 ## delete
 
