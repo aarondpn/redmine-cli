@@ -95,6 +95,7 @@ redmine issues get <id> [flags]
 | `--journals`               | `--include journals` 的简写 |
 | `--children`               | `--include children` 的简写 |
 | `--relations`              | `--include relations` 的简写 |
+| `--watchers`               | `--include watchers` 的简写 |
 | `--attachments`            | 列出工单的附件（id、文件名、大小、内容类型） |
 | `--download-attachments`   | 将工单的所有附件下载到指定目录 |
 | `--clobber`                | 与 `--download-attachments` 一起使用时，覆盖目录中已存在的文件 |
@@ -141,7 +142,41 @@ redmine issues get <id> [flags]
 - 日志的 `updated_on`（Redmine 6.0+，每条日志都有）和 `updated_by`（备注被编辑过时才有）。
 - 使用 `--include reactions` 时，工单和日志上的 `reactions`（Redmine 7.1+）。
 
-表格视图中每条评论的标题行都带有 journal ID，例如 `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`，评论被编辑过则在日期后显示 `(edited)`。该 ID 供 [`issues comment edit`](#编辑评论) 使用。
+表格视图会显示 Redmine 返回的所有字段，为空或未返回的字段（例如 Redmine 版本或权限不提供）则省略：分类、私有标记、关闭时间、预估与已用工时（括号内为含子工单的合计）、自定义字段、关注者和允许的状态以详情行显示；使用相应的 include 时，还会依次显示子工单树、关联（以当前工单的视角描述，如 `blocked by #7`）和变更集。仅包含属性变更的日志同样会显示，每个变更一行（`* Status: New -> In Progress`）。当工单本身带有相关数据时，状态、优先级、跟踪器、项目、版本、用户和自定义字段的 ID 会显示为名称，否则显示原始 ID。
+
+```text
+ID:               #123
+Project:          Demo
+Tracker:          Bug
+Status:           In Progress
+Priority:         High
+Subject:          Crash on login
+Author:           Alice
+Assignee:         Bob
+Category:         Backend
+Done Ratio:       30%
+Created:          2026-01-01T09:00:00Z
+Updated:          2026-01-02T10:00:00Z
+Estimated Hours:  4.00 (total 6.00)
+Spent Hours:      1.50
+Custom Fields:    Env: prod
+Watchers:         Bob, Carol
+
+Children:
+  #124 [Bug] Fix session
+    #125 Add test
+
+Relations:
+  blocks #130
+
+--- Alice (2026-01-01T10:00:00Z) [journal 41] ---
+* Status: New -> In Progress
+* Assignee: (none) -> Bob
+
+Taking this one.
+```
+
+表格视图中每条评论的标题行都带有 journal ID，例如 `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`，评论被编辑过则在日期后显示 `(edited 2026-01-03T09:00:00Z by Carol)`（Redmine 未返回时间时仅显示 `(edited)`），私有备注显示 `(private)`。该 ID 供 [`issues comment edit`](#编辑评论) 使用。
 
 <Aside type="tip">
   `--attachments` 会显示每个附件的 ID。把该 ID 传给

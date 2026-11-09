@@ -108,6 +108,25 @@ func TestIssues_UpdateAndComment(t *testing.T) {
 	}
 }
 
+// TestIssues_GetTextShowsJournalDetails checks that the text view renders
+// property changes (journals without notes) and the --watchers shorthand.
+func TestIssues_GetTextShowsJournalDetails(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+	issue := createTestIssue(t, r, proj.Identifier)
+
+	r.run(t, "issues", "update", issueIDArg(issue.ID), "--done-ratio", "40")
+
+	out := string(r.run(t, "issues", "get", issueIDArg(issue.ID), "--journals", "--watchers", "--output", "table"))
+	if !strings.Contains(out, "* Done Ratio: 0 -> 40") {
+		t.Errorf("text output lacks the done ratio change:\n%s", out)
+	}
+	if !strings.Contains(out, "[journal ") {
+		t.Errorf("text output lacks the journal header:\n%s", out)
+	}
+}
+
 // TestIssues_Assign verifies `issues assign` resolves a user by login and
 // sets assigned_to on the issue.
 func TestIssues_Assign(t *testing.T) {

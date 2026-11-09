@@ -119,6 +119,7 @@ Aliases: `show`, `view`.
 | `--journals`               | Shorthand for `--include journals` |
 | `--children`               | Shorthand for `--include children` |
 | `--relations`              | Shorthand for `--include relations` |
+| `--watchers`               | Shorthand for `--include watchers` |
 | `--attachments`            | List the issue's attachments (id, filename, size, content type) |
 | `--download-attachments`   | Download every attachment of the issue into the given directory |
 | `--clobber`                | With `--download-attachments`, overwrite files that already exist in the directory |
@@ -148,7 +149,7 @@ Attachments of the same issue often share a filename (for example several `scree
   <TabItem label="Read fully">
     ```bash
     # History, files, children, and relations before investigating
-    redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
+    redmine issues get 123 --journals --children --relations --watchers --download-attachments ./issue-123
     redmine issues get 123 --include journals,attachments,children,relations -o json
 
     # Statuses the current user may move the issue to
@@ -166,7 +167,41 @@ With `-o json` (and in the MCP `get_issue` tool) the issue carries these optiona
 - Journal `updated_on` (Redmine 6.0+, present on every journal) and `updated_by` (set when the notes were edited).
 - `reactions` on the issue and on journals with `--include reactions` (Redmine 7.1+).
 
-In the table view each comment header carries its journal ID, for example `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`, with `(edited)` after the date when the notes were changed later. That ID is what [`issues comment edit`](#edit-a-comment) takes.
+The table view shows every field Redmine sent and leaves out the ones that are empty or absent (for example because the Redmine version or your permissions do not provide them): category, private flag, closed date, estimated and spent hours (with the subtree totals in parentheses), custom fields, watchers and allowed statuses as detail rows, followed by the children tree, relations (worded from this issue's side, for example `blocked by #7`) and changesets when requested with the matching include. Journals with only property changes are shown too, one line per change (`* Status: New -> In Progress`). Status, priority, tracker, project, category, version, user and custom field IDs are shown as names when the issue itself carries them, otherwise as the raw ID.
+
+```text
+ID:               #123
+Project:          Demo
+Tracker:          Bug
+Status:           In Progress
+Priority:         High
+Subject:          Crash on login
+Author:           Alice
+Assignee:         Bob
+Category:         Backend
+Done Ratio:       30%
+Created:          2026-01-01T09:00:00Z
+Updated:          2026-01-02T10:00:00Z
+Estimated Hours:  4.00 (total 6.00)
+Spent Hours:      1.50
+Custom Fields:    Env: prod
+Watchers:         Bob, Carol
+
+Children:
+  #124 [Bug] Fix session
+    #125 Add test
+
+Relations:
+  blocks #130
+
+--- Alice (2026-01-01T10:00:00Z) [journal 41] ---
+* Status: New -> In Progress
+* Assignee: (none) -> Bob
+
+Taking this one.
+```
+
+In the table view each comment header carries its journal ID, for example `--- Alice (2026-01-01T10:00:00Z) [journal 41] ---`, with `(edited 2026-01-03T09:00:00Z by Carol)` (or just `(edited)` when Redmine omits the time) after the date when the notes were changed later, and `(private)` for private notes. That ID is what [`issues comment edit`](#edit-a-comment) takes.
 
 <Aside type="tip">
   `--attachments` surfaces each attachment's ID. Feed that ID to

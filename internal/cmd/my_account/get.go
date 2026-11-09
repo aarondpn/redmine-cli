@@ -68,9 +68,5 @@ func myAccountDetailRows(u *models.User) []output.KeyValue {
 		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: user.FormatCustomFieldValues(u.CustomFields)})
 	}
 
-	pairs = append(pairs,
-		output.KeyValue{Key: "Created", Value: u.CreatedOn},
-		output.KeyValue{Key: "Last Login", Value: u.LastLoginOn},
-	)
-	return pairs
+	return user.AppendAccountDates(pairs, u)
 }

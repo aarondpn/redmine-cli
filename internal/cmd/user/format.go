@@ -4,8 +4,28 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
+	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
+
+// AppendAccountDates appends the account timestamps and security metadata
+// shared by `users get` and `users me`. Updated, Password Changed and
+// Two-factor only appear when Redmine sent them.
+func AppendAccountDates(pairs []output.KeyValue, u *models.User) []output.KeyValue {
+	pairs = append(pairs, output.KeyValue{Key: "Created", Value: u.CreatedOn})
+	if u.UpdatedOn != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Updated", Value: u.UpdatedOn})
+	}
+	pairs = append(pairs, output.KeyValue{Key: "Last Login", Value: u.LastLoginOn})
+	if u.PasswdChangedOn != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Password Changed", Value: u.PasswdChangedOn})
+	}
+	if u.TwofaScheme != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Two-factor", Value: u.TwofaScheme})
+	}
+	return pairs
+}
 
 // formatIDNameList renders "Name (#ID), ..." for groups and similar arrays.
 func formatIDNameList(items []models.IDName) string {
@@ -34,12 +54,9 @@ func formatUserMembershipList(items []models.UserMembership) string {
 	return strings.Join(parts, "; ")
 }
 
-// FormatCustomFieldValues renders "Name: Value; ..." for custom field arrays.
-// Exported so the my-account command group can reuse it.
+// FormatCustomFieldValues renders "Name: Value; ..." for custom field arrays,
+// skipping fields without a value. Exported so the my-account command group
+// can reuse it.
 func FormatCustomFieldValues(items []models.CustomFieldValue) string {
-	parts := make([]string, len(items))
-	for i, cf := range items {
-		parts[i] = fmt.Sprintf("%s: %v", cf.Name, cf.Value)
-	}
-	return strings.Join(parts, "; ")
+	return cmdutil.FormatCustomFields(items)
 }
