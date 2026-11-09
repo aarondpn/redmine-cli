@@ -61,9 +61,20 @@ func AddNotifiedProjectFlag(cmd *cobra.Command, f *cmdutil.Factory, values *[]st
 // a list, because the set of preferences differs between Redmine versions.
 // A repeated key keeps the last value.
 func ParsePrefs(raws []string) (models.UserPreferences, error) {
-	pairs, err := cmdutil.ParseKeyValuePairs(raws, "pref")
-	if err != nil {
-		return nil, err
+	if len(raws) == 0 {
+		return nil, nil
+	}
+	pairs := make(map[string]string, len(raws))
+	for _, raw := range raws {
+		key, value, ok := strings.Cut(raw, "=")
+		if !ok {
+			return nil, fmt.Errorf("--pref %q must be key=value", raw)
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return nil, fmt.Errorf("--pref %q: empty key", raw)
+		}
+		pairs[key] = value
 	}
 	for key, value := range pairs {
 		if strings.ContainsAny(key, " \t[]") {
