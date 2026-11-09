@@ -13,7 +13,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 
 | Command | Purpose |
 |---------|---------|
-| `issues` | Create, list, get, update, close, reopen, assign, comment, delete, open, browse issues; `issues comment edit <journal-id>` edits a comment (Redmine 5.0+; journal IDs come from `issues get <id> --journals`); manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
+| `issues` | Create, list, get, update, copy, close, reopen, assign, comment, delete, open, browse issues; `issues copy <id> [--project] [--link] [--with-attachments] [--with-subtasks]` copies an issue; `issues comment edit <journal-id>` edits a comment (Redmine 5.0+; journal IDs come from `issues get <id> --journals`); manage watchers and relations (`issues watchers …`, `issues relations list/get/add/remove`). To search issues, use `search issues` |
 | `attachments` | Inspect attachment metadata (`attachments get <id>`), download files (`attachments download <id>`) or thumbnails (`attachments thumbnail <id> --path <file>`), and edit or remove them (`attachments update <id> --filename/--description/--content-type`, `attachments delete <id>`) using the active profile's auth |
 | `queries` | List Redmine saved queries; reuse them via `issues list --query` / `--query-id` |
 | `projects` | List, get, create, update, archive, unarchive, delete projects; list project members. `--include` on list/get exposes trackers, modules, categories, custom fields, and time-entry activities (Redmine 5.0+ for archive). |
@@ -121,6 +121,9 @@ After downloading an image, open/read it and use what it shows.
 - `redmine issues get <id> --journals` includes comments and history (property changes are shown one per line). `--children` and `--relations` add those sections and `--watchers` adds a Watchers row; the text output shows every field Redmine sent and omits empty ones.
 - `redmine issues get <id> --include allowed_statuses -o json` lists the statuses the current user may transition to.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
+- `issues update <id> --project <p>` moves the issue; it fails with `project_not_applied` when Redmine ignored the move (no Add issues permission in the target). `--remove-attachment <att-id>` (repeatable) deletes attachments and needs `--force` in scripts.
+- `--attach-description` pairs with `--attach` by position (1st description for the 1st file) on `issues create/update`, `wiki create/update` and `news create/update`; more descriptions than files is an error.
+- `issues watchers add <id> <user>...` adds several watchers in one request.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
 - Projects can accumulate hundreds of versions, most of them closed or locked. When you need a version for a new issue, time entry, or similar workflow, always start from `redmine versions list --open` so the shortlist stays small and you don't pick a version that can no longer accept work.
 - Any date flag (`--due-date`, `--date`, `--from`, `--to`) accepts the literal keyword `today` as a shortcut for the current date.

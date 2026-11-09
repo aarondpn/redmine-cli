@@ -11,11 +11,12 @@ The `issues` command (alias `i`) manages Redmine issues end-to-end.
   <LinkCard title="list"      href="#list"      description="Filter and page through issues." />
   <LinkCard title="get"       href="#get"       description="View a single issue with journals and relations." />
   <LinkCard title="create"    href="#create"    description="Create an issue, optionally with attachments." />
-  <LinkCard title="update"    href="#update"    description="Change fields, add notes, attach files." />
+  <LinkCard title="update"    href="#update"    description="Change fields, add notes, attach files, move to another project." />
   <LinkCard title="close"     href="#close"     description="Close an issue with an optional comment." />
   <LinkCard title="reopen"    href="#reopen"    description="Reopen a previously closed issue." />
   <LinkCard title="assign"    href="#assign"    description="Assign an issue to a user or group, or unassign it." />
   <LinkCard title="comment"   href="#comment"   description="Add a comment without other changes." />
+  <LinkCard title="copy"      href="#copy"      description="Copy an issue, optionally with attachments and subtasks." />
   <LinkCard title="watchers"  href="#watchers"  description="List, add, or remove watchers." />
   <LinkCard title="relations" href="#relations" description="Link or unlink issues to each other." />
   <LinkCard title="delete"    href="#delete"    description="Permanently remove an issue." />
@@ -231,10 +232,12 @@ redmine issues create [flags]
 | `--start-date`      | Start date (`YYYY-MM-DD`) |
 | `--due-date`        | Due date (`YYYY-MM-DD`) |
 | `--estimated-hours` | Estimated hours |
+| `--done-ratio`      | Completion percentage (0-100). Redmine ignores it when % done is derived from the status or from subtasks |
 | `--private`         | Mark as private |
 | `--watcher`         | Initial watcher (name, login, ID, or `me`; repeatable) |
 | `--custom-field`    | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](#custom-field-values) |
 | `--attach`          | File path to attach (repeatable) |
+| `--attach-description` | Description of the file given by the `--attach` at the same position (repeatable; pass `""` to skip a file). See [attachment descriptions](#attachment-descriptions) |
 
 ```bash
 redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
@@ -265,9 +268,18 @@ redmine issues create --project myproject --subject "Broken layout" \
 
 # Long Textile/Markdown description from a file, no shell quoting needed
 redmine issues create --project myproject --subject "Spec" --description-file spec.textile
+
+# Describe attachments: the Nth --attach-description belongs to the Nth --attach
+redmine issues create --project myproject --subject "Crash" \
+  --attach ./crash.log --attach-description "Server log" \
+  --attach ./trace.txt --attach-description "Stack trace"
 ```
 
 If Redmine starts the new issue in a different status than `--status` asked for (its workflow does not allow new issues of that tracker to start there for your role), the command prints a warning on stderr. It still exits `0`, because the issue was created and a retry would duplicate it.
+
+### Attachment descriptions
+
+`--attach-description` pairs with `--attach` by position: the first description belongs to the first file, the second to the second, and so on. You may give fewer descriptions than files; the remaining files get none, and an empty description (`--attach-description ""`) skips a file. More descriptions than files is an error, raised before anything is uploaded. The same pair of flags exists on `issues update`, `wiki create/update` and `news create/update`.
 
 ### Custom field values
 
@@ -298,10 +310,13 @@ If Redmine starts the new issue in a different status than `--status` asked for 
 redmine issues update <id> [flags]
 ```
 
-Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
+Accepts the same flags as `create` (except `--watcher`) plus:
 
 | Flag | Description |
 |------|-------------|
+| `--project`        | Move the issue to this project (name, identifier, or ID). See [project moves are verified](#project-moves-are-verified) |
+| `--remove-attachment` | Attachment ID to remove from the issue (repeatable). Asks for confirmation unless `--force` is given |
+| `--force`, `-f`    | Skip the `--remove-attachment` confirmation |
 | `--note`           | Add a journal note |
 | `--note-file`      | Read the journal note from a file (`-` reads standard input); mutually exclusive with `--note`; an empty or whitespace-only file is rejected |
 | `--description-file` | Read the new description from a file (`-` reads standard input); mutually exclusive with `--description`; an empty or whitespace-only file is rejected (pass `--description ""` to clear the description) |
@@ -311,6 +326,7 @@ Accepts the same flags as `create` (except `--project` and `--watcher`) plus:
 | `--due-date`       | Due date (empty string clears) |
 | `--custom-field`   | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](#custom-field-values) |
 | `--attach`         | File path to attach (repeatable) |
+| `--attach-description` | Description of the file given by the `--attach` at the same position (repeatable; pass `""` to skip a file). See [attachment descriptions](#attachment-descriptions) |
 
 ```bash
 redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
@@ -331,7 +347,21 @@ redmine issues update 123 --assignee none
 # Long description from a file, note piped in on stdin
 redmine issues update 123 --description-file description.textile
 generate-report | redmine issues update 123 --note-file -
+
+# Move the issue to another project
+redmine issues update 123 --project other-project
+
+# Remove two attachments (IDs from `issues get 123 --attachments`) without asking
+redmine issues update 123 --remove-attachment 45 --remove-attachment 46 --force
 ```
+
+When you move an issue with `--project`, `--category`, `--version` and `--assignee` names are resolved in the target project. Redmine keeps the category if the target project has one with the same name, keeps the version only if it is shared with the target project, and switches the tracker to the target project's first tracker if the current one is not enabled there.
+
+`--remove-attachment` deletes the attachments for good. Redmine ignores IDs of attachments that belong to another issue, and silently ignores `--remove-attachment` without permission to edit the issue (`edit_issues`) while still answering with success; check the result with `redmine issues get <id> --attachments`. The confirmation prompt reads standard input, so combining `--remove-attachment` with `--description-file -` or `--note-file -` requires `--force`.
+
+### Project moves are verified
+
+Redmine silently keeps the issue in its project when you may not add issues in the target project (Add issues permission, issue tracking enabled, at least one tracker). So after a move the CLI reads the issue back. If it was not moved, the command fails with exit status `1` and code `project_not_applied`; like [`status_not_applied`](#status-changes-are-verified), the details warn when other changes in the same request may already have been applied.
 
 ### Status changes are verified
 
@@ -487,18 +517,53 @@ redmine issues comment edit 456 --clear --force
 
 `--clear` removes the comment from the issue history: Redmine 5.x and 7.0 delete a journal that records no other change, and 6.x keeps an empty row that the API no longer lists. Because it cannot be undone, the command asks for confirmation unless you pass `--force`; declining prints a cancelled `updated` action and changes nothing.
 
+## copy
+
+```bash
+redmine issues copy <id> [flags]
+```
+
+Creates a copy of an issue, in the same or another project. Redmine copies the fields, custom fields and parent; the copy starts in the tracker's default status, you are its author, and the watchers are copied when you may add watchers in the target project. Requires the Copy issues permission.
+
+| Flag | Description |
+|------|-------------|
+| `--project`          | Project for the copy (name, identifier, or ID); defaults to the source issue's project |
+| `--subject`          | Subject of the copy (defaults to the source subject) |
+| `--tracker`          | Tracker (name or ID) |
+| `--status`           | Status (name or ID); defaults to the tracker's default status |
+| `--priority`         | Priority (name or ID) |
+| `--assignee`         | Assignee: `me`, user or group name, login, or ID, resolved in the target project; `none` leaves the copy unassigned |
+| `--link`             | Relate the copy to the original (`copied_to` / `copied_from`) |
+| `--with-attachments` | Copy the attachments |
+| `--with-subtasks`    | Copy the subtasks |
+| `--output`, `-o`     | Output format: `table`, `json` |
+
+```bash
+# Copy an issue within its project
+redmine issues copy 123
+
+# Copy into another project, linked to the original, with attachments and subtasks
+redmine issues copy 123 --project other-project --link --with-attachments --with-subtasks
+
+# Copy with a new subject and assignee
+redmine issues copy 123 --subject "Same bug on staging" --assignee me
+```
+
+Redmine settings can override the flags: *Link issues on copy* (Administration > Settings > Issue tracking) can force or forbid `--link`, and on Redmine 6.0+ *Copy attachments on copy* does the same for `--with-attachments`. A copy into another project is only linked when *Allow cross-project issue relations* is enabled.
+
 ## watchers
 
 ```bash
 redmine issues watchers list <id>
-redmine issues watchers add <id> <user>
+redmine issues watchers add <id> <user>...
 redmine issues watchers remove <id> <user>
 ```
 
-`<user>` accepts a numeric ID, login, full name, or `me`. Names are matched against the issue's project members first (see [assignee resolution](#assignee-resolution)).
+`<user>` accepts a numeric ID, login, full name, or `me`. Names are matched against the issue's project members first (see [assignee resolution](#assignee-resolution)). `watchers add` takes several users and adds them in one request; Redmine skips users that cannot watch the issue.
 
 ```bash
 redmine issues watchers add 123 me
+redmine issues watchers add 123 alice bob 42
 redmine issues watchers list 123
 redmine issues watchers remove 123 alice
 ```
