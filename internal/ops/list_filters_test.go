@@ -35,7 +35,7 @@ func TestProjectStatusFilter(t *testing.T) {
 		"":       "",
 		"active": "1",
 		"Closed": "5",
-		"all":    "1|5|9",
+		"all":    "1|5",
 		"5":      "5",
 		"1|5":    "1|5",
 	} {
@@ -46,6 +46,8 @@ func TestProjectStatusFilter(t *testing.T) {
 	}
 	for in, want := range map[string]string{
 		"archived": "never lists archived projects",
+		"9":        "never lists archived projects",
+		"1|09":     "never lists archived projects",
 		"open":     "use active, closed, all, or a numeric status code",
 		"1|":       "use active, closed, all, or a numeric status code",
 		"*":        "use active, closed, all, or a numeric status code",
@@ -68,7 +70,7 @@ func TestListProjects_StatusSortAndExtraParams(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := lastQuery(t, calls)
-	wantQuery(t, q, "status", "1|5|9")
+	wantQuery(t, q, "status", "1|5")
 	wantQuery(t, q, "sort", "name:desc")
 	wantQuery(t, q, "f[]", "name", "created_on")
 }
@@ -121,6 +123,29 @@ func TestListGroups_Builtin(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantQuery(t, lastQuery(t, calls), "builtin", "1")
+}
+
+func TestListQueries_Type(t *testing.T) {
+	client, calls := opsServer(t, map[string]string{"GET /queries.json": `{"queries":[],"total_count":0}`})
+	if _, err := ListQueries(context.Background(), client, ListQueriesInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if q := lastQuery(t, calls); q.Has("type") {
+		t.Errorf("type sent for issue queries: %s", q.Encode())
+	}
+	if _, err := ListQueries(context.Background(), client, ListQueriesInput{Type: QueryTypeTimeEntry}); err != nil {
+		t.Fatal(err)
+	}
+	wantQuery(t, lastQuery(t, calls), "type", "TimeEntryQuery")
+
+	n := len(*calls)
+	if _, err := ListQueries(context.Background(), client, ListQueriesInput{Type: "TimeEntryQuery"}); err == nil ||
+		!strings.Contains(err.Error(), "use issue or time_entry") {
+		t.Errorf("raw class name: err = %v", err)
+	}
+	if len(*calls) != n {
+		t.Error("request sent for an invalid type")
+	}
 }
 
 func TestListIssues_ExtraParamsArray(t *testing.T) {

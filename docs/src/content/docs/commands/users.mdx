@@ -46,7 +46,9 @@ redmine users list --filter 'f[]=status' --filter 'op[status]=*' \
   --filter 'f[]=login' --filter 'op[login]=~' --filter 'v[login][]=smith'
 ```
 
-A `--filter` key that a dedicated flag also sends (such as `status` or `name`) replaces the flag's value.
+A `--filter` key that a dedicated flag also sends (such as `status` or `name`) replaces the flag's value. With `f[]`, Redmine applies only the filters listed in `f[]`; filters set by other flags such as `--status` are dropped.
+
+On Redmine 4.2 to 5.0, `--sort` honours only `login`, `firstname`, `lastname`, `admin`, `created_on`, and `last_login_on`; Redmine 5.1+ can sort by the other user columns too.
 
 ## get
 

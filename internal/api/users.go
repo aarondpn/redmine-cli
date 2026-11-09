@@ -65,7 +65,7 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 	var apiErr *APIError
 	_, statusOverridden := filter.ExtraParams["status"]
 	if filter.Status == UserStatusAll && !statusOverridden && errors.As(err, &apiErr) && apiErr.IsValidationError() {
-		s.client.debugLog.Printf("Users: status= rejected (Redmine 6.0+), retrying with status=*")
+		s.client.debugLog.Printf("Users: 422 on status=, retrying with status=*")
 		params.Set("status", "*")
 		users, total, err = FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
 	}

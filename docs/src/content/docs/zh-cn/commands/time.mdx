@@ -76,8 +76,8 @@ redmine time list [flags]
 | `--from`       | 开始日期（YYYY-MM-DD 或 `today`） |
 | `--to`         | 结束日期（YYYY-MM-DD 或 `today`） |
 | `--filter`     | 原始 Redmine 过滤条件，格式为 `key=value`（可重复）。参见[原始过滤条件](#原始过滤条件) |
-| `--query`      | 按名称运行已保存的工时查询（与 `--query-id` 互斥） |
-| `--query-id`   | 按数字 ID 运行已保存的工时查询 |
+| `--query`      | 按名称运行已保存的工时查询（与 `--query-id` 互斥）。其过滤条件会取代所有其他过滤条件；只有 `--project` 和 `--sort` 仍然生效 |
+| `--query-id`   | 按数字 ID 运行已保存的工时查询（参见 `queries list --type time_entry`） |
 | `--sort`       | 排序方式，例如 `spent_on:desc` 或 `hours:desc` |
 | `--limit`      | 最大结果数 |
 | `--offset`     | 分页偏移量 |
@@ -114,11 +114,11 @@ redmine time list [flags]
 - `--filter spent_on='><2026-01-01|2026-01-31'` — 在日期范围内的工时（`>=`、`<=`、`><` 等 Redmine 运算符均可用）
 - `--filter issue.tracker_id=1` — 跟踪器 1 的工单上的工时
 - `--filter author_id=me` — 由你创建的工时，包括代他人登记的
-- `--filter 'f[]=hours' --filter 'op[hours]=>=' --filter 'v[hours][]=2'` — Redmine 通用的 `f[]`/`op[]`/`v[]` 语法。以 `[]` 结尾的键可重复以发送多个值；使用 `f[]` 时，Redmine 只应用其中列出的过滤条件。
+- `--filter 'f[]=hours' --filter 'op[hours]=>=' --filter 'v[hours][]=2'` — Redmine 通用的 `f[]`/`op[]`/`v[]` 语法。以 `[]` 结尾的键可重复以发送多个值。
 
-如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `project_id` 或 `user_id`），则以 `--filter` 的值为准。`--from` 和 `--to` 优先于 `spent_on` 过滤条件。
+如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `project_id` 或 `user_id`），则以 `--filter` 的值为准。`--from` 和 `--to` 优先于 `spent_on` 过滤条件。使用 `f[]` 时，Redmine 只应用 `f[]` 中列出的过滤条件；其他标志（例如 `--status`）设置的过滤条件会被丢弃。
 
-`--query` 在已保存的**工时**查询（`/queries.json?type=TimeEntryQuery`）中按名称解析；[`queries list`](/zh-cn/commands/queries/) 只显示工单查询。
+`--query` 在已保存的**工时**查询中按名称解析；可用 [`queries list --type time_entry`](/zh-cn/commands/queries/) 列出这些查询。已保存查询的过滤条件会取代所有其他过滤条件；只有 `--project` 和 `--sort` 仍然生效。
 
 ## get
 

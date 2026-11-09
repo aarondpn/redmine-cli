@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // timeTestQuery is the time entry query seeded by bootstrap-redmine.sh: it
@@ -66,25 +64,26 @@ func TestListFilters_TimeEntries(t *testing.T) {
 	today := time.Now().Format("2006-01-02")
 
 	cases := []struct {
-		name string
-		args []string
-		want []int
+		name    string
+		args    []string
+		want    []int
+		ordered bool // want is in the expected order
 	}{
-		{"sort hours asc", []string{"--sort", "hours"}, []int{short, long}},
-		{"sort hours desc", []string{"--sort", "hours:desc"}, []int{long, short}},
-		{"plain operator filter", []string{"--filter", "hours=>=2"}, []int{long}},
-		{"date range filter", []string{"--filter", "spent_on=><2000-01-01|2000-01-31"}, []int{}},
+		{"sort hours asc", []string{"--sort", "hours"}, []int{short, long}, true},
+		{"sort hours desc", []string{"--sort", "hours:desc"}, []int{long, short}, true},
+		{"plain operator filter", []string{"--filter", "hours=>=2"}, []int{long}, false},
+		{"date range filter", []string{"--filter", "spent_on=><2000-01-01|2000-01-31"}, []int{}, false},
 		{"f[] op[] v[]", []string{
 			"--filter", "f[]=hours", "--filter", "op[hours]=<=", "--filter", "v[hours][]=2",
 			"--filter", "f[]=spent_on", "--filter", "op[spent_on]=><",
 			"--filter", "v[spent_on][]=2000-01-01", "--filter", "v[spent_on][]=" + today,
-		}, []int{short}},
-		{"saved query by name", []string{"--query", timeTestQuery}, []int{long}},
+		}, []int{short}, false},
+		{"saved query by name", []string{"--query", timeTestQuery}, []int{long}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := list(tc.args...)
-			if tc.name == "sort hours asc" || tc.name == "sort hours desc" {
+			if tc.ordered {
 				if !slices.Equal(got, tc.want) {
 					t.Fatalf("time list %v = %v, want %v in this order", tc.args, got, tc.want)
 				}
@@ -100,26 +99,16 @@ func TestListFilters_TimeEntries(t *testing.T) {
 	}
 
 	t.Run("saved query by id", func(t *testing.T) {
-		var queries []struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
-		}
-		var resp struct {
-			Queries []struct {
-				ID   int    `json:"id"`
-				Name string `json:"name"`
-			} `json:"queries"`
-		}
-		r.runJSON(t, &resp, "api", "/queries.json?type=TimeEntryQuery&limit=100")
-		queries = resp.Queries
-		id := 0
-		for _, q := range queries {
-			if q.Name == timeTestQuery {
-				id = q.ID
-			}
-		}
+		var queries []savedQueryRef
+		r.runJSON(t, &queries, "queries", "list", "--type", "time_entry")
+		id := savedQueryID(queries, timeTestQuery)
 		if id == 0 {
-			t.Fatalf("seeded time entry query %q not found in %+v", timeTestQuery, queries)
+			t.Fatalf("seeded time entry query %q not in `queries list --type time_entry`: %+v", timeTestQuery, queries)
+		}
+		var issueQueries []savedQueryRef
+		r.runJSON(t, &issueQueries, "queries", "list")
+		if savedQueryID(issueQueries, timeTestQuery) != 0 {
+			t.Fatalf("time entry query %q listed among issue queries", timeTestQuery)
 		}
 		if got := list("--query-id", strconv.Itoa(id)); !slices.Equal(got, []int{long}) {
 			t.Fatalf("time list --query-id %d = %v, want [%d]", id, got, long)
@@ -130,7 +119,26 @@ func TestListFilters_TimeEntries(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		session := r.startMCPStdio(t, ctx)
-		out := mcpCallOK(t, ctx, session, "list_time_entries", map[string]any{
+
+		var listed struct {
+			Queries []savedQueryRef `json:"queries"`
+		}
+		decodeTree(t, mcpCallAny(t, ctx, session, "list_queries", map[string]any{"type": "time_entry", "limit": 100}), &listed)
+		queryID := savedQueryID(listed.Queries, timeTestQuery)
+		if queryID == 0 {
+			t.Fatalf("list_queries type=time_entry lacks %q: %+v", timeTestQuery, listed.Queries)
+		}
+		var viaQuery struct {
+			TimeEntries []listedTimeEntry `json:"time_entries"`
+		}
+		decodeTree(t, mcpCallAny(t, ctx, session, "list_time_entries", map[string]any{
+			"project_id": proj.Identifier, "query_id": queryID,
+		}), &viaQuery)
+		if got := timeEntryIDs(viaQuery.TimeEntries); !slices.Equal(got, []int{long}) {
+			t.Fatalf("list_time_entries query_id=%d = %v, want [%d]", queryID, got, long)
+		}
+
+		out := mcpCallAny(t, ctx, session, "list_time_entries", map[string]any{
 			"project_id": proj.Identifier,
 			"sort":       "hours:desc",
 			"extra_params": map[string]any{
@@ -142,7 +150,7 @@ func TestListFilters_TimeEntries(t *testing.T) {
 		var result struct {
 			TimeEntries []listedTimeEntry `json:"time_entries"`
 		}
-		decodeStructured(t, out, &result)
+		decodeTree(t, out, &result)
 		if got := timeEntryIDs(result.TimeEntries); !slices.Equal(got, []int{long, short}) {
 			t.Fatalf("list_time_entries = %v, want [%d %d]", got, long, short)
 		}
@@ -237,13 +245,13 @@ func TestListFilters_ProjectStatus(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	session := r.startMCPStdio(t, ctx)
-	out := mcpCallOK(t, ctx, session, "list_projects", map[string]any{"status": "closed", "limit": 100})
+	out := mcpCallAny(t, ctx, session, "list_projects", map[string]any{"status": "closed", "limit": 100})
 	var result struct {
 		Projects []struct {
 			ID int `json:"id"`
 		} `json:"projects"`
 	}
-	decodeStructured(t, out, &result)
+	decodeTree(t, out, &result)
 	var ids []int
 	for _, p := range result.Projects {
 		ids = append(ids, p.ID)
@@ -290,13 +298,13 @@ func TestListFilters_UserStatusAll(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	session := r.startMCPStdio(t, ctx)
-	out := mcpCallOK(t, ctx, session, "list_users", map[string]any{"status": "all", "name": u.Login})
+	out := mcpCallAny(t, ctx, session, "list_users", map[string]any{"status": "all", "name": u.Login})
 	var result struct {
 		Users []struct {
 			ID int `json:"id"`
 		} `json:"users"`
 	}
-	decodeStructured(t, out, &result)
+	decodeTree(t, out, &result)
 	if len(result.Users) != 1 || result.Users[0].ID != u.ID {
 		t.Fatalf("list_users status=all = %+v, want user %d", result.Users, u.ID)
 	}
@@ -355,30 +363,41 @@ func TestListFilters_GroupsBuiltin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	session := r.startMCPStdio(t, ctx)
-	out := mcpCallOK(t, ctx, session, "list_groups", map[string]any{"builtin": true, "limit": 100})
+	out := mcpCallAny(t, ctx, session, "list_groups", map[string]any{"builtin": true, "limit": 100})
 	var result struct {
 		Groups []group `json:"groups"`
 	}
-	decodeStructured(t, out, &result)
+	decodeTree(t, out, &result)
 	if len(result.Groups) != len(builtin) {
 		t.Fatalf("list_groups builtin=true = %d groups, want %d", len(result.Groups), len(builtin))
 	}
 }
 
-// decodeStructured decodes an MCP tool result into dest, from the structured
-// content when present and the text content otherwise.
-func decodeStructured(t *testing.T, out *mcp.CallToolResult, dest any) {
+// decodeTree re-decodes an untyped JSON tree, as returned by mcpCallAny, into
+// dest.
+func decodeTree(t *testing.T, tree any, dest any) {
 	t.Helper()
-	var data []byte
-	if out.StructuredContent != nil {
-		var err error
-		if data, err = json.Marshal(out.StructuredContent); err != nil {
-			t.Fatalf("marshal structured content: %v", err)
-		}
-	} else {
-		data = []byte(mcpExtTextContent(t, out))
+	data, err := json.Marshal(tree)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
 	}
 	if err := json.Unmarshal(data, dest); err != nil {
-		t.Fatalf("decode structured content: %v\n%s", err, data)
+		t.Fatalf("decode result: %v\n%s", err, data)
 	}
+}
+
+// savedQueryRef is the part of a saved query the tests look at.
+type savedQueryRef struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// savedQueryID returns the ID of the query named name, or 0.
+func savedQueryID(queries []savedQueryRef, name string) int {
+	for _, q := range queries {
+		if q.Name == name {
+			return q.ID
+		}
+	}
+	return 0
 }

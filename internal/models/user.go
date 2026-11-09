@@ -80,8 +80,9 @@ type MyAccountUpdate struct {
 // UserFilter defines parameters for listing users.
 type UserFilter struct {
 	// Status is "active", "registered", "locked", "all", or a raw value sent
-	// as-is ("*" on Redmine 6.0+). "all" sends an empty status=, which lists
-	// every status on all supported Redmine versions.
+	// as-is ("*" on Redmine 5.1+). "all" lists every status on all supported
+	// versions: it sends an empty status= and, when Redmine 6.0+ rejects that
+	// with 422, retries with status=*.
 	Status  string
 	Name    string // filter by name
 	GroupID int

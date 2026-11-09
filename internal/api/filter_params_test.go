@@ -149,7 +149,7 @@ func TestProjectService_List_StatusSortAndExtraParams(t *testing.T) {
 	var rec queryRecorder
 	c := rec.client(t, "projects")
 	_, _, err := c.Projects.List(context.Background(), models.ProjectFilter{
-		Status:      "1|5|9",
+		Status:      "1|5",
 		Sort:        "name:desc",
 		ExtraParams: models.FilterParams{"name": {"~web"}},
 	})
@@ -157,7 +157,7 @@ func TestProjectService_List_StatusSortAndExtraParams(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := rec.last(t)
-	assertQueryValues(t, q, "status", "1|5|9")
+	assertQueryValues(t, q, "status", "1|5")
 	assertQueryValues(t, q, "sort", "name:desc")
 	assertQueryValues(t, q, "name", "~web")
 }

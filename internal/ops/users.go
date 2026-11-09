@@ -13,7 +13,7 @@ type ListUsersInput struct {
 	Name        string              `json:"name,omitempty" jsonschema:"Filter by name substring."`
 	GroupID     int                 `json:"group_id,omitempty" jsonschema:"Filter users that belong to the given group ID."`
 	Sort        string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'lastname' or 'created_on:desc'."`
-	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Redmine 5.1+ only. Example: {\"f[]\":[\"status\",\"login\"],\"op[status]\":\"*\",\"op[login]\":\"~\",\"v[login][]\":\"smith\"}."`
+	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). With f[], Redmine applies only the filters listed in f[]; filters set by other fields such as status are dropped. The f[]/op[]/v[] filters need Redmine 5.1+; plain keys work on every version. Example: {\"f[]\":[\"status\",\"login\"],\"op[status]\":\"*\",\"op[login]\":\"~\",\"v[login][]\":\"smith\"}."`
 	Limit       int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset      int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 	Includes    []string            `json:"includes,omitempty" jsonschema:"Optional includes: 'auth_source' (Redmine 6.0+, admin only)."`

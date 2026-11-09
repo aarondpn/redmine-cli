@@ -25,7 +25,7 @@ type ListIssuesInput struct {
 	QueryID        int                 `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
 	Sort           string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
 	Includes       []string            `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations."`
-	ExtraParams    models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
+	ExtraParams    models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). With f[], Redmine applies only the filters listed in f[]; filters set by other fields such as status are dropped. Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
 	Limit          int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset         int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
 }

@@ -16,9 +16,9 @@ type ListTimeEntriesInput struct {
 	ActivityID  int                 `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
 	From        string              `json:"from,omitempty" jsonschema:"Inclusive start date (YYYY-MM-DD). Takes precedence over a spent_on filter in extra_params."`
 	To          string              `json:"to,omitempty" jsonschema:"Inclusive end date (YYYY-MM-DD). Takes precedence over a spent_on filter in extra_params."`
-	QueryID     int                 `json:"query_id,omitempty" jsonschema:"Saved time entry query ID. When set, the query's filters are applied server-side."`
+	QueryID     int                 `json:"query_id,omitempty" jsonschema:"Saved time entry query ID (list_queries with type time_entry). The saved query's filters replace all other filters; only project_id and sort still apply."`
 	Sort        string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'spent_on:desc' or 'hours:desc'."`
-	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Examples: {\"cf_3\":\"Onsite\",\"spent_on\":\"><2026-01-01|2026-01-31\",\"issue.tracker_id\":\"1\"}."`
+	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). With f[], Redmine applies only the filters listed in f[]; filters set by other fields such as status are dropped. Examples: {\"cf_3\":\"Onsite\",\"spent_on\":\"><2026-01-01|2026-01-31\",\"issue.tracker_id\":\"1\"}."`
 	Limit       int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset      int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 }

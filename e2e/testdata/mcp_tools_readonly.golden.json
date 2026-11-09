@@ -113,7 +113,7 @@
   },
   {
     "name": "list_queries",
-    "description": "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query."
+    "description": "List saved queries (custom filters) visible to the authenticated user. Pass the returned id as query_id to list_issues, or to list_time_entries for type time_entry, to run the query."
   },
   {
     "name": "list_roles",

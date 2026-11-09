@@ -46,7 +46,9 @@ redmine users list --filter 'f[]=status' --filter 'op[status]=*' \
   --filter 'f[]=login' --filter 'op[login]=~' --filter 'v[login][]=smith'
 ```
 
-如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `status` 或 `name`），则以 `--filter` 的值为准。
+如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `status` 或 `name`），则以 `--filter` 的值为准。使用 `f[]` 时，Redmine 只应用 `f[]` 中列出的过滤条件；其他标志（例如 `--status`）设置的过滤条件会被丢弃。
+
+在 Redmine 4.2 至 5.0 上，`--sort` 只支持 `login`、`firstname`、`lastname`、`admin`、`created_on` 和 `last_login_on`；Redmine 5.1+ 还可以按其他用户列排序。
 
 ## get
 

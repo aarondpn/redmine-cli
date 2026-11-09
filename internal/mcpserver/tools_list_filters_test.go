@@ -63,6 +63,7 @@ func listQueryServer(t *testing.T) (http.Handler, func(path string) url.Values) 
 		"/projects.json":     "projects",
 		"/users.json":        "users",
 		"/groups.json":       "groups",
+		"/queries.json":      "queries",
 	}
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key, ok := keys[r.URL.Path]
@@ -146,6 +147,9 @@ func TestListTools_FiltersReachTheQueryString(t *testing.T) {
 
 	call("list_groups", map[string]any{"builtin": true})
 	wantMCPQuery(t, query("/groups.json"), "builtin", "1")
+
+	call("list_queries", map[string]any{"type": "time_entry"})
+	wantMCPQuery(t, query("/queries.json"), "type", "TimeEntryQuery")
 }
 
 func TestListTools_RejectInvalidFilters(t *testing.T) {
@@ -159,9 +163,10 @@ func TestListTools_RejectInvalidFilters(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		"number value":      {"list_time_entries", map[string]any{"extra_params": map[string]any{"cf_3": 5}}},
-		"array of numbers":  {"list_issues", map[string]any{"extra_params": map[string]any{"f[]": []int{1}}}},
-		"archived projects": {"list_projects", map[string]any{"status": "archived"}},
+		"number value":       {"list_time_entries", map[string]any{"extra_params": map[string]any{"cf_3": 5}}},
+		"array of numbers":   {"list_issues", map[string]any{"extra_params": map[string]any{"f[]": []int{1}}}},
+		"archived projects":  {"list_projects", map[string]any{"status": "archived"}},
+		"unknown query type": {"list_queries", map[string]any{"type": "ProjectQuery"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: tc.tool, Arguments: tc.args})

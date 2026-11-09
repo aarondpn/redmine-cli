@@ -89,7 +89,7 @@ projects are never listed by the REST API, not even for administrators.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&status, "status", "", "Status filter: active, closed, all, or a numeric status (default: Redmine lists active projects only)")
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status: active, closed, all, or a numeric status (default: Redmine lists active projects only)")
 	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., name or created_on:desc)")
 	cmdutil.AddFilterFlag(cmd, &extraFilter, "name='~web'", "created_on='>=2026-01-01'")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)

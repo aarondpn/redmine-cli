@@ -23,7 +23,7 @@ func TestCmdProjectList_StatusSortAndFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := rec.Last(t)
-	testutil.WantQueryValues(t, q, "status", "1|5|9")
+	testutil.WantQueryValues(t, q, "status", "1|5")
 	testutil.WantQueryValues(t, q, "sort", "name:desc")
 	testutil.WantQueryValues(t, q, "name", "~web")
 }

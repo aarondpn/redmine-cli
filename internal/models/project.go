@@ -3,8 +3,8 @@ package models
 // ProjectFilter defines parameters for listing projects.
 type ProjectFilter struct {
 	// Status is sent as the status filter: a numeric code (1 active,
-	// 5 closed, 9 archived) or several joined with "|". Empty sends nothing,
-	// and Redmine 4.1+ then lists active projects only.
+	// 5 closed) or several joined with "|". Empty sends nothing, and Redmine
+	// 4.1+ then lists active projects only.
 	Status   string
 	Sort     string // e.g. "name:desc" (Redmine 4.1+)
 	Includes []string

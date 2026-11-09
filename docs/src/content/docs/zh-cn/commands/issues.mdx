@@ -45,7 +45,7 @@ redmine issues list [flags]
 | `--include-subprojects`  | 是否包含子项目工单（默认 `true`；指定 `=false` 可排除） |
 | `--is-private`           | 按私密性过滤：`true` 仅返回私有，`false` 仅返回公共 |
 | `--filter`               | 原生 Redmine 过滤器（`key=value`，可重复；以 `[]` 结尾的键可重复以发送多个值）。用于日期范围、自定义字段、主题搜索 |
-| `--query`                | 按名称运行自定义查询（参见 [`queries`](/zh-cn/commands/queries/)） |
+| `--query`                | 按名称运行自定义查询（参见 [`queries`](/zh-cn/commands/queries/)）。已保存查询的过滤条件会取代所有其他过滤条件；只有 `--project` 和 `--sort` 仍然生效。 |
 | `--query-id`             | 按数字 ID 运行自定义查询（与 `--query` 互斥） |
 | `--sort`                 | 排序方式，例如 `updated_on:desc` |
 | `--include`              | 包含关联数据：`attachments`、`relations`（可重复或逗号分隔；未知值会被拒绝） |
@@ -64,7 +64,7 @@ redmine issues list [flags]
   - `--filter subject='~login'` — 标题包含 "login"
   - `--filter 'f[]=status_id' --filter 'op[status_id]=*' --filter 'f[]=subject' --filter 'op[subject]=~' --filter 'v[subject][]=login'` — Redmine 通用的 `f[]`/`op[]`/`v[]` 语法：以 `[]` 结尾的键可重复以发送多个值；其他键重复时以最后一个值为准
 
-  如果 `--filter` 的键与某个专用标志发送的参数相同（例如默认 `--status open` 发送的 `status_id`），则以 `--filter` 的值为准。`time list`、`projects list` 和 `users list` 上的 `--filter` 遵循同样的规则。
+  如果 `--filter` 的键与某个专用标志发送的参数相同（例如默认 `--status open` 发送的 `status_id`），则以 `--filter` 的值为准。`time list`、`projects list` 和 `users list` 上的 `--filter` 遵循同样的规则。使用 `f[]` 时，Redmine 只应用 `f[]` 中列出的过滤条件；其他标志（例如 `--status`）设置的过滤条件会被丢弃。
 </Aside>
 
 <Tabs syncKey="issues-list">

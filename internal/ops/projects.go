@@ -11,10 +11,10 @@ import (
 )
 
 type ListProjectsInput struct {
-	Status      string              `json:"status,omitempty" jsonschema:"Status filter: 'active', 'closed', 'all', or a numeric code (1 active, 5 closed). Redmine 4.1+ lists only active projects when omitted. Archived projects are never listed by the REST API."`
+	Status      string              `json:"status,omitempty" jsonschema:"Status filter: 'active', 'closed', 'all' (active and closed), or a numeric code (1 active, 5 closed). Redmine 4.1+ lists only active projects when omitted. Archived projects are never listed by the REST API, so 'archived' and 9 are rejected."`
 	Sort        string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'name' or 'created_on:desc'."`
 	Includes    []string            `json:"includes,omitempty" jsonschema:"Extra sections to include: trackers, issue_categories, enabled_modules, time_entry_activities, issue_custom_fields."`
-	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Examples: {\"name\":\"~web\",\"created_on\":\">=2025-01-01\"}."`
+	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). With f[], Redmine applies only the filters listed in f[]; filters set by other fields such as status are dropped. Examples: {\"name\":\"~web\",\"created_on\":\">=2025-01-01\"}."`
 	Limit       int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
 	Offset      int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 }
@@ -215,9 +215,10 @@ func GetProjectForResource(ctx context.Context, client *api.Client, identifier s
 var projectStatusCodes = regexp.MustCompile(`^[0-9]+(\|[0-9]+)*$`)
 
 // ProjectStatusFilter maps a project list status keyword onto Redmine's
-// status filter value. "all" lists active and closed projects (archived ones
-// are hidden from /projects.json for every user, admins included); numeric
-// codes pass through. An empty status sends no filter.
+// status filter value. "all" lists active and closed projects; archived ones
+// (9) are hidden from /projects.json for every user, admins included, so
+// "archived" and a code list containing 9 are rejected. Other numeric codes
+// pass through. An empty status sends no filter.
 func ProjectStatusFilter(status string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "":
@@ -227,12 +228,21 @@ func ProjectStatusFilter(status string) (string, error) {
 	case "closed":
 		return "5", nil
 	case "all":
-		return "1|5|9", nil
+		return "1|5", nil
 	case "archived":
-		return "", fmt.Errorf("invalid project status %q: Redmine never lists archived projects through the REST API; use active, closed or all", status)
+		return "", errArchivedProjects(status)
 	}
 	if projectStatusCodes.MatchString(status) {
+		for _, code := range strings.Split(status, "|") {
+			if strings.TrimLeft(code, "0") == "9" {
+				return "", errArchivedProjects(status)
+			}
+		}
 		return status, nil
 	}
 	return "", fmt.Errorf("invalid project status %q: use active, closed, all, or a numeric status code", status)
+}
+
+func errArchivedProjects(status string) error {
+	return fmt.Errorf("invalid project status %q: Redmine never lists archived projects through the REST API; use active, closed or all", status)
 }
