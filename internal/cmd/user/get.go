@@ -86,8 +86,8 @@ func userDetailRows(user *models.User) []output.KeyValue {
 	if len(user.Groups) > 0 {
 		pairs = append(pairs, output.KeyValue{Key: "Groups", Value: formatIDNameList(user.Groups)})
 	}
-	if len(user.CustomFields) > 0 {
-		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: FormatCustomFieldValues(user.CustomFields)})
+	if cf := FormatCustomFieldValues(user.CustomFields); cf != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: cf})
 	}
 
 	return AppendAccountDates(pairs, user)

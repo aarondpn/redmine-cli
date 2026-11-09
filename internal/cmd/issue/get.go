@@ -3,7 +3,6 @@ package issue
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 
@@ -62,8 +61,8 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine issues get 123 --download-attachments ./issue-123 --clobber
 
   # Read a ticket fully before investigating: history, files, children, relations
-  redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
-  redmine issues get 123 --include journals,attachments,children,relations -o json
+  redmine issues get 123 --journals --children --relations --watchers --download-attachments ./issue-123
+  redmine issues get 123 --include journals,attachments,children,relations,watchers -o json
 
   # Show who watches the issue
   redmine issues get 123 --watchers
@@ -127,7 +126,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			printer.Detail(issueDetailRows(issue))
-			writeIssueSections(os.Stdout, issue)
+			writeIssueSections(f.IOStreams.Out, issue)
 
 			if len(issue.Attachments) > 0 {
 				fmt.Println()

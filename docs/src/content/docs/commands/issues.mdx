@@ -150,7 +150,7 @@ Attachments of the same issue often share a filename (for example several `scree
     ```bash
     # History, files, children, and relations before investigating
     redmine issues get 123 --journals --children --relations --watchers --download-attachments ./issue-123
-    redmine issues get 123 --include journals,attachments,children,relations -o json
+    redmine issues get 123 --include journals,attachments,children,relations,watchers -o json
 
     # Statuses the current user may move the issue to
     redmine issues get 123 --include allowed_statuses -o json
@@ -167,7 +167,7 @@ With `-o json` (and in the MCP `get_issue` tool) the issue carries these optiona
 - Journal `updated_on` (Redmine 6.0+, present on every journal) and `updated_by` (set when the notes were edited).
 - `reactions` on the issue and on journals with `--include reactions` (Redmine 7.1+).
 
-The table view shows every field Redmine sent and leaves out the ones that are empty or absent (for example because the Redmine version or your permissions do not provide them): category, private flag, closed date, estimated and spent hours (with the subtree totals in parentheses), custom fields, watchers and allowed statuses as detail rows, followed by the children tree, relations (worded from this issue's side, for example `blocked by #7`) and changesets when requested with the matching include. Journals with only property changes are shown too, one line per change (`* Status: New -> In Progress`). Status, priority, tracker, project, category, version, user and custom field IDs are shown as names when the issue itself carries them, otherwise as the raw ID.
+The table view shows every field Redmine sent and leaves out the ones that are empty or absent (for example because the Redmine version or your permissions do not provide them): category, private flag, closed date, estimated and spent hours (with the subtree totals in parentheses), custom fields, watchers and allowed statuses as detail rows, followed by the children tree, relations (worded from this issue's side, for example `blocked by #7`) and changesets when requested with the matching include. Journals with only property changes are shown too, one line per change (`* Status: 1 -> In Progress`). Status, priority, tracker, project, category, version, user and custom field IDs are shown as names when the issue itself carries them (the example shows `Status: 1 -> In Progress` because the old status is not part of the response; with `--include allowed_statuses` both would be names), otherwise as the raw ID.
 
 ```text
 ID:               #123
@@ -195,7 +195,7 @@ Relations:
   blocks #130
 
 --- Alice (2026-01-01T10:00:00Z) [journal 41] ---
-* Status: New -> In Progress
+* Status: 1 -> In Progress
 * Assignee: (none) -> Bob
 
 Taking this one.

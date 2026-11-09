@@ -22,13 +22,15 @@ func issueDetailRows(issue *models.Issue) []output.KeyValue {
 			pairs = append(pairs, output.KeyValue{Key: k, Value: v})
 		}
 	}
-	addHours := func(k string, own, total *float64) {
+	addHours := func(k string, own, total *float64, skipZero bool) {
+		nonZero := func(p *float64) bool { return p != nil && *p != 0 }
 		switch {
+		case skipZero && !nonZero(own) && !nonZero(total):
 		case own != nil && total != nil && *own != *total:
 			add(k, fmt.Sprintf("%s (total %s)", cmdutil.FormatHours(*own), cmdutil.FormatHours(*total)))
 		case own != nil:
 			add(k, cmdutil.FormatHours(*own))
-		case total != nil:
+		case nonZero(total):
 			add(k, fmt.Sprintf("total %s", cmdutil.FormatHours(*total)))
 		}
 	}
@@ -57,8 +59,8 @@ func issueDetailRows(issue *models.Issue) []output.KeyValue {
 	add("Closed", issue.ClosedOn)
 	add("Start Date", issue.StartDate)
 	add("Due Date", issue.DueDate)
-	addHours("Estimated Hours", issue.EstimatedHours, issue.TotalEstimatedHours)
-	addHours("Spent Hours", issue.SpentHours, issue.TotalSpentHours)
+	addHours("Estimated Hours", issue.EstimatedHours, issue.TotalEstimatedHours, false)
+	addHours("Spent Hours", issue.SpentHours, issue.TotalSpentHours, true)
 	if issue.FixedVersion != nil {
 		add("Version", issue.FixedVersion.Name)
 	}
@@ -127,20 +129,48 @@ func writeChildren(w io.Writer, children []models.IssueChild, depth int) {
 	}
 }
 
+// relationLabels words a relation type from the point of view of the issue
+// being shown, matching Redmine's own labels.
+var relationLabels = map[string]string{
+	"relates":     "relates to",
+	"duplicates":  "duplicates",
+	"duplicated":  "duplicated by",
+	"blocks":      "blocks",
+	"blocked":     "blocked by",
+	"precedes":    "precedes",
+	"follows":     "follows",
+	"copied_to":   "copied to",
+	"copied_from": "copied from",
+}
+
 var inverseRelation = map[string]string{
-	"precedes":    "follows",
-	"follows":     "precedes",
-	"blocks":      "blocked",
-	"blocked":     "blocks",
 	"duplicates":  "duplicated",
 	"duplicated":  "duplicates",
+	"blocks":      "blocked",
+	"blocked":     "blocks",
+	"precedes":    "follows",
+	"follows":     "precedes",
 	"copied_to":   "copied_from",
 	"copied_from": "copied_to",
 }
 
+func relationLabel(typ string) string {
+	if l, ok := relationLabels[typ]; ok {
+		return l
+	}
+	return strings.ReplaceAll(typ, "_", " ")
+}
+
+func pluralDays(n int) string {
+	if n == 1 || n == -1 {
+		return fmt.Sprintf("%d day", n)
+	}
+	return fmt.Sprintf("%d days", n)
+}
+
 // describeRelation words a relation from the point of view of issueID, e.g.
-// "blocks #7" or "blocked by #7"; the API returns it the same way for both
-// ends, so the inverse type is shown when the issue is the target.
+// "blocks #7" or "blocked by #7": the API returns the same record for both
+// ends, so the inverse type is used when the issue is the target.
 func describeRelation(issueID int, r models.IssueRelation) string {
 	typ, other := r.RelationType, r.IssueToID
 	if r.IssueToID == issueID && r.IssueID != issueID {
@@ -149,13 +179,9 @@ func describeRelation(issueID int, r models.IssueRelation) string {
 			typ = inv
 		}
 	}
-	if typ == "blocked" {
-		typ = "blocked by"
-	}
-	typ = strings.ReplaceAll(typ, "_", " ")
-	s := fmt.Sprintf("%s #%d", typ, other)
+	s := fmt.Sprintf("%s #%d", relationLabel(typ), other)
 	if r.Delay != nil && *r.Delay != 0 {
-		s += fmt.Sprintf(" (delay %d days)", *r.Delay)
+		s += fmt.Sprintf(" (delay %s)", pluralDays(*r.Delay))
 	}
 	return s
 }
@@ -240,6 +266,7 @@ func newIDNames(issue *models.Issue) *idNames {
 	}
 	for _, u := range users {
 		put("assigned_to_id", u.ID, u.Name)
+		put("author_id", u.ID, u.Name)
 	}
 	for _, cf := range issue.CustomFields {
 		n.cfs[strconv.Itoa(cf.ID)] = cf.Name
@@ -256,6 +283,8 @@ var attrLabels = map[string]string{
 	"fixed_version_id": "Version",
 	"assigned_to_id":   "Assignee",
 	"parent_id":        "Parent",
+	"child_id":         "Subtask",
+	"author_id":        "Author",
 	"done_ratio":       "Done Ratio",
 	"start_date":       "Start Date",
 	"due_date":         "Due Date",
@@ -272,8 +301,16 @@ func (n *idNames) value(kind, v string) string {
 	if name, ok := n.byKind[kind][v]; ok {
 		return name
 	}
-	if kind == "parent_id" {
+	switch kind {
+	case "parent_id", "child_id":
 		return "#" + v
+	case "is_private":
+		switch v {
+		case "1":
+			return "yes"
+		case "0":
+			return "no"
+		}
 	}
 	return v
 }
@@ -286,12 +323,10 @@ func (n *idNames) describe(d models.JournalDetail) string {
 		}
 		return "Attachment removed: " + d.OldValue
 	case "relation":
-		switch {
-		case d.NewValue != "":
-			return fmt.Sprintf("Relation %s added: #%s", d.Name, d.NewValue)
-		default:
-			return fmt.Sprintf("Relation %s removed: #%s", d.Name, d.OldValue)
+		if d.NewValue != "" {
+			return fmt.Sprintf("Relation added: %s #%s", relationLabel(d.Name), d.NewValue)
 		}
+		return fmt.Sprintf("Relation removed: %s #%s", relationLabel(d.Name), d.OldValue)
 	case "cf":
 		label := d.Name
 		if name, ok := n.cfs[d.Name]; ok {

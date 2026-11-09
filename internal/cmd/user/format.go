@@ -22,7 +22,7 @@ func AppendAccountDates(pairs []output.KeyValue, u *models.User) []output.KeyVal
 		pairs = append(pairs, output.KeyValue{Key: "Password Changed", Value: u.PasswdChangedOn})
 	}
 	if u.TwofaScheme != "" {
-		pairs = append(pairs, output.KeyValue{Key: "Two-factor", Value: u.TwofaScheme})
+		pairs = append(pairs, output.KeyValue{Key: "Two-Factor", Value: u.TwofaScheme})
 	}
 	return pairs
 }

@@ -118,7 +118,7 @@ After downloading an image, open/read it and use what it shows.
 
 - `--custom-field name=value` works on `issues create/update`, `projects create/update`, `time log/update`, `versions create/update`, `users create/update`, `my-account update` and `groups create/update`. For multi-value fields repeat the same field (`--custom-field Tags=a --custom-field Tags=b`); `--custom-field Tags=` clears it. Values keep spaces and `=`: quote each pair and repeat the flag per field.
 - If `time log` fails with `validation_failed`, the server may require time entry custom fields or an activity: pass them with `--custom-field` / `--activity`.
-- `redmine issues get <id> --journals` includes comments and history (property changes are shown one per line). `--children`, `--relations`, `--watchers` add those sections; the text output shows every field Redmine sent and omits empty ones.
+- `redmine issues get <id> --journals` includes comments and history (property changes are shown one per line). `--children` and `--relations` add those sections and `--watchers` adds a Watchers row; the text output shows every field Redmine sent and omits empty ones.
 - `redmine issues get <id> --include allowed_statuses -o json` lists the statuses the current user may transition to.
 - `redmine issues update` only sends flags you explicitly pass — omitted flags are not changed.
 - If `--project` is omitted, the configured default project is used (set via `redmine auth login`).
