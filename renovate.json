@@ -13,19 +13,19 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Tool versions pinned in workflows behind a '# renovate:' comment",
+      "description": "Tool versions pinned in workflows behind a '# renovate:' comment. An optional *_SHA256 line directly below the version is captured as the digest and updated in the same PR (needs a datasource with release-asset digests, e.g. github-release-attachments).",
       "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:version|[A-Z0-9_]+_VERSION): \"?(?<currentValue>[^\"\\s]+)\"?"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+(?:version|[A-Z0-9_]+_VERSION): \"?(?<currentValue>[^\"\\s]+)\"?(?:\\s+[A-Z0-9_]+_SHA256: \"?(?<currentDigest>[a-f0-9]{64})\"?)?"
       ]
     }
   ],
   "packageRules": [
     {
-      "description": "mcp-publisher is verified against a pinned sha256 that Renovate cannot compute",
+      "description": "mcp-publisher is verified against a pinned sha256; Renovate updates it, CI re-checks it",
       "matchDepNames": ["modelcontextprotocol/registry"],
       "prBodyNotes": [
-        "Update `MCP_PUBLISHER_SHA256` in `.github/workflows/release.yml` to the sha256 of `mcp-publisher_linux_amd64.tar.gz` from this release's checksums file before merging; the MCP Registry publish job refuses a mismatched tarball."
+        "This PR must change `MCP_PUBLISHER_SHA256` in `.github/workflows/release.yml` along with the version. The `mcp-publisher-pin` CI check downloads the tarball and fails if the hash does not match."
       ]
     },
     {

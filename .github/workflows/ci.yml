@@ -72,6 +72,31 @@ jobs:
       - name: Test
         run: go test ./...
 
+  # The mcp-registry job in release.yml only runs on a release tag, so a
+  # version bump without a matching MCP_PUBLISHER_SHA256 used to show up only
+  # after the release was published (v2.19.0). This downloads the pinned
+  # tarball and checks it against the pinned hash on every PR.
+  mcp-publisher-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Verify MCP_PUBLISHER_SHA256 matches MCP_PUBLISHER_VERSION
+        run: |
+          set -euo pipefail
+          version=$(yq -e '.jobs["mcp-registry"].env.MCP_PUBLISHER_VERSION' .github/workflows/release.yml)
+          sha256=$(yq -e '.jobs["mcp-registry"].env.MCP_PUBLISHER_SHA256' .github/workflows/release.yml)
+          archive="${RUNNER_TEMP}/mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 -o "$archive" "https://github.com/modelcontextprotocol/registry/releases/download/${version}/mcp-publisher_linux_amd64.tar.gz"
+          actual=$(sha256sum "$archive" | cut -d' ' -f1)
+          if [ "$actual" != "$sha256" ]; then
+            echo "::error file=.github/workflows/release.yml::MCP_PUBLISHER_SHA256 does not match mcp-publisher_linux_amd64.tar.gz of ${version}. Expected (pinned) ${sha256}, got ${actual}. Check the value against registry_${version#v}_checksums.txt of that release before updating the pin."
+            exit 1
+          fi
+          echo "mcp-publisher ${version}: ${actual} OK"
+
   govulncheck:
     runs-on: ubuntu-latest
     steps:
