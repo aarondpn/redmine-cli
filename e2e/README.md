@@ -65,7 +65,7 @@ Redmine instance. The suite is split into topical files:
 | File                     | Coverage |
 |--------------------------|----------|
 | `projects_test.go`       | project create / get / list / delete |
-| `issues_test.go`         | issue lifecycle (create/list/close/reopen), update, comment, assign, attachment upload |
+| `issues_test.go`         | issue lifecycle (create/list/close/reopen), update, comment, assign, attachment upload, text output of `issues get` (journal property changes, `--watchers`) |
 | `issues_list_test.go`    | list filter round-trips (`--status`, `--assignee me`, `--tracker`, bogus tracker error) |
 | `assignee_test.go`       | group assignment by name, `--assignee none` (unassign + list filter), MCP unassign, non-admin name resolution via project memberships |
 | `time_entries_test.go`   | time log / list / update / delete with activity resolution |

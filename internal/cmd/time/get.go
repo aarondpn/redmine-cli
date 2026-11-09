@@ -45,7 +45,7 @@ func newCmdTimeGet(f *cmdutil.Factory) *cobra.Command {
 				issueRef = fmt.Sprintf("#%d", entry.Issue.ID)
 			}
 
-			printer.Detail([]output.KeyValue{
+			pairs := []output.KeyValue{
 				{Key: "ID", Value: output.StyleID.Render(strconv.Itoa(entry.ID))},
 				{Key: "Project", Value: entry.Project.Name},
 				{Key: "Issue", Value: issueRef},
@@ -56,7 +56,11 @@ func newCmdTimeGet(f *cmdutil.Factory) *cobra.Command {
 				{Key: "Date", Value: entry.SpentOn},
 				{Key: "Created", Value: entry.CreatedOn},
 				{Key: "Updated", Value: entry.UpdatedOn},
-			})
+			}
+			if cf := cmdutil.FormatCustomFields(entry.CustomFields); cf != "" {
+				pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: cf})
+			}
+			printer.Detail(pairs)
 
 			return nil
 		},

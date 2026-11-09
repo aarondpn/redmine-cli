@@ -62,6 +62,19 @@ func newCmdVersionGet(f *cmdutil.Factory) *cobra.Command {
 				pairs = append(pairs, output.KeyValue{Key: "Description", Value: version.Description})
 			}
 
+			if version.WikiPageTitle != "" {
+				pairs = append(pairs, output.KeyValue{Key: "Wiki Page", Value: version.WikiPageTitle})
+			}
+			if version.EstimatedHours != nil {
+				pairs = append(pairs, output.KeyValue{Key: "Estimated Hours", Value: cmdutil.FormatHours(*version.EstimatedHours)})
+			}
+			if version.SpentHours != nil {
+				pairs = append(pairs, output.KeyValue{Key: "Spent Hours", Value: cmdutil.FormatHours(*version.SpentHours)})
+			}
+			if cf := cmdutil.FormatCustomFields(version.CustomFields); cf != "" {
+				pairs = append(pairs, output.KeyValue{Key: "Custom Fields", Value: cf})
+			}
+
 			pairs = append(pairs,
 				output.KeyValue{Key: "Created", Value: version.CreatedOn},
 				output.KeyValue{Key: "Updated", Value: version.UpdatedOn},

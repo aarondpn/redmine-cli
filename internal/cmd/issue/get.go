@@ -22,6 +22,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 		journals            bool
 		children            bool
 		relations           bool
+		watchers            bool
 		attachments         bool
 		downloadAttachments string
 		clobber             bool
@@ -60,8 +61,11 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
   redmine issues get 123 --download-attachments ./issue-123 --clobber
 
   # Read a ticket fully before investigating: history, files, children, relations
-  redmine issues get 123 --journals --children --relations --download-attachments ./issue-123
-  redmine issues get 123 --include journals,attachments,children,relations -o json
+  redmine issues get 123 --journals --children --relations --watchers --download-attachments ./issue-123
+  redmine issues get 123 --include journals,attachments,children,relations,watchers -o json
+
+  # Show who watches the issue
+  redmine issues get 123 --watchers
 
   # Which statuses may the current user move the issue to?
   redmine issues get 123 --include allowed_statuses -o json`,
@@ -86,6 +90,9 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 			}
 			if relations {
 				shorthands = append(shorthands, "relations")
+			}
+			if watchers {
+				shorthands = append(shorthands, "watchers")
 			}
 			if attachments || downloadAttachments != "" {
 				shorthands = append(shorthands, "attachments")
@@ -118,53 +125,8 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 				return nil
 			}
 
-			pairs := []output.KeyValue{
-				{Key: "ID", Value: output.StyleID.Render(fmt.Sprintf("#%d", issue.ID))},
-				{Key: "Project", Value: issue.Project.Name},
-				{Key: "Tracker", Value: issue.Tracker.Name},
-				{Key: "Status", Value: output.StatusStyle(issue.Status.Name).Render(issue.Status.Name)},
-				{Key: "Priority", Value: output.PriorityStyle(issue.Priority.Name).Render(issue.Priority.Name)},
-				{Key: "Subject", Value: issue.Subject},
-				{Key: "Author", Value: issue.Author.Name},
-				{Key: "Assignee", Value: assigneeName(issue.AssignedTo)},
-				{Key: "Done Ratio", Value: fmt.Sprintf("%d%%", issue.DoneRatio)},
-				{Key: "Created", Value: issue.CreatedOn},
-				{Key: "Updated", Value: issue.UpdatedOn},
-			}
-
-			if issue.StartDate != "" {
-				pairs = append(pairs, output.KeyValue{Key: "Start Date", Value: issue.StartDate})
-			}
-			if issue.DueDate != "" {
-				pairs = append(pairs, output.KeyValue{Key: "Due Date", Value: issue.DueDate})
-			}
-			if issue.EstimatedHours != nil {
-				pairs = append(pairs, output.KeyValue{Key: "Estimated Hours", Value: fmt.Sprintf("%.2f", *issue.EstimatedHours)})
-			}
-			if issue.FixedVersion != nil {
-				pairs = append(pairs, output.KeyValue{Key: "Version", Value: issue.FixedVersion.Name})
-			}
-			if issue.Parent != nil {
-				pairs = append(pairs, output.KeyValue{Key: "Parent", Value: fmt.Sprintf("#%d", issue.Parent.ID)})
-			}
-			if issue.Description != "" {
-				pairs = append(pairs, output.KeyValue{Key: "Description", Value: issue.Description})
-			}
-
-			printer.Detail(pairs)
-
-			if len(issue.Journals) > 0 {
-				fmt.Println()
-				for _, j := range issue.Journals {
-					if j.Notes != "" {
-						edited := ""
-						if j.UpdatedBy != nil {
-							edited = " (edited)"
-						}
-						fmt.Printf("--- %s (%s)%s [journal %d] ---\n%s\n\n", output.SanitizeTerminal(j.User.Name), output.SanitizeTerminal(j.CreatedOn), edited, j.ID, output.SanitizeTerminal(j.Notes))
-					}
-				}
-			}
+			printer.Detail(issueDetailRows(issue))
+			writeIssueSections(f.IOStreams.Out, issue)
 
 			if len(issue.Attachments) > 0 {
 				fmt.Println()
@@ -191,6 +153,7 @@ func NewCmdGet(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&journals, "journals", false, "Include issue history/comments (shorthand for --include journals)")
 	cmd.Flags().BoolVar(&children, "children", false, "Include child issues (shorthand for --include children)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
+	cmd.Flags().BoolVar(&watchers, "watchers", false, "Include the issue's watchers (shorthand for --include watchers)")
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include the issue's attachments (shorthand for --include attachments)")
 	cmd.Flags().StringVar(&downloadAttachments, "download-attachments", "", "Download every attachment of the issue into the given directory")
 	cmd.Flags().BoolVar(&clobber, "clobber", false, "Overwrite existing files when using --download-attachments")

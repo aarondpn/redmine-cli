@@ -103,10 +103,10 @@ func (p *StdPrinter) Detail(pairs []KeyValue) {
 	}
 	for _, kv := range clean {
 		if p.noColor {
-			fmt.Fprintf(p.out, "%-*s  %s\n", maxKeyLen, kv.Key+":", kv.Value)
+			fmt.Fprintf(p.out, "%-*s  %s\n", maxKeyLen+1, kv.Key+":", kv.Value)
 		} else {
 			fmt.Fprintf(p.out, "%s  %s\n",
-				StyleLabel.Render(fmt.Sprintf("%-*s", maxKeyLen, kv.Key+":")),
+				StyleLabel.Render(fmt.Sprintf("%-*s", maxKeyLen+1, kv.Key+":")),
 				kv.Value,
 			)
 		}

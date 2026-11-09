@@ -76,5 +76,8 @@ func renderAttachmentDetail(printer output.Printer, att *models.Attachment) {
 	if att.ContentURL != "" {
 		pairs = append(pairs, output.KeyValue{Key: "Content URL", Value: att.ContentURL})
 	}
+	if att.ThumbnailURL != "" {
+		pairs = append(pairs, output.KeyValue{Key: "Thumbnail URL", Value: att.ThumbnailURL})
+	}
 	printer.Detail(pairs)
 }

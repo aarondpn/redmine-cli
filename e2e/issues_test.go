@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestIssues_Lifecycle covers create → list → close → reopen.
@@ -105,6 +106,42 @@ func TestIssues_UpdateAndComment(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("journal did not contain comment %q; got %+v", commentBody, withJournals.Journals)
+	}
+}
+
+// TestIssues_GetTextShowsJournalDetails checks that the text view renders
+// property changes (journals without notes) and the --watchers shorthand.
+func TestIssues_GetTextShowsJournalDetails(t *testing.T) {
+	requireE2E(t)
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	proj := createTestProject(t, r)
+
+	var created struct {
+		ID int `json:"id"`
+	}
+	r.runJSON(t, &created, "issues", "create",
+		"--project", proj.Identifier,
+		"--tracker", firstTrackerName(t, r),
+		"--subject", "E2E text output "+time.Now().Format("150405.000"),
+		"--watcher", "me")
+	id := issueIDArg(created.ID)
+
+	r.run(t, "issues", "update", id, "--done-ratio", "40")
+
+	out := string(r.run(t, "issues", "get", id, "--journals", "--watchers", "--output", "table"))
+	if !strings.Contains(out, "* Done Ratio: 0 -> 40") {
+		t.Errorf("text output lacks the done ratio change:\n%s", out)
+	}
+	if !strings.Contains(out, "[journal ") {
+		t.Errorf("text output lacks the journal header:\n%s", out)
+	}
+	if !strings.Contains(out, "Watchers:") {
+		t.Errorf("text output lacks the Watchers row:\n%s", out)
+	}
+
+	plain := string(r.run(t, "issues", "get", id, "--output", "table"))
+	if strings.Contains(plain, "Watchers:") {
+		t.Errorf("Watchers row shown without --watchers:\n%s", plain)
 	}
 }
 

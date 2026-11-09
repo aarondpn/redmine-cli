@@ -1,18 +1,14 @@
 package issue
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
-// The table view prints comments with direct writes to os.Stdout, so the
-// test swaps it for a pipe.
 func TestCmdIssueGet_JournalHeaderShowsID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -22,24 +18,14 @@ func TestCmdIssueGet_JournalHeaderShowsID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	orig := os.Stdout
-	os.Stdout = w
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := NewCmdGet(f)
 	cmd.SetArgs([]string{"1", "--journals", "--output", "table"})
-	execErr := cmd.Execute()
-	os.Stdout = orig
-	_ = w.Close()
-	out, _ := io.ReadAll(r)
-	if execErr != nil {
-		t.Fatal(execErr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
 	}
 
-	got := string(out)
+	got := testutil.Stdout(f)
 	if !strings.Contains(got, "--- Alice (2026-01-01T00:00:00Z) [journal 41] ---") {
 		t.Errorf("missing journal 41 header in %q", got)
 	}
