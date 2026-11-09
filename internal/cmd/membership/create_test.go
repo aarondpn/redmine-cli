@@ -61,10 +61,14 @@ func TestMembershipCreate_RepeatedUserTable(t *testing.T) {
 	}
 }
 
-func TestMembershipCreate_SingleUserStaysCompatible(t *testing.T) {
-	for _, args := range [][]string{
-		{"--project", "demo", "--user-id", "5", "--role-ids", "3", "-o", "json"},
-		{"--project", "demo", "--user", "ann", "--role-ids", "3", "-o", "json"},
+func TestMembershipCreate_OutputShape(t *testing.T) {
+	for _, tt := range []struct {
+		args      []string
+		wantArray bool
+	}{
+		{[]string{"--project", "demo", "--user-id", "5", "--role-ids", "3", "-o", "json"}, false},
+		{[]string{"--project", "demo", "--user", "ann", "--role-ids", "3", "-o", "json"}, true},
+		{[]string{"--project", "demo", "--user", "ann", "--user", "5", "--role-ids", "3", "-o", "json"}, true},
 	} {
 		var writes []map[string]any
 		srv := testutil.RouteServer(t, map[string]string{
@@ -74,18 +78,29 @@ func TestMembershipCreate_SingleUserStaysCompatible(t *testing.T) {
 		}, &writes)
 		f := testutil.NewFactory(t, srv.URL)
 		cmd := newCmdMembershipCreate(f)
-		cmd.SetArgs(args)
+		cmd.SetArgs(tt.args)
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
 		}
+		// A single principal (also a repeated one) is sent as user_id.
 		testutil.RequireOneWrite(t, writes, map[string]any{
 			"membership": map[string]any{"user_id": 5.0, "role_ids": []any{3.0}},
 		})
-		var got struct {
-			ID int `json:"id"`
-		}
-		if err := json.Unmarshal([]byte(testutil.Stdout(f)), &got); err != nil || got.ID != 11 {
-			t.Errorf("%v: stdout = %s, want a single membership object", args, testutil.Stdout(f))
+		out := []byte(testutil.Stdout(f))
+		if tt.wantArray {
+			var got []struct {
+				ID int `json:"id"`
+			}
+			if err := json.Unmarshal(out, &got); err != nil || len(got) != 1 || got[0].ID != 11 {
+				t.Errorf("%v: stdout = %s, want an array with membership 11", tt.args, out)
+			}
+		} else {
+			var got struct {
+				ID int `json:"id"`
+			}
+			if err := json.Unmarshal(out, &got); err != nil || got.ID != 11 {
+				t.Errorf("%v: stdout = %s, want a single membership object", tt.args, out)
+			}
 		}
 	}
 }

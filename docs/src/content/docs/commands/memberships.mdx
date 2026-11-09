@@ -53,7 +53,7 @@ Adds a user or group, or several users at once, to a project with the specified 
 | Flag | Description |
 |------|-------------|
 | `--project`    | Project name, identifier, or ID — falls back to the default project of the active profile |
-| `--user`       | User to add: ID, login, name, or `me` (repeatable to add several users with the same roles in one request; names and logins are resolved through the admin-only users list) |
+| `--user`       | User to add: ID, login, name, or `me` (repeatable to add several users with the same roles in one request; names and logins are resolved through the admin-only users list; `-o json` prints an array) |
 | `--user-id`    | User ID to add |
 | `--group-id`   | Group ID to add |
 | `--role-ids`   | Comma-separated role IDs |
@@ -69,7 +69,9 @@ Adds a user or group, or several users at once, to a project with the specified 
 redmine memberships create --project myproject --user jdoe --user "Ann Lee" --user 7 --roles Developer
 ```
 
-With several `--user` flags the CLI sends one request with `membership[user_ids]`. Redmine answers for the first user only, so the CLI reads the project's memberships back and reports users that were not added as an error. `-o json` then prints an array with one membership per user, in flag order; a single `--user` (or `--user-id`) still prints one membership object.
+With several `--user` flags the CLI sends one request with `membership[user_ids]` (repeated users are sent once). Redmine adds all of them or none: if one user is invalid or already a member, the request fails with "Redmine rejected the batch, no member was added" and nobody is added. Add the users one at a time to see which one fails.
+
+With `--user`, `-o json` always prints an array with one membership per user, in flag order, even for a single `--user`. `--user-id` and `--group-id` print a single membership object.
 
 ## update
 

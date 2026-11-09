@@ -2,9 +2,13 @@ package cmdutil
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+const pwFlag = "password-file"
 
 func passwordFactory(in any) (*Factory, *bytes.Buffer) {
 	errOut := &bytes.Buffer{}
@@ -30,27 +34,47 @@ func TestReadNewPassword_FromPipe(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f, _ := passwordFactory(tt.in)
-		got, err := ReadNewPassword(f, "password-stdin")
+		got, err := ReadNewPassword(f, pwFlag, "-")
 		if err != nil || got != tt.want {
 			t.Errorf("ReadNewPassword(%q) = %q, %v; want %q", tt.in, got, err, tt.want)
 		}
 	}
 }
 
+func TestReadNewPassword_FromFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pw")
+	if err := os.WriteFile(path, []byte("file pass\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := passwordFactory("ignored stdin")
+	f.APIKeyFile = "-" // a file path does not compete for stdin
+	got, err := ReadNewPassword(f, pwFlag, path)
+	if err != nil || got != "file pass" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+
+	if _, err := ReadNewPassword(f, pwFlag, filepath.Join(t.TempDir(), "missing")); err == nil || !strings.HasPrefix(err.Error(), "--password-file:") {
+		t.Errorf("missing file: err = %v", err)
+	}
+	if _, err := ReadNewPassword(f, pwFlag, ""); err == nil || !strings.Contains(err.Error(), "file path is empty") {
+		t.Errorf("empty path: err = %v", err)
+	}
+}
+
 func TestReadNewPassword_Errors(t *testing.T) {
 	f, _ := passwordFactory("\n")
-	if _, err := ReadNewPassword(f, "password-stdin"); err == nil || !strings.Contains(err.Error(), "--password-stdin: standard input is empty") {
+	if _, err := ReadNewPassword(f, pwFlag, "-"); err == nil || !strings.Contains(err.Error(), "--password-file: standard input is empty") {
 		t.Errorf("empty: err = %v", err)
 	}
 
 	f, _ = passwordFactory(strings.Repeat("x", maxSecretFileSize+1))
-	if _, err := ReadNewPassword(f, "password-stdin"); err == nil || !strings.Contains(err.Error(), "larger than") {
+	if _, err := ReadNewPassword(f, pwFlag, "-"); err == nil || !strings.Contains(err.Error(), "larger than") {
 		t.Errorf("oversized: err = %v", err)
 	}
 
 	f, _ = passwordFactory("pw\n")
 	f.APIKeyFile = "-"
-	if _, err := ReadNewPassword(f, "password-stdin"); err == nil || !strings.Contains(err.Error(), "cannot both read from standard input") {
+	if _, err := ReadNewPassword(f, pwFlag, "-"); err == nil || !strings.Contains(err.Error(), "cannot both read from standard input") {
 		t.Errorf("stdin shared with --api-key-file -: err = %v", err)
 	}
 }
@@ -79,7 +103,7 @@ func withFakeTerminal(t *testing.T, answers ...string) {
 func TestReadNewPassword_TerminalPromptsTwice(t *testing.T) {
 	withFakeTerminal(t, "s3cret pw", "s3cret pw")
 	f, errOut := passwordFactory(&fakeTTY{})
-	got, err := ReadNewPassword(f, "password-stdin")
+	got, err := ReadNewPassword(f, pwFlag, "-")
 	if err != nil || got != "s3cret pw" {
 		t.Fatalf("got %q, %v", got, err)
 	}
@@ -91,7 +115,7 @@ func TestReadNewPassword_TerminalPromptsTwice(t *testing.T) {
 func TestReadNewPassword_TerminalMismatch(t *testing.T) {
 	withFakeTerminal(t, "one", "two")
 	f, _ := passwordFactory(&fakeTTY{})
-	if _, err := ReadNewPassword(f, "password-stdin"); err == nil || !strings.Contains(err.Error(), "do not match") {
+	if _, err := ReadNewPassword(f, pwFlag, "-"); err == nil || !strings.Contains(err.Error(), "do not match") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -99,7 +123,7 @@ func TestReadNewPassword_TerminalMismatch(t *testing.T) {
 func TestReadNewPassword_TerminalEmpty(t *testing.T) {
 	withFakeTerminal(t, "")
 	f, _ := passwordFactory(&fakeTTY{})
-	if _, err := ReadNewPassword(f, "password-stdin"); err == nil || !strings.Contains(err.Error(), "empty") {
+	if _, err := ReadNewPassword(f, pwFlag, "-"); err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("err = %v", err)
 	}
 }

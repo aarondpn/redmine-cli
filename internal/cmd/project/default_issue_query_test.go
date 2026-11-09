@@ -6,7 +6,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/testutil"
 )
 
-const queriesJSON = `{"queries":[{"id":3,"name":"Open bugs","is_public":true},{"id":8,"name":"Sprint","is_public":true,"project_id":7}],"total_count":2}`
+const queriesJSON = `{"queries":[{"id":3,"name":"Open bugs","is_public":true},{"id":8,"name":"Sprint","is_public":true,"project_id":7},{"id":9,"name":"Open bugs","is_public":true,"project_id":7}],"total_count":3}`
 
 func TestProjectCreate_DefaultIssueQueryByName(t *testing.T) {
 	var writes []map[string]any
@@ -23,6 +23,17 @@ func TestProjectCreate_DefaultIssueQueryByName(t *testing.T) {
 	testutil.RequireOneWrite(t, writes, map[string]any{
 		"project": map[string]any{"name": "Demo", "identifier": "demo", "default_issue_query_id": 3.0},
 	})
+}
+
+func TestProjectCreate_DefaultIssueQueryIgnoresProjectQueries(t *testing.T) {
+	var writes []map[string]any
+	srv := testutil.RouteServer(t, map[string]string{"GET /queries.json": queriesJSON}, &writes)
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdCreate(f)
+	cmd.SetArgs([]string{"--name", "Demo", "--identifier", "demo", "--default-issue-query", "Sprint"})
+	if err := cmd.Execute(); err == nil || len(writes) != 0 {
+		t.Fatalf("a project query name must not resolve on create: err = %v, writes = %v", err, writes)
+	}
 }
 
 func TestProjectUpdate_DefaultIssueQuery(t *testing.T) {

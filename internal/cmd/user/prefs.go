@@ -20,10 +20,11 @@ const (
 	prefFlagUsage = "User preference as key=value (repeatable). Common keys: hide_mail (1 or 0), " +
 		"time_zone (a Rails time zone name such as Berlin or UTC, empty for the server default), " +
 		"comments_sorting (asc or desc), no_self_notified (1 or 0), warn_on_leaving_unsaved (1 or 0). " +
-		"Other keys depend on the Redmine version; Redmine ignores keys it does not know"
+		"Other keys depend on the Redmine version; Redmine ignores keys it does not know, and list-valued keys are not supported " +
+		"(write-only: no API response returns it)"
 	languageFlagUsage         = "Interface language code such as en, de or pt-BR, empty for the server default (write-only: no API response returns it)"
-	notifiedProjectFlagUsage  = "Project (identifier, name, or ID) to get all notifications for with --mail-notification selected; only projects with a membership count (repeatable, replaces the current set, \"\" clears it)"
-	mailNotificationFlagUsage = "Email notification preference (all, selected, only_my_events, only_assigned, only_owner, none)"
+	notifiedProjectFlagUsage  = "Project (identifier, name, or ID) to get all notifications for with --mail-notification selected; only projects with a membership count (repeatable, replaces the current set, \"\" clears it; write-only: no API response returns it)"
+	mailNotificationFlagUsage = "Email notification preference (all, selected, only_my_events, only_assigned, only_owner, only_my_watches, none; only_my_watches needs Redmine 7.0+)"
 	notifiedProjectsHint      = "; selected notifies about the --notified-project set"
 )
 
@@ -64,9 +65,18 @@ func ParsePrefs(raws []string) (models.UserPreferences, error) {
 	if err != nil {
 		return nil, err
 	}
-	for key := range pairs {
+	for key, value := range pairs {
 		if strings.ContainsAny(key, " \t[]") {
 			return nil, fmt.Errorf("--pref key %q is not a preference name (use key=value, e.g. hide_mail=1)", key)
+		}
+		// Redmine stores the text as given, and most boolean preferences
+		// only read "1" as on, so "true" would silently mean off.
+		if v := strings.ToLower(strings.TrimSpace(value)); v == "true" || v == "false" {
+			hint := "0"
+			if v == "true" {
+				hint = "1"
+			}
+			return nil, fmt.Errorf("--pref %s=%s: use %s=%s; Redmine preferences take 1 or 0, and it would store %q as text", key, value, key, hint, value)
 		}
 	}
 	return models.UserPreferences(pairs), nil

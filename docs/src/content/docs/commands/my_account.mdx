@@ -42,9 +42,9 @@ Alias: `edit`. Updates your own account. Only flags you explicitly set are sent 
 | `--lastname`          | New last name |
 | `--mail`              | New email address |
 | `--language`          | Interface language code such as `en`, `de` or `pt-BR`; empty for the server default. Write-only: no API response returns it |
-| `--mail-notification` | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `none`. `selected` notifies about the `--notified-project` set |
-| `--notified-project`  | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects you are a member of count. Replaces the current set; `""` clears it |
-| `--pref`              | Preference as `key=value` (repeatable), for example `no_self_notified=1`, `hide_mail=1`, `time_zone=Berlin`, `comments_sorting=desc`. See [user preferences](/commands/users/#preferences) for the keys |
+| `--mail-notification` | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `only_my_watches` (Redmine 7.0+), `none`. `selected` notifies about the `--notified-project` set |
+| `--notified-project`  | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects you are a member of count. Replaces the current set; `""` clears it. Write-only: no API response returns it |
+| `--pref`              | Preference as `key=value` (repeatable), for example `no_self_notified=1`, `hide_mail=1`, `time_zone=Berlin`, `comments_sorting=desc`. Write-only: no API response returns it. See [user preferences](/commands/users/#preferences) for the keys |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 ```bash

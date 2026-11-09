@@ -193,39 +193,67 @@ func TestCreateMemberships_BulkReadsBackEveryPrincipal(t *testing.T) {
 	}
 }
 
-func TestCreateMemberships_BulkReportsMissingPrincipals(t *testing.T) {
+func TestCreateMemberships_BulkDedupesIDs(t *testing.T) {
+	var posted map[string]any
+	lists := 0
+	client := membershipServer(t, http.StatusCreated, `{"membership":`+membership5+`}`,
+		`{"memberships":[`+membership5+`,`+membership6+`],"total_count":2}`, &posted, &lists)
+
+	ms, err := CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 6, 5}, RoleIDs: []int{3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"membership": map[string]any{"user_ids": []any{5.0, 6.0}, "role_ids": []any{3.0}}}
+	if !reflect.DeepEqual(posted, want) || len(ms) != 2 {
+		t.Errorf("body = %v, memberships = %+v", posted, ms)
+	}
+
+	// Duplicates of a single principal collapse to user_id.
+	if _, err := CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 5}, RoleIDs: []int{3}}); err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]any{"membership": map[string]any{"user_id": 5.0, "role_ids": []any{3.0}}}; !reflect.DeepEqual(posted, want) {
+		t.Errorf("body = %v", posted)
+	}
+}
+
+func TestCreateMemberships_BulkRejectedBatch(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		status  int
+		reply   string
+		wantMsg string
+	}{
+		{"422", http.StatusUnprocessableEntity, `{"errors":["User has already been taken"]}`, "(Redmine: User has already been taken)"},
+		{"500 for an invalid later principal", http.StatusInternalServerError, ``, BatchRejectedMessage},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var posted map[string]any
+			lists := 0
+			client := membershipServer(t, tt.status, tt.reply, `{"memberships":[]}`, &posted, &lists)
+			_, err := CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 6}, RoleIDs: []int{3}})
+			var apiErr *api.APIError
+			if !errors.As(err, &apiErr) || !apiErr.IsValidationError() {
+				t.Fatalf("err = %v, want a validation error", err)
+			}
+			if !strings.Contains(err.Error(), BatchRejectedMessage) || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Errorf("err = %v", err)
+			}
+			if lists != 0 {
+				t.Errorf("a rejected batch must not be read back (list calls %d)", lists)
+			}
+		})
+	}
+}
+
+func TestCreateMemberships_BulkReadBackMissingPrincipal(t *testing.T) {
 	var posted map[string]any
 	lists := 0
 	client := membershipServer(t, http.StatusCreated, `{"membership":`+membership5+`}`,
 		`{"memberships":[`+membership5+`],"total_count":1}`, &posted, &lists)
-
-	_, err := CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 6, 7}, RoleIDs: []int{3}})
-	if err == nil || !strings.Contains(err.Error(), "principal IDs 6, 7 were not added to project demo") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestCreateMemberships_BulkValidationErrorStillReadsBack(t *testing.T) {
-	var posted map[string]any
-	lists := 0
-	client := membershipServer(t, http.StatusUnprocessableEntity, `{"errors":["User has already been taken"]}`,
-		`{"memberships":[`+membership5+`],"total_count":1}`, &posted, &lists)
-
 	_, err := CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 6}, RoleIDs: []int{3}})
-	var apiErr *api.APIError
-	if err == nil || !strings.Contains(err.Error(), "principal IDs 6 were not added") || !errors.As(err, &apiErr) || !apiErr.IsValidationError() {
-		t.Fatalf("err = %v, want the missing principal and the wrapped 422", err)
-	}
-	if lists != 1 {
-		t.Errorf("list calls = %d, want 1", lists)
-	}
-
-	// Every principal present: the 422 (about the first) is returned as is.
-	client = membershipServer(t, http.StatusUnprocessableEntity, `{"errors":["User has already been taken"]}`,
-		`{"memberships":[`+membership5+`,`+membership6+`],"total_count":2}`, &posted, &lists)
-	_, err = CreateMemberships(context.Background(), client, CreateMembershipInput{ProjectID: "demo", UserIDs: []int{5, 6}, RoleIDs: []int{3}})
-	if !errors.As(err, &apiErr) || strings.Contains(err.Error(), "were not added") {
-		t.Fatalf("err = %v, want the plain 422", err)
+	if err == nil || !strings.Contains(err.Error(), "lists none for principal 6") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

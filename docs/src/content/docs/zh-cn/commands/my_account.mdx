@@ -42,9 +42,9 @@ redmine my-account update [flags]
 | `--lastname`          | 新的姓 |
 | `--mail`              | 新的邮箱地址 |
 | `--language`          | 界面语言代码，例如 `en`、`de` 或 `pt-BR`；留空表示使用服务器默认值。只写：没有任何 API 响应会返回该值 |
-| `--mail-notification` | 邮件通知偏好：`all`、`selected`、`only_my_events`、`only_assigned`、`only_owner`、`none`。`selected` 针对 `--notified-project` 指定的项目发送通知 |
-| `--notified-project`  | 在 `--mail-notification selected` 下接收全部通知的项目（标识符、名称或 ID，可重复）。仅统计你是成员的项目。替换当前集合；`""` 表示清空 |
-| `--pref`              | 偏好设置，格式为 `key=value`（可重复），例如 `no_self_notified=1`、`hide_mail=1`、`time_zone=Berlin`、`comments_sorting=desc`。可用的键参见[用户偏好设置](/zh-cn/commands/users/#偏好设置) |
+| `--mail-notification` | 邮件通知偏好：`all`、`selected`、`only_my_events`、`only_assigned`、`only_owner`、`only_my_watches`（Redmine 7.0+）、`none`。`selected` 针对 `--notified-project` 指定的项目发送通知 |
+| `--notified-project`  | 在 `--mail-notification selected` 下接收全部通知的项目（标识符、名称或 ID，可重复）。仅统计你是成员的项目。替换当前集合；`""` 表示清空。只写：没有任何 API 响应会返回该值 |
+| `--pref`              | 偏好设置，格式为 `key=value`（可重复），例如 `no_self_notified=1`、`hide_mail=1`、`time_zone=Berlin`、`comments_sorting=desc`。只写：没有任何 API 响应会返回该值。可用的键参见[用户偏好设置](/zh-cn/commands/users/#偏好设置) |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 ```bash

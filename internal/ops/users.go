@@ -43,17 +43,17 @@ type CreateUserInput struct {
 	Admin             bool                     `json:"admin,omitempty" jsonschema:"Grant admin privileges."`
 	Status            *int                     `json:"status,omitempty" jsonschema:"Initial numeric status code (1 active, 2 registered, 3 locked). Redmine creates active users by default."`
 	Language          *string                  `json:"language,omitempty" jsonschema:"Interface language code such as 'en', 'de' or 'pt-BR'. Write-only: no API response returns it."`
-	MailNotification  *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'selected', 'only_my_events', 'only_assigned', 'only_owner', or 'none'."`
+	MailNotification  *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'selected', 'only_my_events', 'only_assigned', 'only_owner', 'only_my_watches' (Redmine 7.0+), or 'none'."`
 	MustChangePasswd  *bool                    `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
 	GeneratePassword  *bool                    `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
 	AuthSourceID      *int                     `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
 	SendInformation   bool                     `json:"send_information,omitempty" jsonschema:"Email the account info to the new user."`
 	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"User custom field values keyed by numeric custom field ID (list_custom_fields, customized_type user). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
-	Pref              models.UserPreferences   `json:"pref,omitempty" jsonschema:"User preferences, sent as Redmine's top-level pref object: preference name to string value. Common keys: hide_mail ('1' hides the email address from other users, '0' shows it), time_zone (a Rails time zone name such as 'Berlin' or 'UTC'; '' uses the server default), comments_sorting ('asc' or 'desc'), no_self_notified ('1' skips notifications about the user's own changes, '0' sends them), warn_on_leaving_unsaved ('1' or '0'). Newer Redmine versions add keys such as auto_watch_on or default_issue_query (5.0+); Redmine silently ignores keys it does not know."`
+	Pref              models.UserPreferences   `json:"pref,omitempty" jsonschema:"User preferences, sent as Redmine's top-level pref object: preference name to string value. Common keys: hide_mail ('1' hides the email address from other users, '0' shows it), time_zone (a Rails time zone name such as 'Berlin' or 'UTC'; '' uses the server default), comments_sorting ('asc' or 'desc'), no_self_notified ('1' skips notifications about the user's own changes, '0' sends them), warn_on_leaving_unsaved ('1' or '0'). Booleans are '1' or '0', not 'true' or 'false'. Newer Redmine versions add keys such as default_issue_query (5.0+); Redmine silently ignores keys it does not know. List-valued preference keys are not supported. Write-only: no API response returns preferences."`
 }
 
 // UpdateUserInput is the update_user tool input. Password is set only by the
-// CLI (--password-stdin); it has no JSON name, so the MCP schema does not
+// CLI (--password-file); it has no JSON name, so the MCP schema does not
 // offer it and agents cannot set user passwords.
 type UpdateUserInput struct {
 	ID                 int                      `json:"id" jsonschema:"Numeric user ID to update."`
@@ -63,14 +63,14 @@ type UpdateUserInput struct {
 	Admin              *bool                    `json:"admin,omitempty" jsonschema:"Toggle admin privileges."`
 	Status             *int                     `json:"status,omitempty" jsonschema:"Numeric status code (1 active, 2 registered, 3 locked)."`
 	Language           *string                  `json:"language,omitempty" jsonschema:"Interface language code such as 'en', 'de' or 'pt-BR'; an empty string resets it to the server default. Write-only: no API response returns it."`
-	MailNotification   *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'selected', 'only_my_events', 'only_assigned', 'only_owner', or 'none'. 'selected' notifies about the projects in notified_project_ids."`
+	MailNotification   *string                  `json:"mail_notification,omitempty" jsonschema:"Email notification preference: 'all', 'selected', 'only_my_events', 'only_assigned', 'only_owner', 'only_my_watches' (Redmine 7.0+), or 'none'. 'selected' notifies about the projects in notified_project_ids."`
 	NotifiedProjectIDs *[]int                   `json:"notified_project_ids,omitempty" jsonschema:"Numeric IDs of the projects to get all notifications for when mail_notification is 'selected'. Only projects the user is a member of count. Replaces the current set; an empty list clears it."`
 	GroupIDs           *[]int                   `json:"group_ids,omitempty" jsonschema:"Numeric group IDs the user belongs to (list_groups). Replaces the user's current groups; an empty list removes the user from all groups."`
 	MustChangePasswd   *bool                    `json:"must_change_passwd,omitempty" jsonschema:"Force the user to change their password on next login."`
 	GeneratePassword   *bool                    `json:"generate_password,omitempty" jsonschema:"Server generates a random password."`
 	AuthSourceID       *int                     `json:"auth_source_id,omitempty" jsonschema:"Numeric authentication source ID for external auth."`
 	CustomFieldValues  models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"User custom field values keyed by numeric custom field ID (list_custom_fields, customized_type user). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
-	Pref               models.UserPreferences   `json:"pref,omitempty" jsonschema:"User preferences, sent as Redmine's top-level pref object: preference name to string value. Common keys: hide_mail ('1' hides the email address from other users, '0' shows it), time_zone (a Rails time zone name such as 'Berlin' or 'UTC'; '' uses the server default), comments_sorting ('asc' or 'desc'), no_self_notified ('1' skips notifications about the user's own changes, '0' sends them), warn_on_leaving_unsaved ('1' or '0'). Newer Redmine versions add keys such as auto_watch_on or default_issue_query (5.0+); Redmine silently ignores keys it does not know."`
+	Pref               models.UserPreferences   `json:"pref,omitempty" jsonschema:"User preferences, sent as Redmine's top-level pref object: preference name to string value. Common keys: hide_mail ('1' hides the email address from other users, '0' shows it), time_zone (a Rails time zone name such as 'Berlin' or 'UTC'; '' uses the server default), comments_sorting ('asc' or 'desc'), no_self_notified ('1' skips notifications about the user's own changes, '0' sends them), warn_on_leaving_unsaved ('1' or '0'). Booleans are '1' or '0', not 'true' or 'false'. Newer Redmine versions add keys such as default_issue_query (5.0+); Redmine silently ignores keys it does not know. List-valued preference keys are not supported. Write-only: no API response returns preferences."`
 
 	// Password is the new password (CLI only, never part of the MCP schema).
 	// It is sent together with an identical password_confirmation.

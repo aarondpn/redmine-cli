@@ -623,6 +623,26 @@ func ResolveQueryOfType(ctx context.Context, client *api.Client, input, projectI
 	}
 }
 
+// ResolveGlobalQuery resolves a saved issue query that belongs to no project
+// by numeric ID or name (case-insensitive). Queries of a project are not
+// candidates, so their names can neither match nor make a match ambiguous.
+// A numeric input is used as given, without a lookup.
+func ResolveGlobalQuery(ctx context.Context, client *api.Client, input string) (int, error) {
+	return Resolve(input, "global query", client, func() ([]Option, error) {
+		queries, _, err := client.Queries.List(ctx, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch saved queries: %w", err)
+		}
+		var opts []Option
+		for _, q := range queries {
+			if q.ProjectID == nil {
+				opts = append(opts, Option{ID: q.ID, Name: q.Name})
+			}
+		}
+		return opts, nil
+	})
+}
+
 // ResolvePriority resolves a priority by name or numeric ID.
 func ResolvePriority(ctx context.Context, client *api.Client, input string) (int, error) {
 	return Resolve(input, "priority", client, func() ([]Option, error) {

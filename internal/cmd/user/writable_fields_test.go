@@ -40,13 +40,13 @@ func TestUserCreate_RejectsMalformedPref(t *testing.T) {
 	}
 }
 
-func TestUserUpdate_PasswordFromStdin(t *testing.T) {
+func TestUserUpdate_PasswordFileFromStdin(t *testing.T) {
 	var writes []map[string]any
 	srv := testutil.RouteServer(t, map[string]string{"PUT /users/7.json": ""}, &writes)
 	f := testutil.NewFactory(t, srv.URL)
 	f.IOStreams.In = bytes.NewBufferString("n3w secret\n")
 	cmd := newCmdUserUpdate(f)
-	cmd.SetArgs([]string{"7", "--password-stdin"})
+	cmd.SetArgs([]string{"7", "--password-file", "-"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,13 +55,13 @@ func TestUserUpdate_PasswordFromStdin(t *testing.T) {
 	})
 }
 
-func TestUserUpdate_PasswordStdinValidation(t *testing.T) {
+func TestUserUpdate_PasswordFileValidation(t *testing.T) {
 	var writes []map[string]any
 	srv := testutil.RouteServer(t, map[string]string{}, &writes)
 
 	f := testutil.NewFactory(t, srv.URL)
 	cmd := newCmdUserUpdate(f)
-	cmd.SetArgs([]string{"7", "--password-stdin"})
+	cmd.SetArgs([]string{"7", "--password-file", "-"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "standard input is empty") {
 		t.Errorf("empty stdin: err = %v", err)
 	}
@@ -69,7 +69,7 @@ func TestUserUpdate_PasswordStdinValidation(t *testing.T) {
 	f = testutil.NewFactory(t, srv.URL)
 	f.IOStreams.In = bytes.NewBufferString("pw\n")
 	cmd = newCmdUserUpdate(f)
-	cmd.SetArgs([]string{"7", "--password-stdin", "--generate-password"})
+	cmd.SetArgs([]string{"7", "--password-file", "-", "--generate-password"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "none of the others can be") {
 		t.Errorf("with --generate-password: err = %v", err)
 	}

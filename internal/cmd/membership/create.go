@@ -29,9 +29,11 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 		Aliases: []string{"add", "new"},
 		Short:   "Add a member to a project",
 		Long: "Create a new membership, adding a user or group to a project with specified roles.\n\n" +
-			"Repeat --user to add several users with the same roles in one request. Redmine answers for the first " +
-			"user only, so the memberships are read back afterwards; users Redmine did not add are reported as an error. " +
-			"With several users, -o json prints an array of memberships.",
+			"Repeat --user to add several users with the same roles in one request. Redmine adds all of them or none: " +
+			"if one user is invalid or already a member, the request fails and nobody is added; add the users one at a time " +
+			"to see which one fails.\n\n" +
+			"With --user, -o json always prints an array of memberships (one per user, in flag order), even for a single user; " +
+			"--user-id and --group-id print a single membership object.",
 		Example: `  # Add a user with roles
   redmine memberships create --project myproject --user-id 5 --role-ids 1,2
 
@@ -80,11 +82,7 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if len(ids) == 1 {
-					input.UserID = ids[0]
-				} else {
-					input.UserIDs = ids
-				}
+				input.UserIDs = ids
 			default:
 				input.UserID = userID
 			}
@@ -97,22 +95,28 @@ func newCmdMembershipCreate(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 
+			// --user always yields an array, so scripts get one shape no
+			// matter how many users they pass.
+			var result any = memberships[0]
+			if len(users) > 0 {
+				result = memberships
+			}
 			if len(memberships) == 1 {
 				m := memberships[0]
-				printer.Resource(m, fmt.Sprintf("Created membership (ID: %d) for %s in project %s", m.ID, memberName(m), m.Project.Name))
+				printer.Resource(result, fmt.Sprintf("Created membership (ID: %d) for %s in project %s", m.ID, memberName(m), m.Project.Name))
 				return nil
 			}
 			names := make([]string, len(memberships))
 			for i, m := range memberships {
 				names[i] = fmt.Sprintf("%s (membership %d)", memberName(m), m.ID)
 			}
-			printer.Resource(memberships, fmt.Sprintf("Added %d members to project %s: %s", len(memberships), memberships[0].Project.Name, strings.Join(names, ", ")))
+			printer.Resource(result, fmt.Sprintf("Added %d members to project %s: %s", len(memberships), memberships[0].Project.Name, strings.Join(names, ", ")))
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&project, "project", "", "Project name, identifier, or ID (required)")
-	cmd.Flags().StringArrayVar(&users, "user", nil, "User to add: ID, login, name, or 'me' (repeatable to add several users with the same roles)")
+	cmd.Flags().StringArrayVar(&users, "user", nil, "User to add: ID, login, name, or 'me' (repeatable to add several users with the same roles; -o json prints an array)")
 	cmd.Flags().IntVar(&userID, "user-id", 0, "User ID to add")
 	cmd.Flags().IntVar(&groupID, "group-id", 0, "Group ID to add")
 	cmd.Flags().IntSliceVar(&roleIDs, "role-ids", nil, "Role IDs to assign")

@@ -5,6 +5,8 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,17 +20,17 @@ import (
 // notified projects, twofa_required, default_issue_query_id), so the tests
 // read them back through their visible effect where one exists.
 
-// TestUserUpdate_PasswordStdin sets a new password from standard input and
-// logs in with it.
-func TestUserUpdate_PasswordStdin(t *testing.T) {
+// TestUserUpdate_PasswordFile sets a new password from standard input and
+// from a file and logs in with it.
+func TestUserUpdate_PasswordFile(t *testing.T) {
 	requireE2E(t)
 	admin := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
 	user := createTestUser(t, admin)
 	newPassword := "New-" + uniqueShortSuffix(t) + "-9z"
 
-	stdout, stderr, err := runWithStdin(admin, newPassword+"\n", "users", "update", strconv.Itoa(user.ID), "--password-stdin")
+	stdout, stderr, err := runWithStdin(admin, newPassword+"\n", "users", "update", strconv.Itoa(user.ID), "--password-file", "-")
 	if err != nil {
-		t.Fatalf("users update --password-stdin: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("users update --password-file -: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 
 	var me struct {
@@ -42,12 +44,25 @@ func TestUserUpdate_PasswordStdin(t *testing.T) {
 		t.Errorf("the old password still works or fails differently:\n%s", stderr)
 	}
 
-	_, stderr, err = runWithStdin(admin, "", "users", "update", strconv.Itoa(user.ID), "--password-stdin")
+	// From a file, with the trailing newline an editor leaves.
+	filePassword := "File-" + uniqueShortSuffix(t) + "-8y"
+	pwPath := filepath.Join(t.TempDir(), "password")
+	if err := os.WriteFile(pwPath, []byte(filePassword+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var env actionEnvelope
+	admin.runJSON(t, &env, "users", "update", strconv.Itoa(user.ID), "--password-file", pwPath)
+	newCLIRunnerBasicAuth(t, e2eBaseURL(), user.Login, filePassword).runJSON(t, &me, "users", "me")
+	if me.Login != user.Login {
+		t.Fatalf("login with the password from the file returned %q", me.Login)
+	}
+
+	_, stderr, err = runWithStdin(admin, "", "users", "update", strconv.Itoa(user.ID), "--password-file", "-")
 	if err == nil || !strings.Contains(string(stderr), "standard input is empty") {
 		t.Errorf("empty stdin: err = %v\nstderr:\n%s", err, stderr)
 	}
 	// Redmine's password rules surface as a validation error.
-	_, stderr, err = runWithStdin(admin, "short\n", "users", "update", strconv.Itoa(user.ID), "--password-stdin")
+	_, stderr, err = runWithStdin(admin, "short\n", "users", "update", strconv.Itoa(user.ID), "--password-file", "-")
 	if err == nil || !strings.Contains(string(stderr), "validation_failed") {
 		t.Errorf("too short a password: err = %v\nstderr:\n%s", err, stderr)
 	}
@@ -68,9 +83,10 @@ func TestUserCreate_StatusLanguagePref(t *testing.T) {
 		t.Errorf("status of a user created with --status 3 = %d", got.Status)
 	}
 
-	// hide_mail decides whether other non-admin users see the address. A
+	// hide_mail decides whether other non-admin users see the address.
+	// Redmine's default hides it, so the user is created with hide_mail=0. A
 	// shared project makes the two users visible to each other.
-	hidden := createTestUser(t, admin, "--language", "de", "--pref", "hide_mail=1")
+	hidden := createTestUser(t, admin, "--language", "de", "--pref", "hide_mail=0")
 	viewer := createTestUser(t, admin)
 	shared := createTestProject(t, admin)
 	addProjectMember(t, admin, shared.Identifier, "--user-id", hidden.ID, firstRoleID(t, admin))
@@ -83,13 +99,13 @@ func TestUserCreate_StatusLanguagePref(t *testing.T) {
 		viewerRunner.runJSON(t, &u, "users", "get", strconv.Itoa(hidden.ID))
 		return u.Mail
 	}
-	if mail := mailSeen(); mail != "" {
-		t.Errorf("--pref hide_mail=1: another user still sees %q", mail)
+	if mail := mailSeen(); mail != hidden.Mail {
+		t.Errorf("created with --pref hide_mail=0: another user sees %q, want %q", mail, hidden.Mail)
 	}
 	var env actionEnvelope
-	admin.runJSON(t, &env, "users", "update", strconv.Itoa(hidden.ID), "--pref", "hide_mail=0")
-	if mail := mailSeen(); mail != hidden.Mail {
-		t.Errorf("--pref hide_mail=0: another user sees %q, want %q", mail, hidden.Mail)
+	admin.runJSON(t, &env, "users", "update", strconv.Itoa(hidden.ID), "--pref", "hide_mail=1")
+	if mail := mailSeen(); mail != "" {
+		t.Errorf("--pref hide_mail=1: another user still sees %q", mail)
 	}
 
 	// The language shows in the user's own validation messages.
@@ -157,14 +173,24 @@ func TestMyAccountUpdate_LanguagePrefNotifiedProjects(t *testing.T) {
 	user := createTestUser(t, admin)
 	proj := createTestProject(t, admin)
 	addProjectMember(t, admin, proj.Identifier, "--user-id", user.ID, firstRoleID(t, admin))
+	viewer := createTestUser(t, admin)
+	addProjectMember(t, admin, proj.Identifier, "--user-id", viewer.ID, firstRoleID(t, admin))
 	r := newCLIRunnerBasicAuth(t, e2eBaseURL(), user.Login, user.Password)
 
 	var env actionEnvelope
 	r.runJSON(t, &env, "my-account", "update",
 		"--mail-notification", "selected", "--notified-project", proj.Identifier,
-		"--pref", "no_self_notified=1", "--pref", "hide_mail=1", "--language", "de")
+		"--pref", "no_self_notified=1", "--pref", "hide_mail=0", "--language", "de")
 	if !env.Ok {
 		t.Fatalf("envelope = %+v", env)
+	}
+	// Redmine hides addresses by default; hide_mail=0 shows it to co-members.
+	var seen struct {
+		Mail string `json:"mail"`
+	}
+	newCLIRunnerBasicAuth(t, e2eBaseURL(), viewer.Login, viewer.Password).runJSON(t, &seen, "users", "get", strconv.Itoa(user.ID))
+	if seen.Mail != user.Mail {
+		t.Errorf("my-account --pref hide_mail=0: another member sees %q, want %q", seen.Mail, user.Mail)
 	}
 	var got struct {
 		MailNotification string `json:"mail_notification"`
@@ -301,19 +327,45 @@ func TestMemberships_CreateSeveralUsers(t *testing.T) {
 		}
 	}
 
-	// A single --user still prints one membership object.
-	var single struct {
+	// A single --user prints an array too; --user-id keeps the object.
+	var single []struct {
 		ID int `json:"id"`
 	}
 	r.runJSON(t, &single, "memberships", "create", "--project", proj.Identifier, "--user", u3.Login, "--role-ids", roleID)
-	if single.ID == 0 {
-		t.Fatalf("single --user output = %+v", single)
+	if len(single) != 1 || single[0].ID == 0 {
+		t.Fatalf("single --user output = %+v, want an array with one membership", single)
 	}
 
-	stderr := r.runExpectJSONError(t, "memberships", "create", "--project", proj.Identifier,
-		"--user", strconv.Itoa(u1.ID), "--user", "999999", "--role-ids", roleID)
-	if !strings.Contains(string(stderr), "999999") || !strings.Contains(string(stderr), "were not added") {
-		t.Errorf("unknown principal in a bulk request: stderr =\n%s", stderr)
+	// Redmine adds the batch all or nothing: a valid first user followed by
+	// an unknown one (Redmine answers 500) or by an existing member (422)
+	// adds nobody.
+	for _, tt := range []struct {
+		name   string
+		second string
+	}{
+		{"unknown principal", "999999"},
+		{"existing member", strconv.Itoa(u1.ID)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fresh := createTestUser(t, r)
+			stderr := r.runExpectJSONError(t, "memberships", "create", "--project", proj.Identifier,
+				"--user", strconv.Itoa(fresh.ID), "--user", tt.second, "--role-ids", roleID)
+			env := requireErrorEnvelopeMessage(t, stderr)
+			if env.Error.Code != "validation_failed" || !strings.Contains(env.Error.Message, "Redmine rejected the batch, no member was added") {
+				t.Errorf("error envelope = %+v", env)
+			}
+			var list []struct {
+				User *struct {
+					ID int `json:"id"`
+				} `json:"user"`
+			}
+			r.runJSON(t, &list, "memberships", "list", "--project", proj.Identifier)
+			for _, m := range list {
+				if m.User != nil && m.User.ID == fresh.ID {
+					t.Errorf("user %d was added although the batch was rejected", fresh.ID)
+				}
+			}
+		})
 	}
 }
 
@@ -349,7 +401,7 @@ func TestMCPStdio_WritableFields(t *testing.T) {
 		addProjectMember(t, r, shared.Identifier, "--user-id", other.ID, firstRoleID(t, r))
 		mcpCallOK(t, ctx, session, "update_user", map[string]any{
 			"id": user.ID, "group_ids": []int{group.ID}, "language": "de",
-			"pref": map[string]any{"hide_mail": "1", "time_zone": "Berlin"},
+			"pref": map[string]any{"hide_mail": "0", "time_zone": "Berlin"},
 		})
 		var u struct {
 			Groups []struct {
@@ -364,8 +416,8 @@ func TestMCPStdio_WritableFields(t *testing.T) {
 			Mail string `json:"mail"`
 		}
 		newCLIRunnerBasicAuth(t, e2eBaseURL(), other.Login, other.Password).runJSON(t, &seen, "users", "get", strconv.Itoa(user.ID))
-		if seen.Mail != "" {
-			t.Errorf("pref hide_mail=1 via MCP: mail still visible (%q)", seen.Mail)
+		if seen.Mail != user.Mail {
+			t.Errorf("pref hide_mail=0 via MCP: another user sees %q, want %q", seen.Mail, user.Mail)
 		}
 	})
 

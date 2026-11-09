@@ -103,16 +103,16 @@ redmine users create [flags]
 | `--admin`              | Grant admin privileges |
 | `--status`             | Initial status: `1` active (Redmine's default), `2` registered, `3` locked |
 | `--language`           | Interface language code such as `en`, `de` or `pt-BR`. Write-only: no API response returns it |
-| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `only_my_watches` (Redmine 7.0+), `none` |
 | `--must-change-passwd` | Force the user to change their password on next login |
 | `--generate-password`  | Let the server generate a random password (omit `--password`) |
 | `--auth-source-id`     | Numeric authentication source ID for external auth |
 | `--send-information`   | Email the account info to the new user |
-| `--pref`               | User preference as `key=value` (repeatable). See [preferences](#preferences) |
+| `--pref`               | User preference as `key=value` (repeatable). Write-only: no API response returns it. See [preferences](#preferences) |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
 
 <Aside type="caution" title="Passwords on the command line">
-  Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or set the password afterwards with `users update --password-stdin`.
+  Passing `--password` on the command line may leak the value to shell history. Prefer `--generate-password` paired with `--send-information`, or set the password afterwards with `users update --password-file`.
 </Aside>
 
 ```bash
@@ -136,24 +136,25 @@ Aliases: `edit`. The user argument accepts a numeric ID, login, full name, or `m
 | `--mail`               | Email address |
 | `--admin`              | Admin privileges (`--admin=false` revokes them) |
 | `--status`             | User status: `1` active, `2` registered, `3` locked |
-| `--password-stdin`     | Set a new password read from standard input. In a terminal it prompts twice with hidden input; otherwise it reads stdin and removes one trailing newline. Cannot be combined with `--generate-password` |
+| `--password-file`      | Set a new password read from a file, or from standard input with `-` (one trailing newline is removed). With `-` in a terminal it prompts twice with hidden input instead. Cannot be combined with `--generate-password`, and `-` not with `--api-key-file -` |
 | `--generate-password`  | Let the server generate a random password |
 | `--must-change-passwd` | Force the user to change their password on next login |
 | `--language`           | Interface language code such as `en`, `de` or `pt-BR`; empty for the server default. Write-only: no API response returns it |
 | `--group`              | Group name or ID the user belongs to (repeatable). Replaces the user's groups; `--group ""` removes the user from all groups |
-| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `none`. `selected` notifies about the `--notified-project` set |
-| `--notified-project`   | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects the user is a member of count. Replaces the current set; `""` clears it |
+| `--mail-notification`  | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `only_my_watches` (Redmine 7.0+), `none`. `selected` notifies about the `--notified-project` set |
+| `--notified-project`   | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects the user is a member of count. Replaces the current set; `""` clears it. Write-only: no API response returns it |
 | `--auth-source-id`     | Numeric authentication source ID for external auth |
-| `--pref`               | User preference as `key=value` (repeatable). See [preferences](#preferences) |
+| `--pref`               | User preference as `key=value` (repeatable). Write-only: no API response returns it. See [preferences](#preferences) |
 | `--custom-field`       | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it) |
 
 ```bash
 # Multi-value custom field: repeat the flag
 redmine users update jdoe --custom-field Skills=Go --custom-field Skills=SQL
 
-# New password: prompted in a terminal, or piped from a secret store
-redmine users update jdoe --password-stdin
-pass show redmine/jdoe | redmine users update jdoe --password-stdin
+# New password: prompted in a terminal, piped from a secret store, or read from a file
+redmine users update jdoe --password-file -
+pass show redmine/jdoe | redmine users update jdoe --password-file -
+redmine users update jdoe --password-file ~/.jdoe-password
 
 # Two groups, and notifications only for one project
 redmine users update jdoe --group Developers --group QA --mail-notification selected --notified-project web
@@ -175,7 +176,7 @@ redmine users update jdoe --group Developers --group QA --mail-notification sele
 | `no_self_notified` | `1` skips email notifications about the user's own changes, `0` sends them |
 | `warn_on_leaving_unsaved` | `1` or `0`: warn before leaving a page with unsaved text |
 
-Other keys depend on the Redmine version, for example `textarea_font`, `recently_used_projects`, `history_default_tab` and `toolbar_language_options`, and from Redmine 5.0 `default_issue_query`, `default_project_query` and `auto_watch_on`. Preferences are write-only: no API response returns them. The same flag works on [`my-account update`](./my_account/).
+Other keys depend on the Redmine version, for example `textarea_font`, `recently_used_projects`, `history_default_tab` and `toolbar_language_options`, and from Redmine 5.0 `default_issue_query` and `default_project_query`. List-valued preference keys are not supported. Boolean preferences take `1` or `0`: the CLI rejects `true` and `false`, which Redmine would store as text and read as off. Preferences are write-only: no API response returns them. The same flag works on [`my-account update`](./my_account/).
 
 ## delete
 
