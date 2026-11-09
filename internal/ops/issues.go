@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -54,6 +55,7 @@ type CreateIssueInput struct {
 	StartDate         string                   `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD)."`
 	DueDate           string                   `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD)."`
 	EstimatedHours    float64                  `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	DoneRatio         *int                     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100). Redmine ignores it when % done is derived from the issue status or from subtasks."`
 	IsPrivate         *bool                    `json:"is_private,omitempty" jsonschema:"Mark the issue as private."`
 	WatcherUserIDs    []int                    `json:"watcher_user_ids,omitempty" jsonschema:"Initial watcher user IDs (numeric)."`
 	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom field ID (list_custom_fields, customized_type issue). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
@@ -61,25 +63,40 @@ type CreateIssueInput struct {
 }
 
 type UpdateIssueInput struct {
-	ID                int                      `json:"id" jsonschema:"Issue ID to update."`
-	Subject           *string                  `json:"subject,omitempty" jsonschema:"New subject (title)."`
-	Description       *string                  `json:"description,omitempty" jsonschema:"New description body."`
-	TrackerID         *int                     `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
-	StatusID          *int                     `json:"status_id,omitempty" jsonschema:"New status ID."`
-	PriorityID        *int                     `json:"priority_id,omitempty" jsonschema:"New priority ID (use list_priorities to discover)."`
-	AssignedToID      *int                     `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the issue to. Set to 0 to unassign."`
-	CategoryID        *int                     `json:"category_id,omitempty" jsonschema:"Issue category ID."`
-	FixedVersionID    *int                     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
-	ParentIssueID     *int                     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
-	DoneRatio         *int                     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100)."`
-	EstimatedHours    *float64                 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
-	StartDate         *string                  `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD). Use empty string to clear."`
-	DueDate           *string                  `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD). Use empty string to clear."`
-	Notes             *string                  `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
-	PrivateNotes      *bool                    `json:"private_notes,omitempty" jsonschema:"Mark the note attached via 'notes' as private."`
-	IsPrivate         *bool                    `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
-	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom field ID (list_custom_fields, customized_type issue). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
-	Uploads           []models.Upload          `json:"-"`
+	ID                   int                      `json:"id" jsonschema:"Issue ID to update."`
+	ProjectID            *int                     `json:"project_id,omitempty" jsonschema:"Move the issue to this numeric project ID (use list_projects to discover). The issue is read back and the call fails if Redmine ignored the move, which it does for projects where the account may not add issues."`
+	Subject              *string                  `json:"subject,omitempty" jsonschema:"New subject (title)."`
+	Description          *string                  `json:"description,omitempty" jsonschema:"New description body."`
+	TrackerID            *int                     `json:"tracker_id,omitempty" jsonschema:"New tracker ID."`
+	StatusID             *int                     `json:"status_id,omitempty" jsonschema:"New status ID."`
+	PriorityID           *int                     `json:"priority_id,omitempty" jsonschema:"New priority ID (use list_priorities to discover)."`
+	AssignedToID         *int                     `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the issue to. Set to 0 to unassign."`
+	CategoryID           *int                     `json:"category_id,omitempty" jsonschema:"Issue category ID."`
+	FixedVersionID       *int                     `json:"fixed_version_id,omitempty" jsonschema:"Fixed version ID."`
+	ParentIssueID        *int                     `json:"parent_issue_id,omitempty" jsonschema:"Parent issue ID for sub-tasks. Set to 0 to remove the parent."`
+	DoneRatio            *int                     `json:"done_ratio,omitempty" jsonschema:"Completion percentage (0-100). Redmine ignores it when % done is derived from the issue status or from subtasks."`
+	EstimatedHours       *float64                 `json:"estimated_hours,omitempty" jsonschema:"Estimated effort in hours."`
+	StartDate            *string                  `json:"start_date,omitempty" jsonschema:"Start date (YYYY-MM-DD). Use empty string to clear."`
+	DueDate              *string                  `json:"due_date,omitempty" jsonschema:"Due date (YYYY-MM-DD). Use empty string to clear."`
+	Notes                *string                  `json:"notes,omitempty" jsonschema:"Journal note to attach to the update."`
+	PrivateNotes         *bool                    `json:"private_notes,omitempty" jsonschema:"Mark the note attached via 'notes' as private."`
+	IsPrivate            *bool                    `json:"is_private,omitempty" jsonschema:"Toggle issue privacy."`
+	CustomFieldValues    models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Custom field values keyed by numeric custom field ID (list_custom_fields, customized_type issue). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
+	DeletedAttachmentIDs []int                    `json:"deleted_attachment_ids,omitempty" jsonschema:"Attachment IDs to remove from the issue. Destructive. get_issue with includes [\"attachments\"] lists them; IDs of attachments on other issues are ignored."`
+	Uploads              []models.Upload          `json:"-"`
+}
+
+type CopyIssueInput struct {
+	ID              int    `json:"id" jsonschema:"ID of the issue to copy."`
+	ProjectID       int    `json:"project_id,omitempty" jsonschema:"Numeric project ID for the copy. Defaults to the source issue's project."`
+	Subject         string `json:"subject,omitempty" jsonschema:"Subject of the copy. Defaults to the source issue's subject."`
+	TrackerID       int    `json:"tracker_id,omitempty" jsonschema:"Tracker ID of the copy. Defaults to the source issue's tracker."`
+	StatusID        int    `json:"status_id,omitempty" jsonschema:"Status ID of the copy. Redmine does not copy the status; the copy starts in the tracker's default status."`
+	PriorityID      int    `json:"priority_id,omitempty" jsonschema:"Priority ID of the copy. Defaults to the source issue's priority."`
+	AssignedToID    *int   `json:"assigned_to_id,omitempty" jsonschema:"User or group ID to assign the copy to; 0 leaves the copy unassigned. Omit to keep the source issue's assignee when that one is assignable in the target project."`
+	LinkCopy        bool   `json:"link_copy,omitempty" jsonschema:"Relate the copy to the source issue (copied to / copied from). Redmine's 'Link issues on copy' setting can force or forbid the relation regardless, and copies into another project are only linked when cross-project issue relations are allowed."`
+	CopyAttachments bool   `json:"copy_attachments,omitempty" jsonschema:"Copy the source issue's attachments. Redmine 6.0+ has a setting that can force or forbid this regardless."`
+	CopySubtasks    bool   `json:"copy_subtasks,omitempty" jsonschema:"Copy the source issue's subtasks as well."`
 }
 
 type DeleteIssueInput struct {
@@ -171,6 +188,7 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 		StartDate:         input.StartDate,
 		DueDate:           input.DueDate,
 		EstimatedHours:    input.EstimatedHours,
+		DoneRatio:         input.DoneRatio,
 		IsPrivate:         input.IsPrivate,
 		WatcherUserIDs:    input.WatcherUserIDs,
 		CustomFieldValues: input.CustomFieldValues,
@@ -179,34 +197,47 @@ func CreateIssue(ctx context.Context, client *api.Client, input CreateIssueInput
 }
 
 //mcpgen:tool update_issue
-//mcpgen:description Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.
+//mcpgen:description Update fields on an existing Redmine issue, move it to another project (project_id) or remove attachments (deleted_attachment_ids). When status_id or project_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow, listing allowed statuses on Redmine 5.0+) or the move. Requires --enable-writes.
 //mcpgen:category issues
 //mcpgen:writes
 func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput) (MessageResult, error) {
 	upd := models.IssueUpdate{
-		Subject:           input.Subject,
-		Description:       input.Description,
-		TrackerID:         input.TrackerID,
-		StatusID:          input.StatusID,
-		PriorityID:        input.PriorityID,
-		AssignedToID:      input.AssignedToID,
-		CategoryID:        input.CategoryID,
-		FixedVersionID:    input.FixedVersionID,
-		ParentIssueID:     input.ParentIssueID,
-		DoneRatio:         input.DoneRatio,
-		EstimatedHours:    input.EstimatedHours,
-		StartDate:         input.StartDate,
-		DueDate:           input.DueDate,
-		Notes:             input.Notes,
-		PrivateNotes:      input.PrivateNotes,
-		IsPrivate:         input.IsPrivate,
-		CustomFieldValues: input.CustomFieldValues,
-		Uploads:           input.Uploads,
+		ProjectID:            input.ProjectID,
+		Subject:              input.Subject,
+		Description:          input.Description,
+		TrackerID:            input.TrackerID,
+		StatusID:             input.StatusID,
+		PriorityID:           input.PriorityID,
+		AssignedToID:         input.AssignedToID,
+		CategoryID:           input.CategoryID,
+		FixedVersionID:       input.FixedVersionID,
+		ParentIssueID:        input.ParentIssueID,
+		DoneRatio:            input.DoneRatio,
+		EstimatedHours:       input.EstimatedHours,
+		StartDate:            input.StartDate,
+		DueDate:              input.DueDate,
+		Notes:                input.Notes,
+		PrivateNotes:         input.PrivateNotes,
+		IsPrivate:            input.IsPrivate,
+		CustomFieldValues:    input.CustomFieldValues,
+		Uploads:              input.Uploads,
+		DeletedAttachmentIDs: input.DeletedAttachmentIDs,
 	}
 	if err := client.Issues.Update(ctx, input.ID, upd); err != nil {
 		return MessageResult{}, err
 	}
 	result := MessageResult{Message: fmt.Sprintf("Updated issue #%d", input.ID)}
+	if input.ProjectID != nil {
+		others := upd
+		others.ProjectID = nil
+		warning, err := verifyProjectApplied(ctx, client, input.ID, *input.ProjectID, hasChanges(others))
+		if err != nil {
+			return MessageResult{}, err
+		}
+		if warning != "" {
+			result.Warnings = append(result.Warnings, warning)
+		}
+	}
 	if input.StatusID != nil {
 		warning, err := verifyStatusApplied(ctx, client, input.ID, statusCheck{
 			requested:    models.IDName{ID: *input.StatusID},
@@ -220,6 +251,39 @@ func UpdateIssue(ctx context.Context, client *api.Client, input UpdateIssueInput
 		}
 	}
 	return result, nil
+}
+
+//mcpgen:tool copy_issue
+//mcpgen:description Copy an existing Redmine issue, optionally into another project, with its attachments and subtasks, and optionally linked to the source. Redmine copies the watchers when the account may add watchers in the target project. Requires --enable-writes.
+//mcpgen:category issues
+//mcpgen:writes
+func CopyIssue(ctx context.Context, client *api.Client, input CopyIssueInput) (*models.Issue, error) {
+	if input.ID <= 0 {
+		return nil, errors.New("id must be a positive issue ID")
+	}
+	projectID := input.ProjectID
+	if projectID == 0 {
+		// Redmine does not take the project from the source issue.
+		source, err := client.Issues.Get(ctx, input.ID, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch issue #%d to copy: %w", input.ID, err)
+		}
+		projectID = source.Project.ID
+	}
+	return client.Issues.Copy(ctx, models.IssueCopy{
+		CopyFrom:        input.ID,
+		Link:            input.LinkCopy,
+		CopyAttachments: input.CopyAttachments,
+		CopySubtasks:    input.CopySubtasks,
+		Issue: models.IssueCopyAttributes{
+			ProjectID:    projectID,
+			TrackerID:    input.TrackerID,
+			StatusID:     input.StatusID,
+			PriorityID:   input.PriorityID,
+			AssignedToID: input.AssignedToID,
+			Subject:      input.Subject,
+		},
+	})
 }
 
 //mcpgen:tool delete_issue
@@ -357,6 +421,20 @@ func AddIssueWatcher(ctx context.Context, client *api.Client, input AddIssueWatc
 		return MessageResult{}, err
 	}
 	return MessageResult{Message: fmt.Sprintf("Added user %d as watcher of issue #%d", input.UserID, input.ID)}, nil
+}
+
+// AddIssueWatchers adds several users as watchers of an issue in one
+// request.
+func AddIssueWatchers(ctx context.Context, client *api.Client, issueID int, userIDs []int) error {
+	for _, id := range userIDs {
+		if id <= 0 {
+			return fmt.Errorf("user IDs must be positive, got %d", id)
+		}
+	}
+	if len(userIDs) == 1 {
+		return client.Issues.AddWatcher(ctx, issueID, userIDs[0])
+	}
+	return client.Issues.AddWatchers(ctx, issueID, userIDs)
 }
 
 //mcpgen:tool remove_issue_watcher

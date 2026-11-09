@@ -93,6 +93,7 @@ redmine wiki create <page> [flags]
 | `--parent`     | 同一 Wiki 中已有页面的标题，新页面将作为其子页面 |
 | `--comments`   | 记录在页面历史中的修改备注 |
 | `--attach`     | 要附加的文件路径（可重复） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复；传入 `""` 可跳过某个文件；参见[附件描述](/zh-cn/commands/issues/#附件描述)） |
 | `-o, --output` | 输出格式 |
 
 ```bash
@@ -129,6 +130,7 @@ redmine wiki update <page> [flags]
 | `--parent`         | 同一 Wiki 中已有页面的标题，将本页面移动到其下。传入 `--parent ""` 可将页面移回 Wiki 根级。参见[父页面变更会被校验](#父页面变更会被校验)。 |
 | `--comments`       | 记录在页面历史中的修改备注 |
 | `--attach`         | 要附加的文件路径（可重复） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复；传入 `""` 可跳过某个文件；参见[附件描述](/zh-cn/commands/issues/#附件描述)） |
 | `--expect-version` | 期望的当前页面版本号。若页面在你上次获取后已被修改，服务器返回 `409 Conflict`，CLI 以错误码 `conflict` 反馈。 |
 | `--ensure-current` | 在更新前先重新获取页面，并以其当前版本号断言。与 `--expect-version` 互斥。 |
 | `--section`        | 要更新的章节编号（从 1 开始）。设置后仅替换该章节，页面其余部分保持不变。需要配合 `--text`。 |

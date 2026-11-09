@@ -3,6 +3,7 @@ package issue
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -33,7 +34,11 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		note           string
 		privateNotes   bool
 		attach         []string
+		attachDesc     []string
 		customFieldRaw []string
+		project        string
+		removeAttach   []int
+		force          bool
 	)
 
 	cmd := &cobra.Command{
@@ -46,7 +51,13 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			"role and the issue's tracker (and refuses to close issues with open subtasks " +
 			"or open blocking issues), so if the status did not change the command fails " +
 			"with error code status_not_applied, listing the allowed statuses (Redmine " +
-			"5.0+). Other changes in the same request may already have been applied.",
+			"5.0+). Other changes in the same request may already have been applied.\n\n" +
+			"--project moves the issue and is verified the same way: Redmine silently " +
+			"ignores a move to a project in which you may not add issues, so the command " +
+			"then fails with error code project_not_applied. Category, version and " +
+			"assignee names are resolved in the target project.\n\n" +
+			"--remove-attachment deletes attachments of the issue and asks for " +
+			"confirmation unless --force is given.",
 		Example: `  # Update status and priority by name
   redmine issues update 123 --status Closed --priority Low
 
@@ -76,13 +87,52 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   # Update a custom field (by name or numeric ID)
   redmine issues update 123 --custom-field Severity=Critical
 
+  # Move the issue to another project (name, identifier or ID)
+  redmine issues update 123 --project other-project
+
+  # Remove two attachments without asking
+  redmine issues update 123 --remove-attachment 45 --remove-attachment 46 --force
+
+  # Attach files with descriptions (paired by position)
+  redmine issues update 123 --attach ./log.txt --attach-description "Server log"
+
   # Numeric IDs still work
   redmine issues update 123 --tracker 1 --status 5`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			id, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("invalid issue ID: %s", args[0])
+			}
+			for _, aid := range removeAttach {
+				if aid <= 0 {
+					return fmt.Errorf("invalid attachment ID %d: --remove-attachment takes positive attachment IDs", aid)
+				}
+			}
+
+			if err := cmdutil.RejectMultipleStdinFlags(cmd, "description-file", "note-file"); err != nil {
+				return err
+			}
+			printer := f.Printer("")
+			if len(removeAttach) > 0 && !force {
+				// The prompt reads stdin, which a "-" file flag consumes.
+				for _, name := range []string{"description-file", "note-file"} {
+					if v, _ := cmd.Flags().GetString(name); v == "-" {
+						return fmt.Errorf("--%s - reads standard input, so --remove-attachment cannot ask for confirmation: add --force", name)
+					}
+				}
+				ids := make([]string, len(removeAttach))
+				for i, aid := range removeAttach {
+					ids[i] = strconv.Itoa(aid)
+				}
+				msg := fmt.Sprintf("Remove attachment(s) %s from issue #%d? This cannot be undone.", strings.Join(ids, ", "), id)
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Outcome(false, output.ActionUpdated, "issue", id, "Update cancelled")
+					return nil
+				}
 			}
 
 			client, err := f.ApiClient()
@@ -91,11 +141,7 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			ctx := cmdutil.Context(cmd)
-			update := ops.UpdateIssueInput{ID: id}
-
-			if err := cmdutil.RejectMultipleStdinFlags(cmd, "description-file", "note-file"); err != nil {
-				return err
-			}
+			update := ops.UpdateIssueInput{ID: id, DeletedAttachmentIDs: removeAttach}
 			descriptionSet, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description)
 			if err != nil {
 				return err
@@ -153,6 +199,17 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				update.IsPrivate = &private
 			}
 
+			// The target project of a move is also where names are resolved.
+			var targetIdentifier string
+			if cmd.Flags().Changed("project") {
+				pid, identifier, err := resolver.ResolveProject(ctx, client, project)
+				if err != nil {
+					return fmt.Errorf("resolving project: %w", err)
+				}
+				update.ProjectID = &pid
+				targetIdentifier = identifier
+			}
+
 			if cmd.Flags().Changed("tracker") {
 				tid, err := resolver.ResolveTracker(ctx, client, tracker)
 				if err != nil {
@@ -181,8 +238,8 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 				(cmd.Flags().Changed("version") && func() bool { _, err := strconv.Atoi(version); return err != nil }()) ||
 				(cmd.Flags().Changed("assignee") && resolver.NeedsPrincipalLookup(assignee))
 
-			var projectIdentifier string
-			if needsProject {
+			projectIdentifier := targetIdentifier
+			if needsProject && projectIdentifier == "" {
 				issue, err := ops.GetIssue(ctx, client, ops.GetIssueInput{ID: id})
 				if err != nil {
 					return fmt.Errorf("failed to fetch issue for name resolution: %w", err)
@@ -226,19 +283,21 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(attach) > 0 {
-				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
 				update.Uploads = uploads
 			}
 
-			printer := f.Printer("")
 			stop := printer.Spinner("Updating issue...")
 			result, err := ops.UpdateIssue(ctx, client, update)
 			stop()
 			if err != nil {
 				if coded := statusNotAppliedError(err); coded != nil {
+					return coded
+				}
+				if coded := projectNotAppliedError(err); coded != nil {
 					return coded
 				}
 				return fmt.Errorf("failed to update issue %s: %w", fmt.Sprintf("#%d", id), err)
@@ -268,9 +327,13 @@ func NewCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&note, "note", "", "Add a note to the issue")
 	cmdutil.AddTextFileFlag(cmd, "note", "note-file", "")
 	cmd.Flags().BoolVar(&privateNotes, "private-notes", false, "Mark the note attached via --note or --note-file as private")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Custom field", models.CustomizedTypeIssue)
+	cmd.Flags().StringVar(&project, "project", "", "Move the issue to this project (name, identifier, or ID)")
+	cmd.Flags().IntSliceVar(&removeAttach, "remove-attachment", nil, "Attachment ID to remove from the issue (repeatable; asks for confirmation)")
+	cmdutil.AddForceFlag(cmd, &force)
 
+	_ = cmd.RegisterFlagCompletionFunc("project", cmdutil.CompleteProjects(f))
 	_ = cmd.RegisterFlagCompletionFunc("tracker", cmdutil.CompleteTrackers(f))
 	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteStatuses(f))
 	_ = cmd.RegisterFlagCompletionFunc("priority", cmdutil.CompletePriorities(f))

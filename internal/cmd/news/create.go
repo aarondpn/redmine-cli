@@ -18,6 +18,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		summary     string
 		description string
 		attach      []string
+		attachDesc  []string
 	)
 
 	cmd := &cobra.Command{
@@ -39,6 +40,9 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
   redmine news create --project myproject --title "Roadmap" \
     --description "See the attached roadmap." --attach ./roadmap.pdf`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			ctx := cmdutil.Context(cmd)
 
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
@@ -61,7 +65,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			var uploads []models.Upload
 			if len(attach) > 0 {
-				uploads, err = cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err = cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
@@ -97,7 +101,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&summary, "summary", "", "Short summary, max 255 characters")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "News body (required unless --description-file is given)")
 	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "F")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 
 	_ = cmd.MarkFlagRequired("title")
 	cmd.MarkFlagsOneRequired("description", "description-file")

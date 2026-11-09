@@ -82,6 +82,7 @@ Aliases: `new`.
 | `-d, --description`  | Body (required unless `--description-file` is given) |
 | `-F, --description-file` | Read the body from a file, or from standard input with `-` |
 | `--attach`           | File to attach (repeatable) |
+| `--attach-description` | Description of the file given by the `--attach` at the same position (repeatable; pass `""` to skip a file; see [attachment descriptions](/commands/issues/#attachment-descriptions)) |
 | `-o, --output`       | Output format |
 
 ```bash
@@ -111,6 +112,7 @@ Aliases: `edit`. Only the flags you pass are changed; at least one of `--title`,
 | `-d, --description`  | New body |
 | `-F, --description-file` | Read the new body from a file, or from standard input with `-` |
 | `--attach`           | File to attach (repeatable) |
+| `--attach-description` | Description of the file given by the `--attach` at the same position (repeatable; pass `""` to skip a file; see [attachment descriptions](/commands/issues/#attachment-descriptions)) |
 
 ```bash
 redmine news update 12 --title "Release 2.0 (final)"

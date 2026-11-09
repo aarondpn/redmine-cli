@@ -3,6 +3,7 @@ package wiki
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		parent        string
 		comments      string
 		attach        []string
+		attachDesc    []string
 		expectVersion int
 		ensureCurrent bool
 		section       int
@@ -105,6 +107,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
     --text "Updated content" --ensure-current`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			ctx := cmdutil.Context(cmd)
 
 			for _, id := range removeAttach {
@@ -149,11 +154,24 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("redirect-existing-links") && !cmd.Flags().Changed("title") {
 				return fmt.Errorf("--redirect-existing-links only applies to a rename and requires --title")
 			}
+			printer := f.Printer("")
+			// Confirm before any request, so declining uploads nothing.
+			if len(removeAttach) > 0 && !force {
+				ids := make([]string, len(removeAttach))
+				for i, id := range removeAttach {
+					ids[i] = strconv.Itoa(id)
+				}
+				msg := fmt.Sprintf("Remove attachment(s) %s from wiki page %q? This cannot be undone.", strings.Join(ids, ", "), args[0])
+				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
+					printer.Outcome(false, output.ActionUpdated, "wiki_page", args[0], "Update cancelled")
+					return nil
+				}
+			}
+
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
 			}
-			printer := f.Printer("")
 
 			projectID, err := cmdutil.RequireProjectIdentifier(ctx, f, project)
 			if err != nil {
@@ -215,19 +233,11 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(attach) > 0 {
-				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
 				input.Uploads = uploads
-			}
-
-			if len(removeAttach) > 0 && !force {
-				msg := fmt.Sprintf("Remove %d attachment(s) from wiki page %q? This cannot be undone.", len(removeAttach), args[0])
-				if !cmdutil.ConfirmAction(f.IOStreams.In, f.IOStreams.ErrOut, msg) {
-					printer.Outcome(false, output.ActionUpdated, "wiki_page", args[0], "Update cancelled")
-					return nil
-				}
 			}
 
 			stop := printer.Spinner("Updating wiki page...")
@@ -269,7 +279,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "New page title; renames the page (Redmine keeps a redirect from the old title)")
 	cmd.Flags().StringVar(&parent, "parent", "", "Title of an existing page to move this page under. Pass empty to move it to the wiki root.")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 	cmd.Flags().IntVar(&expectVersion, "expect-version", 0, "Expected current page version. Server returns 409 Conflict if the page has moved on.")
 	cmd.Flags().BoolVar(&ensureCurrent, "ensure-current", false, "Refetch the page first and assert its current version on update. Mutually exclusive with --expect-version.")
 	cmd.Flags().IntVar(&section, "section", 0, "Section number (1-based) to update. When set, only that section is replaced; the rest of the page remains unchanged. Requires --text or --text-file.")

@@ -78,6 +78,13 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 		Writes:      true,
 		Call:        ops.CloseIssue,
 	})
+	registerToolSpec(s, client, opts, toolSpec[ops.CopyIssueInput, *models.Issue]{
+		Name:        "copy_issue",
+		Description: "Copy an existing Redmine issue, optionally into another project, with its attachments and subtasks, and optionally linked to the source. Redmine copies the watchers when the account may add watchers in the target project. Requires --enable-writes.",
+		Category:    "issues",
+		Writes:      true,
+		Call:        ops.CopyIssue,
+	})
 	registerToolSpec(s, client, opts, toolSpec[ops.CreateIssueInput, *models.Issue]{
 		Name:        "create_issue",
 		Description: "Create a new Redmine issue. Requires --enable-writes.",
@@ -172,7 +179,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.UpdateIssueInput, ops.MessageResult]{
 		Name:        "update_issue",
-		Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.",
+		Description: "Update fields on an existing Redmine issue, move it to another project (project_id) or remove attachments (deleted_attachment_ids). When status_id or project_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow, listing allowed statuses on Redmine 5.0+) or the move. Requires --enable-writes.",
 		Category:    "issues",
 		Writes:      true,
 		Call:        ops.UpdateIssue,
@@ -582,6 +589,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "add_issue_comment", Description: "Add a journal comment to an existing issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "add_issue_watcher", Description: "Add a user as a watcher on an issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "close_issue", Description: "Close an issue by setting its status to the first closed status. Fails when Redmine silently ignores the transition (workflow, open subtasks, open blockers). Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "copy_issue", Description: "Copy an existing Redmine issue, optionally into another project, with its attachments and subtasks, and optionally linked to the source. Redmine copies the watchers when the account may add watchers in the target project. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue", Description: "Create a new Redmine issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_issue_relation", Description: "Create a relation between two issues. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "delete_attachment", Description: "Delete an attachment. Destructive. Requires --enable-writes.", Group: "issues", Writes: true},
@@ -596,7 +604,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "remove_issue_watcher", Description: "Remove a user as a watcher from an issue. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "reopen_issue", Description: "Reopen a closed issue by setting its status to the first open status. Fails when Redmine silently ignores the transition (workflow). Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_attachment", Description: "Rename an attachment or change its description or content type. Requires --enable-writes.", Group: "issues", Writes: true},
-		{Name: "update_issue", Description: "Update fields on an existing Redmine issue. When status_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow), listing allowed statuses on Redmine 5.0+. Requires --enable-writes.", Group: "issues", Writes: true},
+		{Name: "update_issue", Description: "Update fields on an existing Redmine issue, move it to another project (project_id) or remove attachments (deleted_attachment_ids). When status_id or project_id is set the issue is read back, and the call fails if Redmine silently ignored the transition (workflow, listing allowed statuses on Redmine 5.0+) or the move. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "update_journal", Description: "Edit the notes or privacy of an issue journal (comment) by journal ID; find IDs via get_issue with includes=[\"journals\"]. Needs Redmine 5.0+. An empty notes string removes the comment's text. Requires --enable-writes.", Group: "issues", Writes: true},
 		{Name: "create_membership", Description: "Add a user to a project with the given roles. Requires --enable-writes.", Group: "memberships", Writes: true},
 		{Name: "delete_membership", Description: "Remove a project membership. Destructive. Requires --enable-writes.", Group: "memberships", Writes: true},

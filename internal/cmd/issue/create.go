@@ -29,10 +29,12 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		startDate      string
 		dueDate        string
 		estimatedHours float64
+		doneRatio      int
 		private        bool
 		watchers       []string
 		customFieldRaw []string
 		attach         []string
+		attachDesc     []string
 		format         string
 	)
 
@@ -67,6 +69,11 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   redmine issues create --project myproject --subject "Broken layout" \
     --attach ./screenshot.png --description 'Layout breaks on resize: !screenshot.png!'
 
+  # Describe attachments: the Nth --attach-description belongs to the Nth --attach
+  redmine issues create --project myproject --subject "Crash" \
+    --attach ./crash.log --attach-description "Server log" \
+    --attach ./trace.txt --attach-description "Stack trace"
+
   # Read a long description from a file (or from stdin with "-")
   redmine issues create --project myproject --subject "Spec" --description-file spec.textile
 
@@ -81,6 +88,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
   # Numeric IDs still work
   redmine issues create --project 1 --tracker 1 --priority 2 --subject "Test"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "description", "description-file", &description); err != nil {
 				return err
 			}
@@ -171,6 +181,9 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				create.FixedVersionID = id
 			}
 
+			if cmd.Flags().Changed("done-ratio") {
+				create.DoneRatio = &doneRatio
+			}
 			if cmd.Flags().Changed("private") {
 				create.IsPrivate = &private
 			}
@@ -192,7 +205,7 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 			}
 
 			if len(attach) > 0 {
-				uploads, err := cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err := cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
@@ -251,10 +264,11 @@ func NewCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&dueDate, "due-date", "", "Due date (YYYY-MM-DD)")
 	cmd.Flags().Float64Var(&estimatedHours, "estimated-hours", 0, "Estimated hours")
+	cmd.Flags().IntVar(&doneRatio, "done-ratio", 0, "Done ratio (0-100)")
 	cmd.Flags().BoolVar(&private, "private", false, "Mark issue as private")
 	cmd.Flags().StringArrayVar(&watchers, "watcher", nil, "Initial watcher (name, login, ID, or 'me') (repeatable)")
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "Custom field", models.CustomizedTypeIssue)
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	_ = cmd.MarkFlagRequired("subject")

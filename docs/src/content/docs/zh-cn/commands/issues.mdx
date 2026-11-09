@@ -11,11 +11,12 @@ import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge } from '@astrojs/starli
   <LinkCard title="list"      href="#list"      description="过滤并分页浏览工单。" />
   <LinkCard title="get"       href="#get"       description="查看单个工单，包括日志和关联关系。" />
   <LinkCard title="create"    href="#create"    description="创建工单，可选添加附件。" />
-  <LinkCard title="update"    href="#update"    description="修改字段、添加备注、附加文件。" />
+  <LinkCard title="update"    href="#update"    description="修改字段、添加备注、附加文件、移动到其他项目。" />
   <LinkCard title="close"     href="#close"     description="关闭工单，可选添加评论。" />
   <LinkCard title="reopen"    href="#reopen"    description="重新打开已关闭的工单。" />
   <LinkCard title="assign"    href="#assign"    description="将工单指派给用户。" />
   <LinkCard title="comment"   href="#comment"   description="仅添加评论，不做其他修改。" />
+  <LinkCard title="copy"      href="#copy"      description="复制工单，可选包含附件和子任务。" />
   <LinkCard title="watchers"  href="#watchers"  description="查看、添加或移除观察者。" />
   <LinkCard title="relations" href="#relations" description="创建或删除工单之间的关联。" />
   <LinkCard title="delete"    href="#delete"    description="永久删除工单。" />
@@ -205,10 +206,12 @@ redmine issues create [flags]
 | `--start-date`      | 开始日期（`YYYY-MM-DD`） |
 | `--due-date`        | 截止日期（`YYYY-MM-DD`） |
 | `--estimated-hours` | 预估工时 |
+| `--done-ratio`      | 完成度百分比（0-100）。当完成度由状态或子任务推导时，Redmine 会忽略该值 |
 | `--private`         | 标记为私有 |
 | `--watcher`         | 初始观察者（名称、登录名、ID 或 `me`；可重复） |
 | `--custom-field`    | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](#自定义字段值) |
 | `--attach`          | 要附加的文件路径（可重复使用） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复使用；传入 `""` 可跳过某个文件）。参见[附件描述](#附件描述) |
 
 ```bash
 redmine issues create --project myproject --subject "Add search" --tracker Feature --priority High
@@ -227,7 +230,16 @@ redmine issues create --project myproject --subject "Bug" \
 # 多值字段：对同一字段重复使用该标志
 redmine issues create --project myproject --subject "Cross-platform bug" \
   --custom-field Platforms=Linux --custom-field Platforms=macOS
+
+# 附件描述：第 N 个 --attach-description 对应第 N 个 --attach
+redmine issues create --project myproject --subject "Crash" \
+  --attach ./crash.log --attach-description "Server log" \
+  --attach ./trace.txt --attach-description "Stack trace"
 ```
+
+### 附件描述
+
+`--attach-description` 按位置与 `--attach` 配对：第一个描述属于第一个文件，第二个属于第二个文件，依此类推。描述可以少于文件，其余文件没有描述；空描述（`--attach-description ""`）表示跳过该文件。描述多于文件会报错，并且在上传任何文件之前就会失败。`issues update`、`wiki create/update` 和 `news create/update` 也支持这对标志。
 
 ### 自定义字段值
 
@@ -247,10 +259,13 @@ redmine issues create --project myproject --subject "Cross-platform bug" \
 redmine issues update <id> [flags]
 ```
 
-接受与 `create` 相同的标志（`--project` 与 `--watcher` 除外），并额外支持：
+接受与 `create` 相同的标志（`--watcher` 除外），并额外支持：
 
 | 标志 | 描述 |
 |------|------|
+| `--project`        | 将工单移动到该项目（名称、标识符或 ID）。参见[项目移动会被校验](#项目移动会被校验) |
+| `--remove-attachment` | 要从工单中移除的附件 ID（可重复）。除非指定 `--force`，否则会要求确认 |
+| `--force`, `-f`    | 跳过 `--remove-attachment` 的确认 |
 | `--note`           | 添加日志注释 |
 | `--private-notes`  | 将 `--note` 添加的注释标记为私有（需同时提供 `--note`） |
 | `--done-ratio`     | 完成度百分比（0-100） |
@@ -258,6 +273,7 @@ redmine issues update <id> [flags]
 | `--due-date`       | 截止日期（传入空字符串可清除） |
 | `--custom-field`   | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](#自定义字段值) |
 | `--attach`         | 要附加的文件路径（可重复使用） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复使用；传入 `""` 可跳过某个文件）。参见[附件描述](#附件描述) |
 
 ```bash
 redmine issues update 123 --note "Fixed the bug" --attach /path/to/fixed_code.patch
@@ -270,7 +286,21 @@ redmine issues update 123 --custom-field Severity=Critical
 
 # 清除自定义字段
 redmine issues update 123 --custom-field Severity=
+
+# 将工单移动到其他项目
+redmine issues update 123 --project other-project
+
+# 不经确认移除两个附件（ID 来自 `issues get 123 --attachments`）
+redmine issues update 123 --remove-attachment 45 --remove-attachment 46 --force
 ```
+
+使用 `--project` 移动工单时，`--category`、`--version` 和 `--assignee` 的名称会在目标项目中解析。如果目标项目有同名类别，Redmine 会保留类别；只有当版本共享给目标项目时才保留版本；如果当前跟踪类型未在目标项目中启用，则切换为目标项目的第一个跟踪类型。
+
+`--remove-attachment` 会永久删除附件。属于其他工单的附件 ID 会被 Redmine 忽略；没有编辑该工单的权限（`edit_issues`）时，Redmine 同样会静默忽略 `--remove-attachment` 并仍然返回成功，请用 `redmine issues get <id> --attachments` 确认结果。确认提示从标准输入读取，因此与 `--description-file -` 或 `--note-file -` 同时使用时必须加 `--force`。
+
+### 项目移动会被校验
+
+如果你无权在目标项目中添加工单（需要“添加工单”权限、启用工单跟踪模块且至少有一个跟踪类型），Redmine 会静默地把工单留在原项目。因此移动之后 CLI 会重新读取工单。如果没有移动成功，命令以退出码 `1` 和错误码 `project_not_applied` 失败；与 `status_not_applied` 一样，如果同一请求还包含其他变更，details 会提示这些变更可能已经生效。
 
 ## close
 
@@ -342,18 +372,53 @@ redmine issues comment edit 456 --clear --force
 
 `--clear` 会把评论从工单历史中移除：Redmine 5.x 和 7.0 会删除没有其他变更的 journal，6.x 则保留一条 API 不再列出的空记录。该操作无法撤销，因此除非加 `--force`，命令会先要求确认；拒绝时输出已取消的 `updated` 操作，不做任何修改。
 
+## copy
+
+```bash
+redmine issues copy <id> [flags]
+```
+
+在同一项目或其他项目中创建工单的副本。Redmine 会复制字段、自定义字段和父工单；副本从跟踪类型的默认状态开始，作者是你；当你有权在目标项目中添加观察者时，观察者也会被复制。需要“复制工单”权限。
+
+| 标志 | 描述 |
+|------|------|
+| `--project`          | 副本所在项目（名称、标识符或 ID）；默认为源工单的项目 |
+| `--subject`          | 副本标题（默认为源工单标题） |
+| `--tracker`          | 跟踪类型（名称或 ID） |
+| `--status`           | 状态（名称或 ID）；默认为跟踪类型的默认状态 |
+| `--priority`         | 优先级（名称或 ID） |
+| `--assignee`         | 指派人：`me`、用户或组名称、登录名或 ID，在目标项目中解析；`none` 表示副本不指派 |
+| `--link`             | 将副本与原工单关联（`copied_to` / `copied_from`） |
+| `--with-attachments` | 复制附件 |
+| `--with-subtasks`    | 复制子任务 |
+| `--output`, `-o`     | 输出格式：`table`、`json` |
+
+```bash
+# 在原项目中复制工单
+redmine issues copy 123
+
+# 复制到其他项目，关联原工单，并包含附件和子任务
+redmine issues copy 123 --project other-project --link --with-attachments --with-subtasks
+
+# 使用新的标题和指派人复制
+redmine issues copy 123 --subject "Same bug on staging" --assignee me
+```
+
+Redmine 的设置可以覆盖这些标志：“复制时关联工单”（管理 > 配置 > 问题跟踪）可以强制或禁止 `--link`，在 Redmine 6.0+ 中“复制时复制附件”对 `--with-attachments` 也是如此。复制到其他项目时，只有启用了“允许跨项目的工单关联”才会建立关联。
+
 ## watchers
 
 ```bash
 redmine issues watchers list <id>
-redmine issues watchers add <id> <user>
+redmine issues watchers add <id> <user>...
 redmine issues watchers remove <id> <user>
 ```
 
-`<user>` 可以是数字 ID、登录名、全名或 `me`。
+`<user>` 可以是数字 ID、登录名、全名或 `me`。`watchers add` 可以接受多个用户，并在一次请求中添加；无法观察该工单的用户会被 Redmine 跳过。
 
 ```bash
 redmine issues watchers add 123 me
+redmine issues watchers add 123 alice bob 42
 redmine issues watchers list 123
 redmine issues watchers remove 123 alice
 ```

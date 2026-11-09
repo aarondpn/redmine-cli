@@ -3,6 +3,7 @@ package issue
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -65,11 +66,17 @@ func newCmdWatcherList(f *cmdutil.Factory) *cobra.Command {
 
 func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "add <issue-id> <user>",
-		Short:             "Add a watcher to an issue",
-		Long:              "Add a user as a watcher. The user can be a numeric ID, login, name, or 'me'.",
-		Args:              cobra.ExactArgs(2),
-		ValidArgsFunction: completeWatcherArgs(f),
+		Use:   "add <issue-id> <user>...",
+		Short: "Add watchers to an issue",
+		Long: "Add one or more users as watchers. Each user can be a numeric ID, login, name, or 'me'. " +
+			"Several users are added in one request; Redmine skips users that cannot watch the issue.",
+		Example: `  # Add yourself
+  redmine issues watchers add 123 me
+
+  # Add several watchers at once
+  redmine issues watchers add 123 alice bob 42`,
+		Args:              cobra.MinimumNArgs(2),
+		ValidArgsFunction: completeWatcherAddArgs(f),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			issueID, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -80,19 +87,26 @@ func newCmdWatcherAdd(f *cmdutil.Factory) *cobra.Command {
 				return err
 			}
 			ctx := cmdutil.Context(cmd)
-			userID, err := resolveIssuePrincipal(ctx, client, issueID, args[1])
+			userIDs, err := resolveIssuePrincipals(ctx, client, issueID, args[1:])
 			if err != nil {
-				return fmt.Errorf("resolving watcher: %w", err)
+				return err
 			}
 			printer := f.Printer("")
-			stop := printer.Spinner("Adding watcher...")
-			_, err = ops.AddIssueWatcher(ctx, client, ops.AddIssueWatcherInput{ID: issueID, UserID: userID})
+			stop := printer.Spinner("Adding watchers...")
+			err = ops.AddIssueWatchers(ctx, client, issueID, userIDs)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to add watcher: %w", err)
 			}
-			printer.Action(output.ActionWatched, "issue", issueID,
-				fmt.Sprintf("Added watcher %d to issue #%d", userID, issueID))
+			msg := fmt.Sprintf("Added watcher %d to issue #%d", userIDs[0], issueID)
+			if len(userIDs) > 1 {
+				ids := make([]string, len(userIDs))
+				for i, id := range userIDs {
+					ids[i] = strconv.Itoa(id)
+				}
+				msg = fmt.Sprintf("Added watchers %s to issue #%d", strings.Join(ids, ", "), issueID)
+			}
+			printer.Action(output.ActionWatched, "issue", issueID, msg)
 			return nil
 		},
 	}
@@ -134,6 +148,18 @@ func newCmdWatcherRemove(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// completeWatcherAddArgs is completeWatcherArgs for `watchers add`, which
+// takes any number of users after the issue ID.
+func completeWatcherAddArgs(f *cmdutil.Factory) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	complete := cmdutil.CompleteUsers(f)
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) >= 1 {
+			return complete(cmd, args, toComplete)
+		}
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
 }
 
 // completeWatcherArgs supplies shell completions for the two positional args

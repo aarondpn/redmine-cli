@@ -149,3 +149,29 @@ func resolveIssuePrincipal(ctx context.Context, client *api.Client, issueID int,
 	}
 	return resolver.ResolveAssigneeInProject(ctx, client, input, project)
 }
+
+// resolveIssuePrincipals resolves several users or groups against the
+// issue's project, fetching the issue and the memberships at most once.
+func resolveIssuePrincipals(ctx context.Context, client *api.Client, issueID int, inputs []string) ([]int, error) {
+	var project string
+	for _, input := range inputs {
+		if resolver.NeedsPrincipalLookup(input) {
+			issue, err := ops.GetIssue(ctx, client, ops.GetIssueInput{ID: issueID})
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch issue for name resolution: %w", err)
+			}
+			project = strconv.Itoa(issue.Project.ID)
+			break
+		}
+	}
+	principals := resolver.NewPrincipalResolver(ctx, client, project)
+	ids := make([]int, 0, len(inputs))
+	for _, input := range inputs {
+		id, err := principals.Assignee(input)
+		if err != nil {
+			return nil, fmt.Errorf("resolving watcher: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}

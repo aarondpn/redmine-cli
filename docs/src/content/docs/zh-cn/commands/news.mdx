@@ -82,6 +82,7 @@ redmine news create --title <title> (--description <text> | --description-file <
 | `-d, --description`  | 正文（未使用 `--description-file` 时必填） |
 | `-F, --description-file` | 从文件读取正文；用 `-` 从标准输入读取 |
 | `--attach`           | 要附加的文件（可重复） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复；传入 `""` 可跳过某个文件；参见[附件描述](/zh-cn/commands/issues/#附件描述)） |
 | `-o, --output`       | 输出格式 |
 
 ```bash
@@ -111,6 +112,7 @@ redmine news update <id> [flags]
 | `-d, --description`  | 新正文 |
 | `-F, --description-file` | 从文件读取新正文；用 `-` 从标准输入读取 |
 | `--attach`           | 要附加的文件（可重复） |
+| `--attach-description` | 与相同位置的 `--attach` 对应的附件描述（可重复；传入 `""` 可跳过某个文件；参见[附件描述](/zh-cn/commands/issues/#附件描述)） |
 
 ```bash
 redmine news update 12 --title "Release 2.0 (final)"

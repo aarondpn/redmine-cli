@@ -55,6 +55,10 @@ const (
 	// ErrCodeParentNotApplied: Redmine saved a wiki page but silently kept
 	// the old parent (missing rename_wiki_pages permission).
 	ErrCodeParentNotApplied = "parent_not_applied"
+	// ErrCodeProjectNotApplied: Redmine accepted an issue update but silently
+	// kept the issue in its old project (no Add issues permission in the
+	// target project).
+	ErrCodeProjectNotApplied = "project_not_applied"
 	// ErrCodeTimeout: a connection or request to the server timed out.
 	ErrCodeTimeout = "timeout"
 	// ErrCodeAlreadyExists: a download target exists and --clobber was not

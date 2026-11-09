@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -166,5 +168,27 @@ func TestUpdate_RemoveAttachmentAsksForConfirmation(t *testing.T) {
 	}
 	if _, ok := lastOf(calls(), http.MethodPut); ok {
 		t.Error("attachments must not be removed without confirmation or --force")
+	}
+}
+
+// Declining the prompt happens before any request, so no file is uploaded
+// for an update that never happens. The prompt names the IDs.
+func TestUpdate_RemoveAttachmentDeclinedUploadsNothing(t *testing.T) {
+	srv, calls := recordingServer(t)
+	f := testutil.NewFactory(t, srv.URL)
+	file := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{"Page", "--project", "proj", "--text", "x", "--attach", file, "--remove-attachment", "4", "--remove-attachment", "9"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := calls(); len(got) != 0 {
+		t.Fatalf("requests = %+v, want none after declining", got)
+	}
+	if !strings.Contains(testutil.Stderr(f), `Remove attachment(s) 4, 9 from wiki page "Page"? This cannot be undone.`) {
+		t.Fatalf("prompt = %q", testutil.Stderr(f))
 	}
 }
