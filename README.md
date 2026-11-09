@@ -31,7 +31,8 @@
 <p align="center">
   <a href="#installation">Installation</a> ·
   <a href="#getting-started">Getting Started</a> ·
-  <a href="#ai-agents">AI Agents</a>
+  <a href="#ai-agents">AI Agents</a> ·
+  <a href="#extensions">Extensions</a>
 </p>
 
 ## Installation
@@ -98,6 +99,18 @@ redmine-cli ships an [Agent Skill](https://agentskills.io) (the open `SKILL.md` 
 The skill teaches the agent the non-obvious parts of the CLI (output formats, name resolution, pagination, common workflows). The MCP server exposes the same operations as typed tool calls, read-only by default, with per-group / per-tool allow- and deny-lists.
 
 Full configuration, host-specific snippets (Claude Desktop, Cursor, Zed, VS Code), and write-tool gating: see the [AI Agent Integration guide](https://redmine-cli.dev/guides/ai-agents/).
+
+## Extensions
+
+Extensions add top-level commands from GitHub repositories named `<owner>/redmine-cli-<name>`, like `gh extension`. An extension declares its commands in a `redmine-extension.yml` manifest. redmine-cli turns each one into a CLI command (flags, help, completion, validation, table output) and an MCP tool. The extension itself reads JSON on stdin and calls Redmine through `redmine api`, so it never sees your credentials.
+
+```bash
+redmine extension search                       # find extensions (GitHub topic redmine-cli-extension)
+redmine extension install octo/redmine-cli-pr  # then run it as: redmine pr ...
+redmine extension create hello                 # scaffold your own (script, or --precompiled=go)
+```
+
+Extensions are not verified by redmine-cli and run with your user permissions, also as MCP tools, so only install extensions you trust. See the [extension commands](https://redmine-cli.dev/commands/extensions/) and the [guide to writing extensions](https://redmine-cli.dev/guides/writing-extensions/).
 
 ## Development
 

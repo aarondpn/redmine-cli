@@ -225,7 +225,8 @@ Run "redmine update" to upgrade
 
 检查与命令同时在后台启动，并在启动 2 秒后放弃。只有命令成功时才会打印结果；命令失败时会立即退出。如果命令结束时检查仍在进行，CLI 会等待它，最多等到这个 2 秒的截止时间；等待超过 200 毫秒时会向 stderr 打印 `Checking for updates...`。有效的缓存结果（见下文）会立即返回，因此只有需要询问 GitHub 时才会出现这种延迟：成功检查后每天一次，但在检查失败或超时期间则每次运行都会发生（失败结果不会被缓存）。以下情况下会自动跳过检查：
 
-- 当前命令本身是 `redmine update`；
+- 当前命令本身是 `redmine update`，或是 `redmine extension upgrade`；
+- `redmine` 由[扩展](/zh-cn/commands/extensions/)调用，扩展总会为其设置 `REDMINE_NO_UPDATE_CHECK=1`；
 - stderr 不是 TTY（管道输出或 CI 环境）；
 - `REDMINE_NO_UPDATE_CHECK` 的值为 `1` 或 `true`。
 

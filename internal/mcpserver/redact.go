@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -142,4 +143,38 @@ func jsonFieldName(sf reflect.StructField) string {
 		return name
 	}
 	return sf.Name
+}
+
+// redactedText replaces a secret value in text.
+const redactedText = "[REDACTED]"
+
+// secretTextRe finds an API key with its value in free text: JSON
+// ("api_key": "..."), JSON quoted inside a string (\"api_key\":\"...\"),
+// YAML or env style (api_key: ..., REDMINE_API_KEY=...) and the CLI's own
+// detail output ("API Key:  ...", possibly colored). Group 1 is the key
+// with its separator, groups 2-4 the value: escaped string, JSON string or
+// bare word.
+var secretTextRe = regexp.MustCompile(`(?i)((?:\b|_|\x1b\[[0-9;]*m)api[ _-]?key\b\\?"?(?:\x1b\[[0-9;]*m)*\s*[:=](?:\x1b\[[0-9;]*m)*\s*)` +
+	`(?:(\\"(?:[^\\]|\\[^"])*?\\")|("(?:[^"\\]|\\.)*")|([^\s,;})\]'"\\]+))`)
+
+// redactSecretText masks API keys in text that is not a JSON document the
+// structured redaction (redactSecrets) can walk: an extension's plain text
+// or mixed output, or its stderr in an error message. It errs on the side
+// of masking, since text has no structure to tell a key from prose that
+// happens to look like one; quoting is kept, so JSON stays JSON.
+func redactSecretText(s string) string {
+	if !strings.Contains(strings.ToLower(s), "key") {
+		return s
+	}
+	return secretTextRe.ReplaceAllStringFunc(s, func(m string) string {
+		sub := secretTextRe.FindStringSubmatch(m)
+		switch {
+		case sub[2] != "":
+			return sub[1] + `\"` + redactedText + `\"`
+		case sub[3] != "":
+			return sub[1] + `"` + redactedText + `"`
+		default:
+			return sub[1] + redactedText
+		}
+	})
 }

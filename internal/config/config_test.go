@@ -613,6 +613,42 @@ func TestApplyEnvOverrides_MCPListsAndBool(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverrides_MCPEnableExtensions(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+		env  string
+		want *bool
+	}{
+		{name: "unset stays nil", file: "", env: "", want: nil},
+		{name: "file true", file: "mcp:\n  enable_extensions: true\n", want: boolPtr(true)},
+		{name: "file false", file: "mcp:\n  enable_extensions: false\n", want: boolPtr(false)},
+		{name: "env true", env: "1", want: boolPtr(true)},
+		{name: "env false beats file true", file: "mcp:\n  enable_extensions: true\n", env: "false", want: boolPtr(false)},
+		{name: "env true beats file false", file: "mcp:\n  enable_extensions: false\n", env: "yes", want: boolPtr(true)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(MCPEnableExtensionsEnv, tt.env)
+			cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(cfgPath, []byte("server: https://example.com\napi_key: k\n"+tt.file), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(cfgPath, "", debug.New(nil))
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			got := cfg.MCP.EnableExtensions
+			switch {
+			case tt.want == nil && got != nil:
+				t.Errorf("EnableExtensions = %v, want nil", *got)
+			case tt.want != nil && (got == nil || *got != *tt.want):
+				t.Errorf("EnableExtensions = %v, want %v", got, *tt.want)
+			}
+		})
+	}
+}
+
 func TestApplyEnvOverrides_MCPAuthToken(t *testing.T) {
 	t.Setenv("REDMINE_MCP_AUTH_TOKEN", "from-env")
 
@@ -878,3 +914,5 @@ func TestExpandHome(t *testing.T) {
 		}
 	}
 }
+
+func boolPtr(b bool) *bool { return &b }

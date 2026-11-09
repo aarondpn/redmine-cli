@@ -76,6 +76,7 @@ export default defineConfig({
 						{ label: 'Groups', translations: { 'zh-CN': '用户组' }, slug: 'commands/groups' },
 						{ label: 'Search', translations: { 'zh-CN': '搜索' }, slug: 'commands/search' },
 						{ label: 'Wiki', translations: { 'zh-CN': '维基' }, slug: 'commands/wiki' },
+						{ label: 'Extensions', translations: { 'zh-CN': '扩展' }, slug: 'commands/extensions' },
 						{ label: 'Other', translations: { 'zh-CN': '其他' }, slug: 'commands/other' },
 					],
 				},
@@ -85,6 +86,7 @@ export default defineConfig({
 					items: [
 						{ label: 'AI Agent Integration', translations: { 'zh-CN': 'AI 代理集成' }, slug: 'guides/ai-agents' },
 						{ label: 'Output Formats', translations: { 'zh-CN': '输出格式' }, slug: 'guides/output-formats' },
+						{ label: 'Writing Extensions', translations: { 'zh-CN': '编写扩展' }, slug: 'guides/writing-extensions' },
 					],
 				},
 			],

@@ -45,6 +45,7 @@ You can authenticate against as many Redmine instances as you like. Each `redmin
   <TabItem label="Use once">
     ```bash
     redmine --profile work issues list
+    REDMINE_PROFILE=work redmine issues list   # same, via the environment
     ```
   </TabItem>
   <TabItem label="Status">
@@ -139,9 +140,21 @@ export REDMINE_CA_CERT=/etc/ssl/certs/company-ca.crt
 export REDMINE_HTTP_TIMEOUT=5m
 # hide the environment from --jq expressions (env / $ENV evaluate to {})
 export REDMINE_JQ_NO_ENV=1
+
+# use another config file and profile, like --config and --profile
+export REDMINE_CONFIG=~/work/redmine-cli.yaml
+export REDMINE_PROFILE=work
+
+# extra HTTP headers, one "Name: value" per line, like repeated --header flags
+export REDMINE_HEADERS=$'User-Agent: Mozilla/5.0\nX-Proxy-Token: your-proxy-token'
+
+# keep installed extensions in another directory
+export REDMINE_EXTENSIONS_DIR=$HOME/redmine-extensions
 ```
 
-See [Self-Update](/commands/other/#startup-update-check) for details on the update check.
+`REDMINE_CONFIG`, `REDMINE_PROFILE` and `REDMINE_HEADERS` mirror the `--config`, `--profile` and `--header` flags; a flag given on the command line wins. They are read for every command, including `redmine mcp serve` and shell completion. See [Custom HTTP headers](#custom-http-headers) for how `REDMINE_HEADERS` is merged.
+
+See [Self-Update](/commands/other/#startup-update-check) for details on the update check, and [Extensions](/commands/extensions/#where-extensions-are-stored) for the extensions directory. The MCP server's variables (`REDMINE_MCP_*`) are listed in [AI agents](/guides/ai-agents/#narrowing-the-exposed-tools).
 
 ## Global flags
 
@@ -152,13 +165,13 @@ Flags take precedence over config values and environment variables.
 | `-s, --server`  | Redmine server URL |
 | `-k, --api-key` | API key for authentication (visible in process listings; see below) |
 | `--api-key-file` | Read the API key from a file, or from stdin with `-` |
-| `--profile`     | Use a specific auth profile |
-| `--config`      | Config file path (default `~/.redmine-cli.yaml`) |
+| `--profile`     | Use a specific auth profile (or `REDMINE_PROFILE`) |
+| `--config`      | Config file path (default `~/.redmine-cli.yaml`, or `REDMINE_CONFIG`) |
 | `-o, --output`  | Output format: `table`, `json` (see [Output formats](/guides/output-formats/)) |
 | `-q, --jq`      | Filter JSON output with a jq expression; implies `-o json` (see [Filtering with --jq](/guides/output-formats/#filtering-with---jq)) |
 | `--no-color`    | Disable colored output |
 | `--read-only`   | Refuse all requests that modify data on the server |
-| `--header`      | Extra HTTP header as `"Name: value"` (repeatable) |
+| `--header`      | Extra HTTP header as `"Name: value"` (repeatable; see also `REDMINE_HEADERS`) |
 | `-v, --verbose` | Enable debug logging |
 
 ### Passing an API key
@@ -190,7 +203,7 @@ A profile's [custom headers](#custom-http-headers) can carry tokens for the same
 warning: sending the configured headers of profile "work" (for https://redmine.work.com) to https://other.example.com: X-Proxy-Token; pass the headers meant for that server with --header to silence this
 ```
 
-A header given with `--header` on the same command is not checked, since it replaces the profile header of that name.
+A header given with `--header` or `REDMINE_HEADERS` on the same command is not checked, since it replaces the profile header of that name.
 
 ## Read-only mode
 
@@ -213,6 +226,8 @@ profiles:
 ```
 
 Pass `--read-only=false` to override the environment variable or a `read_only: true` profile for a single invocation.
+
+Read-only mode also applies to [extensions](/commands/extensions/): their `redmine api` calls inherit it. Extension commands that don't declare `writes: true` always run read-only.
 
 <Aside type="note" title="MCP server">
   The MCP server has its own gate: mutating tools are only registered when `--enable-writes` is passed (see [AI agents](/guides/ai-agents/)). A profile with `read_only: true` additionally blocks writes at the HTTP layer, even when `--enable-writes` is set.
@@ -239,11 +254,20 @@ For a single invocation, pass `--header` (repeatable). It overrides a profile he
 redmine --header "User-Agent: Mozilla/5.0" issues list
 ```
 
+To set headers for a whole shell session, CI job or container, put them in `REDMINE_HEADERS`, one `"Name: value"` per line. Blank lines are ignored, and an invalid entry is an error rather than being skipped. Precedence, per header name: `--header` > `REDMINE_HEADERS` > profile `headers`.
+
+```bash
+export REDMINE_HEADERS=$'User-Agent: Mozilla/5.0\nX-Proxy-Token: your-proxy-token'
+redmine issues list
+```
+
 Passed to `redmine auth login`, the headers are used for the connection test and saved to the profile, so a server that requires them works from the first login:
 
 ```bash
 redmine auth login --header "User-Agent: Mozilla/5.0"
 ```
+
+`REDMINE_HEADERS` is used for that connection test too, but, like `REDMINE_CA_CERT`, it is not saved to the profile.
 
 Logging in again keeps a profile's headers as long as the server's host stays the same. If you point the profile at a different server, its headers are dropped, since they may be secrets meant for the old one. To remove a header, delete it from the config file.
 

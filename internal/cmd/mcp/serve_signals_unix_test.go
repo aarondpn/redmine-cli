@@ -58,7 +58,7 @@ func TestServeHelperProcess(t *testing.T) {
 		ConfigPath: os.Getenv("REDMINE_MCP_SERVE_HELPER_CONFIG"),
 		IOStreams:  &cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
 	}
-	cmd := NewCmdMCP(f)
+	cmd := NewCmdMCP(f, Options{})
 	cmd.SetArgs(append([]string{"serve"}, args...))
 	fmt.Fprintln(os.Stderr, "helper ready")
 	err := cmd.ExecuteContext(ctx)

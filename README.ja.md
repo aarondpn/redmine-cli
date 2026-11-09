@@ -31,7 +31,8 @@
 <p align="center">
   <a href="#インストール">インストール</a> ·
   <a href="#はじめに">はじめに</a> ·
-  <a href="#ai-agents">AI エージェント</a>
+  <a href="#ai-agents">AI エージェント</a> ·
+  <a href="#拡張機能">拡張機能</a>
 </p>
 
 ## インストール
@@ -92,6 +93,18 @@ redmine-cli は [Agent Skill](https://agentskills.io)（35 以上のエージェ
 skill は CLI の非自明な部分（出力形式、名前解決、ページネーション、一般的なワークフロー）をエージェントに教えます。MCP サーバーは同じ操作を型付きツールコールとして公開し、デフォルトは読み取り専用、グループ単位／ツール単位の allow / deny リストを備えます。
 
 詳細な設定、ホスト別スニペット（Claude Desktop、Cursor、Zed、VS Code）、書き込みツールのゲートについては [AI エージェント連携ガイド](https://redmine-cli.dev/guides/ai-agents/) を参照してください。
+
+## 拡張機能
+
+`gh extension` と同様に、`<owner>/redmine-cli-<name>` という名前の GitHub リポジトリからトップレベルのコマンドを追加できます。拡張機能はコマンドを `redmine-extension.yml` マニフェストに宣言し、redmine-cli はそれぞれを CLI コマンド（フラグ、ヘルプ、補完、検証、表形式の出力）と MCP ツールに変換します。拡張機能本体は stdin から JSON を読み取り、`redmine api` 経由で Redmine を呼び出すため、認証情報に触れることはありません。
+
+```bash
+redmine extension search                       # 拡張機能を探す（GitHub トピック redmine-cli-extension）
+redmine extension install octo/redmine-cli-pr  # その後 redmine pr ... として実行
+redmine extension create hello                 # 自作の雛形を作成（スクリプト、または --precompiled=go）
+```
+
+拡張機能は redmine-cli によって検証されず、MCP ツールとしてもユーザーの権限で実行されます。信頼できる拡張機能だけをインストールしてください。詳しくは [拡張機能コマンド](https://redmine-cli.dev/commands/extensions/) と [拡張機能の作り方](https://redmine-cli.dev/guides/writing-extensions/) を参照してください。
 
 ## 開発
 

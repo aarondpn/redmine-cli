@@ -9,7 +9,7 @@ A CLI for the Redmine REST API. Use `redmine <command> --help` for detailed flag
 
 ## Available Commands
 
-Only these top-level commands exist. Do NOT invent subcommands that aren't listed here — run `redmine <command> --help` to discover subcommands.
+Only these top-level commands exist, plus any installed extensions (see below). Do NOT invent subcommands that aren't listed here — run `redmine <command> --help` to discover subcommands.
 
 | Command | Purpose |
 |---------|---------|
@@ -39,6 +39,13 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `api` | Make raw authenticated API requests |
 | `config` | Show the active configuration (server, profile, default project) |
 | `update` | Update the CLI to the latest release |
+| `extension` (`ext`) | Manage extensions: `list`, `install`, `upgrade`, `remove`, `exec`, `search`, `create`, `check` |
+
+## Extensions
+
+Installed extensions add more top-level commands (`redmine <name> <command>`), listed under "Extension Commands" in `redmine --help` and in `redmine extension list`. Use `redmine <name> --help` for their flags. Extension commands that declare a manifest support `-o json` and `--jq` like core commands, and the ones that don't declare `writes: true` run read-only. A non-zero exit means the extension failed; in JSON mode the error code is `extension_failed`. Destructive extension commands need `--yes` in scripts.
+
+Extensions run arbitrary code with the user's permissions. **Never install, upgrade or remove an extension unless the user explicitly asks**, and never pass `--yes` to `redmine extension install` on your own; it skips the trust prompt.
 
 ## Setup
 

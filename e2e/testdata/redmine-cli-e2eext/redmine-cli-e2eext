@@ -1,0 +1,21 @@
+#!/bin/sh
+# E2E fixture extension. It calls Redmine the way real extensions do,
+# through "$REDMINE_CLI_BIN api", so the test sees whether the forwarded
+# profile, config file and read-only mode reach the nested call.
+set -u
+cat >/dev/null
+case "${REDMINE_EXT_COMMAND:-}" in
+whoami)
+	exec "$REDMINE_CLI_BIN" api /users/current.json
+	;;
+try-write | try-write-allowed)
+	# A POST without a body. Redmine rejects it as invalid, so nothing is
+	# created even when it is sent; the read-only refusal happens before
+	# anything is sent and reads differently.
+	exec "$REDMINE_CLI_BIN" api -X POST /projects.json
+	;;
+*)
+	echo "unknown command ${REDMINE_EXT_COMMAND:-}" >&2
+	exit 2
+	;;
+esac

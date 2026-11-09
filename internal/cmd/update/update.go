@@ -3,17 +3,13 @@ package update
 import (
 	"archive/tar"
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +20,7 @@ import (
 	"time"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
+	"github.com/aarondpn/redmine-cli/v2/internal/ghrelease"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -41,36 +38,26 @@ const (
 	maxArchiveBytes = 200 << 20
 	// maxChecksumsBytes bounds the checksums file, which has one short line
 	// per release asset.
-	maxChecksumsBytes = 1 << 20
-	// releaseHTTPTimeout bounds each release metadata, checksums and archive
-	// request end to end, including reading the body.
-	releaseHTTPTimeout = 5 * time.Minute
+	maxChecksumsBytes = ghrelease.MaxChecksumsBytes
 )
 
 // releaseHTTPClient fetches release metadata, archives and checksums. Like
-// the attestation client it never waits forever: the server must start
-// answering within attestationHTTPTimeout, and a whole request (body
-// included) may take at most releaseHTTPTimeout.
-var releaseHTTPClient = newReleaseHTTPClient()
+// the attestation client it never waits forever (see ghrelease.NewHTTPClient).
+var releaseHTTPClient = ghrelease.NewHTTPClient()
 
-func newReleaseHTTPClient() *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = attestationHTTPTimeout
-	return &http.Client{Transport: transport, Timeout: releaseHTTPTimeout}
+// releaseClient returns the GitHub client for release requests.
+func releaseClient() *ghrelease.Client {
+	return &ghrelease.Client{HTTPClient: releaseHTTPClient}
 }
 
 // GithubRelease represents a GitHub release.
-type GithubRelease struct {
-	TagName     string        `json:"tag_name"`
-	PublishedAt time.Time     `json:"published_at"`
-	Assets      []GithubAsset `json:"assets"`
-}
+type GithubRelease = ghrelease.Release
 
 // GithubAsset represents a release asset.
-type GithubAsset struct {
-	Name               string `json:"name"`
-	BrowserDownloadURL string `json:"browser_download_url"`
-}
+type GithubAsset = ghrelease.Asset
+
+// responseTooLargeError reports a download that exceeded its size cap.
+type responseTooLargeError = ghrelease.ResponseTooLargeError
 
 // updateOptions carries the security-relevant knobs of runUpdateWithFormat.
 type updateOptions struct {
@@ -353,37 +340,11 @@ func FetchLatestRelease(ctx context.Context) (*GithubRelease, error) {
 	return fetchLatestRelease(ctx, ReleaseURL)
 }
 
+// fetchLatestRelease fetches release metadata from url. A token from
+// GITHUB_TOKEN / GH_TOKEN is sent to raise the rate limit and dropped once if
+// GitHub rejects it (see ghrelease.Client.GetJSON).
 func fetchLatestRelease(ctx context.Context, url string) (*GithubRelease, error) {
-	// As for attestations, a token only raises the anonymous rate limit,
-	// which shared IPs (CI runners, company networks) easily exhaust. A stale
-	// token must not break the lookup, so a rejected one is dropped once.
-	token := githubToken()
-	resp, err := getLatestRelease(ctx, url, token)
-	if err == nil && resp.StatusCode == http.StatusUnauthorized && token != "" {
-		resp.Body.Close()
-		resp, err = getLatestRelease(ctx, url, "")
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		hint := ""
-		switch resp.StatusCode {
-		case http.StatusForbidden, http.StatusTooManyRequests:
-			hint = " (rate limited? set GITHUB_TOKEN or GH_TOKEN)"
-		case http.StatusUnauthorized:
-			hint = " (GITHUB_TOKEN or GH_TOKEN rejected; unset it or use a valid token)"
-		}
-		return nil, fmt.Errorf("GitHub API returned status %d%s", resp.StatusCode, hint)
-	}
-
-	var release GithubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return nil, err
-	}
-	return &release, nil
+	return releaseClient().FetchReleaseURL(ctx, url)
 }
 
 func expectedAssetName() string {
@@ -400,88 +361,15 @@ func expectedChecksumsName(tag string) string {
 	return fmt.Sprintf("%s_%s_checksums.txt", RepoName, strings.TrimPrefix(tag, "v"))
 }
 
-// getLimited fetches url with releaseHTTPClient and returns the status code
-// and, for 200 OK, the body. It fails with a *responseTooLargeError instead
-// of reading more than limit bytes.
-func getLimited(ctx context.Context, url string, limit int64) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0, nil, err
-	}
-	resp, err := releaseHTTPClient.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return resp.StatusCode, nil, nil
-	}
-	if resp.ContentLength > limit {
-		return 0, nil, &responseTooLargeError{limit: limit}
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil {
-		return 0, nil, err
-	}
-	if int64(len(data)) > limit {
-		return 0, nil, &responseTooLargeError{limit: limit}
-	}
-	return resp.StatusCode, data, nil
-}
-
-// responseTooLargeError reports a download that exceeded its size cap.
-type responseTooLargeError struct {
-	limit int64
-}
-
-func (e *responseTooLargeError) Error() string {
-	return fmt.Sprintf("response is larger than %d bytes; refusing to read it", e.limit)
-}
-
 // downloadBytes downloads url into memory, reading at most limit bytes.
 func downloadBytes(ctx context.Context, url string, limit int64) ([]byte, error) {
-	status, data, err := getLimited(ctx, url, limit)
-	if err != nil {
-		return nil, err
-	}
-	if status != http.StatusOK {
-		return nil, fmt.Errorf("download returned status %d", status)
-	}
-	return data, nil
+	return releaseClient().Download(ctx, url, limit)
 }
 
+// verifyChecksum checks data against the entry for assetName in the
+// checksums file at checksumsURL.
 func verifyChecksum(ctx context.Context, data []byte, assetName, checksumsURL string) error {
-	status, checksums, err := getLimited(ctx, checksumsURL, maxChecksumsBytes)
-	if err != nil {
-		return fmt.Errorf("downloading checksums: %w", err)
-	}
-	if status != http.StatusOK {
-		return fmt.Errorf("checksums download returned status %d", status)
-	}
-
-	var expectedHash string
-	scanner := bufio.NewScanner(bytes.NewReader(checksums))
-	scanner.Buffer(nil, maxChecksumsBytes)
-	for scanner.Scan() {
-		// GoReleaser format: "<hash>  <filename>"
-		fields := strings.Fields(scanner.Text())
-		if len(fields) == 2 && fields[1] == assetName {
-			expectedHash = fields[0]
-			break
-		}
-	}
-	if expectedHash == "" {
-		return fmt.Errorf("no checksum found for %s", assetName)
-	}
-
-	actualHash := sha256.Sum256(data)
-	actualHex := hex.EncodeToString(actualHash[:])
-
-	if actualHex != expectedHash {
-		return fmt.Errorf("expected %s, got %s", expectedHash, actualHex)
-	}
-	return nil
+	return releaseClient().VerifyChecksum(ctx, data, assetName, checksumsURL)
 }
 
 func extractBinary(archiveData []byte, assetName string) ([]byte, error) {
@@ -672,19 +560,6 @@ func swapMovingAside(tmpPath, execPath string) error {
 		return err
 	}
 	return nil
-}
-
-func getLatestRelease(ctx context.Context, url, token string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	return releaseHTTPClient.Do(req)
 }
 
 // removeOldBinaries deletes the <exe>.old and <exe>.old-* files earlier

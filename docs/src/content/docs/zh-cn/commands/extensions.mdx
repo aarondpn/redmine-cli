@@ -1,0 +1,339 @@
+---
+title: 扩展
+description: 安装、运行、升级和移除扩展，为 redmine-cli 添加顶层命令和 MCP 工具。
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge, FileTree } from '@astrojs/starlight/components';
+
+扩展为 `redmine` 添加顶层命令，类似于 GitHub CLI 的 `gh extension`。扩展位于名为 `<owner>/redmine-cli-<name>` 的 GitHub 仓库中，以 `redmine <name> <command>` 的形式运行。大多数扩展会在清单文件（`redmine-extension.yml`）中描述其命令。redmine-cli 据此生成标志、帮助、补全、校验和表格输出，并把每个命令同时作为 [MCP 工具](/zh-cn/guides/ai-agents/#扩展工具)提供。
+
+```bash
+redmine extension search                      # 在 GitHub 上查找扩展
+redmine extension install octo/redmine-cli-pr # 安装一个扩展
+redmine pr list 1234                          # 像其他命令一样使用
+```
+
+`redmine ext` 是 `redmine extension` 的别名。如需编写自己的扩展，请参阅[编写扩展](/zh-cn/guides/writing-extensions/)。
+
+<Aside type="caution" title="只安装你信任的扩展">
+  redmine-cli 不会验证扩展。扩展以你的用户权限运行，无论是通过 CLI 还是作为 MCP 工具。扩展永远不会直接拿到你的 API 密钥：它通过 `redmine api` 调用 Redmine，后者使用你的身份验证配置文件。但除此之外，你的用户能做的事它都能做，因此安装时的信任判断才是你的安全保障。参见[安全](/zh-cn/guides/writing-extensions/#安全)。
+</Aside>
+
+<CardGrid>
+  <LinkCard title="install" href="#install" description="从 GitHub 安装，或链接本地目录。" />
+  <LinkCard title="list"    href="#list"    description="显示已安装的扩展及其命令。" />
+  <LinkCard title="upgrade" href="#upgrade" description="更新一个或全部扩展。" />
+  <LinkCard title="remove"  href="#remove"  description="卸载扩展。" />
+  <LinkCard title="exec"    href="#exec"    description="运行名称被核心命令占用的扩展。" />
+  <LinkCard title="search"  href="#search"  description="在 GitHub 上查找扩展。" />
+  <LinkCard title="create"  href="#create"  description="生成新的脚本或 Go 扩展骨架。" />
+  <LinkCard title="check"   href="#check"   description="校验清单并试运行命令。" />
+</CardGrid>
+
+## install
+
+<Badge text="校验和验证" variant="success" />
+
+<Tabs syncKey="ext-install">
+  <TabItem label="从 GitHub">
+    ```bash
+    redmine extension install octo/redmine-cli-pr
+    redmine extension install https://github.com/octo/redmine-cli-pr
+    ```
+  </TabItem>
+  <TabItem label="固定版本">
+    ```bash
+    # 安装指定的 release 或 git 标签，并在升级时跳过它
+    redmine extension install octo/redmine-cli-pr --pin v1.2.0
+    ```
+  </TabItem>
+  <TabItem label="无人值守">
+    ```bash
+    # 跳过信任提示；替换已安装的同名扩展
+    redmine extension install octo/redmine-cli-pr --yes --force
+    ```
+  </TabItem>
+  <TabItem label="本地目录">
+    ```bash
+    # 链接当前目录（目录名必须是 redmine-cli-<name>）
+    cd redmine-cli-pr && redmine extension install .
+    ```
+  </TabItem>
+</Tabs>
+
+参数可以是 `owner/redmine-cli-<name>`、`https://github.com/owner/redmine-cli-<name>` 形式的 URL，或本地路径（`.`、`./dir`、`../dir` 或绝对路径）。仓库名或目录名必须以 `redmine-cli-` 开头，其余部分即为命令名。
+
+从 GitHub 安装的方式取决于其 release（最新的 release，或 `--pin` 指定的标签）：
+
+1. **二进制。** 如果 release 中有名为 `redmine-cli-<name>-<os>-<arch>`（Windows 上带 `.exe`）的资产，就下载该文件。如果 release 还带有校验和文件（`checksums.txt`、任何以 `checksums.txt` 结尾的文件、`SHA256SUMS` 或 `sha256sums.txt`），会用它校验二进制文件；如果该文件列出了清单，清单也会被校验。校验不一致会中止安装。清单取自 release 资产 `redmine-extension.yml`。
+2. **报错。** 如果 release 中有其他平台的二进制文件，却没有你的平台的，安装会失败而不是改为克隆，因为预编译扩展的源码无法直接运行。
+3. **git 克隆。** 其他情况下（没有 release、没有该标签，或根本没有二进制文件），使用 `git` 克隆仓库，因此必须安装 git。`--pin` 会检出该标签。克隆下来的仓库根目录必须有可执行文件 `redmine-cli-<name>`。
+
+本地安装会链接目录而不是复制（使用符号链接，Windows 上使用一个小的链接文件），因此对可执行文件和清单的修改在下次运行时即生效。
+
+如果有清单，会在写入任何内容之前先校验。清单无效、缺少可执行文件或下载失败时，不会留下任何残留。安装成功后，命令会打印该扩展添加的 CLI 命令和 MCP 工具：
+
+```text
+Name:       pr
+Repo:       octo/redmine-cli-pr
+Version:    v1.2.0
+Kind:       binary
+Commands:   redmine pr list <issue-id>, redmine pr shell [args...]
+MCP tools:  pr_list
+OK: Installed extension pr; run 'redmine pr --help' to get started
+```
+
+使用 `-o json` 时，同样的信息以对象形式输出，包含 `name`、`repo`、`version`、`kind`（`binary`、`git` 或 `local`）、`pinned`、`path`、`commands` 和 `mcp_tools`。
+
+### 信任提示
+
+从 GitHub 安装前会先询问：
+
+```text
+Extensions are not verified by redmine-cli and run with your user permissions (also as MCP tools). Install octo/redmine-cli-pr? [y/N]
+```
+
+没有终端时（脚本、CI）无人可问，因此除非传入 `--yes`，安装会以 `validation_failed` 失败。本地安装不会询问。
+
+### 名称
+
+扩展名必须匹配 `^[a-z0-9][a-z0-9-]*$`，最长 32 个字符，且不能是 `extension`、`ext`、`help`、`completion`，也不能是核心命令的名称或别名（`issues`、`api`、`mcp` 等）。再次安装同名扩展会以 `already_exists` 失败，除非传入 `--force`。
+
+| 标志 | 描述 |
+|------|------|
+| `--pin <tag>` | 安装此 release 或 git 标签，并在升级时跳过该扩展。不能用于本地安装 |
+| `--force`     | 替换已安装的同名扩展 |
+| `--yes`       | 不询问，直接信任该扩展（没有终端时必须提供） |
+
+设置 `GITHUB_TOKEN` 或 `GH_TOKEN` 可避免 GitHub API 的速率限制。令牌只会发送给 `api.github.com`，下载 release 文件时不会发送。
+
+## list
+
+```bash
+redmine extension list
+redmine extension list --jq '.[] | select(.error) | .name'
+```
+
+列出已安装的扩展：名称、仓库、版本（release 标签或简短的 git 提交）、类型、是否固定版本，以及它添加的命令数和 MCP 工具数。也可以用 `redmine ext ls`。只读取本地扩展目录，不访问网络。
+
+`Notes` 列会标出需要注意的扩展：
+
+- **broken：** 清单无效或缺少可执行文件。该扩展仍会列出，`redmine <name>` 会报告问题而不是运行它。
+- **shadowed by a core command：** 新版 redmine-cli 添加了同名的核心命令。核心命令总是优先；请用 [`exec`](#exec) 运行该扩展。
+- **no manifest (passthrough)：** 该扩展没有 `redmine-extension.yml`，因此 `redmine <name> args...` 会原样传递参数。
+
+JSON 输出是对象数组，包含 `name`、`repo`、`version`、`kind`、`pinned`、`commands`、`mcp_tools`（二者均为数量）、`path`、`shadowed`，以及损坏扩展的 `error`。
+
+## upgrade
+
+```bash
+redmine extension upgrade pr
+redmine extension upgrade --all
+redmine extension upgrade --all --dry-run
+```
+
+给出扩展名或 `--all` 二者之一。
+
+- **二进制**扩展在最新 release 的标签与已安装的不同时，会从该 release 重新安装，校验方式与 `install` 相同。
+- **git** 扩展通过 `git pull --ff-only` 更新。
+- **固定版本**和**本地**扩展会被跳过并附带说明。要把固定版本的扩展换成其他版本，请用 `install --pin <tag> --force` 重新安装；不带 `--pin` 重新安装则取消固定。
+
+二进制升级时，如果新 release 未通过某项检查（校验和、清单无效），升级失败并保留旧版本。git pull 无法以同样方式撤销：拉取下来的清单无效时，结果中会附带说明，运行该扩展时也会报告问题。结果是一张表（`Name`、`Status`、`From`、`To`、`Note`）。使用 `-o json` 时是对象数组，包含 `name`、`status`（`upgraded`、`up_to_date`、`available`、`skipped` 或 `failed`）、`from`、`to` 和 `note`。只要有扩展升级失败，命令就以非零状态退出。
+
+| 标志 | 描述 |
+|------|------|
+| `--all`     | 升级所有已安装的扩展 |
+| `--dry-run` | 只报告可用的升级（`available`），不安装 |
+| `--force`   | 即使已是最新也重新安装二进制；把 git 扩展重置到上游，丢弃本地修改 |
+
+`redmine extension upgrade` 不会运行 redmine-cli 自身的[启动时更新检查](/zh-cn/commands/other/#启动时更新检查)。
+
+## remove
+
+```bash
+redmine extension remove pr
+```
+
+移除已安装的扩展（也可以用 `redmine ext rm`）。对于本地扩展只删除链接，你的目录保持不变。
+
+## exec
+
+```bash
+redmine extension exec pr list 1234
+redmine --profile work extension exec pr list 1234
+```
+
+与 `redmine <name> [args...]` 完全相同地运行已安装的扩展：标志、帮助、校验和输出都一样。核心命令总是优先于同名扩展，因此要运行名称被核心命令占用的扩展，就用 `exec`。redmine-cli 的全局标志请放在 `exec` 之前，或放在 `exec` 与扩展名之间。
+
+## search
+
+```bash
+redmine extension search
+redmine extension search pull request
+redmine extension search --jq '.[] | select(.installed | not) | .repo'
+```
+
+在 GitHub 上搜索带有 `redmine-cli-extension` 主题的仓库，按星标数从高到低排列，并标出你已安装的扩展。`search` 后面的词使用 [GitHub 搜索语法](https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories)来缩小结果范围。JSON 输出是对象数组，包含 `repo`、`name`、`description`、`stars`、`url` 和 `installed`。
+
+| 标志 | 描述 |
+|------|------|
+| `--limit` | 最多返回的结果数，1 到 100（默认 30） |
+
+## create
+
+```bash
+redmine extension create hello                  # shell 脚本扩展
+redmine extension create hello --precompiled=go # Go 扩展
+```
+
+在新目录 `redmine-cli-<name>/`（该目录必须尚不存在）中创建一个可以直接运行的扩展：
+
+<FileTree>
+- redmine-cli-hello/
+  - redmine-cli-hello 可执行文件（脚本版本）
+  - main.go, go.mod （Go 版本，取代脚本）
+  - redmine-extension.yml 清单，包含两个示例命令和 schema 模式行
+  - README.md
+  - .vscode/
+    - settings.json 把清单映射到其 JSON Schema
+  - .github/workflows/release.yml （Go 版本）发布 `install` 所需的二进制文件
+  - .gitignore （Go 版本）
+</FileTree>
+
+链接后即可试用：
+
+```bash
+cd redmine-cli-hello
+redmine extension install .   # Go 版本请先运行 go build
+redmine hello whoami
+redmine hello echo hi --tag a --tag b
+```
+
+该命令不会运行 `git init`。清单与协议的说明见[编写指南](/zh-cn/guides/writing-extensions/)。
+
+| 标志 | 描述 |
+|------|------|
+| `--precompiled go` | 创建预编译的 Go 扩展，而不是 shell 脚本 |
+
+## check
+
+```bash
+redmine extension check                  # 当前目录
+redmine extension check pr               # 已安装的扩展
+redmine extension check . --command list --input '{"issue_id": 123}'
+redmine extension check . --command list --input @input.json --mcp -o json
+```
+
+按照 JSON Schema 和语义规则校验某个目录（默认为 `.`）或已安装扩展的 `redmine-extension.yml`，并列出它定义的 CLI 命令和 MCP 工具。看起来像路径的参数（包含 `/` 或以 `.` 开头）视为目录；否则先查找同名的已安装扩展，找不到再当作同名目录。
+
+```text
+Command                      │ Mode │ MCP Tool
+──────────────────────────────────────────────────
+redmine hello whoami         │ read │ hello_whoami
+redmine hello echo <message> │ read │ hello_echo
+
+OK: /home/me/redmine-cli-hello/redmine-extension.yml is valid
+```
+
+所有问题会一次性报告，并带有文件名和行号：
+
+```text
+Error: /home/me/redmine-cli-pr/redmine-extension.yml is invalid
+  - redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)
+```
+
+使用 `--command` 时，会通过 CLI 和 MCP 服务器所用的同一协议运行一个声明式命令。`--input` 按 MCP 工具参数的方式校验，通过 stdin 发送给扩展，结果按 CLI 命令的方式打印。
+
+| 标志 | 描述 |
+|------|------|
+| `--command <name>` | 运行此声明式命令 |
+| `--input <json>`   | `--command` 的输入对象：JSON 文本、`@file`，或用 `@-` 从 stdin 读取（默认 `{}`） |
+| `--mcp`            | 以 MCP 环境运行（`REDMINE_EXT_SURFACE=mcp`、`REDMINE_MCP=1`、`REDMINE_MCP_TOOL`） |
+| `--yes`            | 跳过破坏性 `--command` 的确认；没有终端时必须提供 |
+
+## 运行扩展命令
+
+已安装的扩展会显示在 `redmine --help` 的 **Extension Commands** 下，shell 补全涵盖它们的名称、命令、标志和枚举值。
+
+```bash
+redmine pr --help
+redmine pr list --help
+redmine pr list 1234 --state merged --label bug
+redmine pr list 1234 -o json
+redmine pr list 1234 --jq '.[].title'
+```
+
+### 基于清单的命令
+
+清单中的每个命令都会成为一个子命令，带有类型化的位置参数和标志。参数 `issue_id` 显示为 `<issue-id>`，标志参数 `due_date` 变为 `--due-date`。参数在扩展启动之前就会被校验：
+
+```text
+Error: invalid value "abc" for <issue-id>: must be an integer
+Error: invalid value for --state: must be one of: open, merged, closed (got foo)
+```
+
+数组参数是可重复的标志（`--label a --label b`）。`json` 参数接受 JSON 文本、`@file`，或用 `@-` 从 stdin 读取。
+
+**输出**遵循与核心命令相同的规则：
+
+- `-o json` 和 `--jq` 打印扩展的 JSON 结果。
+- 表格格式下，数组使用清单中的 `table` 列，对象使用其 `detail` 字段。没有对应规格的结果以 JSON 打印。
+- 非 JSON 的输出按文本打印（使用 `-o json` 时作为 JSON 字符串）。
+
+**只读。** 未声明 `writes: true` 的命令总是以 `REDMINE_READ_ONLY=1` 运行，因此它们发出的 `redmine api` 调用无法修改数据。`--read-only`（或只读的身份验证配置文件）对所有扩展命令生效。
+
+**破坏性命令**会请求确认，并添加 `--yes` 标志以跳过确认。没有终端时必须提供 `--yes`：
+
+```text
+Error: redmine pr unlink is destructive and needs confirmation; pass --yes (there is no terminal to ask on)
+```
+
+**失败。** 扩展的 stderr 会在运行时实时显示（在终端中，除颜色外的控制序列会像 redmine-cli 显示的其他文本一样被中和）。扩展以非零状态退出时，`redmine` 以相同状态退出。JSON 模式下，stderr 的最后一行是常规的[错误信封](/zh-cn/guides/output-formats/#json-错误信封)，错误码为 `extension_failed`。命令运行超过超时时间（默认 60 秒，除非清单另行设置，最长 5 分钟）时，会连同它启动的所有进程一起被终止，并以错误码 `timeout` 失败。
+
+### 透传命令
+
+没有清单的扩展，以及标记为 `raw: true` 的清单命令，都是透传的：参数原样交给可执行文件，它直接使用终端，因此可以提示输入或运行交互式程序。redmine-cli 的全局标志只在透传命令（raw 命令的名称，或没有清单的扩展的名称）**之前**被识别；其后的所有内容原样交给扩展，即使是与全局标志同名的标志：
+
+```bash
+redmine pr --profile work shell   # --profile 属于 redmine-cli
+redmine pr shell --profile work   # --profile 交给扩展
+```
+
+Ctrl-C 会交给扩展处理，`redmine` 会等待它退出。只发送给 `redmine` 的信号（`kill`、`timeout`、CI 停止作业）会转发给扩展；如果两秒后扩展仍在运行，则会被终止。透传命令不支持 `--jq`。
+
+### 全局标志与凭据
+
+扩展通过 `redmine api` 调用 Redmine，后者通过环境变量继承本次调用的 `--profile`、`--config`、`--server`、`--header`、`--read-only` 和 `--no-color`。`--api-key` 和 `--api-key-file` **永远不会**传递：扩展自身的调用使用身份验证配置文件中的凭据（或继承下来的 `REDMINE_API_KEY`），当你把它们与扩展命令一起使用时，`redmine` 会打印警告。完整列表见[环境约定](/zh-cn/guides/writing-extensions/#环境变量)。
+
+### 更新提示
+
+在终端中运行从 GitHub 安装（非本地、非固定版本）的扩展时，`redmine` 会在后台检查是否有新版本。如果有，会在命令结束后向 stderr 打印：
+
+```text
+A new release of pr is available: v1.2.0 → v1.3.0
+Run "redmine extension upgrade pr" to upgrade
+```
+
+结果会按扩展缓存 24 小时，命令结束后最多等待检查一秒。`REDMINE_NO_UPDATE_CHECK=1` 可关闭此功能。
+
+## 扩展的存储位置
+
+<FileTree>
+- ~/.local/share/redmine-cli/extensions/
+  - redmine-cli-pr/ 二进制安装
+    - redmine-cli-pr
+    - redmine-extension.yml
+    - install.yml owner、repo、tag、sha256、pinned
+  - redmine-cli-deploy/ git 克隆
+  - redmine-cli-hello 指向本地目录的链接
+  - .meta/ git 安装的元数据和更新检查缓存
+</FileTree>
+
+设置了 `XDG_DATA_HOME` 时目录为 `$XDG_DATA_HOME/redmine-cli/extensions`，否则为 `~/.local/share/redmine-cli/extensions`。Windows 上为 `%LOCALAPPDATA%\redmine-cli\extensions`。设置 `REDMINE_EXTENSIONS_DIR` 可使用其他目录。git 安装的元数据放在克隆之外的 `.meta/` 中，因此工作区保持干净。
+
+| 变量 | 作用 |
+|------|------|
+| `REDMINE_EXTENSIONS_DIR` | 使用此扩展目录 |
+| `GITHUB_TOKEN`、`GH_TOKEN` | `install`、`upgrade`、`search` 和更新提示所用的 GitHub API 令牌 |
+| `REDMINE_NO_UPDATE_CHECK` | `1` 或 `true` 关闭扩展更新提示（以及 redmine-cli 自身的更新检查） |
+| `REDMINE_MCP_ENABLE_EXTENSIONS` | 让 `redmine mcp serve` 提供扩展工具（参见[扩展工具](/zh-cn/guides/ai-agents/#扩展工具)） |

@@ -53,6 +53,7 @@ The full skill source: [`skills/redmine-cli/SKILL.md`](https://github.com/aarond
 - **Custom field values.** Write tools for issues, projects, time entries, versions, users, my account and groups accept `custom_field_values`, keyed by numeric custom field ID (`list_custom_fields`; names are rejected). Each value is a string, or an array of strings for a multi-value field; `""` clears a field. A one-element array is sent as a plain string, so it is also valid for single-value fields. `create_time_entry` needs it on servers with required time entry custom fields.
 - **List filters.** `list_issues`, `list_time_entries`, `list_projects` and `list_users` accept `extra_params`, raw Redmine query parameters sent as-is, e.g. `{"cf_3": "Onsite", "spent_on": "><2026-01-01|2026-01-31"}`. Use an array for keys sent several times: `{"f[]": ["hours"], "op[hours]": ">=", "v[hours][]": ["2"]}`. A key that another field also sets replaces that field's value. With `f[]`, Redmine applies only the filters listed in `f[]`; filters set by other fields such as `status` are dropped. The same tools (except `list_issues`, which already had it) take `sort`, and `list_time_entries` takes `query_id` (find the IDs with `list_queries` and `type: "time_entry"`; the saved query's filters replace all other filters, only `project_id` and `sort` still apply). `list_projects` takes `status` (`active`, `closed`, `all` for both; Redmine 4.1+ lists only active projects when it is omitted, and archived projects are never listed). `list_users` takes `status: "all"` for every status on every supported version, and its `f[]` filters need Redmine 5.1+. `list_groups` takes `builtin: true` to include the Anonymous and Non member groups.
 - **Users, accounts, groups, projects, versions, memberships.** `create_user` accepts `status`, `language` and `pref`; `update_user` accepts `language`, `group_ids`, `notified_project_ids` and `pref`; `update_my_account` accepts `language`, `notified_project_ids` and `pref`. `pref` is an object of preference names to string values (for example `{"hide_mail": "1", "time_zone": "Berlin", "no_self_notified": "1"}`), sent as Redmine's top-level `pref` object; Redmine ignores keys it does not know. `group_ids` and `notified_project_ids` replace the current set (`[]` clears it), and notified projects only matter with `mail_notification: "selected"`. Language, preferences and notified projects are write-only: no read tool returns them. `update_user` cannot set passwords; use `redmine users update --password-file` from the CLI. `create_group` / `update_group` accept `twofa_required` and `create_project` / `update_project` accept `default_issue_query_id` (both Redmine 5.0+, ignored by older versions, write-only). `create_version` / `update_version` accept `default_project_version: true` to make the version the project's default. `create_membership` accepts `user_ids` to add several users or groups with the same roles. Redmine adds all of them or none (one invalid principal or existing member fails the whole call); the result is the first membership, `list_memberships` shows the others.
+- **Extension tools.** Installed [extensions](/commands/extensions/) add their commands as tools, in one group per extension (`ext-<name>`). They are on by default for stdio and off for `--http`. See [Extension tools](#extension-tools).
 - **API keys stay out of MCP.** No tool or resource returns a Redmine API key. `get_my_account`, `me`, `get_user`, `list_users`, `create_user`, and `redmine://user/...` strip `api_key` from the user record before it reaches the client, even if Redmine includes it in the response, and their output schemas do not declare the field. The CLI is unaffected: `redmine my-account get` still shows your own key.
 - **Configurable surface.** `--enable-groups` / `--disable-groups` constrain the registered tools to specific categories (`issues`, `wiki`, `time`, `news`, ...). For sharper control, `--enable-tools` / `--disable-tools` allow- or deny-list individual tool names. Run `redmine mcp tools` to print the full catalog. Resources follow the same filters as the matching read tool, so a host can't use a resource to read data its tools are denied:
 
@@ -233,7 +234,44 @@ profiles:
       disable_tools: [delete_issue]
 ```
 
-Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`, `REDMINE_MCP_AUTH_TOKEN`, `REDMINE_MCP_HTTP`, `REDMINE_MCP_NO_AUTH`) override the config block.
+Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`, `REDMINE_MCP_ENABLE_TOOLS`, `REDMINE_MCP_DISABLE_TOOLS`, `REDMINE_MCP_ENABLE_WRITES`, `REDMINE_MCP_ENABLE_EXTENSIONS`, `REDMINE_MCP_AUTH_TOKEN`, `REDMINE_MCP_HTTP`, `REDMINE_MCP_NO_AUTH`) override the config block.
+
+### Extension tools
+
+Every declarative command of an installed [extension](/commands/extensions/) becomes an MCP tool named `<extension>_<command>` (dashes become underscores), unless the manifest sets `mcp: false`. Raw commands and extensions without a manifest are CLI only. `redmine mcp tools` lists them in one group per extension, with the extension and its version:
+
+```text
+ext-pr
+  pr_link  (write, extension pr@v1.2.0)  Link a pull request to an issue. Requires --enable-writes.
+  pr_list  (read, extension pr@v1.2.0)   List PRs linked to a Redmine issue.
+
+extensions
+  Selects every ext-<name> group above.
+```
+
+- **On by default for stdio, off for HTTP.** A stdio server is started by your MCP host for you, so it serves your extensions. Over `--http`, anyone who can reach the port could run them, so they stay off unless you enable them. `--enable-extensions`, `mcp.enable_extensions` and `REDMINE_MCP_ENABLE_EXTENSIONS` turn them on or off explicitly (the flag wins, then the environment variable, then the config); `false` turns them off on both transports. The setup server (nothing configured yet) never has extension tools.
+- **Groups.** `ext-<name>` selects one extension's tools and `extensions` selects all of them, in `--enable-groups` / `--disable-groups` and the config block. Tool names work with `--enable-tools` / `--disable-tools`. Filters are checked against every installed extension, even when extension tools are off for this run, so a config naming an extension you have since removed fails at startup with a clear error.
+- **Write gating.** Tools that declare `writes: true` are only registered with `--enable-writes`. All other extension tools run with `REDMINE_READ_ONLY=1`, and a read-only profile or `REDMINE_READ_ONLY=1` on the server applies to all of them. Destructive tools say "Destructive." in their description.
+- **Same connection as the server.** The extension calls Redmine through `redmine api`, which gets the server's profile, config file, `--server` and headers. `--api-key` / `--api-key-file` given to `mcp serve` are not passed on (the server warns once); extension calls use the profile's credentials or `REDMINE_API_KEY`.
+- **Results.** Arguments are validated against the tool's input schema before the extension starts. A JSON object result is returned as `structuredContent` plus text, everything else as text, after the usual secret redaction. A failing extension, a timeout (60 seconds unless the manifest sets one, at most 5 minutes) or more than 10 MiB of output gives an `isError` result with the end of the extension's stderr.
+- **Name clashes.** A tool whose name a core tool or an earlier extension (in name order) already uses is skipped with a warning on stderr. A core tool is never replaced.
+
+```bash
+redmine mcp serve --enable-groups issues,ext-pr      # core issues tools plus one extension
+redmine mcp serve --disable-groups extensions         # no extension tools
+redmine mcp serve --http :8080 --enable-extensions    # extension tools over HTTP
+```
+
+```yaml
+profiles:
+  work:
+    mcp:
+      enable_extensions: false   # never serve extension tools for this profile
+```
+
+<Aside type="caution" title="Extensions run with your permissions">
+  Read-only mode and `--enable-writes` protect against **buggy** extensions that use `redmine api`. They do not protect against **malicious** ones: an extension is a program running as your user, and the MCP client decides when it runs. Only install extensions you trust; the trust prompt at install time is the security boundary. See [Security](/guides/writing-extensions/#security).
+</Aside>
 
 ### Prerequisite
 
@@ -254,6 +292,8 @@ Environment variables (`REDMINE_MCP_ENABLE_GROUPS`, `REDMINE_MCP_DISABLE_GROUPS`
 5. **Warning on stderr about rejected credentials (401) or a refused check (403).** At startup the server checks the credentials in the background (without delaying the connection) and warns, naming the profile and server. On 401 the key or password is wrong, expired or revoked, or the account is locked: run `redmine auth login` to update them, or fix `REDMINE_API_KEY` in the host config, then restart the MCP server. A 403 means the REST API is disabled (an administrator must enable Administration > Settings > API > Enable REST web service) or a proxy blocks the request; new credentials will not help, `redmine auth status` shows the diagnosis. Network errors during that check are not reported; tools report them when called.
 
 6. **Startup error with `--http` or `--profile`.** Over `--http` (also via `REDMINE_MCP_HTTP` or `mcp.http`), missing credentials make the command exit with the error instead of entering setup mode, and `--profile <name>` pointing at a profile that does not exist fails too. Run `redmine auth list` to confirm the profile names.
+
+7. **Extension tools are missing.** Over `--http` they are off unless you pass `--enable-extensions` (or set `mcp.enable_extensions` / `REDMINE_MCP_ENABLE_EXTENSIONS`). Write tools also need `--enable-writes`. Check the server's stderr for warnings about broken extensions or name clashes, and run `redmine extension list` to see whether an extension is marked broken. An MCP host that starts the server with a different environment may also see a different extensions directory (`REDMINE_EXTENSIONS_DIR`, `XDG_DATA_HOME`).
 
 </Steps>
 

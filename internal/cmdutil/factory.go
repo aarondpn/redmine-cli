@@ -40,8 +40,8 @@ type Factory struct {
 	ReadOnly *bool
 
 	// Headers holds the repeatable --header flag values ("Name: value"). They
-	// are merged over the profile's configured headers, replacing any entry
-	// with the same name.
+	// are merged over the profile's configured headers and REDMINE_HEADERS,
+	// replacing any entry with the same name.
 	Headers []string
 
 	// OutputFormat is set by the root persistent --output/-o flag and used
@@ -118,15 +118,24 @@ func (f *Factory) Config() (*config.Config, error) {
 		return nil, err
 	}
 
+	// Precedence: profile headers < REDMINE_HEADERS < --header. Later entries
+	// of the override list replace earlier ones with the same name.
+	envHeaders, err := config.EnvHeaders()
+	if err != nil {
+		return nil, err
+	}
+	headerOverrides := append(envHeaders, f.Headers...)
+
 	// A stored secret is bound to the server it was saved for; following a
 	// --server / REDMINE_SERVER override elsewhere hands it to another host.
 	if profile, server, ok := cfg.StoredCredentialServer(); ok && !config.SameOrigin(server, config.EnsureScheme(cfg.Server)) {
 		f.Warn(storedCredentialOverrideMessage(cfg, profile, server))
 	}
 	// Profile headers can hold proxy tokens bound to the same server; only
-	// those not replaced by a --header on this invocation are checked.
+	// those not replaced by a --header or REDMINE_HEADERS entry on this
+	// invocation are checked.
 	if profile, server, ok := cfg.ProfileServer(); ok && !config.SameOrigin(server, config.EnsureScheme(cfg.Server)) {
-		if names := profileHeadersInUse(cfg.Headers, f.Headers); len(names) > 0 {
+		if names := profileHeadersInUse(cfg.Headers, headerOverrides); len(names) > 0 {
 			f.Warn(profileHeadersOverrideMessage(cfg, profile, server, names))
 		}
 	}
@@ -146,7 +155,7 @@ func (f *Factory) Config() (*config.Config, error) {
 	if f.ReadOnly != nil {
 		cfg.ReadOnly = *f.ReadOnly
 	}
-	if cfg.Headers, err = config.MergeHeaders(cfg.Headers, f.Headers); err != nil {
+	if cfg.Headers, err = config.MergeHeaders(cfg.Headers, headerOverrides); err != nil {
 		return nil, err
 	}
 

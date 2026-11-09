@@ -84,6 +84,11 @@ type MCPConfig struct {
 	// HTTP bind without an auth token is served unauthenticated instead of
 	// getting a generated token.
 	NoAuth bool `mapstructure:"no_auth" yaml:"no_auth,omitempty"`
+	// EnableExtensions, when set, becomes the default for
+	// `--enable-extensions`: whether installed extensions contribute MCP
+	// tools. A nil pointer means "transport default" (on for stdio, off for
+	// HTTP), so only an explicit value changes it.
+	EnableExtensions *bool `mapstructure:"enable_extensions" yaml:"enable_extensions,omitempty"`
 }
 
 // ProfileConfig holds the top-level configuration with multiple profiles.

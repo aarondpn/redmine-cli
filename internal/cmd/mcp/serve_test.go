@@ -21,7 +21,7 @@ import (
 )
 
 func TestNewCmdMCP_HasServe(t *testing.T) {
-	cmd := NewCmdMCP(cmdutil.NewFactory())
+	cmd := NewCmdMCP(cmdutil.NewFactory(), Options{})
 	if cmd.Use != "mcp" {
 		t.Errorf("Use = %q, want mcp", cmd.Use)
 	}
@@ -37,7 +37,7 @@ func TestNewCmdMCP_HasServe(t *testing.T) {
 }
 
 func TestServeFlags_DefaultsToReadOnly(t *testing.T) {
-	cmd := newCmdServe(cmdutil.NewFactory())
+	cmd := newCmdServe(cmdutil.NewFactory(), Options{})
 
 	enable, err := cmd.Flags().GetBool("enable-writes")
 	if err != nil {
@@ -206,7 +206,7 @@ func TestBuildFilterSpec_RejectsUnknownTool(t *testing.T) {
 }
 
 func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
-	cmd := newCmdServe(cmdutil.NewFactory())
+	cmd := newCmdServe(cmdutil.NewFactory(), Options{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -225,7 +225,7 @@ func TestServeHelp_EnableGroupsUsageRendersNormally(t *testing.T) {
 }
 
 func TestServeHelp_AuthTokenHintsAtSaferChannels(t *testing.T) {
-	usage := newCmdServe(cmdutil.NewFactory()).Flags().Lookup("auth-token").Usage
+	usage := newCmdServe(cmdutil.NewFactory(), Options{}).Flags().Lookup("auth-token").Usage
 	if !strings.Contains(usage, "prefer --auth-token-file, REDMINE_MCP_AUTH_TOKEN, or mcp.auth_token") {
 		t.Fatalf("--auth-token help should point at --auth-token-file, REDMINE_MCP_AUTH_TOKEN and mcp.auth_token: %q", usage)
 	}
@@ -388,7 +388,7 @@ func TestResolveHTTPAuth_AuthTokenFile(t *testing.T) {
 }
 
 func TestServeFlags_AuthTokenAndFileAreMutuallyExclusive(t *testing.T) {
-	cmd := newCmdServe(cmdutil.NewFactory())
+	cmd := newCmdServe(cmdutil.NewFactory(), Options{})
 	cmd.SetArgs([]string{"--auth-token", "x", "--auth-token-file", "-"})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/aarondpn/redmine-cli/v2/internal/ghrelease"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/fulcio/certificate"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -111,7 +112,7 @@ func (v *sigstoreAttestationVerifier) fetchBundles(ctx context.Context, digest [
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	// A token only raises the rate limit; the attestations of a public
 	// repository are readable anonymously.
-	if token := githubToken(); token != "" {
+	if token := ghrelease.Token(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
@@ -125,14 +126,7 @@ func (v *sigstoreAttestationVerifier) fetchBundles(ctx context.Context, digest [
 	case resp.StatusCode == http.StatusNotFound:
 		return nil, errNoAttestation
 	case resp.StatusCode != http.StatusOK:
-		hint := ""
-		switch resp.StatusCode {
-		case http.StatusForbidden, http.StatusTooManyRequests:
-			hint = " (rate limited? set GITHUB_TOKEN or GH_TOKEN)"
-		case http.StatusUnauthorized:
-			hint = " (GITHUB_TOKEN or GH_TOKEN rejected; unset it or use a valid token)"
-		}
-		return nil, &attestationUnavailableError{err: fmt.Errorf("GitHub attestations API returned status %d%s", resp.StatusCode, hint)}
+		return nil, &attestationUnavailableError{err: fmt.Errorf("GitHub attestations API returned status %d%s", resp.StatusCode, ghrelease.StatusHint(resp.StatusCode))}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAttestationResponseBytes+1))
@@ -275,11 +269,4 @@ type contextHTTPClient struct {
 
 func (c contextHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return c.client.Do(req.WithContext(c.ctx))
-}
-
-func githubToken() string {
-	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
-		return t
-	}
-	return os.Getenv("GH_TOKEN")
 }

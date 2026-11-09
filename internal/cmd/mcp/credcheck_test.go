@@ -143,7 +143,7 @@ func (errUnknownProfile) Error() string { return `profile "x" not found` }
 
 func TestHTTPRequested(t *testing.T) {
 	newCmd := func(args ...string) *cobra.Command {
-		c := newCmdServe(cmdutil.NewFactory())
+		c := newCmdServe(cmdutil.NewFactory(), Options{})
 		if err := c.ParseFlags(args); err != nil {
 			t.Fatal(err)
 		}
@@ -202,7 +202,7 @@ func runServeWithConfig(t *testing.T, content, profile string, env map[string]st
 		ProfileOverride: profile,
 		IOStreams:       &cmdutil.IOStreams{In: strings.NewReader(""), Out: &bytes.Buffer{}, ErrOut: &errBuf},
 	}
-	cmd := newCmdServe(f)
+	cmd := newCmdServe(f, Options{})
 	cmd.SetArgs(args)
 	cmd.SetErr(&errBuf)
 	cmd.SilenceUsage, cmd.SilenceErrors = true, true

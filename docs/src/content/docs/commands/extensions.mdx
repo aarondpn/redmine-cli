@@ -1,0 +1,339 @@
+---
+title: Extensions
+description: Install, run, upgrade and remove extensions that add top-level commands and MCP tools to redmine-cli.
+---
+
+import { CardGrid, LinkCard, Tabs, TabItem, Aside, Badge, FileTree } from '@astrojs/starlight/components';
+
+Extensions add top-level commands to `redmine`, the way `gh extension` does for the GitHub CLI. An extension lives in a GitHub repository named `<owner>/redmine-cli-<name>` and runs as `redmine <name> <command>`. Most extensions describe their commands in a manifest (`redmine-extension.yml`). redmine-cli builds the flags, help, completion, validation and table output from it, and also serves every command as an [MCP tool](/guides/ai-agents/#extension-tools).
+
+```bash
+redmine extension search                      # find extensions on GitHub
+redmine extension install octo/redmine-cli-pr # install one
+redmine pr list 1234                          # use it like any other command
+```
+
+`redmine ext` is an alias for `redmine extension`. To write your own, see [Writing extensions](/guides/writing-extensions/).
+
+<Aside type="caution" title="Only install extensions you trust">
+  Extensions are not verified by redmine-cli. They run with your user permissions, both from the CLI and as MCP tools. An extension never gets your API key directly: it calls Redmine through `redmine api`, which uses your profile. But it can do anything else your user can, so trust at install time is what keeps you safe. See [Security](/guides/writing-extensions/#security).
+</Aside>
+
+<CardGrid>
+  <LinkCard title="install" href="#install" description="Install from GitHub or link a local directory." />
+  <LinkCard title="list"    href="#list"    description="Show installed extensions and their commands." />
+  <LinkCard title="upgrade" href="#upgrade" description="Update one or all extensions." />
+  <LinkCard title="remove"  href="#remove"  description="Uninstall an extension." />
+  <LinkCard title="exec"    href="#exec"    description="Run an extension whose name a core command has taken." />
+  <LinkCard title="search"  href="#search"  description="Find extensions on GitHub." />
+  <LinkCard title="create"  href="#create"  description="Scaffold a new script or Go extension." />
+  <LinkCard title="check"   href="#check"   description="Validate a manifest and try a command." />
+</CardGrid>
+
+## install
+
+<Badge text="checksum verified" variant="success" />
+
+<Tabs syncKey="ext-install">
+  <TabItem label="From GitHub">
+    ```bash
+    redmine extension install octo/redmine-cli-pr
+    redmine extension install https://github.com/octo/redmine-cli-pr
+    ```
+  </TabItem>
+  <TabItem label="Pinned">
+    ```bash
+    # Install this release or git tag and exclude it from upgrades
+    redmine extension install octo/redmine-cli-pr --pin v1.2.0
+    ```
+  </TabItem>
+  <TabItem label="Unattended">
+    ```bash
+    # Skip the trust prompt; replace an existing install
+    redmine extension install octo/redmine-cli-pr --yes --force
+    ```
+  </TabItem>
+  <TabItem label="Local directory">
+    ```bash
+    # Link the current directory (it must be named redmine-cli-<name>)
+    cd redmine-cli-pr && redmine extension install .
+    ```
+  </TabItem>
+</Tabs>
+
+The argument is `owner/redmine-cli-<name>`, an `https://github.com/owner/redmine-cli-<name>` URL, or a local path (`.`, `./dir`, `../dir` or an absolute path). The repository or directory name must start with `redmine-cli-`; the rest becomes the command name.
+
+How a GitHub extension is installed depends on its release (the latest one, or the tag given with `--pin`):
+
+1. **Binary.** If the release has an asset named `redmine-cli-<name>-<os>-<arch>` (with `.exe` on Windows), that file is downloaded. When the release also has a checksums file (`checksums.txt`, any name ending in `checksums.txt`, `SHA256SUMS` or `sha256sums.txt`), the binary is checked against it, and so is the manifest if the file lists it. A mismatch stops the install. The manifest comes from the release asset `redmine-extension.yml`.
+2. **Error.** If the release has binaries for other platforms but not for yours, the install fails rather than cloning, because the source of a precompiled extension would not run.
+3. **Git clone.** Otherwise (no release, no such tag, or no binaries at all) the repository is cloned with `git`, which must be installed. `--pin` checks out that tag. The clone needs an executable `redmine-cli-<name>` at the repository root.
+
+A local install links the directory instead of copying it (a symlink, or a small link file on Windows), so changes to the executable and the manifest take effect on the next run.
+
+The manifest, if there is one, is validated before anything is written. An invalid manifest, a missing executable or a failed download leaves nothing behind. After a successful install the command prints the CLI commands and MCP tools the extension adds:
+
+```text
+Name:       pr
+Repo:       octo/redmine-cli-pr
+Version:    v1.2.0
+Kind:       binary
+Commands:   redmine pr list <issue-id>, redmine pr shell [args...]
+MCP tools:  pr_list
+OK: Installed extension pr; run 'redmine pr --help' to get started
+```
+
+With `-o json` the same information is an object with `name`, `repo`, `version`, `kind` (`binary`, `git` or `local`), `pinned`, `path`, `commands` and `mcp_tools`.
+
+### Trust prompt
+
+Installing from GitHub asks first:
+
+```text
+Extensions are not verified by redmine-cli and run with your user permissions (also as MCP tools). Install octo/redmine-cli-pr? [y/N]
+```
+
+Without a terminal (scripts, CI) there is nobody to ask, so the install fails with `validation_failed` unless you pass `--yes`. Local installs don't ask.
+
+### Names
+
+The extension name must match `^[a-z0-9][a-z0-9-]*$`, be at most 32 characters, and must not be `extension`, `ext`, `help`, `completion` or the name or alias of a core command (`issues`, `api`, `mcp`, ...). Installing a second extension with the same name fails with `already_exists` unless you pass `--force`.
+
+| Flag | Description |
+|------|-------------|
+| `--pin <tag>` | Install this release or git tag and exclude the extension from upgrades. Not valid for local installs |
+| `--force`     | Replace an installed extension of the same name |
+| `--yes`       | Trust the extension without asking (required without a terminal) |
+
+Set `GITHUB_TOKEN` or `GH_TOKEN` to avoid GitHub API rate limits. The token is sent to `api.github.com` only, never with release downloads.
+
+## list
+
+```bash
+redmine extension list
+redmine extension list --jq '.[] | select(.error) | .name'
+```
+
+Lists the installed extensions: name, repository, version (release tag, or the short git commit), kind, whether it is pinned, and how many commands and MCP tools it adds. `redmine ext ls` works too. Only the local extensions directory is read; there is no network access.
+
+The `Notes` column flags extensions that need attention:
+
+- **broken:** the manifest is invalid or the executable is missing. The extension is still listed, and `redmine <name>` reports the problem instead of running it.
+- **shadowed by a core command:** a newer redmine-cli added a core command with the same name. Core commands always win; run the extension with [`exec`](#exec).
+- **no manifest (passthrough):** the extension has no `redmine-extension.yml`, so `redmine <name> args...` passes the arguments through unchanged.
+
+JSON output is an array of objects with `name`, `repo`, `version`, `kind`, `pinned`, `commands`, `mcp_tools` (both counts), `path`, `shadowed` and, for broken extensions, `error`.
+
+## upgrade
+
+```bash
+redmine extension upgrade pr
+redmine extension upgrade --all
+redmine extension upgrade --all --dry-run
+```
+
+Give either an extension name or `--all`.
+
+- **Binary** extensions are reinstalled from the latest release when its tag differs from the installed one, with the same checksum checks as `install`.
+- **Git** extensions are updated with `git pull --ff-only`.
+- **Pinned** and **local** extensions are skipped with a note. To move a pinned extension to another version, reinstall it with `install --pin <tag> --force`, or without `--pin` to unpin it.
+
+A binary upgrade whose new release fails a check (checksum, invalid manifest) fails and keeps the old version. A git pull cannot be undone that way: when the pulled manifest is invalid, the result has a note saying so, and the extension reports the problem when you run it. The result is a table (`Name`, `Status`, `From`, `To`, `Note`). With `-o json` it is an array of objects with `name`, `status` (`upgraded`, `up_to_date`, `available`, `skipped` or `failed`), `from`, `to` and `note`. If any extension fails, the command exits with a non-zero status.
+
+| Flag | Description |
+|------|-------------|
+| `--all`     | Upgrade every installed extension |
+| `--dry-run` | Only report available upgrades (`available`) without installing them |
+| `--force`   | Reinstall binaries even when current; reset git extensions to their upstream, discarding local changes |
+
+`redmine extension upgrade` does not run the [startup update check](/commands/other/#startup-update-check) for redmine-cli itself.
+
+## remove
+
+```bash
+redmine extension remove pr
+```
+
+Removes an installed extension (`redmine ext rm` works too). For a local extension only the link is removed and your directory is left alone.
+
+## exec
+
+```bash
+redmine extension exec pr list 1234
+redmine --profile work extension exec pr list 1234
+```
+
+Runs an installed extension exactly like `redmine <name> [args...]`: same flags, help, validation and output. Core commands always take precedence over extensions with the same name, so `exec` is how you run an extension whose name a core command has taken. Put redmine-cli's global flags before `exec`, or between `exec` and the extension name.
+
+## search
+
+```bash
+redmine extension search
+redmine extension search pull request
+redmine extension search --jq '.[] | select(.installed | not) | .repo'
+```
+
+Searches GitHub for repositories with the topic `redmine-cli-extension`, most starred first, and marks the ones you have installed. Words after `search` use [GitHub search syntax](https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories) and narrow the results. JSON output is an array of objects with `repo`, `name`, `description`, `stars`, `url` and `installed`.
+
+| Flag | Description |
+|------|-------------|
+| `--limit` | Maximum number of results, 1 to 100 (default 30) |
+
+## create
+
+```bash
+redmine extension create hello                  # shell script extension
+redmine extension create hello --precompiled=go # Go extension
+```
+
+Creates a working extension in a new directory `redmine-cli-<name>/` (the directory must not exist yet):
+
+<FileTree>
+- redmine-cli-hello/
+  - redmine-cli-hello the executable (shell script variant)
+  - main.go, go.mod (Go variant, instead of the script)
+  - redmine-extension.yml manifest with two example commands and a schema modeline
+  - README.md
+  - .vscode/
+    - settings.json maps the manifest to its JSON Schema
+  - .github/workflows/release.yml (Go variant) publishes the binaries `install` looks for
+  - .gitignore (Go variant)
+</FileTree>
+
+Link it and try it right away:
+
+```bash
+cd redmine-cli-hello
+redmine extension install .   # for Go, run go build first
+redmine hello whoami
+redmine hello echo hi --tag a --tag b
+```
+
+The command does not run `git init`. The [writing guide](/guides/writing-extensions/) explains the manifest and the protocol.
+
+| Flag | Description |
+|------|-------------|
+| `--precompiled go` | Create a precompiled Go extension instead of a shell script |
+
+## check
+
+```bash
+redmine extension check                  # the current directory
+redmine extension check pr               # an installed extension
+redmine extension check . --command list --input '{"issue_id": 123}'
+redmine extension check . --command list --input @input.json --mcp -o json
+```
+
+Validates the `redmine-extension.yml` of a directory (default `.`) or an installed extension against the JSON Schema and the semantic rules, and lists the CLI commands and MCP tools it defines. An argument that looks like a path (contains `/` or starts with `.`) is a directory; otherwise an installed extension with that name is checked, or else a directory of that name.
+
+```text
+Command                      │ Mode │ MCP Tool
+──────────────────────────────────────────────────
+redmine hello whoami         │ read │ hello_whoami
+redmine hello echo <message> │ read │ hello_echo
+
+OK: /home/me/redmine-cli-hello/redmine-extension.yml is valid
+```
+
+Problems are reported with file and line, all at once:
+
+```text
+Error: /home/me/redmine-cli-pr/redmine-extension.yml is invalid
+  - redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)
+```
+
+With `--command`, one declarative command is run through the same protocol the CLI and the MCP server use. `--input` is validated the way MCP tool arguments are, sent to the extension on stdin, and the result is printed the way the CLI command would print it.
+
+| Flag | Description |
+|------|-------------|
+| `--command <name>` | Run this declarative command |
+| `--input <json>`   | Input object for `--command`: JSON text, `@file`, or `@-` for stdin (default `{}`) |
+| `--mcp`            | Run with the MCP environment (`REDMINE_EXT_SURFACE=mcp`, `REDMINE_MCP=1`, `REDMINE_MCP_TOOL`) |
+| `--yes`            | Skip the confirmation of a destructive `--command`; without a terminal it is required |
+
+## Running extension commands
+
+Installed extensions show up in `redmine --help` under **Extension Commands**, and shell completion covers their names, commands, flags and enum values.
+
+```bash
+redmine pr --help
+redmine pr list --help
+redmine pr list 1234 --state merged --label bug
+redmine pr list 1234 -o json
+redmine pr list 1234 --jq '.[].title'
+```
+
+### Commands from a manifest
+
+Each manifest command becomes a subcommand with typed positional arguments and flags. A parameter `issue_id` is shown as `<issue-id>` and a flag param `due_date` becomes `--due-date`. Arguments are validated before the extension starts:
+
+```text
+Error: invalid value "abc" for <issue-id>: must be an integer
+Error: invalid value for --state: must be one of: open, merged, closed (got foo)
+```
+
+Array parameters are repeatable flags (`--label a --label b`). `json` parameters take JSON text, `@file`, or `@-` for stdin.
+
+**Output** follows the same rules as core commands:
+
+- `-o json` and `--jq` print the extension's JSON result.
+- The table format uses the manifest's `table` columns for arrays and its `detail` fields for objects. Results without a matching spec are printed as JSON.
+- Output that is not JSON is printed as text (and as a JSON string with `-o json`).
+
+**Read-only.** Commands that don't declare `writes: true` always run with `REDMINE_READ_ONLY=1`, so `redmine api` calls they make cannot change data. `--read-only` (or a read-only profile) applies to every extension command.
+
+**Destructive commands** ask for confirmation and add a `--yes` flag to skip it. Without a terminal, `--yes` is required:
+
+```text
+Error: redmine pr unlink is destructive and needs confirmation; pass --yes (there is no terminal to ask on)
+```
+
+**Failures.** The extension's stderr is shown as it runs (in a terminal with control sequences other than colors neutralized, like any text redmine-cli shows). If the extension exits with a non-zero status, `redmine` exits with the same status. In JSON mode the last line of stderr is the usual [error envelope](/guides/output-formats/#json-error-envelope) with code `extension_failed`. A command that runs past its timeout (60 seconds unless the manifest sets one, at most 5 minutes) is stopped together with every process it started, and fails with code `timeout`.
+
+### Passthrough commands
+
+Extensions without a manifest, and manifest commands marked `raw: true`, are passed through: the arguments go to the executable unchanged and it gets the terminal directly, so it can prompt or run an interactive program. redmine-cli's global flags are only recognized **before** the passthrough command (the raw command's name, or the name of an extension without a manifest); everything after it goes to the extension unchanged, even a flag with the name of a global flag:
+
+```bash
+redmine pr --profile work shell   # --profile is redmine-cli's
+redmine pr shell --profile work   # --profile goes to the extension
+```
+
+Ctrl-C goes to the extension, and `redmine` waits for it to exit. A signal sent to `redmine` alone (`kill`, `timeout`, a CI runner stopping the job) is passed on to the extension, which is stopped if it is still running two seconds later. `--jq` is not supported for passthrough commands.
+
+### Global flags and credentials
+
+Extensions call Redmine through `redmine api`, which inherits the invocation's `--profile`, `--config`, `--server`, `--header`, `--read-only` and `--no-color` through environment variables. `--api-key` and `--api-key-file` are **never** passed on: the extension's own calls use the profile's credentials (or an inherited `REDMINE_API_KEY`), and `redmine` prints a warning when you combine them with an extension command. The full list is in the [environment contract](/guides/writing-extensions/#environment).
+
+### Update notice
+
+When you run an extension installed from GitHub (not local, not pinned) in a terminal, `redmine` checks in the background whether a newer version exists. If one does, it prints this to stderr afterwards:
+
+```text
+A new release of pr is available: v1.2.0 → v1.3.0
+Run "redmine extension upgrade pr" to upgrade
+```
+
+The result is cached for 24 hours per extension, and the check waits at most one second after the command finishes. `REDMINE_NO_UPDATE_CHECK=1` turns it off.
+
+## Where extensions are stored
+
+<FileTree>
+- ~/.local/share/redmine-cli/extensions/
+  - redmine-cli-pr/ binary install
+    - redmine-cli-pr
+    - redmine-extension.yml
+    - install.yml owner, repo, tag, sha256, pinned
+  - redmine-cli-deploy/ git clone
+  - redmine-cli-hello link to a local directory
+  - .meta/ git install metadata and update-check cache
+</FileTree>
+
+The directory is `$XDG_DATA_HOME/redmine-cli/extensions` when `XDG_DATA_HOME` is set, otherwise `~/.local/share/redmine-cli/extensions`. On Windows it is `%LOCALAPPDATA%\redmine-cli\extensions`. Set `REDMINE_EXTENSIONS_DIR` to use another directory. The metadata of git installs lives in `.meta/`, outside the clone, so the working tree stays clean.
+
+| Variable | Effect |
+|----------|--------|
+| `REDMINE_EXTENSIONS_DIR` | Use this extensions directory |
+| `GITHUB_TOKEN`, `GH_TOKEN` | GitHub API token for `install`, `upgrade`, `search` and the update notice |
+| `REDMINE_NO_UPDATE_CHECK` | `1` or `true` turns off the extension update notice (and redmine-cli's own) |
+| `REDMINE_MCP_ENABLE_EXTENSIONS` | Serve extension tools from `redmine mcp serve` (see [Extension tools](/guides/ai-agents/#extension-tools)) |

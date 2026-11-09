@@ -1,0 +1,345 @@
+---
+title: 编写扩展
+description: 构建 redmine-cli 扩展。内容包括清单参考、完整示例、执行协议与环境变量、编辑器 schema 配置、MCP 行为以及发布方式。
+---
+
+import { Steps, Aside, Tabs, TabItem, FileTree, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+扩展为 redmine-cli 添加命令 `redmine <name>`。你需要编写两样东西：
+
+- **清单** `redmine-extension.yml`：声明每个命令的参数、是否写入数据，以及结果如何显示为表格。redmine-cli 根据这一份定义生成 CLI 命令（标志、位置参数、帮助、补全、校验、输出）和 MCP 工具（输入 schema、校验、写入控制）。
+- **处理程序**，即可执行文件 `redmine-cli-<name>`，可用任何语言编写。它从 stdin 读取 JSON 输入，通过 `$REDMINE_CLI_BIN api ...` 调用 Redmine，并把结果以 JSON 打印到 stdout。
+
+处理程序永远看不到凭据。`redmine api` 会按启动扩展的那条命令所用的身份验证配置文件、配置文件路径、服务器和请求头来解析凭据。
+
+安装和管理扩展，请参阅 [`redmine extension` 命令参考](/zh-cn/commands/extensions/)。
+
+## 快速开始
+
+<Steps>
+
+1. 创建一个可以直接运行的扩展：
+
+   ```bash
+   redmine extension create hello            # shell 脚本
+   redmine extension create hello --precompiled=go   # 或 Go
+   ```
+
+2. 链接以便开发。链接的扩展在每次运行时都会重新读取，因此修改立即生效：
+
+   ```bash
+   cd redmine-cli-hello
+   redmine extension install .    # Go 版本请先运行 go build
+   ```
+
+3. 试用：
+
+   ```bash
+   redmine hello --help
+   redmine hello whoami
+   redmine hello echo hi --tag a --tag b
+   redmine extension check . --command echo --input '{"message": "hi"}'
+   ```
+
+</Steps>
+
+## 命名
+
+| 项目 | 名称 |
+|------|------|
+| 仓库 | `<owner>/redmine-cli-<name>` |
+| 命令 | `redmine <name>` |
+| 可执行文件 | 仓库根目录下的 `redmine-cli-<name>`（Windows 二进制为 `redmine-cli-<name>.exe`） |
+| release 二进制 | `redmine-cli-<name>-<goos>-<goarch>`，Windows 上加 `.exe`，为原始文件（不打包） |
+| GitHub 主题 | `redmine-cli-extension`，以便 `redmine extension search` 能找到 |
+
+`<name>` 必须匹配 `^[a-z0-9][a-z0-9-]*$`，最长 32 个字符，且不能是 `extension`、`ext`、`help`、`completion`，也不能是核心命令的名称或别名。
+
+## 完整示例
+
+`redmine-cli-triage` 添加两个命令：`redmine triage stale <project>` 列出长时间无人更新的未关闭工单，`redmine triage nudge <ids...>` 添加一条评论询问进展。
+
+<FileTree>
+- redmine-cli-triage/
+  - redmine-cli-triage 处理程序（`chmod +x`）
+  - redmine-extension.yml
+</FileTree>
+
+```yaml title="redmine-extension.yml"
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: triage
+description: Find and follow up on stale issues
+commands:
+  - name: stale
+    description: List open issues that have not been updated for a while
+    params:
+      - { name: project, type: string, required: true, positional: true, description: Project identifier or ID }
+      - { name: days, type: integer, default: 30, description: Minimum number of days since the last update }
+    output:
+      table:
+        - { header: ID, path: id }
+        - { header: Subject, path: subject }
+        - { header: Assignee, path: assignee }
+        - { header: Updated, jq: '.updated_on[0:10]' }
+  - name: nudge
+    description: Ask for a status update on one or more issues
+    writes: true
+    timeout: 2m
+    params:
+      - { name: issue_ids, type: integer, array: true, required: true, positional: true, description: Issues to comment on }
+      - { name: message, type: string, default: 'Any news on this?', description: Comment to add }
+    output:
+      detail:
+        - { key: Nudged, path: nudged }
+        - { key: Comment, path: message }
+```
+
+处理程序是一个 bash 脚本，使用 [jq](https://jqlang.org) 读取输入对象：
+
+```bash title="redmine-cli-triage"
+#!/usr/bin/env bash
+# redmine-cli-triage: find and follow up on stale issues.
+# Needs jq (https://jqlang.org) to read the input object.
+set -euo pipefail
+
+input=$(cat)                                 # the validated input object
+param() { jq -r --arg k "$1" '.[$k]' <<<"$input"; }
+redmine() { "$REDMINE_CLI_BIN" "$@"; }       # the redmine that started us
+
+case "${REDMINE_EXT_COMMAND:-}" in
+stale)
+  # Oldest updates first; keep the open issues untouched for at least $days.
+  redmine api /issues.json -f project_id="$(param project)" \
+      -f status_id=open -f sort=updated_on -f limit=100 |
+    jq --argjson days "$(param days)" '[.issues[]
+      | select((.updated_on | fromdateiso8601) < now - $days * 86400)
+      | {id, subject, assignee: .assigned_to.name, updated_on}]'
+  ;;
+nudge)
+  message=$(param message)
+  for id in $(jq -r '.issue_ids[]' <<<"$input"); do
+    redmine api -X PUT "/issues/$id.json" --silent \
+      -F "issue=$(jq -cn --arg notes "$message" '{notes: $notes}')"
+  done
+  jq '{nudged: .issue_ids, message}' <<<"$input"
+  ;;
+*)
+  echo "unknown command: ${REDMINE_EXT_COMMAND:-<none>}" >&2
+  exit 2
+  ;;
+esac
+```
+
+redmine-cli 由此生成的内容：
+
+```bash
+redmine extension install .
+redmine triage stale web                 # 表格：ID、Subject、Assignee、Updated
+redmine triage stale web --days 90 -o json
+redmine triage nudge 12 15 --message "Still blocked?"
+redmine --read-only triage nudge 12      # PUT 被拒绝
+```
+
+- `stale` 没有声明 `writes`，因此总是以 `REDMINE_READ_ONLY=1` 运行。它的 `redmine api` 调用可以读取数据，但不能修改。
+- `days` 在处理程序启动前就被校验为整数，默认为 `30`，因此 `param days` 总有值。没有默认值的可选参数不会出现在输入中；使用 `jq -r` 读取缺失的键会得到 `null`。
+- `nudge` 设置了 `writes: true`。作为 MCP 工具时，它只在传入 `--enable-writes` 时存在，其描述中也会注明这一点。
+- 两个命令都会成为 MCP 工具 `triage_stale` 和 `triage_nudge`，位于 `ext-triage` 组中。
+
+## 清单参考
+
+清单使用 YAML 格式。未知的键会被拒绝，每个问题都会带行号报告，例如 `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`。
+
+### 顶层
+
+| 字段 | 必填 | 描述 |
+|------|------|------|
+| `schema_version` | 是 | 清单格式版本。仅支持 `1` |
+| `name` | 是 | 扩展名。必须与 `redmine-cli-<name>` 中的 `<name>` 相同 |
+| `description` | 否 | 显示在 `redmine --help` 和 `redmine extension list` 中 |
+| `min_cli_version` | 否 | 能运行该扩展的最低 redmine-cli 版本（例如 `2.9.0`）。更旧的版本会拒绝该清单；开发版构建跳过此检查 |
+| `commands` | 是 | 至少一个命令 |
+
+### 命令
+
+| 字段 | 默认值 | 描述 |
+|------|--------|------|
+| `name` | | 以 `redmine <ext> <name>` 调用。小写字母、数字、`_` 和 `-`，以字母开头。不可重复 |
+| `description` | | 用于 CLI 帮助和 MCP 工具描述的一行说明。必填 |
+| `writes` | `false` | 该命令会修改 Redmine 数据。未设置时命令以 `REDMINE_READ_ONLY=1` 运行 |
+| `destructive` | `false` | 会删除数据或做出不可逆的修改。为 CLI 命令添加 `--yes` 和确认提示，并把 MCP 工具标记为破坏性。要求 `writes: true` |
+| `mcp` | `true` | `false` 表示仅限 CLI |
+| `timeout` | `60s` | 最长运行时间，使用 Go 时长格式（`30s`、`2m`），最多 `5m` |
+| `raw` | `false` | 透传命令：argv 和终端直接交给可执行文件。不能有 `params` 或 `output`，永远不是 MCP 工具 |
+| `params` | | 输入参数，见下文 |
+| `output` | | 表格渲染，见下文 |
+
+### 参数
+
+| 字段 | 默认值 | 描述 |
+|------|--------|------|
+| `name` | | 输入对象中的键。小写字母、数字、`_` 和 `-`，以字母开头。在同一命令中不可重复。CLI 标志为把 `_` 换成 `-` 后的名称（`due_date` → `--due-date`） |
+| `type` | | `string`、`integer`、`number`、`boolean` 或 `json` |
+| `description` | | 标志和 MCP 参数的帮助文本 |
+| `required` | `false` | 必须提供该参数 |
+| `positional` | `false` | 从位置参数而不是标志中取值 |
+| `array` | `false` | 接受一个值列表 |
+| `enum` | | 允许的值。仅用于 `string` 和 `integer` |
+| `default` | | 未提供参数时使用的值。必须与 `type` 匹配（设置 `array` 时为列表），并在 `enum` 范围内 |
+
+各类型的传递方式：
+
+| 类型 | CLI | MCP 参数 | stdin 中的值 |
+|------|-----|----------|--------------|
+| `string` | `--state open` | 字符串 | 字符串 |
+| `integer` | `--days 30` | 整数（无小数） | 整数 |
+| `number` | `--ratio 0.5` | 数字 | 数字 |
+| `boolean` | `--draft`、`--draft=false` | 布尔值 | `true` / `false` |
+| `json` | `--extra '{"a": 1}'`、`--extra @file.json`、`--extra @-`（stdin） | 任意 JSON 值 | 解码后的值 |
+
+- **数组**是可重复的标志：`--label a --label b`。整数、数字和布尔数组也接受逗号分隔的值（`--id 1,2`）；字符串数组不会拆分，因此值中可以包含逗号。数组位置参数接收其余所有参数，显示为 `<name...>`。
+- **位置参数**按声明顺序排列，显示为 `<issue-id>`，可选时显示为 `[issue-id]`。必填位置参数必须位于可选位置参数之前，数组位置参数必须是最后一个。
+- **保留的标志名。** 标志参数不能映射到全局标志（`server`、`api-key`、`api-key-file`、`profile`、`config`、`header`、`output`、`jq`、`no-color`、`verbose`、`read-only`），也不能映射到 `help`、`yes` 或 `force`。请重命名或改为位置参数。两个参数也不能映射到同一个标志（如 `due_date` 和 `due-date`）。
+- 通过 MCP 调用时，`null` 视为未提供，命令未声明的属性会被拒绝。
+
+### 输出
+
+`output` 只影响 CLI 的表格格式。`-o json`、`--jq` 和 MCP 结果总是原样得到处理程序的 JSON。
+
+```yaml
+output:
+  table:                        # 结果为数组时使用：每个元素一行
+    - { header: ID, path: id }
+    - { header: Author, path: author.login }
+    - { header: Labels, jq: '[.labels[].name] | join(" ")' }
+  detail:                       # 结果为对象时使用：每个字段一行
+    - { key: State, path: state }
+    - { key: First reviewer, path: reviewers.0.login }
+```
+
+- 每一列或每个字段只能设置 `path` 和 `jq` 中的一个。
+- `path` 是指向元素或对象内部的点路径。数字段用于索引数组（`reviewers.0.login`）。
+- `jq` 是针对元素或对象求值的 jq 表达式，在加载清单时检查。多个结果用 `, ` 连接。
+- 字符串、数字和布尔值显示为文本，由它们组成的列表用 `, ` 连接。其他值显示为紧凑的 JSON，缺失的值显示为空单元格。
+- 不匹配的结果（只有 `table` 规格的对象、标量，或根本没有 `output`）以 JSON 打印。
+
+## 执行协议
+
+声明式命令（除 `raw` 以外的所有命令）在 CLI 和 MCP 服务器中的行为相同，`redmine extension check --command` 运行的也正是这一协议。
+
+| | 声明式命令 | raw 命令 / 无清单 |
+|---|---|---|
+| **argv** | 无 | raw 命令为 `<command> args...`，无清单时为 `args...` |
+| **stdin** | 经过校验的输入对象（JSON）：参数名为键，已应用默认值，未提供的可选参数被省略 | 终端 |
+| **stdout** | 结果，JSON 格式（对象、数组或标量），最多 10 MiB；非 JSON 的输出按文本显示 | 终端 |
+| **stderr** | 错误信息。在 CLI 中实时显示；在 JSON 模式和 MCP 中，其最后 4 KiB（经过清理）成为错误信息 | 终端 |
+| **退出状态** | `0` 表示成功。其他值表示失败，`redmine` 以相同状态退出 | 原样传递 |
+| **超时** | `timeout`，默认 60 秒，最长 5 分钟 | 仅当清单设置了 `timeout` 时 |
+
+- 超时或被取消（Ctrl-C，或 MCP 客户端取消调用）时，处理程序会连同它启动的所有进程一起被终止（终止其进程组；Windows 上终止该进程）。声明式命令输出超过 10 MiB 时同样会被终止。
+- 一个可执行文件服务所有命令，请根据 `REDMINE_EXT_COMMAND` 分派。
+- 声明式命令无法提示输入：stdin 是输入，stdout 会被捕获。任何交互式操作请使用 `raw` 命令。
+- 在 Windows 上，脚本扩展（不带 `.exe` 的可执行文件）通过 [Git for Windows](https://git-scm.com/download/win) 中的 `sh` 运行。
+
+### 环境变量
+
+处理程序继承 `redmine` 的环境，并设置以下变量：
+
+| 变量 | 值 |
+|------|----|
+| `REDMINE_CLI_BIN` | 正在运行的 `redmine` 二进制文件的绝对路径。请调用它，而不是 `PATH` 中的 `redmine` |
+| `REDMINE_EXT_NAME` | 扩展名 |
+| `REDMINE_EXT_COMMAND` | 清单中的命令（声明式和 raw 命令；无清单时不设置） |
+| `REDMINE_EXT_SURFACE` | `cli` 或 `mcp` |
+| `REDMINE_MCP`、`REDMINE_MCP_TOOL` | `1` 和工具名，仅在 MCP 中设置 |
+| `REDMINE_PROFILE` | 生效的身份验证配置文件（如果有） |
+| `REDMINE_CONFIG` | 配置文件的绝对路径，前提是给出了 `--config` 或 `REDMINE_CONFIG` |
+| `REDMINE_SERVER` | `--server` 的值（如果给出） |
+| `REDMINE_HEADERS` | 如果给出了 `--header`：继承的 `REDMINE_HEADERS` 条目后接 `--header` 的值，每行一个 `Name: value` |
+| `REDMINE_READ_ONLY` | 只读模式开启或命令未声明 `writes: true` 时为 `1`；`--read-only=false` 关闭了继承的只读模式时为 `0` |
+| `REDMINE_NO_COLOR` | 使用 `--no-color` 时为 `1` |
+| `REDMINE_NO_UPDATE_CHECK` | 始终为 `1`，因此嵌套的 `redmine` 调用从不检查更新 |
+
+由于这些都是 redmine-cli 的常规变量，嵌套的 `"$REDMINE_CLI_BIN" api ...` 调用会访问启动扩展的那条命令所用的同一个 Redmine，使用相同的请求头和只读模式，无需任何扩展专用代码。`--api-key` 和 `--api-key-file` 永远不会被传递；嵌套调用使用身份验证配置文件中的凭据，或环境中已有的 `REDMINE_API_KEY`。其他所有变量（包括 `REDMINE_API_KEY`）都原样继承。
+
+没有清单的扩展永远不会被强制只读，只遵循本次调用自身的只读模式。
+
+## 编辑器支持
+
+清单的 JSON Schema 发布在 `https://redmine-cli.dev/schema/redmine-extension.v1.json`。在任何使用 [YAML language server](https://github.com/redhat-developer/yaml-language-server) 的编辑器中（例如安装了 Red Hat YAML 扩展的 VS Code、Neovim 或 Zed），它提供补全、悬停文档和校验。`redmine extension create` 会同时配置以下两项。
+
+<Tabs>
+  <TabItem label="模式行">
+    清单的第一行让 language server 使用该 schema：
+
+    ```yaml
+    # yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+    ```
+  </TabItem>
+  <TabItem label=".vscode/settings.json">
+    ```json
+    {
+      "yaml.schemas": {
+        "https://redmine-cli.dev/schema/redmine-extension.v1.json": "redmine-extension.yml"
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+在其他编辑器中，请在其 JSON Schema 设置里把该 URL 映射到 `redmine-extension.yml`。schema 涵盖类型、枚举、默认值和条件规则（例如 `enum` 只能用于字符串和整数参数）。其余规则由 `redmine extension check` 检查：名称唯一、位置参数顺序、默认值在 `enum` 范围内、jq 表达式能否编译、工具名长度，以及文本中不含终端控制字符（转义序列、回车、双向控制字符；换行和制表符可以）。发布前请运行它。
+
+## MCP 工具
+
+`redmine mcp serve` 会把每个声明式命令变成一个 MCP 工具，除非该命令设置了 `mcp: false`：
+
+- **名称：** `<extension>_<command>`，其中 `-` 替换为 `_`（如 `triage_stale`）。工具名最长 64 个字符。名称已被核心工具或其他扩展占用的工具会被跳过，并在 stderr 打印警告，服务器照常启动。
+- **输入 schema：** 由 `params` 派生，包含类型、`enum`、`default`、描述和必填字段。未知属性会被拒绝。参数在处理程序启动前就会被校验。
+- **分组：** 每个扩展一个组 `ext-<name>`，另有 `extensions` 组包含所有扩展。它们与核心分组一样可用于 `--enable-groups` / `--disable-groups`。
+- **写入：** 带 `writes: true` 的工具只在传入 `--enable-writes` 时注册。其他所有工具都以 `REDMINE_READ_ONLY=1` 运行。`destructive: true` 会在描述中加上 "Destructive."。
+- **结果：** JSON 对象以 `structuredContent` 加一个文本块返回。其他 JSON 值和非 JSON 输出以文本返回。结果与核心工具一样经过密钥脱敏。非零退出、超时或输出过多会变成 `isError` 结果，并附上 stderr 的末尾部分。
+- **启用：** 扩展工具在 stdio 下默认开启，在 `--http` 下默认关闭。`--enable-extensions`、身份验证配置文件中的 `mcp.enable_extensions` 以及 `REDMINE_MCP_ENABLE_EXTENSIONS` 可以显式开启或关闭；`false` 会在两种传输方式下都关闭。设置服务器（尚未配置 Redmine 时）永远没有扩展工具。
+
+处理程序可以检查 `REDMINE_EXT_SURFACE` 或 `REDMINE_MCP` 来区分两种调用方式，例如让 stderr 保持简短。在 MCP 中 stderr 不会实时显示，只会作为错误的一部分出现。`redmine mcp tools` 会列出扩展工具及其来源：
+
+```text
+ext-triage
+  triage_nudge  (write, extension triage)  Ask for a status update on one or more issues. Requires --enable-writes.
+  triage_stale  (read, extension triage)   List open issues that have not been updated for a while.
+```
+
+服务器端的说明请参阅 AI 代理指南中的[扩展工具](/zh-cn/guides/ai-agents/#扩展工具)。
+
+## 发布
+
+把仓库以 `<owner>/redmine-cli-<name>` 推送到 GitHub，并添加主题 `redmine-cli-extension`。
+
+<Tabs>
+  <TabItem label="脚本">
+    当仓库没有二进制 release 时，`redmine extension install` 会克隆仓库。提交可执行文件时请设置可执行位；在 Windows 上运行 `git update-index --chmod=+x redmine-cli-<name>`。可以用 `--pin <tag>` 安装某个标签；否则用户得到的是默认分支，`upgrade` 会运行 `git pull --ff-only`。
+  </TabItem>
+  <TabItem label="预编译（Go）">
+    发布一个 GitHub release，其中每个平台一个原始二进制文件，命名为 `redmine-cli-<name>-<goos>-<goarch>`（Windows 加 `.exe`），另附 `redmine-extension.yml` 和 `sha256sum` 格式的 `checksums.txt`。`install` 会据此校验二进制文件和清单。`redmine extension create --precompiled=go` 生成的工作流（`.github/workflows/release.yml`）会在你推送 `v*` 标签时完成以上全部步骤。没有对应平台二进制文件的用户会收到错误，而不是克隆。
+  </TabItem>
+</Tabs>
+
+你发布新 release 后，二进制扩展的用户会收到更新提示；git 扩展的用户在默认分支有新提交时收到提示。
+
+## 安全
+
+<Aside type="caution" title="只读模式不是沙箱">
+  `REDMINE_READ_ONLY=1` 和 MCP 写入控制可以防范通过 `redmine api` 调用 Redmine 的**有缺陷的**扩展，但无法阻止**恶意的**扩展：扩展是以用户权限运行的程序，它可以读取文件、建立网络连接，或自行与 Redmine 通信。安装时的信任判断才是安全边界。这就是 `redmine extension install` 会询问的原因，也是提示中提到 MCP 的原因：AI 代理调用扩展的工具时，已安装的扩展同样会运行。
+</Aside>
+
+作为作者：
+
+- 通过 `$REDMINE_CLI_BIN api` 调用 Redmine。永远不要索取、存储或打印 API 密钥。凭据不会传给你的扩展，这是有意为之。
+- 只在会写入的命令上声明 `writes: true`，在会删除数据的命令上声明 `destructive: true`。这样只读的身份验证配置文件和 MCP 写入控制才有意义。
+- 把输入当作数据。参数虽然经过类型检查，但字符串仍然是用户（或模型）的输入：请把它们作为参数或通过 `jq --arg` 传递，永远不要通过 `eval` 使用，也不要用它们拼接 shell 命令。
+
+## 相关资源
+
+<CardGrid>
+  <LinkCard title="扩展命令" href="/zh-cn/commands/extensions/" description="install、list、upgrade、remove、exec、search、create、check。" />
+  <LinkCard title="AI 代理集成" href="/zh-cn/guides/ai-agents/" description="通过 MCP 提供扩展工具。" />
+</CardGrid>

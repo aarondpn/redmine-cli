@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: fix
+description: MCP test fixture
+commands:
+  - name: show
+    description: Echo the input and protocol environment as an object
+    params:
+      - { name: issue_id, type: integer, required: true, positional: true, description: Issue ID }
+      - { name: state, type: string, enum: [open, closed], default: open }
+      - { name: label, type: string, array: true }
+      - { name: extra, type: json }
+  - name: list
+    description: Return an array
+  - name: text
+    description: Return plain text
+  - name: empty
+    description: Return nothing
+  - name: fail
+    description: Exit with an error
+  - name: slow
+    description: Run past the timeout
+    timeout: 300ms
+  - name: write
+    description: Write command
+    writes: true
+  - name: wipe
+    description: Destructive command
+    writes: true
+    destructive: true
+  - name: cli-only
+    description: Not an MCP tool
+    mcp: false
+  - name: shell
+    description: Raw passthrough command
+    raw: true

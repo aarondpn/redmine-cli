@@ -701,6 +701,10 @@ func ProfileNameFromURL(serverURL string) string {
 	return strings.ReplaceAll(host, ".", "-")
 }
 
+// MCPEnableExtensionsEnv overrides mcp.enable_extensions. It is a named
+// constant because `mcp serve` mentions it in its help and errors.
+const MCPEnableExtensionsEnv = "REDMINE_MCP_ENABLE_EXTENSIONS"
+
 // applyEnvOverrides applies REDMINE_* environment variables to the config.
 func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 	envMap := map[string]*string{
@@ -746,6 +750,12 @@ func applyEnvOverrides(cfg *Config, log *debug.Logger) {
 		enable := ParseBoolEnv(val)
 		cfg.MCP.EnableWrites = &enable
 		log.Printf("Config: env override REDMINE_MCP_ENABLE_WRITES is set")
+	}
+
+	if val := os.Getenv(MCPEnableExtensionsEnv); val != "" {
+		enable := ParseBoolEnv(val)
+		cfg.MCP.EnableExtensions = &enable
+		log.Printf("Config: env override %s is set", MCPEnableExtensionsEnv)
 	}
 
 	if val := os.Getenv("REDMINE_MCP_AUTH_TOKEN"); val != "" {

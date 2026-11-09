@@ -1,0 +1,50 @@
+#!/bin/sh
+# Fixture extension for the dispatch tests. It prints the arguments, stdin
+# and protocol environment it received as one JSON object, unless the test
+# asks for something else through FIXTURE_* variables.
+set -u
+
+# esc escapes a value for a JSON string.
+esc() {
+	printf '%s' "$1" | awk 'BEGIN { ORS = "" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\t/, "\\t"); if (NR > 1) print "\\n"; print }'
+}
+
+if [ -n "${FIXTURE_STDERR:-}" ]; then
+	printf '%s\n' "$FIXTURE_STDERR" >&2
+fi
+if [ -n "${FIXTURE_STDOUT:-}" ]; then
+	printf '%s\n' "$FIXTURE_STDOUT"
+	exit "${FIXTURE_EXIT:-0}"
+fi
+if [ -n "${FIXTURE_SLEEP:-}" ]; then
+	sleep "$FIXTURE_SLEEP"
+fi
+
+input=$(cat)
+
+printf '{"args":['
+sep=""
+for a in "$@"; do
+	printf '%s"%s"' "$sep" "$(esc "$a")"
+	sep=","
+done
+printf '],"stdin":'
+if [ -n "$input" ]; then
+	printf '%s' "$input"
+else
+	printf 'null'
+fi
+printf ',"env":{'
+sep=""
+for k in REDMINE_CLI_BIN REDMINE_EXT_NAME REDMINE_EXT_COMMAND REDMINE_EXT_SURFACE REDMINE_MCP REDMINE_MCP_TOOL \
+	REDMINE_PROFILE REDMINE_CONFIG REDMINE_SERVER REDMINE_HEADERS REDMINE_READ_ONLY REDMINE_NO_COLOR \
+	REDMINE_NO_UPDATE_CHECK REDMINE_API_KEY; do
+	eval "isset=\${$k+x}"
+	if [ -n "$isset" ]; then
+		eval "v=\$$k"
+		printf '%s"%s":"%s"' "$sep" "$k" "$(esc "$v")"
+		sep=","
+	fi
+done
+printf '}}\n'
+exit "${FIXTURE_EXIT:-0}"

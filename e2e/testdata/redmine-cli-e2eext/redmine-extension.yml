@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: e2eext
+description: E2E fixture extension calling redmine api
+commands:
+  - name: whoami
+    description: Show the current user through redmine api
+  - name: try-write
+    description: POST through redmine api from a read command
+  - name: try-write-allowed
+    description: POST through redmine api from a write command
+    writes: true

@@ -1,0 +1,670 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://redmine-cli.dev/schema/redmine-extension.v1.json",
+  "title": "redmine-cli extension manifest",
+  "description": "Manifest (redmine-extension.yml) of a redmine-cli extension. Each command becomes 'redmine <name> <command>' and, unless disabled, an MCP tool.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "description": "Manifest format version. Only 1 is supported.",
+      "enum": [
+        1
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "Extension name. Must equal <name> in the repository and executable name redmine-cli-<name>; the extension is invoked as 'redmine <name>'.",
+      "examples": [
+        "pr",
+        "deploy"
+      ],
+      "maxLength": 32,
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "patternErrorMessage": "Use lowercase letters, digits and dashes, starting with a letter or digit."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description shown in 'redmine --help' and 'redmine extension list'.",
+      "examples": [
+        "Work with linked pull requests"
+      ]
+    },
+    "min_cli_version": {
+      "type": "string",
+      "description": "Lowest redmine-cli version this extension works with (semantic version). Development builds skip the check.",
+      "examples": [
+        "2.9.0"
+      ],
+      "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+([-+].*)?$",
+      "patternErrorMessage": "Use a semantic version such as 2.9.0."
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Command name, invoked as 'redmine <extension> <name>'. The MCP tool is named <extension>_<name> with dashes replaced by underscores.",
+            "examples": [
+              "list",
+              "create"
+            ],
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "patternErrorMessage": "Use lowercase letters, digits, '_' and '-', starting with a letter."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line description used for CLI help and as the MCP tool description.",
+            "minLength": 1
+          },
+          "writes": {
+            "type": "boolean",
+            "description": "Whether the command modifies Redmine data. Write tools are only exposed over MCP with --enable-writes; read commands run with REDMINE_READ_ONLY=1.",
+            "default": false
+          },
+          "destructive": {
+            "type": "boolean",
+            "description": "Whether the command deletes or irreversibly changes data. Adds --yes and a confirmation prompt to the CLI command and marks the MCP tool as destructive. Requires writes: true.",
+            "default": false
+          },
+          "mcp": {
+            "type": "boolean",
+            "description": "Whether the command is also exposed as an MCP tool. Set to false for CLI-only commands.",
+            "default": true
+          },
+          "raw": {
+            "type": "boolean",
+            "description": "Pass argv and stdio straight through to the executable (gh-style). Raw commands are CLI only and take no params or output.",
+            "default": false
+          },
+          "timeout": {
+            "type": "string",
+            "description": "Maximum run time as a Go duration (e.g. 30s, 2m). At most 5m.",
+            "default": "60s",
+            "examples": [
+              "30s",
+              "2m"
+            ],
+            "pattern": "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$",
+            "patternErrorMessage": "Use a duration such as 30s or 2m."
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Parameter name and key in the input object. The CLI flag is the name with '_' replaced by '-'.",
+                  "examples": [
+                    "issue_id",
+                    "state"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_-]*$",
+                  "patternErrorMessage": "Use lowercase letters, digits, '_' and '-', starting with a letter."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Value type. json accepts a JSON string or @file on the CLI and any JSON value over MCP.",
+                  "enum": [
+                    "string",
+                    "integer",
+                    "number",
+                    "boolean",
+                    "json"
+                  ]
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Help text for the flag and the MCP tool parameter."
+                },
+                "required": {
+                  "type": "boolean",
+                  "description": "Whether the parameter must be given.",
+                  "default": false
+                },
+                "positional": {
+                  "type": "boolean",
+                  "description": "Take the value from a positional argument instead of a flag. Positionals are ordered as declared; required ones come first and an array positional may only be last.",
+                  "default": false
+                },
+                "array": {
+                  "type": "boolean",
+                  "description": "Accept a list of values (a repeatable flag on the CLI).",
+                  "default": false
+                },
+                "enum": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "description": "Allowed values. Only for string and integer parameters.",
+                  "minItems": 1
+                },
+                "default": {
+                  "description": "Value used when the parameter is not given. Must match type (a list when array is true) and enum."
+                }
+              },
+              "required": [
+                "name",
+                "type"
+              ],
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "number",
+                          "boolean",
+                          "json"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "enum"
+                      ]
+                    },
+                    "errorMessage": "enum is only allowed for string and integer parameters."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "enum": {
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "errorMessage": "enum values must be strings."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "integer"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "enum": {
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "errorMessage": "enum values must be integers."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "not": {
+                      "properties": {
+                        "array": {
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "array"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      }
+                    },
+                    "errorMessage": "default must be a string."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "array": {
+                        "const": true
+                      },
+                      "type": {
+                        "const": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "array"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "errorMessage": "default must be a list of strings."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "integer"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "not": {
+                      "properties": {
+                        "array": {
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "array"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "integer"
+                      }
+                    },
+                    "errorMessage": "default must be an integer."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "array": {
+                        "const": true
+                      },
+                      "type": {
+                        "const": "integer"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "array"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "errorMessage": "default must be a list of integers."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "number"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "not": {
+                      "properties": {
+                        "array": {
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "array"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "number"
+                      }
+                    },
+                    "errorMessage": "default must be a number."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "array": {
+                        "const": true
+                      },
+                      "type": {
+                        "const": "number"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "array"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "errorMessage": "default must be a list of numbers."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "not": {
+                      "properties": {
+                        "array": {
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "array"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "boolean"
+                      }
+                    },
+                    "errorMessage": "default must be a boolean."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "array": {
+                        "const": true
+                      },
+                      "type": {
+                        "const": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "array"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "array",
+                        "items": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "errorMessage": "default must be a list of booleans."
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "array": {
+                        "const": true
+                      },
+                      "type": {
+                        "const": "json"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "array"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "default": {
+                        "type": "array"
+                      }
+                    },
+                    "errorMessage": "default must be a list."
+                  }
+                }
+              ]
+            },
+            "description": "Input parameters. They become CLI flags or positional arguments and the properties of the MCP tool input schema."
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "table": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "header": {
+                      "type": "string",
+                      "description": "Column header.",
+                      "examples": [
+                        "ID",
+                        "Title"
+                      ],
+                      "minLength": 1
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "Dot path into each element (e.g. author.login; numeric segments index arrays).",
+                      "examples": [
+                        "id",
+                        "author.login"
+                      ],
+                      "minLength": 1
+                    },
+                    "jq": {
+                      "type": "string",
+                      "description": "jq expression evaluated against each element. Multiple results are joined with ', '.",
+                      "examples": [
+                        ".author.login"
+                      ],
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "header"
+                  ],
+                  "additionalProperties": false,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "path"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "jq"
+                      ]
+                    }
+                  ],
+                  "errorMessage": "Set exactly one of path or jq."
+                },
+                "description": "Columns for array results, one row per element.",
+                "minItems": 1
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "Label shown in front of the value.",
+                      "examples": [
+                        "State"
+                      ],
+                      "minLength": 1
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "Dot path into the result object (e.g. author.login; numeric segments index arrays).",
+                      "examples": [
+                        "state"
+                      ],
+                      "minLength": 1
+                    },
+                    "jq": {
+                      "type": "string",
+                      "description": "jq expression evaluated against the result object. Multiple results are joined with ', '.",
+                      "examples": [
+                        ".author.login"
+                      ],
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": false,
+                  "oneOf": [
+                    {
+                      "required": [
+                        "path"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "jq"
+                      ]
+                    }
+                  ],
+                  "errorMessage": "Set exactly one of path or jq."
+                },
+                "description": "Key/value lines for object results.",
+                "minItems": 1
+              }
+            },
+            "description": "How the JSON result is rendered in the CLI table format. JSON output and MCP results are never affected.",
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "raw": {
+                  "const": true
+                }
+              },
+              "required": [
+                "raw"
+              ]
+            },
+            "then": {
+              "properties": {
+                "mcp": {
+                  "const": false
+                }
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "params"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "output"
+                    ]
+                  }
+                ]
+              },
+              "errorMessage": "Raw commands take no params or output and are never MCP tools."
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "destructive": {
+                  "const": true
+                }
+              },
+              "required": [
+                "destructive"
+              ]
+            },
+            "then": {
+              "properties": {
+                "writes": {
+                  "const": true
+                }
+              },
+              "required": [
+                "writes"
+              ],
+              "errorMessage": "Destructive commands must also set writes: true."
+            }
+          }
+        ]
+      },
+      "description": "Subcommands, invoked as 'redmine <name> <command>'.",
+      "minItems": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "commands"
+  ],
+  "additionalProperties": false
+}

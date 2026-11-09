@@ -103,6 +103,12 @@ type ToolDescriptor struct {
 	Description string
 	Group       Group
 	Writes      bool
+
+	// Extension names the extension that contributes the tool; empty for
+	// a generated tool. ExtensionVersion is its installed version, empty
+	// when unknown (e.g. a local extension).
+	Extension        string
+	ExtensionVersion string
 }
 
 // AllTools returns the static catalog of every tool registered by the code

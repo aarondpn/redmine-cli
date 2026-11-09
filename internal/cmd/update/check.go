@@ -48,10 +48,34 @@ func ShouldCheck(version string, args []string) bool {
 	if !isTerminal() {
 		return false
 	}
-	if hasSubcommand(args, "update") {
+	if hasSubcommand(args, "update") || isExtensionUpgrade(args) {
 		return false
 	}
 	return true
+}
+
+// isExtensionUpgrade reports whether args run `extension upgrade` (or its
+// alias `ext upgrade`): that command queries GitHub releases itself, so a
+// second, concurrent check would only spend rate limit and could print a
+// notice into its output. Like hasSubcommand it scans the non-flag
+// arguments, so flags before or between the words are allowed.
+func isExtensionUpgrade(args []string) bool {
+	sawExtension := false
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		switch {
+		case !sawExtension && (a == "extension" || a == "ext"):
+			sawExtension = true
+		case sawExtension && a == "upgrade":
+			return true
+		}
+	}
+	return false
 }
 
 // hasSubcommand returns true if name appears as a non-flag argument in args.
