@@ -14,15 +14,19 @@ import (
 
 func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project  string
-		user     string
-		issue    int
-		from     string
-		to       string
-		activity string
-		limit    int
-		offset   int
-		format   string
+		project     string
+		user        string
+		issue       int
+		from        string
+		to          string
+		activity    string
+		query       string
+		queryID     int
+		sort        string
+		extraFilter []string
+		limit       int
+		offset      int
+		format      string
 	)
 
 	cmd := &cobra.Command{
@@ -30,6 +34,20 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List time entries",
+		Example: `  # My time this month, newest first
+  redmine time list --user me --from 2026-01-01 --sort spent_on:desc
+
+  # Raw filter escape hatch: custom fields, date operators, issue fields
+  redmine time list --project myproject --filter cf_3=Onsite
+  redmine time list --filter spent_on='><2026-01-01|2026-01-31'
+  redmine time list --filter issue.tracker_id=1 --filter author_id=me
+
+  # Redmine's f[]/op[]/v[] syntax: repeat keys ending in [] for several values
+  redmine time list --filter 'f[]=hours' --filter 'op[hours]=>=' --filter 'v[hours][]=2'
+
+  # Run a saved time entry query by name or ID
+  redmine time list --query "Billable hours"
+  redmine time list --query-id 12`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := f.ApiClient()
 			if err != nil {
@@ -76,15 +94,28 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 				}
 			}
 
+			resolvedQueryID, err := cmdutil.ResolveSavedQueryFlags(ctx, client, query, queryID, cmd.Flags().Changed("query-id"), project, "TimeEntryQuery")
+			if err != nil {
+				return err
+			}
+
+			extra, err := cmdutil.ParseFilterFlag(extraFilter)
+			if err != nil {
+				return err
+			}
+
 			result, err := ops.ListTimeEntries(ctx, client, ops.ListTimeEntriesInput{
-				ProjectID:  project,
-				UserID:     userID,
-				IssueID:    issue,
-				From:       from,
-				To:         to,
-				ActivityID: activityID,
-				Limit:      cmdutil.OpsLimit(limit),
-				Offset:     offset,
+				ProjectID:   project,
+				UserID:      userID,
+				IssueID:     issue,
+				From:        from,
+				To:          to,
+				ActivityID:  activityID,
+				QueryID:     resolvedQueryID,
+				Sort:        sort,
+				ExtraParams: extra,
+				Limit:       cmdutil.OpsLimit(limit),
+				Offset:      offset,
 			})
 			if err != nil {
 				return err
@@ -137,6 +168,11 @@ func newCmdTimeList(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "Start date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&to, "to", "", "End date (YYYY-MM-DD or 'today')")
 	cmd.Flags().StringVar(&activity, "activity", "", "Filter by activity name or ID")
+	cmd.Flags().StringVar(&query, "query", "", "Run a saved time entry query by name (mutually exclusive with --query-id)")
+	cmd.Flags().IntVar(&queryID, "query-id", 0, "Run a saved time entry query by numeric ID")
+	cmd.MarkFlagsMutuallyExclusive("query", "query-id")
+	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., spent_on:desc)")
+	cmdutil.AddFilterFlag(cmd, &extraFilter, "cf_3=Onsite", "spent_on='><2026-01-01|2026-01-31'", "issue.tracker_id=1")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 

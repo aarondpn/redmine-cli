@@ -24,13 +24,29 @@ redmine users list [flags]
 
 | 标志 | 描述 |
 |------|------|
-| `--status`     | 按状态过滤：`active`、`registered`、`locked` |
+| `--status`     | 按状态过滤：`active`、`registered`、`locked`、`all` 或数字状态。默认：Redmine 只列出活动用户 |
 | `--name`       | 按姓名或登录名过滤 |
 | `--group`      | 按用户组名称或 ID 过滤 |
+| `--sort`       | 排序方式，例如 `lastname` 或 `created_on:desc` |
+| `--filter`     | 原始 Redmine 过滤条件，格式为 `key=value`（可重复）。通用的 `f[]`/`op[]`/`v[]` 过滤条件需要 Redmine 5.1+ |
 | `--include`    | 包含关联数据：`auth_source`（Redmine 6.0+，仅管理员；可重复或逗号分隔） |
 | `--limit`      | 最大结果数 |
 | `--offset`     | 分页偏移量 |
 | `-o, --output` | 输出格式 |
+
+<Aside type="note" title="列出所有状态的用户">
+  `--status all` 在所有受支持的 Redmine 版本上列出活动、已注册和已锁定的用户。它会发送空的 `status=`（Redmine 4.2 至 5.1 将其视为“任意状态”），当 Redmine 6.0+ 拒绝空值时再以 `status=*` 重试一次。直接使用 `--status '*'` 需要 Redmine 5.1+；Redmine 4.2 对它不返回任何用户。
+</Aside>
+
+```bash
+redmine users list --status all
+redmine users list --sort created_on:desc --limit 10
+# Redmine 5.1+：任意状态，登录名包含 "smith"
+redmine users list --filter 'f[]=status' --filter 'op[status]=*' \
+  --filter 'f[]=login' --filter 'op[login]=~' --filter 'v[login][]=smith'
+```
+
+如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `status` 或 `name`），则以 `--filter` 的值为准。
 
 ## get
 

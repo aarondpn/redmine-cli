@@ -13,22 +13,45 @@ import (
 
 func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		status   string
-		name     string
-		group    string
-		limit    int
-		offset   int
-		format   string
-		includes []string
+		status      string
+		name        string
+		group       string
+		sort        string
+		extraFilter []string
+		limit       int
+		offset      int
+		format      string
+		includes    []string
 	)
 
 	cmd := &cobra.Command{
-		Use:     "list",
-		Args:    cobra.NoArgs,
-		Short:   "List users",
+		Use:   "list",
+		Args:  cobra.NoArgs,
+		Short: "List users",
+		Long: `List users.
+
+Redmine lists only active users unless --status is given. --status all lists
+every status on every supported Redmine version: it sends status= (empty),
+and retries with status=* when Redmine 6.0+ rejects the empty value. A raw
+--status '*' needs Redmine 5.1+.
+
+Redmine's generic f[]/op[]/v[] filters (via --filter) need Redmine 5.1+.`,
+		Example: `  # Every user, whatever the status
+  redmine users list --status all
+
+  # Most recently created users first
+  redmine users list --sort created_on:desc --limit 10
+
+  # Raw filter escape hatch (Redmine 5.1+): any status, login contains "smith"
+  redmine users list --filter 'f[]=status' --filter 'op[status]=*' \
+    --filter 'f[]=login' --filter 'op[login]=~' --filter 'v[login][]=smith'`,
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateUserListIncludes(includes); err != nil {
+				return err
+			}
+			extra, err := cmdutil.ParseFilterFlag(extraFilter)
+			if err != nil {
 				return err
 			}
 			client, err := f.ApiClient()
@@ -47,12 +70,14 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 
 			stop := printer.Spinner("Fetching users...")
 			result, err := ops.ListUsers(cmdutil.Context(cmd), client, ops.ListUsersInput{
-				Status:   status,
-				Name:     name,
-				GroupID:  groupID,
-				Limit:    cmdutil.OpsLimit(limit),
-				Offset:   offset,
-				Includes: includes,
+				Status:      status,
+				Name:        name,
+				GroupID:     groupID,
+				Sort:        sort,
+				ExtraParams: extra,
+				Limit:       cmdutil.OpsLimit(limit),
+				Offset:      offset,
+				Includes:    includes,
 			})
 			stop()
 			if err != nil {
@@ -84,9 +109,11 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&status, "status", "", "Filter by status (active, registered, locked)")
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status: active, registered, locked, all, or a numeric status (default: Redmine lists active users only)")
 	cmd.Flags().StringVar(&name, "name", "", "Filter by name")
 	cmd.Flags().StringVar(&group, "group", "", "Filter by group name or ID")
+	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., created_on:desc)")
+	cmdutil.AddFilterFlag(cmd, &extraFilter, "'f[]=status'", "'op[status]=*'")
 	cmd.Flags().StringSliceVar(&includes, "include", nil,
 		"Include related data: auth_source (Redmine 6.0+, admin only; repeatable or comma-separated)")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
@@ -95,7 +122,7 @@ func newCmdUserList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("include", completeUserListIncludes)
 
 	_ = cmd.RegisterFlagCompletionFunc("group", cmdutil.CompleteGroups(f))
-	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteUserStatus)
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteUserListStatus)
 
 	return cmd
 }

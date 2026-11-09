@@ -4,7 +4,13 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,4 +184,115 @@ func TestContract_EveryReadToolHasACase(t *testing.T) {
 			t.Errorf("a contract case uses MCP tool %q which the read-only catalogue does not offer", tool)
 		}
 	}
+}
+
+// gatedListParam is one row of the table of version-gated list parameters:
+// query-string filters a list endpoint honours on some supported Redmine
+// lines only. Like gatedKeys it is checked from both sides, by
+// TestContract_ListParamGates, so neither the table nor the docs written from
+// it can drift from what upstream actually does.
+type gatedListParam struct {
+	Since [2]int // first Redmine line that honours it; {0, 0} = every supported line
+	Until [2]int // first line that no longer honours it; {0, 0} = still honoured
+	Ref   string // upstream reference
+	// Query is the /users.json query string probed against a locked user,
+	// with {login} replaced by its login. The parameter counts as honoured
+	// when the answer is 200 and lists that user.
+	Query string
+}
+
+var gatedListParams = map[string]gatedListParam{
+	// An empty status= lists every status. UserQuery (6.0+) rejects it with
+	// 422 "Status cannot be blank"; `users list --status all` then retries
+	// with status=*.
+	"users_status_empty": {always, [2]int{6, 0}, "redmine.org/issues/40099", "status=&name={login}"},
+	// status=* (any status) arrived with UserQuery; 4.2 lists no users.
+	"users_status_any": {[2]int{5, 1}, [2]int{0, 0}, "user_query.rb", "status=*&name={login}"},
+	// Generic f[]/op[]/v[] filters on the users list arrived with UserQuery.
+	"users_query_filters": {[2]int{5, 1}, [2]int{0, 0}, "user_query.rb",
+		"f[]=status&op[status]==&v[status][]=3&f[]=login&op[login]==&v[login][]={login}"},
+}
+
+// listParamHonoured reports whether the Redmine line under test is expected
+// to honour g.
+func listParamHonoured(g gatedListParam) bool {
+	if !redmineAtLeast(g.Since[0], g.Since[1]) {
+		return false
+	}
+	return g.Until == [2]int{0, 0} || !redmineAtLeast(g.Until[0], g.Until[1])
+}
+
+// skipUnlessListParam skips the calling test when the version under test does
+// not honour the named gatedListParams row.
+func skipUnlessListParam(t *testing.T, name string) {
+	t.Helper()
+	g, ok := gatedListParams[name]
+	if !ok {
+		t.Fatalf("unknown gated list param %q", name)
+	}
+	if !listParamHonoured(g) {
+		t.Skipf("REDMINE_E2E_VERSION=%s does not honour %s (Since %d.%d, Until %d.%d; %s)",
+			e2eVersion(), name, g.Since[0], g.Since[1], g.Until[0], g.Until[1], g.Ref)
+	}
+}
+
+// TestContract_ListParamGates asserts, for every gated list parameter, that
+// Redmine honours it exactly on the releases the table says.
+func TestContract_ListParamGates(t *testing.T) {
+	requireE2E(t)
+	if _, _, ok := parseRedmineVersion(e2eVersion()); !ok {
+		if os.Getenv("CI") == "true" {
+			t.Fatalf("REDMINE_E2E_VERSION is unset or unparseable (%q): CI must pin the version so the list parameter gates run", e2eVersion())
+		}
+		skipIfVersionUnknown(t, "version-gated list parameters")
+	}
+	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
+	u := createTestUser(t, r)
+	lockUser(t, r, u.ID)
+
+	type listedUser struct {
+		ID int `json:"id"`
+	}
+	for name, g := range gatedListParams {
+		t.Run(name, func(t *testing.T) {
+			query := strings.ReplaceAll(g.Query, "{login}", url.QueryEscape(u.Login))
+			status, body := rawGETStatus(t, "/users.json?"+query)
+			honoured := false
+			if status == http.StatusOK {
+				var resp struct {
+					Users []listedUser `json:"users"`
+				}
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("decode /users.json?%s: %v\n%s", query, err, body)
+				}
+				honoured = slices.ContainsFunc(resp.Users, func(x listedUser) bool { return x.ID == u.ID })
+			}
+			if want := listParamHonoured(g); honoured != want {
+				t.Fatalf("Redmine %s honours /users.json?%s: %v (HTTP %d), but the table says %v (Since %d.%d, Until %d.%d; %s)",
+					e2eVersion(), query, honoured, status, want, g.Since[0], g.Since[1], g.Until[0], g.Until[1], g.Ref)
+			}
+		})
+	}
+}
+
+// rawGETStatus fetches path from Redmine with the API key and returns the
+// status code and body without judging either (rawGET fails on non-200).
+func rawGETStatus(t *testing.T, path string) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(e2eBaseURL(), "/")+path, nil)
+	if err != nil {
+		t.Fatalf("build request for %s: %v", path, err)
+	}
+	req.Header.Set("X-Redmine-API-Key", e2eAPIKey())
+	req.Header.Set("Accept", "application/json")
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return resp.StatusCode, body
 }

@@ -98,18 +98,35 @@ func schemaOverrides() map[reflect.Type]*jsonschema.Schema {
 		reflect.TypeFor[models.IssueChild]():        issueChildSchema(),
 		reflect.TypeFor[models.CustomFieldValues](): customFieldValuesSchema(),
 		reflect.TypeFor[models.CustomFieldInput]():  customFieldInputSchema(),
+		reflect.TypeFor[models.FilterParams]():      filterParamsSchema(),
+		reflect.TypeFor[models.FilterValues]():      stringOrStringsSchema(),
 	}
 }
 
-// customFieldInputSchema describes one custom field value: a string, or an
-// array of strings for a multi-value field.
-func customFieldInputSchema() *jsonschema.Schema {
+// stringOrStringsSchema describes a value given as a string or an array of
+// strings.
+func stringOrStringsSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		AnyOf: []*jsonschema.Schema{
 			{Type: "string"},
 			{Type: "array", Items: &jsonschema.Schema{Type: "string"}},
 		},
 	}
+}
+
+// filterParamsSchema describes raw list-filter parameters: any key, with a
+// string value, or an array of strings for keys sent several times (f[]).
+func filterParamsSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:                 "object",
+		AdditionalProperties: stringOrStringsSchema(),
+	}
+}
+
+// customFieldInputSchema describes one custom field value: a string, or an
+// array of strings for a multi-value field.
+func customFieldInputSchema() *jsonschema.Schema {
+	return stringOrStringsSchema()
 }
 
 // customFieldValuesSchema describes custom field values keyed by numeric

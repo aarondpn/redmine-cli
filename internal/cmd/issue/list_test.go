@@ -371,6 +371,57 @@ func TestCmdIssueList_ExtraFilterEscapeHatch(t *testing.T) {
 	}
 }
 
+// The raw filter replaces what a dedicated flag sends for the same key (here
+// the default --status open), a repeated plain key keeps its last value, and
+// keys ending in [] send every value in flag order.
+func TestCmdIssueList_FilterOverrideAndRepeatedKeys(t *testing.T) {
+	rec := testutil.NewQueryRecorder(t, `{"issues":[],"total_count":0}`)
+	f := testutil.NewFactory(t, rec.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{
+		"--filter", "status_id=open|closed",
+		"--filter", "cf_5=Low",
+		"--filter", "cf_5=Critical",
+		"--filter", "f[]=status_id",
+		"--filter", "f[]=created_on",
+		"--filter", "op[created_on]=><",
+		"--filter", "v[created_on][]=2025-01-01",
+		"--filter", "v[created_on][]=2025-01-31",
+		"--output", "json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	q := rec.Last(t)
+	testutil.WantQueryValues(t, q, "status_id", "open|closed")
+	testutil.WantQueryValues(t, q, "cf_5", "Critical")
+	testutil.WantQueryValues(t, q, "f[]", "status_id", "created_on")
+	testutil.WantQueryValues(t, q, "op[created_on]", "><")
+	testutil.WantQueryValues(t, q, "v[created_on][]", "2025-01-01", "2025-01-31")
+}
+
+// The issue list request is unchanged for the existing --filter usage.
+func TestCmdIssueList_FilterQueryStringUnchanged(t *testing.T) {
+	var raw string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issues":[],"total_count":0}`))
+	}))
+	defer srv.Close()
+
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := NewCmdList(f)
+	cmd.SetArgs([]string{"--filter", "created_on=>=2025-01-01", "--filter", "subject=~login", "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	want := "created_on=%3E%3D2025-01-01&limit=100&offset=0&status_id=open&subject=~login"
+	if raw != want {
+		t.Errorf("query = %q, want %q", raw, want)
+	}
+}
+
 func TestCmdIssueList_ExcludeSubprojects(t *testing.T) {
 	var issuesQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

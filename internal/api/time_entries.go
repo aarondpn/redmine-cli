@@ -35,9 +35,16 @@ func (s *TimeEntryService) List(ctx context.Context, filter models.TimeEntryFilt
 	if filter.ActivityID > 0 {
 		params.Set("activity_id", strconv.Itoa(filter.ActivityID))
 	}
+	if filter.QueryID > 0 {
+		params.Set("query_id", strconv.Itoa(filter.QueryID))
+	}
+	if filter.Sort != "" {
+		params.Set("sort", filter.Sort)
+	}
 	if filter.Offset > 0 {
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
+	applyFilterParams(params, filter.ExtraParams)
 
 	entries, total, err := FetchAll[models.TimeEntry](ctx, s.client, "/time_entries.json", params, "time_entries", filter.Limit)
 	if err != nil {

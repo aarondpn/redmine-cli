@@ -17,9 +17,11 @@ type GroupService struct {
 
 // List retrieves groups matching the given filter.
 func (s *GroupService) List(ctx context.Context, filter models.GroupFilter) ([]models.Group, int, error) {
-	var params url.Values
+	params := url.Values{}
+	if filter.Builtin {
+		params.Set("builtin", "1")
+	}
 	if filter.Offset > 0 {
-		params = url.Values{}
 		params.Set("offset", strconv.Itoa(filter.Offset))
 	}
 	groups, total, err := FetchAll[models.Group](ctx, s.client, "/groups.json", params, "groups", filter.Limit)

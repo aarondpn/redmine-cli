@@ -24,13 +24,29 @@ redmine users list [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--status`     | Filter by status: `active`, `registered`, `locked` |
+| `--status`     | Filter by status: `active`, `registered`, `locked`, `all`, or a numeric status. Default: Redmine lists active users only |
 | `--name`       | Filter by name or login |
 | `--group`      | Filter by group name or ID |
+| `--sort`       | Sort order, e.g. `lastname` or `created_on:desc` |
+| `--filter`     | Raw Redmine filter as `key=value` (repeatable). The generic `f[]`/`op[]`/`v[]` filters need Redmine 5.1+ |
 | `--include`    | Include related data: `auth_source` (Redmine 6.0+, admin only; repeatable or comma-separated) |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format |
+
+<Aside type="note" title="Listing every status">
+  `--status all` lists active, registered, and locked users on every supported Redmine version. It sends an empty `status=`, which Redmine 4.2 to 5.1 read as "any status", and retries once with `status=*` when Redmine 6.0+ rejects the empty value. A raw `--status '*'` needs Redmine 5.1+; Redmine 4.2 returns no users for it.
+</Aside>
+
+```bash
+redmine users list --status all
+redmine users list --sort created_on:desc --limit 10
+# Redmine 5.1+: any status, login contains "smith"
+redmine users list --filter 'f[]=status' --filter 'op[status]=*' \
+  --filter 'f[]=login' --filter 'op[login]=~' --filter 'v[login][]=smith'
+```
+
+A `--filter` key that a dedicated flag also sends (such as `status` or `name`) replaces the flag's value.
 
 ## get
 

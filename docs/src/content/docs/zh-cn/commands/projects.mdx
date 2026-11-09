@@ -26,12 +26,26 @@ redmine projects list [flags]
 
 | 标志 | 描述 |
 |------|------|
+| `--status`     | 状态过滤：`active`、`closed`、`all` 或数字状态（`1` 活动，`5` 已关闭）。默认：Redmine 只列出活动项目 |
+| `--sort`       | 排序方式，例如 `name` 或 `created_on:desc` |
+| `--filter`     | 原始 Redmine 过滤条件，格式为 `key=value`（可重复），例如 `--filter name='~web'`、`--filter created_on='>=2026-01-01'` |
 | `--include`    | 附加数据，可重复或以逗号分隔：`trackers`、`issue_categories`、`enabled_modules`、`time_entry_activities`、`issue_custom_fields` |
 | `--limit`      | 最大结果数 |
 | `--offset`     | 分页偏移量 |
 | `-o, --output` | 输出格式：`table`、`json` |
 
 表格视图始终显示 `ID, Identifier, Name, Status, Public`。如需查看通过 `--include` 请求到的额外字段，请使用 `--output json`。
+
+<Aside type="caution" title="已关闭和已归档的项目会被隐藏">
+  自 Redmine 4.1 起，未指定状态时项目列表**只返回活动项目**，因此除已归档项目外，已关闭的项目也会被隐藏。使用 `--status closed` 或 `--status all` 可查看已关闭的项目。REST API 从不列出已归档的项目（管理员也不例外），因此 `--status archived` 会被拒绝。
+</Aside>
+
+`--filter` 会像 [`issues list`](/zh-cn/commands/issues/#list) 一样原样传递 Redmine 查询参数：`name`、`description`、`created_on`、`updated_on` 等普通过滤条件（可使用 Redmine 运算符），以及通用的 `f[]`/`op[]`/`v[]` 语法（以 `[]` 结尾的键可重复以发送多个值）。如果 `--filter` 的键与某个专用标志发送的参数相同（例如 `status`），则以 `--filter` 的值为准。
+
+```bash
+redmine projects list --status all --sort name
+redmine projects list --filter name='~web' --filter created_on='>=2026-01-01'
+```
 
 ## get
 

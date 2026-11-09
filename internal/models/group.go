@@ -26,6 +26,9 @@ type GroupUpdate struct {
 
 // GroupFilter defines parameters for listing groups.
 type GroupFilter struct {
-	Limit  int
-	Offset int
+	// Builtin also returns the builtin Anonymous and Non member groups
+	// (builtin=1).
+	Builtin bool
+	Limit   int
+	Offset  int
 }

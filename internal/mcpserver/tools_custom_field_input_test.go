@@ -70,17 +70,17 @@ func TestInputSchemaFor_CustomFieldValues(t *testing.T) {
 }
 
 func TestInputSchemaFor_UnchangedForPlainInputs(t *testing.T) {
-	got, err := json.Marshal(inputSchemaFor[ops.ListIssuesInput]())
+	got, err := json.Marshal(inputSchemaFor[ops.GetIssueInput]())
 	if err != nil {
 		t.Fatal(err)
 	}
-	base, err := jsonschema.ForType(reflect.TypeFor[ops.ListIssuesInput](), &jsonschema.ForOptions{})
+	base, err := jsonschema.ForType(reflect.TypeFor[ops.GetIssueInput](), &jsonschema.ForOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want, _ := json.Marshal(base)
 	if string(got) != string(want) {
-		t.Errorf("schema changed for an input without custom fields:\n got %s\nwant %s", got, want)
+		t.Errorf("schema changed for an input without overridden types:\n got %s\nwant %s", got, want)
 	}
 }
 

@@ -44,7 +44,7 @@ redmine issues list [flags]
 | `--subproject`           | Subproject filter: numeric ID, or `!*` to exclude subprojects |
 | `--include-subprojects`  | Include issues from subprojects (default `true`; pair with `=false` to exclude) |
 | `--is-private`           | Filter by privacy: `true` returns private issues only, `false` public only |
-| `--filter`               | Raw Redmine filter as `key=value` (repeatable). Use for date ranges, custom fields, subject text |
+| `--filter`               | Raw Redmine filter as `key=value` (repeatable; repeat keys ending in `[]` for several values). Use for date ranges, custom fields, subject text |
 | `--query`                | Run a saved query by name (see [`queries`](/commands/queries/)) |
 | `--query-id`             | Run a saved query by numeric ID (mutually exclusive with `--query`) |
 | `--sort`                 | Sort order, e.g. `updated_on:desc` |
@@ -62,6 +62,9 @@ redmine issues list [flags]
   - `--filter updated_on='><2025-01-01|2025-12-31'` — updated in a range
   - `--filter cf_5='Critical'` — custom field `cf_5` equals "Critical"
   - `--filter subject='~login'` — subject contains "login"
+  - `--filter 'f[]=status_id' --filter 'op[status_id]=*' --filter 'f[]=subject' --filter 'op[subject]=~' --filter 'v[subject][]=login'` — Redmine's generic `f[]`/`op[]`/`v[]` syntax: repeat a key that ends in `[]` to send several values; any other repeated key keeps its last value
+
+  A `--filter` key that a dedicated flag also sends (for example `status_id`, which the default `--status open` sets) replaces the flag's value. The same rule applies to `--filter` on `time list`, `projects list`, and `users list`.
 </Aside>
 
 <Tabs syncKey="issues-list">

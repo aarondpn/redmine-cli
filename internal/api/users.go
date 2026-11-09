@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -14,10 +15,24 @@ type UserService struct {
 	client *Client
 }
 
+// UserStatusAll is the UserFilter.Status keyword that lists users of every
+// status.
+const UserStatusAll = "all"
+
 // List retrieves users matching the given filter.
+//
+// Status "all" first sends an empty status=, which lists every status on
+// Redmine 4.2 to 5.1. Redmine 6.0+ answers that with 422 ("Status cannot be
+// blank") and takes status=* instead, which 4.2 in turn answers with an
+// empty list, so on a 422 the request is repeated once with status=*. A raw
+// status in ExtraParams disables the retry: the user's value wins.
 func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]models.User, int, error) {
 	params := url.Values{}
-	if filter.Status != "" {
+	switch filter.Status {
+	case "":
+	case UserStatusAll:
+		params.Set("status", "")
+	default:
 		statusMap := map[string]string{
 			"active":     "1",
 			"registered": "2",
@@ -41,8 +56,19 @@ func (s *UserService) List(ctx context.Context, filter models.UserFilter) ([]mod
 	if len(filter.Includes) > 0 {
 		params.Set("include", joinStrings(filter.Includes, ","))
 	}
+	if filter.Sort != "" {
+		params.Set("sort", filter.Sort)
+	}
+	applyFilterParams(params, filter.ExtraParams)
 
 	users, total, err := FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
+	var apiErr *APIError
+	_, statusOverridden := filter.ExtraParams["status"]
+	if filter.Status == UserStatusAll && !statusOverridden && errors.As(err, &apiErr) && apiErr.IsValidationError() {
+		s.client.debugLog.Printf("Users: status= rejected (Redmine 6.0+), retrying with status=*")
+		params.Set("status", "*")
+		users, total, err = FetchAll[models.User](ctx, s.client, "/users.json", params, "users", filter.Limit)
+	}
 	if err != nil {
 		return nil, 0, err
 	}

@@ -45,6 +45,10 @@ type TimeEntryFilter struct {
 	From       string
 	To         string
 	ActivityID int
-	Limit      int
-	Offset     int
+	QueryID    int    // saved time entry query ID (query_id)
+	Sort       string // e.g. "spent_on:desc"
+	// ExtraParams are raw Redmine filter parameters, applied last.
+	ExtraParams FilterParams
+	Limit       int
+	Offset      int
 }

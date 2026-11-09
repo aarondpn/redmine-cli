@@ -81,6 +81,7 @@ Redmine instance. The suite is split into topical files:
 | `mcp_test.go`            | MCP `serve` over stdio + HTTP, group filter, write gating, `--auth-token` 401 |
 | `custom_fields_test.go`  | `custom-fields list` / `get` plus the Redmine 7.0 scope and role metadata |
 | `custom_field_input_test.go` | `--custom-field` on issues, projects, time entries, versions, users, my-account, groups (multi-value, clearing, type-scoped name resolution) and MCP `custom_field_values` |
+| `list_filters_test.go`   | `--filter` (plain keys, operators, repeated `f[]`/`op[]`/`v[]`), `--sort` on time / project / user lists, `time list --query` / `--query-id`, `projects list --status` (5.0+, closing needs the API), `users list --status all`, `groups list --builtin`, and the matching MCP fields |
 | `contract_*_test.go`     | raw Redmine JSON vs `-o json` vs MCP, and the table of version-gated keys (see below) |
 | (API decoding regressions, issue #201) | Spread over the topical files: `projects_test.go` default assignee, `users_test.go` / `my_account_test.go` nullable `admin` / `status` (admin vs non-admin viewer, `users list` before / after 6.0), `groups_test.go` group memberships with project + roles, `roles_test.go` no builtin columns, `issues_test.go` always-present `is_private` / `private_notes`, `files_test.go` `downloads: 0`, `search_test.go` + `mcp_extended_test.go` `all_words` default vs `=false` |
 
@@ -90,7 +91,7 @@ Shared infrastructure lives in `e2e_test.go` (TestMain + `requireE2E`),
 fixtures, tracker / activity lookups).
 
 `bootstrap-redmine.sh` seeds the fixtures that have no REST endpoint: a public
-saved query, an issue custom field (`E2E Severity`, applied to all projects)
+saved issue query, a saved time entry query (`E2E Long Time Entries`, entries of 2 hours or more), an issue custom field (`E2E Severity`, applied to all projects)
 and a role-restricted time entry custom field (`E2E Billing Code`, seeded
 `visible: false` so the role restriction has meaning). The seeding uses `save!`
 throughout: a fixture that cannot be created should stop the bootstrap, not
@@ -122,6 +123,10 @@ expected, so the same test works on every Redmine version. Fix failures in
 
 - A JSON key that exists from Redmine N on: add a row to the gate table in
   `contract_gates_test.go`, no hand-written test.
+- A list query parameter that only some Redmine lines honour (such as the
+  users list `status=*` or `f[]` filters): add a row to `gatedListParams` in
+  `contract_gates_test.go`, which probes it on every line, and gate tests
+  with `skipUnlessListParam(t, "<row>")`.
 - Behaviour that differs by version: gate with `skipBelowRedmine(t, 7, 0, "…")`
   or `redmineAtLeast(5, 0)` from `helpers_test.go`. An unset
   `REDMINE_E2E_VERSION` counts as the newest version.

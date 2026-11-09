@@ -188,7 +188,7 @@ func ResolveProject(ctx context.Context, client *api.Client, input string) (int,
 		return 0, "", fmt.Errorf("failed to resolve project %q: %w", input, err)
 	}
 
-	projects, _, err := client.Projects.List(ctx, nil, 0, 0)
+	projects, _, err := client.Projects.List(ctx, models.ProjectFilter{})
 	if err != nil {
 		if isForbiddenErr(err) {
 			return 0, "", fmt.Errorf("cannot resolve project %q (insufficient permissions). Use the project identifier or numeric ID instead", input)
@@ -541,6 +541,13 @@ func ResolveCustomFieldsForType(ctx context.Context, client *api.Client, inputs 
 // matches wins over a global query with the same name. Queries scoped to a
 // different project are excluded entirely.
 func ResolveQuery(ctx context.Context, client *api.Client, input string, projectIdentifier string) (*models.SavedQuery, error) {
+	return ResolveQueryOfType(ctx, client, input, projectIdentifier, "")
+}
+
+// ResolveQueryOfType is ResolveQuery for one kind of saved query: names are
+// matched against the queries of queryType (e.g. "TimeEntryQuery"); empty
+// means issue queries.
+func ResolveQueryOfType(ctx context.Context, client *api.Client, input, projectIdentifier, queryType string) (*models.SavedQuery, error) {
 	if id, err := strconv.Atoi(input); err == nil {
 		client.DebugLog().Printf("Resolver: query %q is numeric, using ID %d directly", input, id)
 		return &models.SavedQuery{ID: id}, nil
@@ -548,7 +555,7 @@ func ResolveQuery(ctx context.Context, client *api.Client, input string, project
 
 	client.DebugLog().Printf("Resolver: looking up query %q", input)
 
-	queries, _, err := client.Queries.List(ctx, 0, 0)
+	queries, _, err := client.Queries.ListOfType(ctx, queryType, 0, 0)
 	if err != nil {
 		if isForbiddenErr(err) {
 			return nil, &NameResolutionPermissionError{

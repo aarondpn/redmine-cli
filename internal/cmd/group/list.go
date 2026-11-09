@@ -12,9 +12,10 @@ import (
 
 func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		limit  int
-		offset int
-		format string
+		builtin bool
+		limit   int
+		offset  int
+		format  string
 	)
 
 	cmd := &cobra.Command{
@@ -31,8 +32,9 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 
 			stop := printer.Spinner("Fetching groups...")
 			result, err := ops.ListGroups(cmdutil.Context(cmd), client, ops.ListGroupsInput{
-				Limit:  cmdutil.OpsLimit(limit),
-				Offset: offset,
+				Builtin: builtin,
+				Limit:   cmdutil.OpsLimit(limit),
+				Offset:  offset,
 			})
 			stop()
 			if err != nil {
@@ -52,6 +54,7 @@ func newCmdGroupList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&builtin, "builtin", false, "Also list the builtin Anonymous and Non member groups")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd

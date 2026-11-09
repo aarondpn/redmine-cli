@@ -24,7 +24,7 @@ func TestProjectService_List_PropagatesIncludes(t *testing.T) {
 	c := newTestClient(ts)
 	c.Projects = &ProjectService{client: c}
 
-	if _, _, err := c.Projects.List(context.Background(), []string{"trackers", "enabled_modules"}, 0, 0); err != nil {
+	if _, _, err := c.Projects.List(context.Background(), models.ProjectFilter{Includes: []string{"trackers", "enabled_modules"}}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

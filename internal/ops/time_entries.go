@@ -10,14 +10,17 @@ import (
 )
 
 type ListTimeEntriesInput struct {
-	ProjectID  string `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID to filter by."`
-	UserID     string `json:"user_id,omitempty" jsonschema:"User numeric ID or 'me'."`
-	IssueID    int    `json:"issue_id,omitempty" jsonschema:"Issue numeric ID to filter by."`
-	ActivityID int    `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
-	From       string `json:"from,omitempty" jsonschema:"Inclusive start date (YYYY-MM-DD)."`
-	To         string `json:"to,omitempty" jsonschema:"Inclusive end date (YYYY-MM-DD)."`
-	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset     int    `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
+	ProjectID   string              `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID to filter by."`
+	UserID      string              `json:"user_id,omitempty" jsonschema:"User numeric ID or 'me'."`
+	IssueID     int                 `json:"issue_id,omitempty" jsonschema:"Issue numeric ID to filter by."`
+	ActivityID  int                 `json:"activity_id,omitempty" jsonschema:"Activity ID (use list_time_entry_activities; pass project_id there for project-specific activities)."`
+	From        string              `json:"from,omitempty" jsonschema:"Inclusive start date (YYYY-MM-DD). Takes precedence over a spent_on filter in extra_params."`
+	To          string              `json:"to,omitempty" jsonschema:"Inclusive end date (YYYY-MM-DD). Takes precedence over a spent_on filter in extra_params."`
+	QueryID     int                 `json:"query_id,omitempty" jsonschema:"Saved time entry query ID. When set, the query's filters are applied server-side."`
+	Sort        string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'spent_on:desc' or 'hours:desc'."`
+	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Examples: {\"cf_3\":\"Onsite\",\"spent_on\":\"><2026-01-01|2026-01-31\",\"issue.tracker_id\":\"1\"}."`
+	Limit       int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset      int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 }
 
 type TimeEntriesListResult struct {
@@ -80,14 +83,17 @@ type TimeSummaryResult struct {
 //mcpgen:category time
 func ListTimeEntries(ctx context.Context, client *api.Client, input ListTimeEntriesInput) (TimeEntriesListResult, error) {
 	entries, total, err := client.TimeEntries.List(ctx, models.TimeEntryFilter{
-		ProjectID:  input.ProjectID,
-		UserID:     input.UserID,
-		IssueID:    input.IssueID,
-		ActivityID: input.ActivityID,
-		From:       input.From,
-		To:         input.To,
-		Limit:      ListLimit(input.Limit),
-		Offset:     input.Offset,
+		ProjectID:   input.ProjectID,
+		UserID:      input.UserID,
+		IssueID:     input.IssueID,
+		ActivityID:  input.ActivityID,
+		From:        input.From,
+		To:          input.To,
+		QueryID:     input.QueryID,
+		Sort:        input.Sort,
+		ExtraParams: input.ExtraParams,
+		Limit:       ListLimit(input.Limit),
+		Offset:      input.Offset,
 	})
 	if err != nil {
 		return TimeEntriesListResult{}, err

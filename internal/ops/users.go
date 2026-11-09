@@ -9,12 +9,14 @@ import (
 )
 
 type ListUsersInput struct {
-	Status   string   `json:"status,omitempty" jsonschema:"Filter by status: 'active', 'registered', 'locked', or a numeric code."`
-	Name     string   `json:"name,omitempty" jsonschema:"Filter by name substring."`
-	GroupID  int      `json:"group_id,omitempty" jsonschema:"Filter users that belong to the given group ID."`
-	Limit    int      `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset   int      `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
-	Includes []string `json:"includes,omitempty" jsonschema:"Optional includes: 'auth_source' (Redmine 6.0+, admin only)."`
+	Status      string              `json:"status,omitempty" jsonschema:"Filter by status: 'active', 'registered', 'locked', 'all', or a numeric code. Redmine lists only active users when omitted."`
+	Name        string              `json:"name,omitempty" jsonschema:"Filter by name substring."`
+	GroupID     int                 `json:"group_id,omitempty" jsonschema:"Filter users that belong to the given group ID."`
+	Sort        string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'lastname' or 'created_on:desc'."`
+	ExtraParams models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). Redmine 5.1+ only. Example: {\"f[]\":[\"status\",\"login\"],\"op[status]\":\"*\",\"op[login]\":\"~\",\"v[login][]\":\"smith\"}."`
+	Limit       int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset      int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
+	Includes    []string            `json:"includes,omitempty" jsonschema:"Optional includes: 'auth_source' (Redmine 6.0+, admin only)."`
 }
 
 type UsersListResult struct {
@@ -70,12 +72,14 @@ type DeleteUserInput struct {
 //mcpgen:category users
 func ListUsers(ctx context.Context, client *api.Client, input ListUsersInput) (UsersListResult, error) {
 	users, total, err := client.Users.List(ctx, models.UserFilter{
-		Status:   input.Status,
-		Name:     input.Name,
-		GroupID:  input.GroupID,
-		Limit:    ListLimit(input.Limit),
-		Offset:   input.Offset,
-		Includes: input.Includes,
+		Status:      input.Status,
+		Name:        input.Name,
+		GroupID:     input.GroupID,
+		Sort:        input.Sort,
+		ExtraParams: input.ExtraParams,
+		Limit:       ListLimit(input.Limit),
+		Offset:      input.Offset,
+		Includes:    input.Includes,
 	})
 	if err != nil {
 		return UsersListResult{}, err

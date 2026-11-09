@@ -23,5 +23,9 @@ func NewTestClient(httpClient *http.Client, baseURL string, log *debug.Logger) *
 	c.Issues = &IssueService{client: c}
 	c.Files = &FileService{client: c}
 	c.Search = &SearchService{client: c}
+	c.Projects = &ProjectService{client: c}
+	c.TimeEntries = &TimeEntryService{client: c}
+	c.Groups = &GroupService{client: c}
+	c.Queries = &QueryService{client: c}
 	return c
 }

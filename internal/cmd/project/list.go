@@ -13,10 +13,13 @@ import (
 
 func newCmdList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		limit    int
-		offset   int
-		format   string
-		includes []string
+		status      string
+		sort        string
+		extraFilter []string
+		limit       int
+		offset      int
+		format      string
+		includes    []string
 	)
 
 	cmd := &cobra.Command{
@@ -24,9 +27,27 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List projects",
-		Long:    "List all accessible Redmine projects.",
+		Long: `List accessible Redmine projects.
+
+Redmine 4.1+ lists only active projects unless --status is given. Archived
+projects are never listed by the REST API, not even for administrators.`,
+		Example: `  # Active and closed projects
+  redmine projects list --status all
+
+  # Only closed projects, newest first
+  redmine projects list --status closed --sort created_on:desc
+
+  # Raw filter escape hatch: name contains "web", created this year
+  redmine projects list --filter name='~web' --filter created_on='>=2026-01-01'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateProjectIncludes(includes); err != nil {
+				return err
+			}
+			if _, err := ops.ProjectStatusFilter(status); err != nil {
+				return err
+			}
+			extra, err := cmdutil.ParseFilterFlag(extraFilter)
+			if err != nil {
 				return err
 			}
 
@@ -37,9 +58,12 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 			printer := f.Printer(format)
 
 			result, err := ops.ListProjects(cmdutil.Context(cmd), client, ops.ListProjectsInput{
-				Limit:    cmdutil.OpsLimit(limit),
-				Offset:   offset,
-				Includes: includes,
+				Status:      status,
+				Sort:        sort,
+				ExtraParams: extra,
+				Limit:       cmdutil.OpsLimit(limit),
+				Offset:      offset,
+				Includes:    includes,
 			})
 			if err != nil {
 				return err
@@ -65,8 +89,12 @@ func newCmdList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&status, "status", "", "Status filter: active, closed, all, or a numeric status (default: Redmine lists active projects only)")
+	cmd.Flags().StringVar(&sort, "sort", "", "Sort field (e.g., name or created_on:desc)")
+	cmdutil.AddFilterFlag(cmd, &extraFilter, "name='~web'", "created_on='>=2026-01-01'")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
+	_ = cmd.RegisterFlagCompletionFunc("status", cmdutil.CompleteProjectListStatus)
 	cmd.Flags().StringSliceVar(&includes, "include", nil,
 		"Include related data: trackers, issue_categories, enabled_modules, time_entry_activities, issue_custom_fields (repeatable or comma-separated)")
 	_ = cmd.RegisterFlagCompletionFunc("include", completeProjectIncludes)
@@ -79,9 +107,9 @@ func projectStatusLabel(status int) string {
 	case 1:
 		return "active"
 	case 5:
-		return "archived"
-	case 9:
 		return "closed"
+	case 9:
+		return "archived"
 	default:
 		return strconv.Itoa(status)
 	}

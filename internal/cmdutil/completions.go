@@ -121,6 +121,27 @@ func CompleteUserStatus(_ *cobra.Command, _ []string, toComplete string) ([]stri
 	}, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
+// CompleteUserListStatus provides static completions for the users list
+// --status flag, which also takes "all".
+func CompleteUserListStatus(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return filterCompletions([]string{
+		"active",
+		"registered",
+		"locked",
+		"all",
+	}, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// CompleteProjectListStatus provides static completions for the projects
+// list --status flag.
+func CompleteProjectListStatus(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return filterCompletions([]string{
+		"active",
+		"closed",
+		"all",
+	}, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
 // CompleteProjects returns a completion function for the --project flag.
 func CompleteProjects(f *Factory) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -130,7 +151,7 @@ func CompleteProjects(f *Factory) func(cmd *cobra.Command, args []string, toComp
 		}
 		defer cancel()
 
-		projects, _, err := client.Projects.List(ctx, nil, 0, 0)
+		projects, _, err := client.Projects.List(ctx, models.ProjectFilter{})
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
