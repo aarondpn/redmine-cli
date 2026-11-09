@@ -122,12 +122,8 @@ func TestDeleteWikiPage_Validation(t *testing.T) {
 		input DeleteWikiPageInput
 		want  string
 	}{
-		{"unknown todo", DeleteWikiPageInput{Todo: "burn"}, "todo must be one of"},
-		{"reassign without target", DeleteWikiPageInput{Todo: "reassign"}, "requires reassign_to"},
-		{"target with destroy", DeleteWikiPageInput{Todo: "destroy", ReassignTo: "Other"}, "cannot be combined"},
-		{"target is the page", DeleteWikiPageInput{ReassignTo: "Parent"}, "must not be the deleted page"},
-		{"target is a descendant", DeleteWikiPageInput{ReassignTo: "Grandchild"}, "must not be the deleted page"},
-		{"target does not exist", DeleteWikiPageInput{ReassignTo: "Nope"}, "not found"},
+		{"unknown todo", DeleteWikiPageInput{Todo: "burn"}, "todo must be nullify or destroy"},
+		{"reassign is not offered", DeleteWikiPageInput{Todo: "reassign"}, "todo must be nullify or destroy"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s, client := newWikiTreeServer(t)
@@ -136,52 +132,10 @@ func TestDeleteWikiPage_Validation(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err = %v, want substring %q", err, tt.want)
 			}
-			if len(s.deletes) != 0 || len(s.puts) != 0 {
-				t.Errorf("nothing may be written on a rejected request, got puts=%v deletes=%v", s.puts, s.deletes)
+			if len(s.deletes) != 0 {
+				t.Errorf("nothing may be sent on a rejected request, got deletes=%v", s.deletes)
 			}
 		})
-	}
-}
-
-func TestDeleteWikiPage_ReassignMovesChildrenThenDeletes(t *testing.T) {
-	s, client := newWikiTreeServer(t)
-	// Title matching is case-insensitive like Redmine's lookup.
-	res, err := DeleteWikiPage(t.Context(), client, DeleteWikiPageInput{ProjectID: "p", Page: "Parent", ReassignTo: "other"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(s.puts) != 2 {
-		t.Fatalf("moved pages = %v, want ChildA and ChildB only", s.puts)
-	}
-	for _, c := range []string{"ChildA", "ChildB"} {
-		if got := s.puts[c]["parent_title"]; got != "Other" {
-			t.Errorf("%s parent_title = %v, want Other", c, got)
-		}
-	}
-	if _, moved := s.puts["Grandchild"]; moved {
-		t.Error("grandchildren must stay with their parent")
-	}
-	if len(s.deletes) != 1 || s.deletes[0] != "/projects/p/wiki/Parent.json?todo=nullify" {
-		t.Errorf("deletes = %v, want a single nullify delete after the moves", s.deletes)
-	}
-	if !strings.Contains(res.Message, `moved 2 child page(s) under "Other"`) {
-		t.Errorf("message = %q", res.Message)
-	}
-	if last := s.requests[len(s.requests)-1]; !strings.HasPrefix(last, "DELETE ") {
-		t.Errorf("last request = %q, want the DELETE", last)
-	}
-}
-
-func TestDeleteWikiPage_ReassignStopsWhenAMoveFails(t *testing.T) {
-	s, client := newWikiTreeServer(t)
-	s.ignoreParent = true
-
-	_, err := DeleteWikiPage(t.Context(), client, DeleteWikiPageInput{ProjectID: "p", Page: "Parent", ReassignTo: "Other"})
-	if err == nil || !strings.Contains(err.Error(), "not deleted") {
-		t.Fatalf("err = %v, want a failure naming the page that was not deleted", err)
-	}
-	if len(s.deletes) != 0 {
-		t.Errorf("page deleted despite failed move: %v", s.deletes)
 	}
 }
 
@@ -252,7 +206,10 @@ func TestGetWikiPage_Version(t *testing.T) {
 	if _, err := GetWikiPage(t.Context(), client, GetWikiPageInput{ProjectID: "p", Page: "Other", Version: &zero}); err == nil {
 		t.Error("version 0 must be rejected")
 	}
-	if _, err := GetWikiPage(t.Context(), client, GetWikiPageInput{ProjectID: "p", Page: "Other", Version: &v, Includes: []string{"attachments"}}); err == nil {
-		t.Error("includes with version must be rejected")
+	if _, err := GetWikiPage(t.Context(), client, GetWikiPageInput{ProjectID: "p", Page: "Other", Version: &v, Includes: []string{"attachments"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.requests[len(s.requests)-1]; got != "GET /projects/p/wiki/Other/2.json?include=attachments" {
+		t.Errorf("request = %q, want the versioned path with include", got)
 	}
 }

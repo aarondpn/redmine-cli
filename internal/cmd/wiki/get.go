@@ -60,9 +60,8 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				Includes:  cmdutil.MergeIncludes(include),
 			}
 			if version > 0 {
-				// A versioned fetch cannot include attachments; the flag has
-				// always been ignored here, so keep ignoring it.
-				getInput.Includes = nil
+				// With --include attachments, a versioned fetch lists the
+				// page's current attachments, not those of that version.
 				getInput.Version = &version
 			}
 			page, err := ops.GetWikiPage(ctx, client, getInput)
@@ -99,24 +98,26 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 				output.KeyValue{Key: "Updated", Value: page.UpdatedOn},
 			)
 
-			if len(page.Attachments) > 0 {
-				pairs = append(pairs, output.KeyValue{
-					Key:   "Attachments",
-					Value: fmt.Sprintf("%d file(s)", len(page.Attachments)),
-				})
-				for _, a := range page.Attachments {
-					pairs = append(pairs, output.KeyValue{
-						Key:   fmt.Sprintf("  %s", a.Filename),
-						Value: fmt.Sprintf("%s (%d bytes)", a.Description, a.Filesize),
-					})
-				}
-			}
-
 			if page.Text != "" {
 				pairs = append(pairs, output.KeyValue{Key: "Content", Value: page.Text})
 			}
 
 			printer.Detail(pairs)
+
+			if len(page.Attachments) > 0 {
+				fmt.Fprintln(f.IOStreams.Out)
+				fmt.Fprintln(f.IOStreams.Out, "Attachments:")
+				rows := make([][]string, len(page.Attachments))
+				for i, a := range page.Attachments {
+					rows[i] = []string{
+						strconv.Itoa(a.ID),
+						a.Filename,
+						strconv.FormatInt(a.Filesize, 10),
+						a.ContentType,
+					}
+				}
+				printer.Table([]string{"ID", "Filename", "Size", "Content-Type"}, rows)
+			}
 
 			return nil
 		},

@@ -64,7 +64,7 @@ Redmine 7.0 在 wiki 页面 API 响应中新增了所属项目，因此在 7.0 �
 |------|------|
 | `--project`    | 项目标识符或数字 ID |
 | `--version`    | 要获取的页面版本号（省略或填 `0` 表示最新版本） |
-| `--include`    | 包含关联数据，仅支持 `attachments`，其他值会被拒绝。 |
+| `--include`    | 包含关联数据，仅支持 `attachments`，其他值会被拒绝。附件以表格列出并显示 ID；与 `--version` 一起使用时，列出的是页面当前的附件，而非该版本的附件。 |
 | `-o, --output` | 输出格式 |
 
 ```bash
@@ -135,9 +135,10 @@ redmine wiki update <page> [flags]
 | `--section-hash`   | 原始章节内容的哈希值，Redmine 用它在章节级编辑时进行冲突检测。需要配合 `--section`。 |
 | `--start-page`     | 将本页面设为 Wiki 首页。需要 `manage_wiki` 权限。 |
 | `--redirect-existing-links` | 重命名时保留从旧标题的重定向（默认）。传入 `--redirect-existing-links=false` 可不保留。需要配合 `--title`。 |
-| `--remove-attachment` | 要删除的该页面附件 ID（可重复）。可用 `redmine wiki get <page> --include attachments` 查询 ID。 |
+| `--remove-attachment` | 要删除的该页面附件 ID（可重复）。可用 `redmine wiki get <page> --include attachments` 查询 ID。除非指定 `--force`，否则会先请求确认。 |
+| `-f, --force`      | 跳过 `--remove-attachment` 的确认提示。当 `--text-file -` 从标准输入读取时，使用 `--remove-attachment` 必须带 `--force`。 |
 
-没有 `manage_wiki` 权限时 Redmine 会静默忽略 `--start-page`；没有删除 Wiki 附件的权限时同样会静默忽略 `--remove-attachment`，请用 `redmine wiki get` 确认结果。
+没有 `manage_wiki` 权限时 Redmine 会静默忽略 `--start-page`；没有删除 Wiki 附件的权限时同样会静默忽略 `--remove-attachment`，附件请用 `redmine wiki get --include attachments` 确认，首页请用 `redmine api /projects/<id>/wiki.json` 确认（页面响应中没有首页字段）。`--redirect-existing-links` 遵循与 `--title` 重命名相同的规则。
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"
@@ -153,7 +154,7 @@ redmine wiki update MyPage --project myproject --title "New Title" --redirect-ex
 redmine wiki update MyPage --project myproject --start-page
 
 # 按 ID 删除附件
-redmine wiki update MyPage --project myproject --remove-attachment 12 --remove-attachment 15
+redmine wiki update MyPage --project myproject --remove-attachment 12 --remove-attachment 15 --force
 
 # 将页面移动到另一个页面下，或移回 Wiki 根级
 redmine wiki update MyPage --project myproject --parent "User Guide"
@@ -217,8 +218,7 @@ redmine wiki delete <page> [flags]
 | 标志 | 描述 |
 |------|------|
 | `--project`   | 项目标识符或数字 ID |
-| `--children`  | 子页面的处理方式：`nullify`（变为根页面，默认）、`destroy`（删除整棵子树，包括所有后代页面）或 `reassign`（移到 `--reassign-to` 指定的页面下） |
-| `--reassign-to` | 接收子页面的已有页面标题；隐含 `--children reassign`。不能是被删除的页面本身或其后代。 |
+| `--children`  | 子页面的处理方式：`nullify`（变为根页面，默认）或 `destroy`（删除整棵子树，包括所有后代页面） |
 | `-f, --force` | 跳过确认提示 |
 
 ```bash
@@ -227,14 +227,9 @@ redmine wiki delete MyPage --project myproject --force
 
 # 删除该页面及其所有后代页面
 redmine wiki delete MyPage --project myproject --children destroy --force
-
-# 先将子页面移到另一个页面下，再删除
-redmine wiki delete MyPage --project myproject --reassign-to "User Guide" --force
 ```
 
-<Aside>
-  Redmine 自带的 `reassign` 选项需要目标页面的数字 ID，而 REST API 从不返回 Wiki 页面的 ID。因此 CLI 会通过 `parent_title` 把每个直接子页面移到目标页面下，之后才删除该页面。这需要 `rename_wiki_pages` 权限，且不是原子操作：若某次移动失败，命令会停止并报告已移动的子页面数量，页面不会被删除。
-</Aside>
+若要让子页面保留在另一个页面之下，请先用 `redmine wiki update <child> --parent <page>` 移动它们（`redmine wiki list` 会显示父页面），再删除该页面。
 
 <Aside type="caution">
   操作无法撤销。页面历史会在同一次调用中销毁，若日后可能需要这些内容，请务必先自行备份。

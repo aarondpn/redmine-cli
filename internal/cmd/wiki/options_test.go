@@ -59,9 +59,8 @@ func TestDelete_ChildrenFlags(t *testing.T) {
 		{"default", nil, "/projects/proj/wiki/Page.json", ""},
 		{"destroy", []string{"--children", "destroy"}, "/projects/proj/wiki/Page.json?todo=destroy", ""},
 		{"nullify", []string{"--children", "nullify"}, "/projects/proj/wiki/Page.json?todo=nullify", ""},
-		{"invalid", []string{"--children", "burn"}, "", "--children must be one of"},
-		{"reassign needs target", []string{"--children", "reassign"}, "", "requires --reassign-to"},
-		{"target conflicts with destroy", []string{"--children", "destroy", "--reassign-to", "X"}, "", "cannot be combined"},
+		{"invalid", []string{"--children", "burn"}, "", "--children must be nullify or destroy"},
+		{"reassign is not offered", []string{"--children", "reassign"}, "", "--children must be nullify or destroy"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, calls := recordingServer(t)
@@ -108,10 +107,10 @@ func TestUpdate_OptionFlags(t *testing.T) {
 	cmd := newCmdUpdate(f)
 	cmd.SetArgs([]string{"Page", "--project", "proj", "--text", "body", "--title", "New",
 		"--start-page", "--redirect-existing-links=false",
-		"--remove-attachment", "4", "--remove-attachment", "9"})
-	// The fake read-back returns a project payload, so verification output is
-	// irrelevant; only the PUT body is asserted.
-	_ = cmd.Execute()
+		"--remove-attachment", "4", "--remove-attachment", "9", "--force"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
 	put, ok := lastOf(calls(), http.MethodPut)
 	if !ok {
 		t.Fatal("no PUT sent")
@@ -138,13 +137,14 @@ func TestUpdate_OptionFlagErrors(t *testing.T) {
 		want string
 	}{
 		{"redirect without title", []string{"--redirect-existing-links=false"}, "requires --title"},
-		{"bad attachment id", []string{"--remove-attachment", "0"}, "positive attachment ID"},
+		{"bad attachment id", []string{"--remove-attachment", "0", "--force"}, "invalid attachment ID 0: --remove-attachment takes positive attachment IDs"},
+		{"stdin text file needs force", []string{"--remove-attachment", "3", "--text-file", "-"}, "--text-file - reads standard input, so --remove-attachment cannot ask for confirmation: add --force"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, calls := recordingServer(t)
 			f := testutil.NewFactory(t, srv.URL)
 			cmd := newCmdUpdate(f)
-			cmd.SetArgs(append([]string{"Page", "--project", "proj", "--text", "x"}, tt.args...))
+			cmd.SetArgs(append([]string{"Page", "--project", "proj"}, tt.args...))
 			err := cmd.Execute()
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err = %v, want %q", err, tt.want)
@@ -153,5 +153,18 @@ func TestUpdate_OptionFlagErrors(t *testing.T) {
 				t.Error("a PUT was sent despite the invalid flags")
 			}
 		})
+	}
+}
+
+func TestUpdate_RemoveAttachmentAsksForConfirmation(t *testing.T) {
+	srv, calls := recordingServer(t)
+	f := testutil.NewFactory(t, srv.URL) // stdin is empty, so the prompt is declined
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{"Page", "--project", "proj", "--text", "x", "--remove-attachment", "4"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := lastOf(calls(), http.MethodPut); ok {
+		t.Error("attachments must not be removed without confirmation or --force")
 	}
 }

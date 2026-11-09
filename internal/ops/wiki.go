@@ -28,7 +28,7 @@ type WikiPagesListResult struct {
 type GetWikiPageInput struct {
 	ProjectID string   `json:"project_id" jsonschema:"Project identifier or numeric ID."`
 	Page      string   `json:"page" jsonschema:"Wiki page title (slug)."`
-	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include: attachments. Cannot be combined with version."`
+	Includes  []string `json:"includes,omitempty" jsonschema:"Extra sections to include: attachments. With version, the attachments are those the page has now, not at that version."`
 	Version   *int     `json:"version,omitempty" jsonschema:"Fetch this historical version of the page instead of the latest. Requires the view_wiki_edits permission."`
 }
 
@@ -56,21 +56,19 @@ type UpdateWikiPageInput struct {
 
 	IsStartPage           bool  `json:"is_start_page,omitempty" jsonschema:"Set true to make this page the wiki start page. Requires the manage_wiki permission; Redmine ignores it otherwise. false does nothing: a start page is replaced by designating another page."`
 	RedirectExistingLinks *bool `json:"redirect_existing_links,omitempty" jsonschema:"On a rename (title), whether to keep a redirect from the old title. Redmine defaults to true; pass false to drop it. Only valid together with title."`
-	DeletedAttachmentIDs  []int `json:"deleted_attachment_ids,omitempty" jsonschema:"IDs of attachments of this page to delete. Requires permission to delete wiki attachments."`
+	DeletedAttachmentIDs  []int `json:"deleted_attachment_ids,omitempty" jsonschema:"IDs of attachments of this page to delete. Destructive. get_wiki_page with includes [\"attachments\"] lists them. IDs of other pages' attachments are ignored. Requires permission to delete wiki attachments."`
 }
 
 type DeleteWikiPageInput struct {
-	ProjectID  string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
-	Page       string `json:"page" jsonschema:"Wiki page title (slug) to delete. Destructive."`
-	Todo       string `json:"todo,omitempty" jsonschema:"What to do with the page's child pages: 'nullify' (children become root pages, the default), 'destroy' (delete all descendants too; destructive), or 'reassign' (move the children under reassign_to first)."`
-	ReassignTo string `json:"reassign_to,omitempty" jsonschema:"Title of an existing page in the same wiki that receives the children. Implies todo 'reassign'. Must not be the page itself or one of its descendants."`
+	ProjectID string `json:"project_id" jsonschema:"Project identifier or numeric ID."`
+	Page      string `json:"page" jsonschema:"Wiki page title (slug) to delete. Destructive."`
+	Todo      string `json:"todo,omitempty" jsonschema:"What to do with the page's child pages: 'nullify' (children become root pages, the default) or 'destroy' (delete all descendants too; destructive). To keep the children under another page, move them first with update_wiki_page and parent_title."`
 }
 
 // Values of DeleteWikiPageInput.Todo.
 const (
-	WikiTodoNullify  = api.WikiTodoNullify
-	WikiTodoDestroy  = api.WikiTodoDestroy
-	WikiTodoReassign = "reassign"
+	WikiTodoNullify = api.WikiTodoNullify
+	WikiTodoDestroy = api.WikiTodoDestroy
 )
 
 //mcpgen:tool list_wiki_pages
@@ -92,10 +90,7 @@ func GetWikiPage(ctx context.Context, client *api.Client, input GetWikiPageInput
 		if *input.Version < 1 {
 			return nil, fmt.Errorf("version must be >= 1")
 		}
-		if len(input.Includes) > 0 {
-			return nil, fmt.Errorf("includes cannot be combined with version")
-		}
-		return client.Wikis.GetVersion(ctx, input.ProjectID, input.Page, *input.Version)
+		return client.Wikis.GetVersion(ctx, input.ProjectID, input.Page, *input.Version, input.Includes)
 	}
 	return client.Wikis.Get(ctx, input.ProjectID, input.Page, input.Includes)
 }
@@ -169,7 +164,8 @@ func UpdateWikiPage(ctx context.Context, client *api.Client, input UpdateWikiPag
 	}
 	// A rename is dropped under the same rule as a parent change, so it never
 	// counts as a change that may have landed without the parent.
-	otherChanges := input.Text != nil || input.Comments != nil || len(input.Uploads) > 0
+	otherChanges := input.Text != nil || input.Comments != nil || len(input.Uploads) > 0 ||
+		input.IsStartPage || len(input.DeletedAttachmentIDs) > 0
 	if input.Text == nil {
 		// Redmine requires the text on every update and answers 422 "Text
 		// cannot be blank" without it, so a title, comment or parent change
@@ -274,105 +270,19 @@ func droppedWikiTitle(page *models.WikiPage, title string) string {
 //mcpgen:category wiki
 //mcpgen:writes
 func DeleteWikiPage(ctx context.Context, client *api.Client, input DeleteWikiPageInput) (MessageResult, error) {
-	todo := input.Todo
-	target := strings.TrimSpace(input.ReassignTo)
-	switch todo {
-	case "", WikiTodoNullify, WikiTodoDestroy, WikiTodoReassign:
+	switch input.Todo {
+	case "", WikiTodoNullify, WikiTodoDestroy:
 	default:
-		return MessageResult{}, fmt.Errorf("todo must be one of nullify, destroy or reassign, got %q", todo)
+		return MessageResult{}, fmt.Errorf("todo must be nullify or destroy, got %q", input.Todo)
 	}
-	if target != "" {
-		if todo != "" && todo != WikiTodoReassign {
-			return MessageResult{}, fmt.Errorf("reassign_to cannot be combined with todo %q", todo)
-		}
-		todo = WikiTodoReassign
-	}
-	if todo == WikiTodoReassign && target == "" {
-		return MessageResult{}, fmt.Errorf("todo reassign requires reassign_to")
-	}
-
-	moved := 0
-	if todo == WikiTodoReassign {
-		var err error
-		if moved, target, err = reassignWikiChildren(ctx, client, input.ProjectID, input.Page, target); err != nil {
-			return MessageResult{}, err
-		}
-		// The children are gone from under the page; whatever is left is
-		// handled by Redmine's default.
-		todo = WikiTodoNullify
-	}
-	if err := client.Wikis.DeleteWithTodo(ctx, input.ProjectID, input.Page, todo); err != nil {
-		if moved > 0 {
-			return MessageResult{}, fmt.Errorf("moved %d child page(s) under %q but deleting %q failed: %w", moved, target, input.Page, err)
-		}
+	if err := client.Wikis.DeleteWithTodo(ctx, input.ProjectID, input.Page, input.Todo); err != nil {
 		return MessageResult{}, err
 	}
 	msg := fmt.Sprintf("Deleted wiki page %s/%s", input.ProjectID, input.Page)
-	switch {
-	case todo == WikiTodoDestroy:
+	if input.Todo == WikiTodoDestroy {
 		msg += " and its descendants"
-	case moved > 0:
-		msg += fmt.Sprintf("; moved %d child page(s) under %q", moved, target)
 	}
 	return MessageResult{Message: msg}, nil
-}
-
-// reassignWikiChildren moves the direct children of page under target and
-// returns how many it moved and the stored title of the target.
-//
-// Redmine's own todo=reassign needs the target's numeric ID, which the REST
-// API never exposes for wiki pages, so the children are re-parented one by
-// one through parent_title instead. The target is checked against the page
-// index first so nothing is moved when it is unusable.
-func reassignWikiChildren(ctx context.Context, client *api.Client, projectID, page, target string) (int, string, error) {
-	pages, _, err := client.Wikis.List(ctx, projectID, 0, 0)
-	if err != nil {
-		return 0, "", fmt.Errorf("failed to list wiki pages: %w", err)
-	}
-	parents := make(map[string]string, len(pages)) // normalized title -> normalized parent
-	titles := make(map[string]string, len(pages))  // normalized title -> real title
-	for _, p := range pages {
-		key := normalizeWikiTitle(p.Title)
-		titles[key] = p.Title
-		parents[key] = ""
-		if p.Parent != nil {
-			parents[key] = normalizeWikiTitle(p.Parent.Title)
-		}
-	}
-	targetKey, pageKey := normalizeWikiTitle(target), normalizeWikiTitle(page)
-	if _, ok := titles[targetKey]; !ok {
-		return 0, "", fmt.Errorf("reassign_to page %q not found in project %s", target, projectID)
-	}
-	// Walk up from the target: reaching the page means the target is the page
-	// or one of its descendants, and would be deleted or form a cycle.
-	for k, seen := targetKey, 0; k != "" && seen <= len(pages); k, seen = parents[k], seen+1 {
-		if k == pageKey {
-			return 0, "", fmt.Errorf("reassign_to must not be the deleted page %q or one of its descendants", page)
-		}
-	}
-	var children []string
-	for _, p := range pages {
-		if p.Parent != nil && normalizeWikiTitle(p.Parent.Title) == pageKey {
-			children = append(children, p.Title)
-		}
-	}
-	targetTitle := titles[targetKey]
-	moved := 0
-	for _, child := range children {
-		if _, err := UpdateWikiPage(ctx, client, UpdateWikiPageInput{
-			ProjectID:   projectID,
-			Page:        child,
-			ParentTitle: &targetTitle,
-		}); err != nil {
-			return moved, targetTitle, fmt.Errorf("failed to move child page %q under %q (%d moved, page %q not deleted): %w", child, targetTitle, moved, page, err)
-		}
-		moved++
-	}
-	return moved, targetTitle, nil
-}
-
-func normalizeWikiTitle(title string) string {
-	return strings.ToLower(wikiTitleize(title))
 }
 
 // WikiParentNotAppliedError reports that Redmine saved a wiki page but left

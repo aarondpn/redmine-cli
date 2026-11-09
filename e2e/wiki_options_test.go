@@ -56,8 +56,7 @@ func createWikiTree(t *testing.T, r *cliRunner, project string) (parent, childA,
 	return
 }
 
-// TestWiki_DeleteChildren covers --children and --reassign-to. All three
-// outcomes behave the same on every supported Redmine version, so no gate.
+// TestWiki_DeleteChildren covers --children. Both outcomes behave the same on every supported Redmine version, so no gate.
 func TestWiki_DeleteChildren(t *testing.T) {
 	requireE2E(t)
 	r := newCLIRunner(t, e2eBaseURL(), e2eAPIKey())
@@ -94,29 +93,13 @@ func TestWiki_DeleteChildren(t *testing.T) {
 		}
 	})
 
-	t.Run("reassign", func(t *testing.T) {
-		parent, childA, childB, grandchild, target := createWikiTree(t, r, proj.Identifier)
-		r.run(t, "wiki", "delete", parent, "--project", proj.Identifier, "--reassign-to", target, "--force")
-		pages := listWiki(t, r, proj.Identifier)
-		if _, ok := pages[parent]; ok {
-			t.Fatalf("%s still exists", parent)
-		}
-		for _, c := range []string{childA, childB} {
-			if pages[c].parent() != target {
-				t.Errorf("%s parent = %q, want %q", c, pages[c].parent(), target)
-			}
-		}
-		if pages[grandchild].parent() != childB {
-			t.Errorf("grandchild parent = %q, want %q", pages[grandchild].parent(), childB)
-		}
-	})
-
-	t.Run("reassign to own descendant is refused", func(t *testing.T) {
-		parent, childA, _, _, _ := createWikiTree(t, r, proj.Identifier)
-		r.runExpectError(t, "wiki", "delete", parent, "--project", proj.Identifier, "--reassign-to", childA, "--force")
+	t.Run("reassign is not offered", func(t *testing.T) {
+		parent, _, _, _, target := createWikiTree(t, r, proj.Identifier)
+		r.runExpectError(t, "wiki", "delete", parent, "--project", proj.Identifier, "--children", "reassign", "--force")
 		if _, ok := listWiki(t, r, proj.Identifier)[parent]; !ok {
-			t.Error("page was deleted although the reassignment was refused")
+			t.Error("page was deleted by a rejected request")
 		}
+		_ = target
 	})
 }
 
@@ -192,7 +175,7 @@ func TestWiki_UpdateOptions(t *testing.T) {
 			t.Fatalf("attachments before = %+v", before.Attachments)
 		}
 
-		r.run(t, "wiki", "update", page, "--project", proj.Identifier, "--remove-attachment", strconv.Itoa(dropID))
+		r.run(t, "wiki", "update", page, "--project", proj.Identifier, "--remove-attachment", strconv.Itoa(dropID), "--force")
 
 		var after attachments
 		r.runJSON(t, &after, "wiki", "get", page, "--project", proj.Identifier, "--include", "attachments")
@@ -202,8 +185,7 @@ func TestWiki_UpdateOptions(t *testing.T) {
 	})
 }
 
-// TestMCP_WikiOptions covers get_wiki_page version, delete_wiki_page todo and
-// reassign_to, update_wiki_page start page and the search attachments filter.
+// TestMCP_WikiOptions covers get_wiki_page version, delete_wiki_page todo, update_wiki_page start page and the search attachments filter.
 func TestMCP_WikiOptions(t *testing.T) {
 	requireE2E(t)
 	for name, start := range mcpTransports {
@@ -228,20 +210,12 @@ func TestMCP_WikiOptions(t *testing.T) {
 				t.Errorf("version 1 text = %v, want first", text)
 			}
 
-			parent, childA, _, grandchild, target := createWikiTree(t, r, proj.Identifier)
+			parent, childA, _, grandchild, _ := createWikiTree(t, r, proj.Identifier)
 			mcpCallOK(t, ctx, session, "delete_wiki_page", map[string]any{
-				"project_id": proj.Identifier, "page": parent, "reassign_to": target,
+				"project_id": proj.Identifier, "page": parent, "todo": "destroy",
 			})
 			pages := listWiki(t, r, proj.Identifier)
-			if _, ok := pages[parent]; ok || pages[childA].parent() != target {
-				t.Errorf("after reassign: parent present=%v, childA parent=%q, want gone and %q", ok, pages[childA].parent(), target)
-			}
-
-			mcpCallOK(t, ctx, session, "delete_wiki_page", map[string]any{
-				"project_id": proj.Identifier, "page": target, "todo": "destroy",
-			})
-			pages = listWiki(t, r, proj.Identifier)
-			for _, gone := range []string{target, childA, grandchild} {
+			for _, gone := range []string{parent, childA, grandchild} {
 				if _, ok := pages[gone]; ok {
 					t.Errorf("%s still exists after destroy", gone)
 				}

@@ -66,7 +66,7 @@ Redmine 7.0 added the owning project to the wiki page API response, so `wiki get
 |------|-------------|
 | `--project`    | Project identifier or numeric ID |
 | `--version`    | Page version to fetch (omit or `0` for the latest) |
-| `--include`    | Include related data. Only `attachments` is supported; other values are rejected. |
+| `--include`    | Include related data. Only `attachments` is supported; other values are rejected. Attachments are listed in a table with their IDs; with `--version` they are the page's current attachments, not those of that version. |
 | `-o, --output` | Output format |
 
 ```bash
@@ -139,9 +139,10 @@ Aliases: `edit`. Edits an existing page. Only the fields you pass change. When `
 | `--section-hash`   | Hash of the original section content, used by Redmine for conflict detection on section edits. Requires `--section`. |
 | `--start-page`     | Make this page the wiki start page. Requires the `manage_wiki` permission. |
 | `--redirect-existing-links` | On a rename, keep a redirect from the old title (the default). Pass `--redirect-existing-links=false` to drop it. Requires `--title`. |
-| `--remove-attachment` | ID of an attachment of the page to delete (repeatable). Find IDs with `redmine wiki get <page> --include attachments`. |
+| `--remove-attachment` | ID of an attachment of the page to delete (repeatable). Find IDs with `redmine wiki get <page> --include attachments`. Asks for confirmation unless `--force` is given. |
+| `-f, --force`      | Skip the confirmation prompt for `--remove-attachment`. Required with `--remove-attachment` when `--text-file -` reads standard input. |
 
-Redmine silently ignores `--start-page` without `manage_wiki`, and `--remove-attachment` without permission to delete wiki attachments; check the result with `redmine wiki get`. `--redirect-existing-links` follows the rename rules of `--title`.
+Redmine silently ignores `--start-page` without `manage_wiki`, and `--remove-attachment` without permission to delete wiki attachments; check the result with `redmine wiki get --include attachments` for attachments, or `redmine api /projects/<id>/wiki.json` for the start page (the page response has no start-page field). `--redirect-existing-links` follows the rename rules of `--title`.
 
 ```bash
 redmine wiki update MyPage --project myproject --text "Updated content"
@@ -157,7 +158,7 @@ redmine wiki update MyPage --project myproject --title "New Title" --redirect-ex
 redmine wiki update MyPage --project myproject --start-page
 
 # Remove attachments by ID
-redmine wiki update MyPage --project myproject --remove-attachment 12 --remove-attachment 15
+redmine wiki update MyPage --project myproject --remove-attachment 12 --remove-attachment 15 --force
 
 # Move a page under another page, or back to the wiki root
 redmine wiki update MyPage --project myproject --parent "User Guide"
@@ -221,8 +222,7 @@ Aliases: `rm`. Permanently removes the page along with all its attachments and v
 | Flag | Description |
 |------|-------------|
 | `--project`   | Project identifier or numeric ID |
-| `--children`  | What to do with child pages: `nullify` (make them root pages, the default), `destroy` (delete the whole subtree, every descendant included) or `reassign` (move the children under the page named by `--reassign-to`) |
-| `--reassign-to` | Title of an existing page that receives the children; implies `--children reassign`. Must not be the deleted page or one of its descendants. |
+| `--children`  | What to do with child pages: `nullify` (make them root pages, the default) or `destroy` (delete the whole subtree, every descendant included) |
 | `-f, --force` | Skip the confirmation prompt |
 
 ```bash
@@ -231,14 +231,9 @@ redmine wiki delete MyPage --project myproject --force
 
 # Delete the page and all of its descendants
 redmine wiki delete MyPage --project myproject --children destroy --force
-
-# Move the children under another page, then delete
-redmine wiki delete MyPage --project myproject --reassign-to "User Guide" --force
 ```
 
-<Aside>
-  Redmine's own `reassign` option needs the numeric ID of the target page, which the REST API never exposes for wiki pages. The CLI therefore moves each direct child under the target through `parent_title` and only then deletes the page. That needs the `rename_wiki_pages` permission and is not atomic: if a move fails, the command stops, reports how many children were moved, and the page is not deleted.
-</Aside>
+To keep the children under another page instead, move them first with `redmine wiki update <child> --parent <page>` (`redmine wiki list` shows the parents), then delete the page.
 
 <Aside type="caution">
   There is no undo. Page history is destroyed in the same call, so make sure you have a copy if you might need the content back.

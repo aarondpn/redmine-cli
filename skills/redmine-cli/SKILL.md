@@ -35,7 +35,7 @@ Only these top-level commands exist. Do NOT invent subcommands that aren't liste
 | `custom-fields` | List and get custom field definitions (admin-only endpoint) |
 | `search` | Search issues, wiki, news, messages, or browse results |
 | `auth` | Login, logout, list, switch, and check status of authentication profiles |
-| `wiki` | List, get, create, update, delete wiki pages (`update --start-page`, `--redirect-existing-links=false` with `--title`, `--remove-attachment <id>` repeatable; `delete --children nullify\|destroy\|reassign`, `--reassign-to <page>` moves the children first; `destroy` deletes every descendant) |
+| `wiki` | List, get, create, update, delete wiki pages (`get --include attachments` shows attachment IDs; `update --start-page`, `--redirect-existing-links=false` with `--title`, `--remove-attachment <id>` repeatable and confirmed unless `--force`; `delete --children nullify\|destroy`, `destroy` deletes every descendant; to keep children, `update <child> --parent <page>` first) |
 | `api` | Make raw authenticated API requests |
 | `config` | Show the active configuration (server, profile, default project) |
 | `update` | Update the CLI to the latest release |
