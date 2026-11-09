@@ -117,7 +117,7 @@ type IssueFilter struct {
 	QueryID        int    // saved query ID (Redmine query_id parameter)
 	Sort           string // e.g., "updated_on:desc"
 	Includes       []string
-	ExtraParams    map[string]string // escape hatch for Redmine filter syntax (e.g. created_on=">=2025-01-01", cf_5="Critical")
+	ExtraParams    FilterParams // raw Redmine filter parameters, applied last (e.g. created_on=">=2025-01-01", cf_5="Critical")
 	Limit          int
 	Offset         int
 }

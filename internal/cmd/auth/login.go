@@ -385,7 +385,7 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 		}
 	case !nonInteractive:
 		stop = printer.Spinner("Fetching projects...")
-		projects, _, err = client.Projects.List(ctx, nil, 100, 0)
+		projects, _, err = client.Projects.List(ctx, models.ProjectFilter{Limit: 100})
 		stop()
 	}
 

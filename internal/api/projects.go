@@ -14,16 +14,24 @@ type ProjectService struct {
 	client *Client
 }
 
-// List retrieves all projects.
-func (s *ProjectService) List(ctx context.Context, includes []string, limit, offset int) ([]models.Project, int, error) {
+// List retrieves the projects matching the given filter. Without a status
+// filter Redmine 4.1+ returns active projects only.
+func (s *ProjectService) List(ctx context.Context, filter models.ProjectFilter) ([]models.Project, int, error) {
 	params := url.Values{}
-	if len(includes) > 0 {
-		params.Set("include", joinStrings(includes, ","))
+	if len(filter.Includes) > 0 {
+		params.Set("include", joinStrings(filter.Includes, ","))
 	}
-	if offset > 0 {
-		params.Set("offset", strconv.Itoa(offset))
+	if filter.Status != "" {
+		params.Set("status", filter.Status)
 	}
-	projects, total, err := FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", limit)
+	if filter.Sort != "" {
+		params.Set("sort", filter.Sort)
+	}
+	if filter.Offset > 0 {
+		params.Set("offset", strconv.Itoa(filter.Offset))
+	}
+	applyFilterParams(params, filter.ExtraParams)
+	projects, total, err := FetchAll[models.Project](ctx, s.client, "/projects.json", params, "projects", filter.Limit)
 	if err != nil {
 		return nil, 0, err
 	}

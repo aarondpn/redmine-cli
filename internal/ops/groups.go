@@ -9,8 +9,9 @@ import (
 )
 
 type ListGroupsInput struct {
-	Limit  int `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset int `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
+	Builtin bool `json:"builtin,omitempty" jsonschema:"Also list the builtin Anonymous and Non member groups."`
+	Limit   int  `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset  int  `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
 }
 
 type GroupsListResult struct {
@@ -51,8 +52,9 @@ type GroupUserInput struct {
 //mcpgen:category groups
 func ListGroups(ctx context.Context, client *api.Client, input ListGroupsInput) (GroupsListResult, error) {
 	groups, total, err := client.Groups.List(ctx, models.GroupFilter{
-		Limit:  ListLimit(input.Limit),
-		Offset: input.Offset,
+		Builtin: input.Builtin,
+		Limit:   ListLimit(input.Limit),
+		Offset:  input.Offset,
 	})
 	if err != nil {
 		return GroupsListResult{}, err

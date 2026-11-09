@@ -302,7 +302,7 @@ func registerGeneratedTools(s *mcp.Server, client *api.Client, opts Options) {
 	})
 	registerToolSpec(s, client, opts, toolSpec[ops.ListQueriesInput, ops.QueriesListResult]{
 		Name:        "list_queries",
-		Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.",
+		Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id as query_id to list_issues, or to list_time_entries for type time_entry, to run the query.",
 		Category:    "meta",
 		Call:        ops.ListQueries,
 	})
@@ -623,7 +623,7 @@ func generatedToolDescriptors() []ToolDescriptor {
 		{Name: "list_categories", Description: "List issue categories for a project.", Group: "meta", Writes: false},
 		{Name: "list_custom_fields", Description: "List custom field definitions configured in this Redmine instance. Admin-only endpoint.", Group: "meta", Writes: false},
 		{Name: "list_priorities", Description: "List issue priorities with their IDs, default flag and active state. Use the IDs for priority_id.", Group: "meta", Writes: false},
-		{Name: "list_queries", Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id to list_issues as query_id to run the query.", Group: "meta", Writes: false},
+		{Name: "list_queries", Description: "List saved queries (custom filters) visible to the authenticated user. Pass the returned id as query_id to list_issues, or to list_time_entries for type time_entry, to run the query.", Group: "meta", Writes: false},
 		{Name: "list_roles", Description: "List all Redmine roles configured in this instance.", Group: "meta", Writes: false},
 		{Name: "list_statuses", Description: "List all issue statuses configured in this Redmine instance.", Group: "meta", Writes: false},
 		{Name: "list_trackers", Description: "List all trackers (Bug, Feature, ...) configured in this Redmine instance.", Group: "meta", Writes: false},

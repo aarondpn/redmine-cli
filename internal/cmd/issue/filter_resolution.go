@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
+	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
@@ -24,26 +25,10 @@ func resolveIssueStatusFilter(ctx context.Context, client *api.Client, status st
 }
 
 // resolveIssueQueryFilter validates the --query / --query-id flags and
-// returns the saved query ID to thread into the issues list request. Mutual
-// exclusion is enforced by cobra at flag-parse time, so callers reaching
-// here have at most one of the two set. A non-positive --query-id is
-// rejected because Redmine's query_id is a positive integer; treating zero
-// as "no filter" would silently swallow user typos.
+// returns the saved issue query ID to thread into the issues list request
+// (see cmdutil.ResolveSavedQueryFlags).
 func resolveIssueQueryFilter(ctx context.Context, client *api.Client, query string, queryID int, queryIDChanged bool, projectIdentifier string) (int, error) {
-	if queryIDChanged {
-		if queryID <= 0 {
-			return 0, fmt.Errorf("--query-id must be a positive integer, got %d", queryID)
-		}
-		return queryID, nil
-	}
-	if query == "" {
-		return 0, nil
-	}
-	q, err := resolver.ResolveQuery(ctx, client, query, projectIdentifier)
-	if err != nil {
-		return 0, fmt.Errorf("resolving query: %w", err)
-	}
-	return q.ID, nil
+	return cmdutil.ResolveSavedQueryFlags(ctx, client, query, queryID, queryIDChanged, projectIdentifier, "")
 }
 
 // resolveIssuePriorityFilter accepts a numeric ID or a name; names are

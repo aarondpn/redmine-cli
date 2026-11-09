@@ -1,5 +1,19 @@
 package models
 
+// ProjectFilter defines parameters for listing projects.
+type ProjectFilter struct {
+	// Status is sent as the status filter: a numeric code (1 active,
+	// 5 closed) or several joined with "|". Empty sends nothing, and Redmine
+	// 4.1+ then lists active projects only.
+	Status   string
+	Sort     string // e.g. "name:desc" (Redmine 4.1+)
+	Includes []string
+	// ExtraParams are raw Redmine filter parameters, applied last.
+	ExtraParams FilterParams
+	Limit       int
+	Offset      int
+}
+
 // Project represents a Redmine project.
 type Project struct {
 	ID                  int                `json:"id"`

@@ -30,12 +30,26 @@ redmine projects list [flags]
 
 | Flag | Description |
 |------|-------------|
+| `--status`     | Status filter: `active`, `closed`, `all`, or a numeric status (`1` active, `5` closed). Default: Redmine lists active projects only |
+| `--sort`       | Sort order, e.g. `name` or `created_on:desc` |
+| `--filter`     | Raw Redmine filter as `key=value` (repeatable), e.g. `--filter name='~web'`, `--filter created_on='>=2026-01-01'` |
 | `--include`    | Extra data, repeatable or comma-separated: `trackers`, `issue_categories`, `enabled_modules`, `time_entry_activities`, `issue_custom_fields` |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format: `table`, `json` |
 
 The table view always shows `ID, Identifier, Name, Status, Public`. Use `--output json` to inspect any extra sections you requested with `--include`.
+
+<Aside type="caution" title="Closed and archived projects are hidden">
+  Since Redmine 4.1 the project list returns **active projects only** unless a status is given, so closed projects are hidden as well as archived ones. Use `--status closed` or `--status all` to see closed projects. Archived projects are never listed by the REST API, not even for administrators, so `--status archived` and `--status 9` are rejected; `--status all` lists active and closed projects.
+</Aside>
+
+`--filter` passes Redmine query parameters through unchanged, as on [`issues list`](/commands/issues/#list): plain filters such as `name`, `description`, `created_on` or `updated_on` with Redmine operators, and the generic `f[]`/`op[]`/`v[]` syntax (repeat a key ending in `[]` for several values). A `--filter` key that a dedicated flag also sends (such as `status`) replaces the flag's value. With `f[]`, Redmine applies only the filters listed in `f[]`; filters set by other flags such as `--status` are dropped.
+
+```bash
+redmine projects list --status all --sort name
+redmine projects list --filter name='~web' --filter created_on='>=2026-01-01'
+```
 
 ## get
 

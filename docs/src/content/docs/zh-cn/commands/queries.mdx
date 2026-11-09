@@ -13,7 +13,7 @@ import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
 </CardGrid>
 
 <Aside type="note">
-  自定义查询只能通过 Redmine Web UI 创建或修改。CLI 仅提供只读访问，并通过工单接口的 `query_id` 参数复用已有查询。
+  自定义查询只能通过 Redmine Web UI 创建或修改。CLI 仅提供只读访问，并通过 `query_id` 参数复用已有查询：工单查询用于 `issues list`，工时查询用于 `time list`。
 </Aside>
 
 ## list
@@ -24,6 +24,7 @@ redmine queries list [flags]
 
 | 标志 | 描述 |
 |------|------|
+| `--type`       | 查询类型：`issue`（默认）或 `time_entry` |
 | `--limit`      | 最大结果数（0 表示全部） |
 | `--offset`     | 分页偏移量 |
 | `-o, --output` | 输出格式：`table`、`json` |
@@ -32,8 +33,11 @@ redmine queries list [flags]
 
 ```bash
 redmine queries list
+redmine queries list --type time_entry
 redmine queries list -o json
 ```
+
+`queries get` 查找的是工单查询。
 
 ## get
 
@@ -63,4 +67,13 @@ redmine issues list --query "我的未关闭工单"
 redmine issues list --project myproject --query "迭代待办"
 ```
 
-自定义查询中的过滤条件由服务端应用。`--query-id` 仍可与 `--sort`、`--limit`、`--offset` 和 `--include` 等参数组合使用，以进一步控制返回结果。
+已保存查询的过滤条件会取代所有其他过滤条件；只有 `--project` 和 `--sort` 仍然生效。`--query-id` 仍可与 `--limit`、`--offset` 和 `--include` 等参数组合使用，以进一步控制返回结果。
+
+工时查询（`queries list --type time_entry`）以同样方式通过 [`time list`](/zh-cn/commands/time/#list) 运行：
+
+```bash
+redmine time list --query-id 9
+redmine time list --project myproject --query "Billable hours"
+```
+
+MCP 工具 `list_queries` 接受同样的 `type`（`issue` 或 `time_entry`）；把 ID 作为 `query_id` 传给 `list_issues` 或 `list_time_entries`。

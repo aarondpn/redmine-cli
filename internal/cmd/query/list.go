@@ -13,9 +13,10 @@ import (
 
 func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 	var (
-		format string
-		limit  int
-		offset int
+		queryType string
+		format    string
+		limit     int
+		offset    int
 	)
 
 	cmd := &cobra.Command{
@@ -23,13 +24,21 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Aliases: []string{"ls"},
 		Short:   "List saved queries",
-		Long:    "List saved queries (custom filters) visible to the authenticated user. The list includes both global queries and queries scoped to a project.",
+		Long: `List saved queries (custom filters) visible to the authenticated user. The list includes both global queries and queries scoped to a project.
+
+Issue queries run with "issues list --query"; time entry queries (--type time_entry) run with "time list --query".`,
 		Example: `  # All saved queries you can see
   redmine queries list
+
+  # Saved time entry queries, for time list --query / --query-id
+  redmine queries list --type time_entry
 
   # JSON output for piping into jq or another tool
   redmine queries list -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := ops.QueryClass(queryType); err != nil {
+				return err
+			}
 			client, err := f.ApiClient()
 			if err != nil {
 				return err
@@ -38,6 +47,7 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 
 			stop := printer.Spinner("Fetching saved queries...")
 			result, err := ops.ListQueries(cmdutil.Context(cmd), client, ops.ListQueriesInput{
+				Type:   queryType,
 				Limit:  cmdutil.OpsLimit(limit),
 				Offset: offset,
 			})
@@ -63,6 +73,10 @@ func newCmdQueryList(f *cmdutil.Factory) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&queryType, "type", ops.QueryTypeIssue, "Kind of saved query: issue or time_entry")
+	_ = cmd.RegisterFlagCompletionFunc("type", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return []string{ops.QueryTypeIssue, ops.QueryTypeTimeEntry}, cobra.ShellCompDirectiveNoFileComp
+	})
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 	return cmd

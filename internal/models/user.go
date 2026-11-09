@@ -79,11 +79,18 @@ type MyAccountUpdate struct {
 
 // UserFilter defines parameters for listing users.
 type UserFilter struct {
-	Status  string // "active", "registered", "locked"
+	// Status is "active", "registered", "locked", "all", or a raw value sent
+	// as-is ("*" on Redmine 5.1+). "all" lists every status on all supported
+	// versions: it sends an empty status= and, when Redmine 6.0+ rejects that
+	// with 422, retries with status=*.
+	Status  string
 	Name    string // filter by name
 	GroupID int
-	Limit   int
-	Offset  int
+	Sort    string // e.g. "created_on:desc"
+	// ExtraParams are raw Redmine filter parameters, applied last.
+	ExtraParams FilterParams
+	Limit       int
+	Offset      int
 	// Includes holds include= values; only "auth_source" (Redmine 6.0+, admin
 	// only) is rendered by the users index.
 	Includes []string

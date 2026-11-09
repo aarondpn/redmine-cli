@@ -15,28 +15,6 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/resolver"
 )
 
-// ParseKeyValuePairs parses repeated `key=value` flag inputs into a map. The
-// flagName is used to build clear error messages ("--filter %q must be
-// key=value"). Empty keys and missing `=` are rejected.
-func ParseKeyValuePairs(raws []string, flagName string) (map[string]string, error) {
-	if len(raws) == 0 {
-		return nil, nil
-	}
-	out := make(map[string]string, len(raws))
-	for _, raw := range raws {
-		key, val, ok := strings.Cut(raw, "=")
-		if !ok {
-			return nil, fmt.Errorf("--%s %q must be key=value", flagName, raw)
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			return nil, fmt.Errorf("--%s %q: empty key", flagName, raw)
-		}
-		out[key] = val
-	}
-	return out, nil
-}
-
 // CustomFieldPair is one --custom-field entry, in flag order.
 type CustomFieldPair struct {
 	Key   string

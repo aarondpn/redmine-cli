@@ -11,23 +11,23 @@ import (
 )
 
 type ListIssuesInput struct {
-	ProjectID      string            `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID to filter by."`
-	SubprojectID   string            `json:"subproject_id,omitempty" jsonschema:"Subproject filter: numeric ID to restrict to one subproject, '!*' to exclude subprojects entirely."`
-	TrackerID      int               `json:"tracker_id,omitempty" jsonschema:"Tracker ID (use list_trackers to discover)."`
-	StatusID       string            `json:"status_id,omitempty" jsonschema:"Status filter: 'open', 'closed', '*', or a numeric status ID."`
-	AssignedToID   string            `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user or group ID, 'me', or 'none' for unassigned issues."`
-	AuthorID       string            `json:"author_id,omitempty" jsonschema:"Author: numeric user ID or 'me'."`
-	PriorityID     string            `json:"priority_id,omitempty" jsonschema:"Priority: numeric ID (use list_priorities to discover)."`
-	CategoryID     int               `json:"category_id,omitempty" jsonschema:"Issue category ID (use list_categories to discover)."`
-	FixedVersionID int               `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
-	ParentID       int               `json:"parent_id,omitempty" jsonschema:"Restrict to children of this issue ID."`
-	IsPrivate      *bool             `json:"is_private,omitempty" jsonschema:"Filter by privacy: true returns only private issues, false returns only public ones."`
-	QueryID        int               `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
-	Sort           string            `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
-	Includes       []string          `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations."`
-	ExtraParams    map[string]string `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters (escape hatch). Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
-	Limit          int               `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset         int               `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
+	ProjectID      string              `json:"project_id,omitempty" jsonschema:"Project identifier or numeric ID to filter by."`
+	SubprojectID   string              `json:"subproject_id,omitempty" jsonschema:"Subproject filter: numeric ID to restrict to one subproject, '!*' to exclude subprojects entirely."`
+	TrackerID      int                 `json:"tracker_id,omitempty" jsonschema:"Tracker ID (use list_trackers to discover)."`
+	StatusID       string              `json:"status_id,omitempty" jsonschema:"Status filter: 'open', 'closed', '*', or a numeric status ID."`
+	AssignedToID   string              `json:"assigned_to_id,omitempty" jsonschema:"Assignee: numeric user or group ID, 'me', or 'none' for unassigned issues."`
+	AuthorID       string              `json:"author_id,omitempty" jsonschema:"Author: numeric user ID or 'me'."`
+	PriorityID     string              `json:"priority_id,omitempty" jsonschema:"Priority: numeric ID (use list_priorities to discover)."`
+	CategoryID     int                 `json:"category_id,omitempty" jsonschema:"Issue category ID (use list_categories to discover)."`
+	FixedVersionID int                 `json:"fixed_version_id,omitempty" jsonschema:"Fixed version (milestone) ID."`
+	ParentID       int                 `json:"parent_id,omitempty" jsonschema:"Restrict to children of this issue ID."`
+	IsPrivate      *bool               `json:"is_private,omitempty" jsonschema:"Filter by privacy: true returns only private issues, false returns only public ones."`
+	QueryID        int                 `json:"query_id,omitempty" jsonschema:"Saved query ID. When set, the query's filters are applied server-side (use list_queries to discover)."`
+	Sort           string              `json:"sort,omitempty" jsonschema:"Sort expression, e.g. 'updated_on:desc'."`
+	Includes       []string            `json:"includes,omitempty" jsonschema:"Extra fields to include: attachments, relations."`
+	ExtraParams    models.FilterParams `json:"extra_params,omitempty" jsonschema:"Raw Redmine filter parameters sent as-is (escape hatch); a key here replaces the same parameter set by another field. Use an array for keys that take several values (f[], v[field][]). With f[], Redmine applies only the filters listed in f[]; filters set by other fields such as status are dropped. Examples: {\"created_on\":\">=2025-01-01\",\"cf_5\":\"Critical\",\"subject\":\"~login\"}."`
+	Limit          int                 `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset         int                 `json:"offset,omitempty" jsonschema:"Number of leading results to skip (pagination)."`
 }
 
 type IssuesListResult struct {

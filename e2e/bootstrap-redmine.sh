@@ -50,6 +50,17 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
       seeded_query.save!
     end
 
+    # A public time entry query for `time list --query` / `--query-id`. It
+    # keeps only entries of 2 hours or more, so a test can tell that the
+    # query was applied.
+    time_query = TimeEntryQuery.find_or_initialize_by(name: "E2E Long Time Entries")
+    if time_query.new_record?
+      time_query.user = admin
+      time_query.visibility = Query::VISIBILITY_PUBLIC
+      time_query.filters = { "hours" => { operator: ">=", values: ["2"] } }
+      time_query.save!
+    end
+
     # Seed an issue custom field so the custom-fields e2e suite has a stable
     # fixture. Redmine has no REST endpoint for creating custom field
     # definitions, so the bootstrap is the only place this can live.
@@ -139,6 +150,7 @@ bootstrap_output=$(docker compose -f "$compose_file" exec -T \
       statuses: IssueStatus.count,
       seeded_query_id: seeded_query.id,
       seeded_query_name: seeded_query.name,
+      seeded_time_entry_query_id: time_query.id,
       seeded_custom_field_id: seeded_custom_field.id,
       seeded_custom_field_name: seeded_custom_field.name,
       seeded_notes_custom_field_id: seeded_notes_field.id,

@@ -65,9 +65,7 @@ func (s *IssueService) List(ctx context.Context, filter models.IssueFilter) ([]m
 	}
 	// Extra params last so the escape hatch can override explicit fields if a
 	// user knows what they're doing (e.g. raw `status_id=open|closed`).
-	for k, v := range filter.ExtraParams {
-		params.Set(k, v)
-	}
+	applyFilterParams(params, filter.ExtraParams)
 
 	issues, total, err := FetchAll[models.Issue](ctx, s.client, "/issues.json", params, "issues", filter.Limit)
 	if err != nil {

@@ -75,6 +75,10 @@ redmine time list [flags]
 | `--activity`   | Filter by activity (name or ID; for project-specific overrides use the ID from `redmine activities list --project <project>`) |
 | `--from`       | Start date (YYYY-MM-DD or `today`) |
 | `--to`         | End date (YYYY-MM-DD or `today`) |
+| `--filter`     | Raw Redmine filter as `key=value` (repeatable). See [raw filters](#raw-filters) |
+| `--query`      | Run a saved time entry query by name (mutually exclusive with `--query-id`). Its filters replace all other filters; only `--project` and `--sort` still apply |
+| `--query-id`   | Run a saved time entry query by numeric ID (see `queries list --type time_entry`) |
+| `--sort`       | Sort order, e.g. `spent_on:desc` or `hours:desc` |
 | `--limit`      | Maximum number of results |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format |
@@ -90,7 +94,31 @@ redmine time list [flags]
     redmine time list --issue 123
     ```
   </TabItem>
+  <TabItem label="Longest first">
+    ```bash
+    redmine time list --project myproject --sort hours:desc --limit 10
+    ```
+  </TabItem>
+  <TabItem label="Custom field">
+    ```bash
+    redmine time list --project myproject --filter cf_3=Onsite
+    ```
+  </TabItem>
 </Tabs>
+
+### Raw filters
+
+`--filter key=value` passes a Redmine query parameter through unchanged, the same escape hatch as on [`issues list`](/commands/issues/#list):
+
+- `--filter cf_3=Onsite` — time entry custom field 3 equals "Onsite" (the field must be marked as a filter in Redmine)
+- `--filter spent_on='><2026-01-01|2026-01-31'` — spent in a date range (`>=`, `<=`, `><` and the other Redmine operators work)
+- `--filter issue.tracker_id=1` — entries on issues of tracker 1
+- `--filter author_id=me` — entries you created, including ones logged on behalf of others
+- `--filter 'f[]=hours' --filter 'op[hours]=>=' --filter 'v[hours][]=2'` — Redmine's generic `f[]`/`op[]`/`v[]` syntax. Repeat a key that ends in `[]` to send several values.
+
+A `--filter` key that a dedicated flag also sends (for example `project_id` or `user_id`) replaces the flag's value. `--from` and `--to` take precedence over a `spent_on` filter. With `f[]`, Redmine applies only the filters listed in `f[]`; filters set by other flags such as `--status` are dropped.
+
+`--query` resolves names among saved **time entry** queries; list them with [`queries list --type time_entry`](/commands/queries/). The saved query's filters replace all other filters; only `--project` and `--sort` still apply.
 
 ## get
 
@@ -131,7 +159,7 @@ redmine time delete <id> [flags]
 redmine time summary [flags]
 ```
 
-Displays a summary of time entries grouped by project and activity. Accepts the same filter flags as [`list`](#list).
+Aggregates time entries by day, project, or activity (`--group-by`, default `day`). Accepts `--project`, `--user`, `--from`, and `--to` like [`list`](#list); without dates it covers the current week.
 
 <Aside type="tip">
   Combine `summary` with `--from today --user me` for a quick end-of-day breakdown of your own work.

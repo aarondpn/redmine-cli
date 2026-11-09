@@ -18,7 +18,17 @@ type QueryService struct {
 // every visible query (global plus project-specific) and can filter by the
 // ProjectID field client-side if needed.
 func (s *QueryService) List(ctx context.Context, limit, offset int) ([]models.SavedQuery, int, error) {
+	return s.ListOfType(ctx, "", limit, offset)
+}
+
+// ListOfType is List for one kind of saved query. queryType is the Redmine
+// query class sent as type= (e.g. "TimeEntryQuery"); empty lists issue
+// queries, Redmine's default.
+func (s *QueryService) ListOfType(ctx context.Context, queryType string, limit, offset int) ([]models.SavedQuery, int, error) {
 	params := url.Values{}
+	if queryType != "" {
+		params.Set("type", queryType)
+	}
 	if offset > 0 {
 		params.Set("offset", strconv.Itoa(offset))
 	}

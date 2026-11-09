@@ -174,7 +174,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 				subprojectFilter = "!*"
 			}
 
-			extra, err := cmdutil.ParseKeyValuePairs(extraFilter, "filter")
+			extra, err := cmdutil.ParseFilterFlag(extraFilter)
 			if err != nil {
 				return err
 			}
@@ -258,7 +258,7 @@ func NewCmdList(f *cmdutil.Factory) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("include", completeListIncludes)
 	cmd.Flags().BoolVar(&attachments, "attachments", false, "Include attachments (shorthand for --include attachments)")
 	cmd.Flags().BoolVar(&relations, "relations", false, "Include issue relations (shorthand for --include relations)")
-	cmd.Flags().StringArrayVar(&extraFilter, "filter", nil, "Raw Redmine filter as key=value (repeatable). Examples: --filter created_on='>=2025-01-01', --filter cf_5=Critical, --filter subject='~login'")
+	cmdutil.AddFilterFlag(cmd, &extraFilter, "created_on='>=2025-01-01'", "cf_5=Critical", "subject='~login'")
 	cmdutil.AddPaginationFlags(cmd, &limit, &offset)
 	cmdutil.AddOutputFlag(cmd, &format)
 

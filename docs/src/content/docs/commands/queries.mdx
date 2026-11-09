@@ -13,7 +13,7 @@ The `queries` command (alias `q`) lists saved queries (custom filters) defined i
 </CardGrid>
 
 <Aside type="note">
-  Saved queries can only be created or edited in the Redmine web UI. The CLI is read-only here and reuses the existing query through the `query_id` parameter on the issues endpoint.
+  Saved queries can only be created or edited in the Redmine web UI. The CLI is read-only here and reuses the existing query through the `query_id` parameter: issue queries on `issues list`, time entry queries on `time list`.
 </Aside>
 
 ## list
@@ -24,6 +24,7 @@ redmine queries list [flags]
 
 | Flag | Description |
 |------|-------------|
+| `--type`       | Kind of saved query: `issue` (default) or `time_entry` |
 | `--limit`      | Maximum number of results (0 for all) |
 | `--offset`     | Result offset for pagination |
 | `-o, --output` | Output format: `table`, `json` |
@@ -32,8 +33,11 @@ Each row reports the query ID, name, visibility (`public` or `private`), and sco
 
 ```bash
 redmine queries list
+redmine queries list --type time_entry
 redmine queries list -o json
 ```
+
+`queries get` looks up issue queries.
 
 ## get
 
@@ -63,4 +67,13 @@ redmine issues list --query "My open issues"
 redmine issues list --project myproject --query "Sprint backlog"
 ```
 
-The saved query's filters apply server-side. You can still pair `--query-id` with `--sort`, `--limit`, `--offset`, and `--include` to shape the result set.
+The saved query's filters replace all other filters; only `--project` and `--sort` still apply. You can still pair `--query-id` with `--limit`, `--offset`, and `--include` to shape the result set.
+
+Time entry queries (`queries list --type time_entry`) run the same way through [`time list`](/commands/time/#list):
+
+```bash
+redmine time list --query-id 9
+redmine time list --project myproject --query "Billable hours"
+```
+
+The MCP tool `list_queries` takes the same `type` (`issue` or `time_entry`); pass the ID as `query_id` to `list_issues` or `list_time_entries`.
