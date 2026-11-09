@@ -113,13 +113,37 @@ func (s *WikiService) Update(ctx context.Context, projectID, page string, update
 	return s.client.Put(ctx, path+".json", body)
 }
 
-// Delete deletes a wiki page.
+// Delete deletes a wiki page. Its children become root pages.
 func (s *WikiService) Delete(ctx context.Context, projectID, page string) error {
+	return s.DeleteWithTodo(ctx, projectID, page, "")
+}
+
+// Wiki delete "todo" values for the children of the deleted page.
+const (
+	WikiTodoNullify = "nullify"
+	WikiTodoDestroy = "destroy"
+)
+
+// DeleteWithTodo deletes a wiki page and tells Redmine what to do with its
+// children: WikiTodoNullify makes them root pages, WikiTodoDestroy deletes
+// the whole subtree. An empty todo sends none, which the API treats like
+// nullify. Redmine's "reassign" needs a reassign_to_id, but the API exposes
+// no wiki page IDs, so it is rejected here; the ops layer moves the children
+// itself and then deletes with nullify.
+func (s *WikiService) DeleteWithTodo(ctx context.Context, projectID, page, todo string) error {
 	path, err := wikiPagePath(projectID, page)
 	if err != nil {
 		return err
 	}
-	return s.client.Delete(ctx, path+".json")
+	path += ".json"
+	switch todo {
+	case "":
+	case WikiTodoNullify, WikiTodoDestroy:
+		path += "?todo=" + todo
+	default:
+		return fmt.Errorf("unsupported wiki delete todo %q", todo)
+	}
+	return s.client.Delete(ctx, path)
 }
 
 // wikiPagePath returns the escaped /projects/<project>/wiki/<page> prefix

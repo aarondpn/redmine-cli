@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
-	"github.com/aarondpn/redmine-cli/v2/internal/models"
 	"github.com/aarondpn/redmine-cli/v2/internal/ops"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
@@ -55,17 +54,18 @@ func newCmdGet(f *cmdutil.Factory) *cobra.Command {
 			pageTitle := args[0]
 
 			stop := printer.Spinner("Fetching wiki page...")
-			var page *models.WikiPage
-			if version > 0 {
-				// no ops equivalent for versioned fetch
-				page, err = client.Wikis.GetVersion(ctx, projectID, pageTitle, version)
-			} else {
-				page, err = ops.GetWikiPage(ctx, client, ops.GetWikiPageInput{
-					ProjectID: projectID,
-					Page:      pageTitle,
-					Includes:  cmdutil.MergeIncludes(include),
-				})
+			getInput := ops.GetWikiPageInput{
+				ProjectID: projectID,
+				Page:      pageTitle,
+				Includes:  cmdutil.MergeIncludes(include),
 			}
+			if version > 0 {
+				// A versioned fetch cannot include attachments; the flag has
+				// always been ignored here, so keep ignoring it.
+				getInput.Includes = nil
+				getInput.Version = &version
+			}
+			page, err := ops.GetWikiPage(ctx, client, getInput)
 			stop()
 			if err != nil {
 				return fmt.Errorf("failed to get wiki page %q: %w", pageTitle, err)

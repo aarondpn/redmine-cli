@@ -66,6 +66,20 @@ type WikiPageUpdate struct {
 	Version     *int     `json:"version,omitempty"`
 	Uploads     []Upload `json:"uploads,omitempty"`
 
+	// IsStartPage, when true, makes the page the wiki start page (needs the
+	// manage_wiki permission; Redmine ignores it otherwise). Redmine only ever
+	// reads it as "set", so false is never sent.
+	IsStartPage bool `json:"is_start_page,omitempty"`
+
+	// RedirectExistingLinks controls whether a rename leaves a redirect from
+	// the old title. Redmine defaults to keeping it and only the string "0"
+	// switches it off (a JSON false does not), so this is "1" or "0", sent
+	// as given. It is read only when the title changes.
+	RedirectExistingLinks *string `json:"redirect_existing_links,omitempty"`
+
+	// DeletedAttachmentIDs lists attachments of the page to remove.
+	DeletedAttachmentIDs []int `json:"deleted_attachment_ids,omitempty"`
+
 	// Section and SectionHash select a single section to replace. Redmine
 	// reads these from the top level of the request params (see
 	// WikiController#update), NOT from inside the wiki_page object, so they

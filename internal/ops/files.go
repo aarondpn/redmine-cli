@@ -46,7 +46,13 @@ func ListProjectFiles(ctx context.Context, client *api.Client, input ListProject
 //
 // Deliberately not exposed as an MCP tool: the function requires an upload
 // token obtained by streaming bytes to /uploads.json, and MCP has no tool that
-// produces such a token, so exposing it alone would be unusable.
+// produces such a token, so exposing it alone would be unusable. Uploads are
+// CLI-only as a whole (the same goes for the Uploads fields of the issue and
+// wiki inputs, which are tagged json:"-" and only the CLI fills in): an MCP
+// upload would have to take either base64 content through the tool call, with
+// no sensible size limit, or a local path chosen by the caller, which is
+// unsafe over the HTTP transport. Revisit only with an explicit design for
+// size limits and path allowlists.
 func UploadProjectFile(ctx context.Context, client *api.Client, input UploadProjectFileInput) (MessageResult, error) {
 	if input.Token == "" {
 		return MessageResult{}, fmt.Errorf("token is required")

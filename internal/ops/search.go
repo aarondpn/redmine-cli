@@ -2,27 +2,29 @@ package ops
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
 type SearchInput struct {
-	Query      string `json:"query" jsonschema:"Full-text search query."`
-	ProjectID  string `json:"project_id,omitempty" jsonschema:"Scope search to a single project (identifier or numeric ID)."`
-	Scope      string `json:"scope,omitempty" jsonschema:"One of 'all', 'my_projects', 'bookmarks', 'subprojects'."`
-	Issues     bool   `json:"issues,omitempty" jsonschema:"Include issues in results."`
-	News       bool   `json:"news,omitempty" jsonschema:"Include news in results."`
-	Documents  bool   `json:"documents,omitempty" jsonschema:"Include documents in results."`
-	Changesets bool   `json:"changesets,omitempty" jsonschema:"Include changesets in results."`
-	WikiPages  bool   `json:"wiki_pages,omitempty" jsonschema:"Include wiki pages in results."`
-	Messages   bool   `json:"messages,omitempty" jsonschema:"Include forum messages in results."`
-	Projects   bool   `json:"projects,omitempty" jsonschema:"Include projects in results."`
-	AllWords   *bool  `json:"all_words,omitempty" jsonschema:"Require all query words to match. Defaults to true when omitted; set false to match any word."`
-	TitlesOnly bool   `json:"titles_only,omitempty" jsonschema:"Match query against titles only."`
-	OpenIssues bool   `json:"open_issues,omitempty" jsonschema:"Limit issue results to open issues."`
-	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
-	Offset     int    `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
+	Query       string `json:"query" jsonschema:"Full-text search query."`
+	ProjectID   string `json:"project_id,omitempty" jsonschema:"Scope search to a single project (identifier or numeric ID)."`
+	Scope       string `json:"scope,omitempty" jsonschema:"One of 'all', 'my_projects', 'bookmarks', 'subprojects'."`
+	Issues      bool   `json:"issues,omitempty" jsonschema:"Include issues in results."`
+	News        bool   `json:"news,omitempty" jsonschema:"Include news in results."`
+	Documents   bool   `json:"documents,omitempty" jsonschema:"Include documents in results."`
+	Changesets  bool   `json:"changesets,omitempty" jsonschema:"Include changesets in results."`
+	WikiPages   bool   `json:"wiki_pages,omitempty" jsonschema:"Include wiki pages in results."`
+	Messages    bool   `json:"messages,omitempty" jsonschema:"Include forum messages in results."`
+	Projects    bool   `json:"projects,omitempty" jsonschema:"Include projects in results."`
+	AllWords    *bool  `json:"all_words,omitempty" jsonschema:"Require all query words to match. Defaults to true when omitted; set false to match any word."`
+	TitlesOnly  bool   `json:"titles_only,omitempty" jsonschema:"Match query against titles only."`
+	OpenIssues  bool   `json:"open_issues,omitempty" jsonschema:"Limit issue results to open issues."`
+	Attachments string `json:"attachments,omitempty" jsonschema:"Search attachment file names and descriptions: '0' (issue and wiki text only, the default), '1' (text and attachments), or 'only' (attachments only)."`
+	Limit       int    `json:"limit,omitempty" jsonschema:"Max results to return. Defaults to 50 when omitted."`
+	Offset      int    `json:"offset,omitempty" jsonschema:"Number of leading results to skip."`
 }
 
 type SearchResultsListResult struct {
@@ -39,22 +41,28 @@ type SearchResultsListResult struct {
 func Search(ctx context.Context, client *api.Client, input SearchInput) (SearchResultsListResult, error) {
 	anySelected := input.Issues || input.News || input.Documents ||
 		input.Changesets || input.WikiPages || input.Messages || input.Projects
+	switch input.Attachments {
+	case "", "0", "1", "only":
+	default:
+		return SearchResultsListResult{}, fmt.Errorf("attachments must be one of 0, 1 or only, got %q", input.Attachments)
+	}
 	params := api.SearchParams{
-		Query:      input.Query,
-		ProjectID:  input.ProjectID,
-		Scope:      input.Scope,
-		AllWords:   input.AllWords,
-		TitlesOnly: input.TitlesOnly,
-		OpenIssues: input.OpenIssues,
-		Issues:     input.Issues,
-		News:       input.News,
-		Documents:  input.Documents,
-		Changesets: input.Changesets,
-		WikiPages:  input.WikiPages,
-		Messages:   input.Messages,
-		Projects:   input.Projects,
-		Limit:      ListLimit(input.Limit),
-		Offset:     input.Offset,
+		Attachments: input.Attachments,
+		Query:       input.Query,
+		ProjectID:   input.ProjectID,
+		Scope:       input.Scope,
+		AllWords:    input.AllWords,
+		TitlesOnly:  input.TitlesOnly,
+		OpenIssues:  input.OpenIssues,
+		Issues:      input.Issues,
+		News:        input.News,
+		Documents:   input.Documents,
+		Changesets:  input.Changesets,
+		WikiPages:   input.WikiPages,
+		Messages:    input.Messages,
+		Projects:    input.Projects,
+		Limit:       ListLimit(input.Limit),
+		Offset:      input.Offset,
 	}
 	if !anySelected {
 		params.Issues = true
