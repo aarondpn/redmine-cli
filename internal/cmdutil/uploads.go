@@ -8,21 +8,52 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
 	"github.com/aarondpn/redmine-cli/v2/internal/api"
 	"github.com/aarondpn/redmine-cli/v2/internal/models"
 )
 
+// AddAttachFlags registers the repeatable --attach and --attach-description
+// flags. Descriptions pair with attachments by position: the first
+// --attach-description describes the first --attach, and so on. Pass both
+// slices to UploadAttachments.
+func AddAttachFlags(cmd *cobra.Command, paths, descriptions *[]string) {
+	cmd.Flags().StringArrayVar(paths, "attach", nil, "Path to file to attach (repeatable)")
+	cmd.Flags().StringArrayVar(descriptions, "attach-description", nil,
+		"Description of the file given by the --attach at the same position (repeatable; pass \"\" to skip a file)")
+}
+
+// CheckAttachDescriptions rejects more --attach-description values than
+// --attach values. Call it before any request so nothing is uploaded or
+// changed when the flags do not pair up.
+func CheckAttachDescriptions(paths, descriptions []string) error {
+	if len(descriptions) > len(paths) {
+		return fmt.Errorf("--attach-description given %d time(s) but --attach only %d: each description pairs with the --attach at the same position",
+			len(descriptions), len(paths))
+	}
+	return nil
+}
+
 // UploadAttachments uploads each given file path and returns Upload references
-// suitable for inclusion in an issue create/update payload.
-func UploadAttachments(ctx context.Context, client *api.Client, paths []string) ([]models.Upload, error) {
+// suitable for inclusion in an issue, wiki or news create/update payload.
+// descriptions[i], when present and non-empty, becomes the description of
+// paths[i]; see AddAttachFlags.
+func UploadAttachments(ctx context.Context, client *api.Client, paths []string, descriptions ...string) ([]models.Upload, error) {
+	if err := CheckAttachDescriptions(paths, descriptions); err != nil {
+		return nil, err
+	}
 	if len(paths) == 0 {
 		return nil, nil
 	}
 	uploads := make([]models.Upload, 0, len(paths))
-	for _, p := range paths {
+	for i, p := range paths {
 		up, err := uploadOne(ctx, client, p)
 		if err != nil {
 			return nil, fmt.Errorf("uploading %s: %w", p, err)
+		}
+		if i < len(descriptions) {
+			up.Description = descriptions[i]
 		}
 		uploads = append(uploads, up)
 	}

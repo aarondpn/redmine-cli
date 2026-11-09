@@ -19,6 +19,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 		summary     string
 		description string
 		attach      []string
+		attachDesc  []string
 	)
 
 	cmd := &cobra.Command{
@@ -36,6 +37,9 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
   redmine news update 12 --summary "" --attach ./notes.pdf`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			id, err := strconv.Atoi(args[0])
 			if err != nil || id <= 0 {
 				return fmt.Errorf("invalid news ID: %s", args[0])
@@ -73,7 +77,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 
 			if len(attach) > 0 {
 				var uploads []models.Upload
-				uploads, err = cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err = cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
@@ -96,7 +100,7 @@ func newCmdUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&summary, "summary", "", "New summary, max 255 characters (empty clears it)")
 	cmd.Flags().StringVarP(&description, "description", "d", "", "New body")
 	cmdutil.AddTextFileFlag(cmd, "description", "description-file", "F")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 
 	return cmd
 }

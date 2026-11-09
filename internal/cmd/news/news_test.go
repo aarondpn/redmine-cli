@@ -283,6 +283,39 @@ func TestNewsCreate_Attach(t *testing.T) {
 	}
 }
 
+func TestNewsCreate_AttachDescription(t *testing.T) {
+	srv, calls := newsServer(t, `{"news":[],"total_count":0}`)
+	f := testutil.NewFactory(t, srv.URL)
+	file := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(file, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newCmdCreate(f)
+	cmd.SetArgs([]string{"--project", "1", "--title", "T", "--description", "D", "--attach", file, "--attach-description", "Meeting notes"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	post, _ := findCall(calls, "POST")
+	if !strings.Contains(post.body, `"description":"Meeting notes"`) {
+		t.Errorf("body = %s", post.body)
+	}
+}
+
+func TestNewsUpdate_AttachDescriptionWithoutAttach(t *testing.T) {
+	srv, calls := newsServer(t, "")
+	f := testutil.NewFactory(t, srv.URL)
+	cmd := newCmdUpdate(f)
+	cmd.SetArgs([]string{"5", "--attach-description", "orphan"})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SilenceUsage = true
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--attach-description") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("calls = %v, want none", *calls)
+	}
+}
+
 func TestNewsCreate_RequiresTitleAndDescription(t *testing.T) {
 	srv, calls := newsServer(t, "")
 	for name, args := range map[string][]string{

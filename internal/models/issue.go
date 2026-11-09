@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // IssueCategory represents a Redmine issue category.
 type IssueCategory struct {
 	ID         int     `json:"id"`
@@ -143,14 +145,64 @@ type IssueCreate struct {
 	StartDate         string            `json:"start_date,omitempty"`
 	DueDate           string            `json:"due_date,omitempty"`
 	EstimatedHours    float64           `json:"estimated_hours,omitempty"`
+	DoneRatio         *int              `json:"done_ratio,omitempty"`
 	IsPrivate         *bool             `json:"is_private,omitempty"`
 	WatcherUserIDs    []int             `json:"watcher_user_ids,omitempty"`
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 	Uploads           []Upload          `json:"uploads,omitempty"`
 }
 
+// IssueCopy defines a copy of an existing issue. Redmine reads copy_from,
+// link_copy, copy_attachments and copy_subtasks from the top level of the
+// request body (IssuesController#build_new_issue_from_params), not from the
+// issue hash. Issue holds the attributes that override the copied ones.
+type IssueCopy struct {
+	CopyFrom        int
+	Link            bool
+	CopyAttachments bool
+	CopySubtasks    bool
+	Issue           IssueCopyAttributes
+}
+
+// IssueCopyAttributes are the issue[...] attributes sent with a copy. The
+// source issue supplies every attribute left empty. ProjectID is required:
+// Redmine does not take the project from the source issue.
+type IssueCopyAttributes struct {
+	ProjectID  int `json:"project_id"`
+	TrackerID  int `json:"tracker_id,omitempty"`
+	StatusID   int `json:"status_id,omitempty"`
+	PriorityID int `json:"priority_id,omitempty"`
+	// AssignedToID 0 leaves the copy unassigned; nil keeps the source's
+	// assignee when it is assignable in the target project. See MarshalJSON.
+	AssignedToID *int   `json:"assigned_to_id,omitempty"`
+	Subject      string `json:"subject,omitempty"`
+}
+
+// MarshalJSON sends AssignedToID 0 as "". A copy starts out with the
+// source's assignee, and Redmine only clears it for a blank value: 0 is
+// looked up as a principal and fails with "Assignee is invalid".
+func (a IssueCopyAttributes) MarshalJSON() ([]byte, error) {
+	type plain IssueCopyAttributes
+	out := struct {
+		plain
+		AssignedToID any `json:"assigned_to_id,omitempty"`
+	}{plain: plain(a)}
+	if a.AssignedToID != nil {
+		if *a.AssignedToID == 0 {
+			out.AssignedToID = ""
+		} else {
+			out.AssignedToID = *a.AssignedToID
+		}
+	}
+	return json.Marshal(out)
+}
+
 // IssueUpdate defines fields for updating an issue. Nil fields are not sent.
 type IssueUpdate struct {
+	// ProjectID moves the issue to another project. Redmine silently keeps
+	// the current project when the target is not one the user may move
+	// issues to.
+	ProjectID         *int              `json:"project_id,omitempty"`
 	TrackerID         *int              `json:"tracker_id,omitempty"`
 	StatusID          *int              `json:"status_id,omitempty"`
 	PriorityID        *int              `json:"priority_id,omitempty"`
@@ -169,4 +221,7 @@ type IssueUpdate struct {
 	IsPrivate         *bool             `json:"is_private,omitempty"`
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 	Uploads           []Upload          `json:"uploads,omitempty"`
+	// DeletedAttachmentIDs removes these attachments from the issue. Redmine
+	// ignores IDs of attachments that belong to another container.
+	DeletedAttachmentIDs []int `json:"deleted_attachment_ids,omitempty"`
 }

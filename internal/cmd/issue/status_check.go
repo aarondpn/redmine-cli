@@ -27,6 +27,22 @@ func statusNotAppliedError(err error) error {
 	}
 }
 
+// projectNotAppliedError converts an *ops.ProjectNotAppliedError into a
+// coded command error (code project_not_applied, exit status 1). It returns
+// nil when err is not a ProjectNotAppliedError.
+func projectNotAppliedError(err error) error {
+	var notApplied *ops.ProjectNotAppliedError
+	if !errors.As(err, &notApplied) {
+		return nil
+	}
+	return &cmdutil.CodedError{
+		Code:    output.ErrCodeProjectNotApplied,
+		Message: notApplied.Summary(),
+		Details: notApplied.Details(),
+		Err:     err,
+	}
+}
+
 // printWarnings writes non-fatal follow-up notes from an ops result to
 // stderr.
 func printWarnings(printer output.Printer, warnings []string) {

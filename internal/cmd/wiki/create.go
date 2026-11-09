@@ -12,13 +12,14 @@ import (
 
 func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	var (
-		project  string
-		text     string
-		title    string
-		parent   string
-		comments string
-		attach   []string
-		format   string
+		project    string
+		text       string
+		title      string
+		parent     string
+		comments   string
+		attach     []string
+		attachDesc []string
+		format     string
 	)
 
 	cmd := &cobra.Command{
@@ -45,6 +46,9 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
     --attach ./diagram.png`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.CheckAttachDescriptions(attach, attachDesc); err != nil {
+				return err
+			}
 			ctx := cmdutil.Context(cmd)
 
 			if _, err := cmdutil.ReadTextFileFlag(cmd, f.IOStreams.In, "text", "text-file", &text); err != nil {
@@ -67,7 +71,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 
 			var uploads []models.Upload
 			if len(attach) > 0 {
-				uploads, err = cmdutil.UploadAttachments(ctx, client, attach)
+				uploads, err = cmdutil.UploadAttachments(ctx, client, attach, attachDesc...)
 				if err != nil {
 					return err
 				}
@@ -106,7 +110,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "Page title to store the page under instead of <page>; Redmine uses it as the URL slug")
 	cmd.Flags().StringVar(&parent, "parent", "", "Title of an existing page to nest this page under")
 	cmd.Flags().StringVar(&comments, "comments", "", "Change comment")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "Path to file to attach (repeatable)")
+	cmdutil.AddAttachFlags(cmd, &attach, &attachDesc)
 	cmdutil.AddOutputFlag(cmd, &format)
 
 	cmd.MarkFlagsOneRequired("text", "text-file")

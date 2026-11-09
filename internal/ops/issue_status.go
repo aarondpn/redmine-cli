@@ -186,6 +186,14 @@ func lookupStatusName(ctx context.Context, client *api.Client, id int, known []m
 // status itself.
 func hasNonStatusChanges(upd models.IssueUpdate) bool {
 	upd.StatusID = nil
+	return hasChanges(upd)
+}
+
+// hasChanges reports whether an update changes anything.
+func hasChanges(upd models.IssueUpdate) bool {
+	if len(upd.DeletedAttachmentIDs) == 0 {
+		upd.DeletedAttachmentIDs = nil
+	}
 	if len(upd.CustomFieldValues) == 0 {
 		upd.CustomFieldValues = nil
 	}

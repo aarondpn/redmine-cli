@@ -133,6 +133,39 @@ func (s *IssueService) Create(ctx context.Context, issue models.IssueCreate) (*m
 	return &resp.Issue, nil
 }
 
+// Copy creates a copy of an existing issue. copy_from, link_copy,
+// copy_attachments and copy_subtasks go at the top level of the body, next to
+// the issue hash. The flags are sent as "1": Redmine compares link_copy and
+// (6.0+) copy_attachments against the string '1' when the matching setting is
+// "ask", and omitting a flag leaves the server setting in charge. The target
+// project is also sent as the top-level project_id, which is what Redmine
+// checks the add_issue_watchers permission against before copying watchers
+// (without it watchers are never copied over the API).
+func (s *IssueService) Copy(ctx context.Context, cp models.IssueCopy) (*models.Issue, error) {
+	body := map[string]interface{}{
+		"copy_from":  cp.CopyFrom,
+		"project_id": cp.Issue.ProjectID,
+		"issue":      cp.Issue,
+	}
+	if cp.Link {
+		body["link_copy"] = "1"
+	}
+	if cp.CopyAttachments {
+		body["copy_attachments"] = "1"
+	}
+	if cp.CopySubtasks {
+		body["copy_subtasks"] = "1"
+	}
+	var resp struct {
+		Issue models.Issue `json:"issue"`
+	}
+	if err := s.client.Post(ctx, "/issues.json", body, &resp); err != nil {
+		return nil, err
+	}
+	resp.Issue.NormalizeCollections(nil)
+	return &resp.Issue, nil
+}
+
 // Update updates an existing issue.
 func (s *IssueService) Update(ctx context.Context, id int, update models.IssueUpdate) error {
 	body := map[string]interface{}{"issue": update}
@@ -147,6 +180,14 @@ func (s *IssueService) Delete(ctx context.Context, id int) error {
 // AddWatcher adds a user as a watcher on the given issue.
 func (s *IssueService) AddWatcher(ctx context.Context, issueID, userID int) error {
 	body := map[string]interface{}{"user_id": userID}
+	return s.client.Post(ctx, fmt.Sprintf("/issues/%d/watchers.json", issueID), body, nil)
+}
+
+// AddWatchers adds several users as watchers in one request
+// (watcher[user_ids][], accepted by every supported Redmine line, 4.2+).
+// Redmine skips IDs that are not valid watchers instead of failing.
+func (s *IssueService) AddWatchers(ctx context.Context, issueID int, userIDs []int) error {
+	body := map[string]interface{}{"watcher": map[string]interface{}{"user_ids": userIDs}}
 	return s.client.Post(ctx, fmt.Sprintf("/issues/%d/watchers.json", issueID), body, nil)
 }
 
