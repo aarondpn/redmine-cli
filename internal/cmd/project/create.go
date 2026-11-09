@@ -21,6 +21,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 		parent            string
 		inheritMembers    bool
 		defaultAssignee   string
+		defaultIssueQuery string
 		trackers          []string
 		enabledModules    []string
 		issueCustomFields []string
@@ -86,6 +87,14 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 				input.DefaultAssignedToID = id
 			}
 
+			if defaultIssueQuery != "" {
+				q, err := resolver.ResolveQuery(ctx, client, defaultIssueQuery, "")
+				if err != nil {
+					return fmt.Errorf("resolve --default-issue-query: %w", err)
+				}
+				input.DefaultIssueQueryID = q.ID
+			}
+
 			if len(trackers) > 0 {
 				ids, err := resolver.ResolveTrackerNames(ctx, client, trackers)
 				if err != nil {
@@ -133,6 +142,7 @@ func newCmdCreate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&parent, "parent", "", "Parent project identifier, name, or numeric ID")
 	cmd.Flags().BoolVar(&inheritMembers, "inherit-members", false, "Inherit members from the parent project")
 	cmd.Flags().StringVar(&defaultAssignee, "default-assignee", "", "Default assignee for new issues (login, name, or numeric ID)")
+	cmd.Flags().StringVar(&defaultIssueQuery, "default-issue-query", "", "Public global issue query (name or ID) shown as the project's default issue list (Redmine 5.0+, older versions ignore it)")
 	cmd.Flags().StringSliceVar(&trackers, "tracker", nil, "Tracker name or ID to enable (repeatable or comma-separated)")
 	cmd.Flags().StringSliceVar(&enabledModules, "enable-module", nil,
 		"Module to enable: boards, calendar, documents, files, gantt, issue_tracking, news, repository, time_tracking, wiki (repeatable or comma-separated)")

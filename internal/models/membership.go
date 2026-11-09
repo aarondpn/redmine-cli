@@ -13,6 +13,17 @@ type Membership struct {
 	Roles          []MembershipRole `json:"roles"`
 }
 
+// Principal returns the user or group the membership belongs to, or nil when
+// Redmine sent none of the principal keys.
+func (m Membership) Principal() *IDName {
+	for _, p := range []*IDName{m.User, m.Group, m.GroupAnonymous, m.GroupNonMember} {
+		if p != nil {
+			return p
+		}
+	}
+	return nil
+}
+
 // MembershipRole is one role of a membership. Inherited is only sent (as true)
 // for roles the principal holds through a group.
 type MembershipRole struct {
@@ -21,9 +32,12 @@ type MembershipRole struct {
 	Inherited bool   `json:"inherited,omitempty"`
 }
 
-// MembershipCreate defines fields for creating a membership.
+// MembershipCreate defines fields for creating a membership. Set UserID for
+// one principal or UserIDs for several; Redmine reads user_id first, so the
+// two must not be combined.
 type MembershipCreate struct {
-	UserID  int   `json:"user_id"`
+	UserID  int   `json:"user_id,omitempty"`
+	UserIDs []int `json:"user_ids,omitempty"`
 	RoleIDs []int `json:"role_ids"`
 }
 

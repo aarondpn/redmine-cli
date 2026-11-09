@@ -52,6 +52,8 @@ redmine groups create [flags]
 | 标志 | 描述 |
 |------|------|
 | `--name` | 用户组名称 — <Badge text="必填" variant="danger" /> |
+| `--user-ids` | 要加入用户组的用户 ID |
+| `--twofa-required` | 要求组成员使用双因素认证。<Badge text="Redmine 5.0+" variant="note" /> 旧版本会忽略该设置；`groups get` 不会显示它 |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 ## update
@@ -63,6 +65,8 @@ redmine groups update <id-or-name> [flags]
 | 标志 | 描述 |
 |------|------|
 | `--name` | 新用户组名称 |
+| `--user-ids` | 用户 ID（替换当前成员） |
+| `--twofa-required` | 要求组成员使用双因素认证；`--twofa-required=false` 取消该要求。<Badge text="Redmine 5.0+" variant="note" /> 旧版本会忽略该设置；`groups get` 不会显示它 |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
 
 ## add-user

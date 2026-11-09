@@ -14,6 +14,7 @@ type Group struct {
 type GroupCreate struct {
 	Name              string            `json:"name"`
 	UserIDs           []int             `json:"user_ids,omitempty"`
+	TwofaRequired     *bool             `json:"twofa_required,omitempty"` // Redmine 5.0+
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 
@@ -21,6 +22,7 @@ type GroupCreate struct {
 type GroupUpdate struct {
 	Name              *string           `json:"name,omitempty"`
 	UserIDs           *[]int            `json:"user_ids,omitempty"`
+	TwofaRequired     *bool             `json:"twofa_required,omitempty"` // Redmine 5.0+
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
 }
 

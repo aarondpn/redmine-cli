@@ -5,11 +5,11 @@ description: Inspect and update your own Redmine account via /my/account.json.
 
 import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
 
-The `my-account` command backs the Redmine `/my/account.json` endpoint. It is the only user-write path Redmine exposes to non-admin users — anyone who can authenticate can update their own first name, last name, email, or notification preferences without admin help.
+The `my-account` command backs the Redmine `/my/account.json` endpoint. It is the only user-write path Redmine exposes to non-admin users — anyone who can authenticate can update their own first name, last name, email, language, notification settings and preferences without admin help.
 
 <CardGrid>
   <LinkCard title="get"    href="#get"    description="Show your own account details, including api_key and custom fields." />
-  <LinkCard title="update" href="#update" description="Update your own first name, last name, email, or notification preference." />
+  <LinkCard title="update" href="#update" description="Update your own name, email, language, notifications, or preferences." />
 </CardGrid>
 
 <Aside type="note" title="How this differs from users me">
@@ -41,8 +41,21 @@ Alias: `edit`. Updates your own account. Only flags you explicitly set are sent 
 | `--firstname`         | New first name |
 | `--lastname`          | New last name |
 | `--mail`              | New email address |
-| `--mail-notification` | Email notification preference: `all`, `only_my_events`, `only_assigned`, `only_owner`, `none` |
+| `--language`          | Interface language code such as `en`, `de` or `pt-BR`; empty for the server default. Write-only: no API response returns it |
+| `--mail-notification` | Email notification preference: `all`, `selected`, `only_my_events`, `only_assigned`, `only_owner`, `none`. `selected` notifies about the `--notified-project` set |
+| `--notified-project`  | Project (identifier, name, or ID) to get all notifications for with `--mail-notification selected` (repeatable). Only projects you are a member of count. Replaces the current set; `""` clears it |
+| `--pref`              | Preference as `key=value` (repeatable), for example `no_self_notified=1`, `hide_mail=1`, `time_zone=Berlin`, `comments_sorting=desc`. See [user preferences](/commands/users/#preferences) for the keys |
 | `--custom-field` | Custom field value as `name=value` or `id=value` (repeatable; repeat a field for multi-value fields, `name=` clears it). See [custom field values](/commands/issues/#custom-field-values) |
+
+```bash
+# Notifications only for two projects, and none about your own changes
+redmine my-account update --mail-notification selected --notified-project web --notified-project api --pref no_self_notified=1
+
+# Interface language and time zone
+redmine my-account update --language de --pref time_zone=Berlin
+```
+
+`no_self_notified` is a preference, not a user attribute, so it goes through `--pref`.
 
 <Aside type="note" title="Custom fields">
   Redmine only applies the custom fields the administrator made editable for users. Looking fields up by name needs admin rights; otherwise get the numeric IDs with `redmine my-account get --jq '.custom_fields'`.

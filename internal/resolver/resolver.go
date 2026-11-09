@@ -746,7 +746,18 @@ func ResolveVersion(ctx context.Context, client *api.Client, input string, proje
 
 // ResolveGroup resolves a group by name or numeric ID.
 func ResolveGroup(ctx context.Context, client *api.Client, input string) (int, error) {
-	return Resolve(input, "group", client, func() ([]Option, error) {
+	return Resolve(input, "group", client, groupOptions(ctx, client))
+}
+
+// ResolveGroupNames resolves a batch of group inputs (names or numeric IDs)
+// to numeric IDs, fetching /groups.json at most once. Blank inputs are
+// skipped, as in ResolveAll.
+func ResolveGroupNames(ctx context.Context, client *api.Client, inputs []string) ([]int, error) {
+	return ResolveAll(ctx, client, inputs, "group", groupOptions(ctx, client))
+}
+
+func groupOptions(ctx context.Context, client *api.Client) func() ([]Option, error) {
+	return func() ([]Option, error) {
 		groups, _, err := client.Groups.List(ctx, models.GroupFilter{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch groups: %w", err)
@@ -756,7 +767,7 @@ func ResolveGroup(ctx context.Context, client *api.Client, input string) (int, e
 			opts[i] = Option{ID: g.ID, Name: g.Name}
 		}
 		return opts, nil
-	})
+	}
 }
 
 // ResolveActivity resolves a time entry activity by name or numeric ID.

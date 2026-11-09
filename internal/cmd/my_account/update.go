@@ -15,6 +15,9 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 		lastname         string
 		mail             string
 		mailNotification string
+		language         string
+		notifiedProjects []string
+		prefRaw          []string
 		customFieldRaw   []string
 	)
 
@@ -23,9 +26,17 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 		Short: "Update your own account",
 		Long: "Update the authenticated user's own account. Works without admin privileges.\n\n" +
 			"Custom fields: only fields the administrator made editable for users are applied; names need admin rights to resolve, " +
-			"otherwise use the IDs from `redmine my-account get --jq '.custom_fields'`.",
+			"otherwise use the IDs from `redmine my-account get --jq '.custom_fields'`.\n\n" +
+			"--notified-project replaces the current set (\"\" clears it) and only matters with --mail-notification selected. " +
+			"--pref sets preferences such as hide_mail, time_zone or no_self_notified.",
 		Example: `  # Set a multi-value custom field on your own account
-  redmine my-account update --custom-field Skills=Go --custom-field Skills=Ruby`,
+  redmine my-account update --custom-field Skills=Go --custom-field Skills=Ruby
+
+  # Get notified about two projects only, and not about your own changes
+  redmine my-account update --mail-notification selected --notified-project web --notified-project api --pref no_self_notified=1
+
+  # Switch the interface language and time zone
+  redmine my-account update --language de --pref time_zone=Berlin`,
 		Aliases: []string{"edit"},
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -34,6 +45,10 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 					return err
 				}
 			}
+			prefs, err := user.ParsePrefs(prefRaw)
+			if err != nil {
+				return err
+			}
 
 			client, err := f.ApiClient()
 			if err != nil {
@@ -41,7 +56,7 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 			}
 			printer := f.Printer("")
 
-			input := ops.UpdateMyAccountInput{}
+			input := ops.UpdateMyAccountInput{Pref: prefs}
 			if cmd.Flags().Changed("firstname") {
 				v := firstname
 				input.FirstName = &v
@@ -57,6 +72,17 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 			if cmd.Flags().Changed("mail-notification") {
 				v := mailNotification
 				input.MailNotification = &v
+			}
+			if cmd.Flags().Changed("language") {
+				v := language
+				input.Language = &v
+			}
+			if cmd.Flags().Changed("notified-project") {
+				ids, err := user.ResolveNotifiedProjects(cmdutil.Context(cmd), client, notifiedProjects)
+				if err != nil {
+					return err
+				}
+				input.NotifiedProjectIDs = &ids
 			}
 
 			if len(customFieldRaw) > 0 {
@@ -82,8 +108,10 @@ func newCmdMyAccountUpdate(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().StringVar(&firstname, "firstname", "", "First name")
 	cmd.Flags().StringVar(&lastname, "lastname", "", "Last name")
 	cmd.Flags().StringVar(&mail, "mail", "", "Email address")
-	cmd.Flags().StringVar(&mailNotification, "mail-notification", "", "Email notification preference (all, only_my_events, only_assigned, only_owner, none)")
+	user.AddMailNotificationFlag(cmd, &mailNotification, true)
+	user.AddNotifiedProjectFlag(cmd, f, &notifiedProjects)
+	user.AddLanguageFlag(cmd, &language)
+	user.AddPrefFlag(cmd, &prefRaw)
 	cmdutil.AddCustomFieldFlag(cmd, f, &customFieldRaw, "User custom field", models.CustomizedTypeUser)
-	_ = cmd.RegisterFlagCompletionFunc("mail-notification", user.CompleteMailNotification)
 	return cmd
 }

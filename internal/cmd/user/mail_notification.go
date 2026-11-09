@@ -10,9 +10,11 @@ import (
 
 // AllowedMailNotifications lists the Redmine mail notification preference
 // values. The wiki documents only "only_my_events" and "none"; the full set
-// comes from app/models/user.rb in Redmine.
+// comes from app/models/user.rb in Redmine. "selected" notifies about the
+// projects in notified_project_ids (--notified-project).
 var AllowedMailNotifications = map[string]struct{}{
 	"all":            {},
+	"selected":       {},
 	"only_my_events": {},
 	"only_assigned":  {},
 	"only_owner":     {},

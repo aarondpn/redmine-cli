@@ -5,11 +5,11 @@ description: 通过 /my/account.json 查看与更新自己的 Redmine 账户。
 
 import { CardGrid, LinkCard, Aside, Badge } from '@astrojs/starlight/components';
 
-`my-account` 命令对应 Redmine 的 `/my/account.json` 接口，是 Redmine 提供给非管理员用户的唯一写入路径——任何能完成身份验证的用户都可以在无需管理员协助的情况下更新自己的名、姓、邮箱或通知偏好。
+`my-account` 命令对应 Redmine 的 `/my/account.json` 接口，是 Redmine 提供给非管理员用户的唯一写入路径——任何能完成身份验证的用户都可以在无需管理员协助的情况下更新自己的名、姓、邮箱、语言、通知设置和偏好设置。
 
 <CardGrid>
   <LinkCard title="get"    href="#get"    description="查看自己的账户详情，包括 api_key 和自定义字段。" />
-  <LinkCard title="update" href="#update" description="更新自己的名、姓、邮箱或通知偏好。" />
+  <LinkCard title="update" href="#update" description="更新自己的姓名、邮箱、语言、通知或偏好设置。" />
 </CardGrid>
 
 <Aside type="note" title="与 users me 的区别">
@@ -41,8 +41,21 @@ redmine my-account update [flags]
 | `--firstname`         | 新的名 |
 | `--lastname`          | 新的姓 |
 | `--mail`              | 新的邮箱地址 |
-| `--mail-notification` | 邮件通知偏好：`all`、`only_my_events`、`only_assigned`、`only_owner`、`none` |
+| `--language`          | 界面语言代码，例如 `en`、`de` 或 `pt-BR`；留空表示使用服务器默认值。只写：没有任何 API 响应会返回该值 |
+| `--mail-notification` | 邮件通知偏好：`all`、`selected`、`only_my_events`、`only_assigned`、`only_owner`、`none`。`selected` 针对 `--notified-project` 指定的项目发送通知 |
+| `--notified-project`  | 在 `--mail-notification selected` 下接收全部通知的项目（标识符、名称或 ID，可重复）。仅统计你是成员的项目。替换当前集合；`""` 表示清空 |
+| `--pref`              | 偏好设置，格式为 `key=value`（可重复），例如 `no_self_notified=1`、`hide_mail=1`、`time_zone=Berlin`、`comments_sorting=desc`。可用的键参见[用户偏好设置](/zh-cn/commands/users/#偏好设置) |
 | `--custom-field` | 自定义字段值，格式为 `name=value` 或 `id=value`（可重复；多值字段请对同一字段重复使用该标志，`name=` 表示清空）。参见[自定义字段值](/zh-cn/commands/issues/#自定义字段值) |
+
+```bash
+# 只接收两个项目的通知，并且不接收关于自己更改的通知
+redmine my-account update --mail-notification selected --notified-project web --notified-project api --pref no_self_notified=1
+
+# 界面语言和时区
+redmine my-account update --language de --pref time_zone=Berlin
+```
+
+`no_self_notified` 是偏好设置而不是用户属性，因此通过 `--pref` 设置。
 
 <Aside type="note" title="自定义字段">
   Redmine 只会应用管理员设为用户可编辑的自定义字段。按名称查找字段需要管理员权限；否则请通过 `redmine my-account get --jq '.custom_fields'` 获取数字 ID。

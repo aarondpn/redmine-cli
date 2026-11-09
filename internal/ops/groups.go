@@ -28,6 +28,7 @@ type GetGroupInput struct {
 type CreateGroupInput struct {
 	Name              string                   `json:"name" jsonschema:"Group name."`
 	UserIDs           []int                    `json:"user_ids,omitempty" jsonschema:"Optional list of user IDs to add as group members."`
+	TwofaRequired     *bool                    `json:"twofa_required,omitempty" jsonschema:"Require two-factor authentication for the group's members. Redmine 5.0+; older versions ignore it. Write-only: get_group does not return it."`
 	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Group custom field values keyed by numeric custom field ID (list_custom_fields, customized_type group). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
@@ -35,6 +36,7 @@ type UpdateGroupInput struct {
 	ID                int                      `json:"id" jsonschema:"Group ID to update."`
 	Name              *string                  `json:"name,omitempty" jsonschema:"New group name."`
 	UserIDs           *[]int                   `json:"user_ids,omitempty" jsonschema:"Replacement set of user IDs. Pass an empty list to remove all members."`
+	TwofaRequired     *bool                    `json:"twofa_required,omitempty" jsonschema:"Require two-factor authentication for the group's members. Redmine 5.0+; older versions ignore it. Write-only: get_group does not return it."`
 	CustomFieldValues models.CustomFieldValues `json:"custom_field_values,omitempty" jsonschema:"Group custom field values keyed by numeric custom field ID (list_custom_fields, customized_type group). Use a string for one value or an array of strings for a multi-value field; an empty string clears the field."`
 }
 
@@ -77,6 +79,7 @@ func CreateGroup(ctx context.Context, client *api.Client, input CreateGroupInput
 	return client.Groups.Create(ctx, models.GroupCreate{
 		Name:              input.Name,
 		UserIDs:           input.UserIDs,
+		TwofaRequired:     input.TwofaRequired,
 		CustomFieldValues: input.CustomFieldValues,
 	})
 }
@@ -89,6 +92,7 @@ func UpdateGroup(ctx context.Context, client *api.Client, input UpdateGroupInput
 	if err := client.Groups.Update(ctx, input.ID, models.GroupUpdate{
 		Name:              input.Name,
 		UserIDs:           input.UserIDs,
+		TwofaRequired:     input.TwofaRequired,
 		CustomFieldValues: input.CustomFieldValues,
 	}); err != nil {
 		return MessageResult{}, err

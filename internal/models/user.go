@@ -34,8 +34,15 @@ type UserMembership struct {
 	Roles   []MembershipRole `json:"roles,omitzero"`
 }
 
+// UserPreferences holds user preference keys (hide_mail, time_zone,
+// no_self_notified, ...) with their form values. Redmine reads them from a
+// "pref" object next to "user", so the API layer sends them there; unknown
+// keys are ignored by Redmine.
+type UserPreferences map[string]string
+
 // UserCreate defines fields for creating a user. The send_information sibling
-// flag on POST /users.json is passed separately through the API layer.
+// flag on POST /users.json is passed separately through the API layer, and
+// Pref is sent as the top-level "pref" object.
 type UserCreate struct {
 	Login             string            `json:"login"`
 	Password          string            `json:"password,omitempty"`
@@ -43,38 +50,52 @@ type UserCreate struct {
 	LastName          string            `json:"lastname"`
 	Mail              string            `json:"mail"`
 	Admin             bool              `json:"admin,omitempty"`
+	Status            *int              `json:"status,omitempty"`
+	Language          *string           `json:"language,omitempty"`
 	MailNotification  *string           `json:"mail_notification,omitempty"`
 	MustChangePasswd  *bool             `json:"must_change_passwd,omitempty"`
 	GeneratePassword  *bool             `json:"generate_password,omitempty"`
 	AuthSourceID      *int              `json:"auth_source_id,omitempty"`
 	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
+	Pref              UserPreferences   `json:"-"`
 }
 
-// UserUpdate defines fields for updating a user.
+// UserUpdate defines fields for updating a user. Pref is sent as the
+// top-level "pref" object. GroupIDs and NotifiedProjectIDs replace the whole
+// set; a non-nil empty slice clears it.
 type UserUpdate struct {
-	FirstName         *string           `json:"firstname,omitempty"`
-	LastName          *string           `json:"lastname,omitempty"`
-	Mail              *string           `json:"mail,omitempty"`
-	Admin             *bool             `json:"admin,omitempty"`
-	Status            *int              `json:"status,omitempty"`
-	MailNotification  *string           `json:"mail_notification,omitempty"`
-	MustChangePasswd  *bool             `json:"must_change_passwd,omitempty"`
-	GeneratePassword  *bool             `json:"generate_password,omitempty"`
-	AuthSourceID      *int              `json:"auth_source_id,omitempty"`
-	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
+	FirstName            *string           `json:"firstname,omitempty"`
+	LastName             *string           `json:"lastname,omitempty"`
+	Mail                 *string           `json:"mail,omitempty"`
+	Admin                *bool             `json:"admin,omitempty"`
+	Status               *int              `json:"status,omitempty"`
+	Password             *string           `json:"password,omitempty"`
+	PasswordConfirmation *string           `json:"password_confirmation,omitempty"`
+	Language             *string           `json:"language,omitempty"`
+	MailNotification     *string           `json:"mail_notification,omitempty"`
+	NotifiedProjectIDs   *[]int            `json:"notified_project_ids,omitempty"`
+	GroupIDs             *[]int            `json:"group_ids,omitempty"`
+	MustChangePasswd     *bool             `json:"must_change_passwd,omitempty"`
+	GeneratePassword     *bool             `json:"generate_password,omitempty"`
+	AuthSourceID         *int              `json:"auth_source_id,omitempty"`
+	CustomFieldValues    CustomFieldValues `json:"custom_field_values,omitempty"`
+	Pref                 UserPreferences   `json:"-"`
 }
 
 // MyAccountUpdate is the writable subset for PUT /my/account.json. The endpoint
 // is the only user-write path available to non-admins; we intentionally keep
 // the type narrow so admin-only fields cannot be sent here by accident.
 // Custom fields are user-writable: Redmine applies only the ones the user may
-// edit.
+// edit. Pref is sent as the top-level "pref" object.
 type MyAccountUpdate struct {
-	FirstName         *string           `json:"firstname,omitempty"`
-	LastName          *string           `json:"lastname,omitempty"`
-	Mail              *string           `json:"mail,omitempty"`
-	MailNotification  *string           `json:"mail_notification,omitempty"`
-	CustomFieldValues CustomFieldValues `json:"custom_field_values,omitempty"`
+	FirstName          *string           `json:"firstname,omitempty"`
+	LastName           *string           `json:"lastname,omitempty"`
+	Mail               *string           `json:"mail,omitempty"`
+	Language           *string           `json:"language,omitempty"`
+	MailNotification   *string           `json:"mail_notification,omitempty"`
+	NotifiedProjectIDs *[]int            `json:"notified_project_ids,omitempty"`
+	CustomFieldValues  CustomFieldValues `json:"custom_field_values,omitempty"`
+	Pref               UserPreferences   `json:"-"`
 }
 
 // UserFilter defines parameters for listing users.

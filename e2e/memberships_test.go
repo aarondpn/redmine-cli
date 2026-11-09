@@ -200,9 +200,9 @@ func TestMemberships_CreateRequiresUserOrGroup(t *testing.T) {
 	stdout, stderr := r.runExpectError(t, "memberships", "create",
 		"--project", proj.Identifier,
 		"--role-ids", strconv.Itoa(roleID))
-	const want = "either --user-id or --group-id is required"
+	const want = "either --user, --user-id or --group-id is required"
 	if !strings.Contains(string(stdout), want) && !strings.Contains(string(stderr), want) {
-		t.Fatalf("expected error to mention missing --user-id/--group-id\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("expected error to mention missing --user/--user-id/--group-id\nstdout:\n%s\nstderr:\n%s",
 			stdout, stderr)
 	}
 }

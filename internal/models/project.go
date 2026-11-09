@@ -48,6 +48,7 @@ type ProjectCreate struct {
 	InheritMembers      bool              `json:"inherit_members,omitempty"`
 	DefaultAssignedToID int               `json:"default_assigned_to_id,omitempty"`
 	DefaultVersionID    int               `json:"default_version_id,omitempty"`
+	DefaultIssueQueryID int               `json:"default_issue_query_id,omitempty"` // Redmine 5.0+
 	TrackerIDs          []int             `json:"tracker_ids,omitempty"`
 	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty"`
 	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty"`
@@ -67,6 +68,7 @@ type ProjectUpdate struct {
 	InheritMembers      *bool             `json:"inherit_members,omitempty"`
 	DefaultAssignedToID *int              `json:"default_assigned_to_id,omitempty"`
 	DefaultVersionID    *int              `json:"default_version_id,omitempty"`
+	DefaultIssueQueryID *int              `json:"default_issue_query_id,omitempty"` // Redmine 5.0+
 	TrackerIDs          []int             `json:"tracker_ids,omitempty"`
 	EnabledModuleNames  []string          `json:"enabled_module_names,omitempty"`
 	IssueCustomFieldIDs []int             `json:"issue_custom_field_ids,omitempty"`
