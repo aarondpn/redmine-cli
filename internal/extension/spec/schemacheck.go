@@ -15,20 +15,6 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-// validateAgainstSchema validates the decoded document against the embedded
-// manifest schema and reports each problem at its source line.
-func validateAgainstSchema(doc any, pos positions, file string) error {
-	root, err := manifestSchema()
-	if err != nil {
-		return err
-	}
-	is := &issues{file: file, pos: pos}
-	if err := newSchemaChecker().check(is, "", doc, root); err != nil {
-		return err
-	}
-	return is.err()
-}
-
 // schemaChecker localizes JSON Schema failures. jsonschema-go reports only
 // the first failure and no instance location, so the checker validates the
 // failing value's children against their own subschemas and reports at the
@@ -178,6 +164,11 @@ func (c *schemaChecker) nodeMessages(v any, s *jsonschema.Schema) []nodeMessage 
 				msgs = append(msgs, fmt.Sprintf("must have at least %d items", *s.MinItems))
 			}
 		}
+		if s.UniqueItems {
+			if dup, ok := firstDuplicate(val); ok {
+				msgs = append(msgs, fmt.Sprintf("must not repeat a value (%s is listed twice)", formatValue(dup)))
+			}
+		}
 	case map[string]any:
 		for _, r := range s.Required {
 			if _, ok := val[r]; !ok {
@@ -187,8 +178,8 @@ func (c *schemaChecker) nodeMessages(v any, s *jsonschema.Schema) []nodeMessage 
 	}
 	if s.OneOf != nil {
 		if err := c.validate(&jsonschema.Schema{OneOf: s.OneOf}, v); err != nil {
-			if msg, ok := s.Extra["errorMessage"].(string); ok {
-				msgs = append(msgs, asClause(msg))
+			if msg, ok := oneOfMessage(s.OneOf); ok {
+				msgs = append(msgs, msg)
 			} else {
 				msgs = append(msgs, cleanSchemaError(err))
 			}
@@ -208,39 +199,65 @@ func (c *schemaChecker) nodeMessages(v any, s *jsonschema.Schema) []nodeMessage 
 }
 
 // constrainedKey returns the single property an if/then rule constrains
-// when v has it, so the problem points at that line instead of the object.
+// (through properties, required or not.required) when v has it, so the
+// problem points at that line instead of the object.
 func constrainedKey(s *jsonschema.Schema, v any) string {
 	obj, ok := v.(map[string]any)
 	if !ok || s.Then == nil {
 		return ""
 	}
 	t := s.Then
-	var key string
-	switch {
-	case t.Not != nil && len(t.Not.Required) == 1 && t.Properties == nil && t.Required == nil:
-		key = t.Not.Required[0] // "must not have k"
-	case t.Not == nil && len(t.Required) == 0 && len(t.Properties) == 1:
-		for k := range t.Properties {
-			key = k
-		}
+	keys := slices.Collect(maps.Keys(t.Properties))
+	keys = append(keys, t.Required...)
+	if t.Not != nil {
+		keys = append(keys, t.Not.Required...)
 	}
-	if _, ok := obj[key]; ok {
-		return key
+	slices.Sort(keys)
+	keys = slices.Compact(keys)
+	if len(keys) != 1 {
+		return ""
+	}
+	if _, ok := obj[keys[0]]; ok {
+		return keys[0]
 	}
 	return ""
 }
 
-// messageOf prefers the errorMessage attached to a conditional.
+// messageOf explains a failed conditional with the description of its
+// then-block, where the generator puts the rule in words.
 func messageOf(s *jsonschema.Schema, err error) string {
-	for _, cand := range []*jsonschema.Schema{s, s.Then} {
-		if cand == nil {
-			continue
-		}
-		if msg, ok := cand.Extra["errorMessage"].(string); ok {
-			return asClause(msg)
+	for _, cand := range []*jsonschema.Schema{s.Then, s} {
+		if cand != nil && cand.Description != "" {
+			return asClause(cand.Description)
 		}
 	}
 	return cleanSchemaError(err)
+}
+
+// oneOfMessage phrases a oneOf of single required properties, the only
+// kind the manifest schema uses: "set exactly one of path or jq".
+func oneOfMessage(list []*jsonschema.Schema) (string, bool) {
+	var names []string
+	for _, alt := range list {
+		if len(alt.Required) != 1 {
+			return "", false
+		}
+		names = append(names, alt.Required[0])
+	}
+	return "set exactly one of " + strings.Join(names, " or "), true
+}
+
+// firstDuplicate returns the first value of list that equals an earlier
+// one under JSON Schema equality (so 1 and 1.0 are the same value).
+func firstDuplicate(list []any) (any, bool) {
+	for i := range list {
+		for j := range i {
+			if jsonschema.Equal(list[i], list[j]) {
+				return list[i], true
+			}
+		}
+	}
+	return nil, false
 }
 
 // asClause adapts an editor-facing sentence ("Set exactly one of path or

@@ -56,6 +56,11 @@ func paramSchema(p *Param) *jsonschema.Schema {
 	if len(p.Enum) > 0 {
 		item.Enum = slices.Clone(p.Enum)
 	}
+	if p.Type == TypeJSON && p.Array {
+		// An empty item schema marshals as `true`, which some MCP clients
+		// reject; a description keeps it an object without constraining it.
+		item.Description = "Any JSON value."
+	}
 	s := item
 	if p.Array {
 		s = &jsonschema.Schema{Type: "array", Items: item}
@@ -80,19 +85,54 @@ func paramSchema(p *Param) *jsonschema.Schema {
 }
 
 // ValidateInput checks an input object against InputSchema(c). Problems are
-// returned as a *ValidationError naming the offending keys.
+// returned as a *ValidationError naming the offending keys. Beyond the
+// schema, an integer must be exactly representable as int64: JSON Schema
+// accepts 12345678901234567890 as an integer, but it arrives as a rounded
+// float64 and the CLI could not have sent it.
 func ValidateInput(c *Command, input map[string]any) error {
 	is := &issues{}
-	if err := newSchemaChecker().check(is, "", toAnyMap(input), InputSchema(c)); err != nil {
+	in := toAnyMap(input)
+	if err := newSchemaChecker().check(is, "", in, InputSchema(c)); err != nil {
 		return err
 	}
+	checkExactIntegers(is, c, in)
 	return is.err()
+}
+
+// checkExactIntegers reports integer values (in practice float64 from JSON
+// numbers outside the int64 range) that cannot be converted to int64
+// without loss. Non-integral values are left to the schema.
+func checkExactIntegers(is *issues, c *Command, in map[string]any) {
+	check := func(ptr string, v any) {
+		if jsonTypeOf(v) != "integer" {
+			return
+		}
+		if _, ok := coerceScalar(TypeInteger, v); !ok {
+			is.addf(ptr, "must be an exact 64-bit integer (got %s)", formatValue(v))
+		}
+	}
+	for i := range c.Params {
+		p := &c.Params[i]
+		v, ok := in[p.Name]
+		if !ok || p.Type != TypeInteger {
+			continue
+		}
+		if list, isList := v.([]any); isList && p.Array {
+			for j, item := range list {
+				check(pointer("", p.Name, j), item)
+			}
+			continue
+		}
+		check(pointer("", p.Name), v)
+	}
 }
 
 // PrepareInput turns an MCP tool call's arguments into the object sent to
 // the extension: null values count as absent (clients send them for unset
-// optionals), the rest is validated, numbers are normalized to the param
-// type (integers as int64), and defaults are applied.
+// optionals; the CLI treats a json flag given as null the same way), the
+// rest is validated, numbers are normalized to the param type (integers as
+// int64, rejecting ones int64 cannot hold exactly), and defaults are
+// applied.
 func PrepareInput(c *Command, args map[string]any) (map[string]any, error) {
 	in := make(map[string]any, len(args))
 	for k, v := range args {
@@ -175,7 +215,9 @@ func coerceScalar(t ParamType, v any) (any, bool) {
 			i, err := n.Int64()
 			return i, err == nil
 		case float64:
-			if _, frac := math.Modf(n); frac == 0 && math.Abs(n) <= 1<<53 {
+			// Above 2^53 a float64 no longer tells which integer was
+			// meant (2^53 and 2^53+1 have the same float64).
+			if _, frac := math.Modf(n); frac == 0 && math.Abs(n) < 1<<53 {
 				return int64(n), true
 			}
 		}
@@ -187,7 +229,8 @@ func coerceScalar(t ParamType, v any) (any, bool) {
 		case int64:
 			return float64(n), true
 		case float64:
-			return n, true
+			// NaN and Inf have no JSON encoding.
+			return n, !math.IsNaN(n) && !math.IsInf(n, 0)
 		case json.Number:
 			f, err := n.Float64()
 			return f, err == nil
@@ -279,4 +322,23 @@ func deepCopy(v any) any {
 	default:
 		return v
 	}
+}
+
+// article names a value of type t for messages ("an integer").
+func article(t ParamType) string {
+	switch t {
+	case TypeInteger:
+		return "an integer"
+	case TypeJSON:
+		return "a JSON value"
+	}
+	return "a " + string(t)
+}
+
+// plural names values of type t for messages ("integers").
+func plural(t ParamType) string {
+	if t == TypeJSON {
+		return "JSON values"
+	}
+	return string(t) + "s"
 }

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -121,10 +123,15 @@ func newCmdServe(f *cmdutil.Factory, cmdOpts Options) *cobra.Command {
 			}
 
 			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
+			// Extensions run in their own process group: a tool call still
+			// in flight when serve returns must be stopped, or the
+			// extension keeps running after the server is gone.
+			runs := mcpserver.NewExtensionRuns()
 			opts := mcpserver.Options{
-				EnableWrites: resolveEnableWrites(cmd, enableWrites, cfg),
-				Name:         name,
-				Version:      version,
+				EnableWrites:  resolveEnableWrites(cmd, enableWrites, cfg),
+				Name:          name,
+				Version:       version,
+				ExtensionRuns: runs,
 			}
 			if resolveEnableExtensions(cmd, enableExtensions, cfg, httpAddr != "") {
 				opts.ExtensionTools, err = serveExtensionTools(f, exts, extErr)
@@ -156,25 +163,23 @@ func newCmdServe(f *cmdutil.Factory, cmdOpts Options) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				go func() {
-					<-ctx.Done()
-					_ = server.Close()
-				}()
 				// Only announce a generated token once the bind succeeded, so a
 				// bad address doesn't print a token that is never used.
 				if generated {
 					printGeneratedToken(cmd.ErrOrStderr(), token)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "MCP server listening on http://%s\n", listenAddr(normalized, ln.Addr()))
-				err = server.Serve(ln)
-				if errors.Is(err, http.ErrServerClosed) {
-					return nil
-				}
-				return err
+				return serveHTTP(ctx, f, server, ln, runs)
 			}
 
 			srv := mcpserver.BuildServer(client, opts)
-			return srv.Run(ctx, newStdioTransport())
+			// Run returns only once the tool calls in flight are done, so
+			// the extension runs must be stopped as soon as ctx is
+			// cancelled, not after Run.
+			stopExtensions := stopExtensionsOnDone(ctx, f, runs)
+			err = srv.Run(ctx, newStdioTransport())
+			stopExtensions()
+			return err
 		},
 	}
 
@@ -193,6 +198,69 @@ func newCmdServe(f *cmdutil.Factory, cmdOpts Options) *cobra.Command {
 
 	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
+}
+
+// httpShutdownTimeout is how long an HTTP server that is shutting down
+// gives the requests in flight to finish before it closes their
+// connections.
+const httpShutdownTimeout = 5 * time.Second
+
+// extensionsStillRunningWarning is printed when extension runs did not end
+// within mcpserver.ExtensionShutdownTimeout of being stopped.
+const extensionsStillRunningWarning = "some extension tool calls had not finished when the MCP server stopped; their processes were killed"
+
+// serveHTTP serves server on ln until ctx is cancelled, then shuts it down:
+// the extension runs in flight are stopped (which kills their process
+// groups, so their calls end with an error), the other requests get
+// httpShutdownTimeout to finish, and serveHTTP returns only after both.
+func serveHTTP(ctx context.Context, f *cmdutil.Factory, server *http.Server, ln net.Listener, runs *mcpserver.ExtensionRuns) error {
+	stopExtensions := stopExtensionsOnDone(ctx, f, runs)
+	serveDone := make(chan struct{})
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		select {
+		case <-ctx.Done():
+		case <-serveDone:
+			return
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+		}
+	}()
+	err := server.Serve(ln)
+	close(serveDone)
+	<-shutdownDone
+	stopExtensions()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+// stopExtensionsOnDone stops the extension runs in flight as soon as ctx is
+// cancelled. The returned function stops them if that has not happened yet
+// (the transport ended by itself) and returns once they finished, or after
+// mcpserver.ExtensionShutdownTimeout with a warning.
+func stopExtensionsOnDone(ctx context.Context, f *cmdutil.Factory, runs *mcpserver.ExtensionRuns) func() {
+	served := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		select {
+		case <-ctx.Done():
+		case <-served:
+		}
+		if !runs.Stop(mcpserver.ExtensionShutdownTimeout) {
+			f.Warn(extensionsStillRunningWarning)
+		}
+	}()
+	return func() {
+		close(served)
+		<-stopped
+	}
 }
 
 // isSetupProblem reports whether the failure to build a client means Redmine

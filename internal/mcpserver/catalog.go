@@ -41,13 +41,15 @@ func IsExtensionGroup(g Group) bool {
 type Catalog struct {
 	tools     []ToolDescriptor
 	extGroups []Group
+	skipped   []SkippedTool
 }
 
 // NewCatalog combines the generated tools with ext. Extension tools whose
-// name is already taken are left out, as ResolveExtensionTools does.
+// name is already taken are left out, as ResolveExtensionTools does; they
+// are only listed by SkippedTools.
 func NewCatalog(ext []ExtensionTool) *Catalog {
-	kept, _ := ResolveExtensionTools(ext)
-	c := &Catalog{tools: AllTools()}
+	kept, skipped, _ := resolveExtensionTools(ext)
+	c := &Catalog{tools: AllTools(), skipped: skipped}
 	seen := map[Group]bool{}
 	var extTools []ToolDescriptor
 	for _, t := range kept {
@@ -82,10 +84,19 @@ func (c *Catalog) ExtensionGroups() []Group {
 	return append([]Group(nil), c.extGroups...)
 }
 
-// AllTools returns every tool of the catalog: the generated ones sorted by
-// group and name, then the extension tools sorted the same way.
-func (c *Catalog) AllTools() []ToolDescriptor {
-	return append([]ToolDescriptor(nil), c.tools...)
+// SkippedTools returns the extension tools left out because of a name
+// clash, sorted by group and name. They are not tools of the catalog: a
+// filter cannot name them, and their group is a group of the catalog only
+// if the extension has other tools.
+func (c *Catalog) SkippedTools() []SkippedTool {
+	out := append([]SkippedTool(nil), c.skipped...)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Group != out[j].Group {
+			return out[i].Group < out[j].Group
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 // ToolsByGroup buckets the catalog's tools by group. Every group of Groups
@@ -114,12 +125,6 @@ func (c *Catalog) IsKnownTool(name string) bool {
 		}
 	}
 	return false
-}
-
-// IsKnownGroup reports whether name is a group of the catalog.
-func (c *Catalog) IsKnownGroup(name string) bool {
-	_, err := c.ParseGroup(name)
-	return err == nil
 }
 
 // ParseGroup validates a group name against the catalog, case-insensitively

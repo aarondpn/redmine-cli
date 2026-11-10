@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -113,8 +114,8 @@ type rootRun struct {
 // enabled, as main does.
 func runWithExtensions(t *testing.T, stdin string, args ...string) rootRun {
 	t.Helper()
-	root, f := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test")})
 	var out, errOut bytes.Buffer
+	root, f := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test", &errOut)})
 	f.IOStreams.In = strings.NewReader(stdin)
 	f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY = &out, &errOut, false
 	root.SetIn(f.IOStreams.In)
@@ -490,7 +491,7 @@ func TestExtensionDispatchRawStdin(t *testing.T) {
 
 func TestExtensionRegistration(t *testing.T) {
 	setupExtensions(t)
-	root, _ := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test")})
+	root, _ := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test", io.Discard)})
 
 	byName := map[string]bool{}
 	for _, c := range root.Commands() {
@@ -564,7 +565,7 @@ func TestExtensionCompletion(t *testing.T) {
 
 func TestAttachesTerminal(t *testing.T) {
 	setupExtensions(t)
-	root, _ := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test")})
+	root, _ := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test", io.Discard)})
 	tests := []struct {
 		args []string
 		want bool
@@ -632,7 +633,7 @@ func TestBrokenStubParsesOutputFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			root, f := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test")})
+			root, f := NewRootCmdWithOptions("test", RootOptions{Extensions: DiscoverExtensions("test", io.Discard)})
 			var out, errOut bytes.Buffer
 			f.IOStreams.In = strings.NewReader("")
 			f.IOStreams.Out, f.IOStreams.ErrOut, f.IOStreams.IsTTY = &out, &errOut, false

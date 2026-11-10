@@ -3,6 +3,8 @@ package mcp
 import (
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -23,7 +25,10 @@ func newCmdTools(f *cmdutil.Factory, opts Options) *cobra.Command {
 			"--enable-writes is passed to `mcp serve`. Tools of installed " +
 			"extensions are listed in one ext-<name> group per extension, with " +
 			"the extension and its version; `mcp serve` registers them on " +
-			"stdio by default and over --http only with --enable-extensions.",
+			"stdio by default and over --http only with --enable-extensions. " +
+			"An extension tool whose name is already taken (by a core tool, or " +
+			"by the extension that comes first by name) is not served; it is " +
+			"listed in its group marked skipped, with the tool it clashes with.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			exts, err := installedExtensions(opts)
@@ -47,15 +52,48 @@ func newCmdTools(f *cmdutil.Factory, opts Options) *cobra.Command {
 	return cmd
 }
 
+// catalogRow is a line of the tool listing.
+type catalogRow struct {
+	tool mcpserver.ToolDescriptor
+	// skipped is the reason the tool is not served, empty for a tool that
+	// is.
+	skipped string
+}
+
 func printToolCatalog(out io.Writer, catalog *mcpserver.Catalog) error {
 	byGroup := catalog.ToolsByGroup()
-	groups := append(mcpserver.AllGroups(), catalog.ExtensionGroups()...)
+	rows := map[mcpserver.Group][]catalogRow{}
+	for g, ds := range byGroup {
+		for _, d := range ds {
+			rows[g] = append(rows[g], catalogRow{tool: d})
+		}
+	}
+	// A tool skipped for a name clash is listed in its extension's group,
+	// marked, so the clash shows here and not only in a warning; that group
+	// is listed even when the extension has no other tool.
+	extGroups := catalog.ExtensionGroups()
+	for _, s := range catalog.SkippedTools() {
+		if !slices.Contains(extGroups, s.Group) {
+			extGroups = append(extGroups, s.Group)
+		}
+		rows[s.Group] = append(rows[s.Group], catalogRow{tool: s.ToolDescriptor, skipped: s.Reason()})
+	}
+	slices.Sort(extGroups)
+	for _, g := range extGroups {
+		slices.SortStableFunc(rows[g], func(a, b catalogRow) int { return strings.Compare(a.tool.Name, b.tool.Name) })
+	}
+
+	groups := append(mcpserver.AllGroups(), extGroups...)
 	for _, g := range groups {
 		fmt.Fprintf(out, "%s\n", g)
 		tw := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
-		for _, d := range byGroup[g] {
+		for _, r := range rows[g] {
+			origin := toolOrigin(r.tool)
+			if r.skipped != "" {
+				origin += ", skipped: " + r.skipped
+			}
 			// Extension descriptions come from a manifest on disk.
-			fmt.Fprintf(tw, "  %s\t(%s)\t%s\n", d.Name, output.SanitizeTerminal(toolOrigin(d)), output.SanitizeTerminal(d.Description))
+			fmt.Fprintf(tw, "  %s\t(%s)\t%s\n", r.tool.Name, output.SanitizeTerminal(origin), output.SanitizeTerminal(r.tool.Description))
 		}
 		if err := tw.Flush(); err != nil {
 			return err

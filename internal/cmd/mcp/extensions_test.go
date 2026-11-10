@@ -94,7 +94,13 @@ func writeExtension(t *testing.T, root, name, manifest, tag string) {
 	}
 	if tag != "" {
 		info := "owner: acme\nrepo: redmine-cli-" + name + "\ntag: " + tag + "\npinned: false\ninstalled_at: 2026-01-01T00:00:00Z\nkind: binary\n"
-		if err := os.WriteFile(filepath.Join(dir, extmgr.InstallFile), []byte(info), 0o644); err != nil {
+		// The manager keeps install metadata in <root>/.meta, outside the
+		// extension's directory.
+		metaDir := filepath.Join(root, ".meta")
+		if err := os.MkdirAll(metaDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(metaDir, name+".yml"), []byte(info), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -515,7 +521,6 @@ func TestMCPTools_ListsExtensionTools(t *testing.T) {
 		"ext-echo\n",
 		"  echo_show   (read, extension echo@v1.2.0)   Echo the input.\n",
 		"  echo_write  (write, extension echo@v1.2.0)  Write something. Requires --enable-writes.\n",
-		"ext-list\n  list_things  (read, extension list)  Does not clash.\n",
 		"extensions\n  Selects every ext-<name> group above.\n",
 	} {
 		if !strings.Contains(got, want) {
@@ -525,8 +530,14 @@ func TestMCPTools_ListsExtensionTools(t *testing.T) {
 	if strings.Contains(got, "echo_cli_only") || strings.Contains(got, "ext-plain") {
 		t.Errorf("output lists commands that are not tools:\n%s", got)
 	}
-	if n := len(regexp.MustCompile(`(?m)^  list_issues `).FindAllString(got, -1)); n != 1 {
-		t.Errorf("list_issues should be listed once, as the core tool:\n%s", got)
+	if n := len(regexp.MustCompile(`(?m)^  list_issues +\(read\) `).FindAllString(got, -1)); n != 1 {
+		t.Errorf("list_issues should be listed once as the core tool:\n%s", got)
+	}
+	if !regexp.MustCompile(`(?m)^ext-list\n(  .*\n)*  list_things +\(read, extension list\) +Does not clash\.\n`).MatchString(got) {
+		t.Errorf("ext-list should list list_things:\n%s", got)
+	}
+	if !regexp.MustCompile(`(?m)^ext-list\n(  .*\n)*  list_issues +\(read, extension list, skipped: name clash with a core tool\) +Clashes with a core tool\.\n`).MatchString(got) {
+		t.Errorf("the clashing extension tool should be listed as skipped in ext-list:\n%s", got)
 	}
 	if !strings.Contains(errOut.String(), "skipping MCP tool list_issues") {
 		t.Errorf("stderr misses the clash warning: %q", errOut.String())
@@ -571,5 +582,36 @@ func TestPrintToolCatalog_SanitizesExtensionText(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "go ^[[31mRED^[[0m") {
 		t.Errorf("description not shown neutralized:\n%s", out.String())
+	}
+}
+
+// TestPrintToolCatalog_ShowsSkippedTools lists two extensions whose tools
+// map to the same name: the extension first by name wins, whatever the
+// input order, and the other tool is shown as skipped in its group, which
+// is listed although it has no tool left.
+func TestPrintToolCatalog_ShowsSkippedTools(t *testing.T) {
+	tool := func(ext, command string) mcpserver.ExtensionTool {
+		return mcpserver.ExtensionTool{Extension: ext, Path: "/nonexistent", Command: &spec.Command{Name: command, Description: "From " + ext}}
+	}
+	for _, order := range [][]mcpserver.ExtensionTool{
+		{tool("a-b", "c"), tool("a", "b-c")},
+		{tool("a", "b-c"), tool("a-b", "c")},
+	} {
+		var out bytes.Buffer
+		if err := printToolCatalog(&out, mcpserver.NewCatalog(order)); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		for _, want := range []string{
+			"ext-a\n  a_b_c  (read, extension a)  From a.\n",
+			"ext-a-b\n  a_b_c  (read, extension a-b, skipped: name clash with extension a)  From a-b.\n",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("output misses %q:\n%s", want, got)
+			}
+		}
+		if strings.Index(got, "ext-a\n") > strings.Index(got, "ext-a-b\n") {
+			t.Errorf("extension groups must be sorted:\n%s", got)
+		}
 	}
 }

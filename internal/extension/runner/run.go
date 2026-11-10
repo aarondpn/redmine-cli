@@ -51,6 +51,9 @@ type Request struct {
 	// MaxStdout and MaxStderr override the package limits when positive.
 	MaxStdout int64
 	MaxStderr int64
+
+	// waitDelay overrides the package waitDelay when positive (tests).
+	waitDelay time.Duration
 }
 
 // Result is the captured output of a run. Run returns it together with an
@@ -101,7 +104,10 @@ func (e *OutputTooLargeError) Error() string {
 // captured (at most MaxStdout bytes, the process is killed beyond that),
 // stderr captured and optionally streamed. The process runs in its own
 // process group on Unix, so a timeout or cancellation of ctx kills
-// everything it started; on Windows the process itself is killed.
+// everything it started, as does a failed run; on Windows the process
+// itself is killed. A process the command left running in the background
+// with its stdout or stderr open is cut off waitDelay after the command
+// exited, and does not change the outcome.
 //
 // A non-zero exit returns the Result and an *ExitError. A timeout returns
 // *TimeoutError, an oversized output *OutputTooLargeError, and a cancelled
@@ -138,9 +144,22 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	startInGroup(cmd)
 	cmd.Cancel = func() error { return killGroup(cmd) }
-	cmd.WaitDelay = waitDelay
+	cmd.WaitDelay = durationOr(req.waitDelay, waitDelay)
 
 	runErr := cmd.Run()
+	if runErr != nil {
+		// A failed run leaves nothing behind: what the process started in
+		// the background is killed with its group. A successful one that
+		// detached a process from its output is left alone.
+		_ = killGroup(cmd)
+	}
+	if errors.Is(runErr, exec.ErrWaitDelay) && runCtx.Err() == nil && cmd.ProcessState != nil {
+		// The process exited, but something it started in the background
+		// still held its stdout or stderr open when waitDelay ran out.
+		// That is not a failure of the command: the outcome is the
+		// process's own exit status, with the output captured so far.
+		runErr = exitStatusError(cmd.ProcessState)
+	}
 	res := &Result{Stdout: stdout.bytes(), Stderr: stderr.bytes()}
 	res.StderrTruncated = stderr.wasTruncated()
 	// Checked before the exit status: a process that wrote its last chunk
@@ -170,6 +189,15 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	return res, runErr
 }
 
+// exitStatusError is nil for a successful process state and an
+// *exec.ExitError otherwise, as cmd.Run would have returned.
+func exitStatusError(ps *os.ProcessState) error {
+	if ps.Success() {
+		return nil
+	}
+	return &exec.ExitError{ProcessState: ps}
+}
+
 // AttachedRequest describes a passthrough run with the caller's stdio.
 type AttachedRequest struct {
 	Path   string
@@ -182,6 +210,9 @@ type AttachedRequest struct {
 	// Timeout kills the process when exceeded. Zero means none, the
 	// default for interactive passthrough commands.
 	Timeout time.Duration
+
+	// waitDelay overrides the package waitDelay when positive (tests).
+	waitDelay time.Duration
 }
 
 // SignalCause is implemented by a cancellation cause that stands for a
@@ -227,7 +258,7 @@ func RunAttached(ctx context.Context, req AttachedRequest) (int, error) {
 		}
 		return cmd.Process.Kill()
 	}
-	cmd.WaitDelay = waitDelay
+	cmd.WaitDelay = durationOr(req.waitDelay, waitDelay)
 
 	runErr := cmd.Run()
 	if runErr == nil {
@@ -285,6 +316,13 @@ func ErrorMessage(stderr []byte) string {
 		s = "..." + s[cut:]
 	}
 	return textsafe.Terminal(s)
+}
+
+func durationOr(v, def time.Duration) time.Duration {
+	if v > 0 {
+		return v
+	}
+	return def
 }
 
 func limitOr(v, def int64) int64 {

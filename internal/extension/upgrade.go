@@ -23,8 +23,10 @@ const (
 type UpgradeOptions struct {
 	// DryRun only reports what would change.
 	DryRun bool
-	// Force reinstalls a binary extension even when it is up to date, and
-	// resets a git extension to its upstream, discarding local changes.
+	// Force reinstalls a binary extension even when it is up to date (or
+	// when the new release can no longer be checksum-verified while the
+	// installed one was), and resets a git extension to its upstream,
+	// discarding local changes.
 	Force bool
 }
 
@@ -35,6 +37,9 @@ type UpgradeResult struct {
 	From   string        `json:"from,omitempty"`
 	To     string        `json:"to,omitempty"`
 	Note   string        `json:"note,omitempty"`
+	// Warnings are the install warnings of an upgraded binary extension
+	// (see InstallOptions.Warn).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Upgrade upgrades the installed extension name. Pinned and local
@@ -105,7 +110,11 @@ func (m *Manager) upgradeBinary(ctx context.Context, ext *Extension, opts Upgrad
 	if !ok {
 		return nil, fmt.Errorf("release %s of %s has no binary for %s/%s (expected asset %s)", release.TagName, src, m.goos(), m.goarch(), assetName)
 	}
-	if _, err := m.installBinary(ctx, src, release, asset, false); err != nil {
+	bi := binaryInstall{
+		requireVerified: ext.Install.ChecksumVerified && !opts.Force,
+		warn:            func(w string) { res.Warnings = append(res.Warnings, w) },
+	}
+	if _, err := m.installBinary(ctx, src, release, asset, bi); err != nil {
 		return nil, err
 	}
 	res.Status = StatusUpgraded

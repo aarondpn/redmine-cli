@@ -54,14 +54,14 @@ commands:
     description: Show the current Redmine user
     output:
       detail:
-        - { key: ID, path: id }
-        - { key: Login, path: login }
-        - { key: Name, jq: '.firstname + " " + .lastname' }
+        - { key: ID, path: user.id }
+        - { key: Login, path: user.login }
+        - { key: Name, jq: '.user.firstname + " " + .user.lastname' }
   - name: echo
     description: Print the input object, a starting point for your own commands
     params:
       - { name: message, type: string, required: true, positional: true, description: Text to echo }
-      - { name: tag, type: string, array: true, description: Tags to attach (repeatable) }
+      - { name: tag, type: string, array: true, description: Tags to attach }
     output:
       detail:
         - { key: Message, path: message }
@@ -92,7 +92,10 @@ input=$(cat)
 
 case "${REDMINE_EXT_COMMAND:-}" in
 whoami)
-	exec "$REDMINE_CLI_BIN" api /users/current.json --jq .user
+	# No --jq here: with it, a failure (such as Redmine not being
+	# configured yet) would be reported as a JSON error envelope instead
+	# of a readable message.
+	exec "$REDMINE_CLI_BIN" api /users/current.json
 	;;
 echo)
 	printf '%s\n' "$input"
@@ -154,13 +157,7 @@ func whoami() error {
 	if err != nil {
 		return err
 	}
-	var resp struct {
-		User json.RawMessage ` + "`json:\"user\"`" + `
-	}
-	if err := json.Unmarshal(out, &resp); err != nil {
-		return err
-	}
-	_, err = os.Stdout.Write(resp.User)
+	_, err = os.Stdout.Write(out)
 	return err
 }
 

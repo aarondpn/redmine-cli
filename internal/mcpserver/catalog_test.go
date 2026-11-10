@@ -40,7 +40,7 @@ func TestCatalog_Groups(t *testing.T) {
 	}
 
 	empty := NewCatalog(nil)
-	if !empty.IsKnownGroup("extensions") {
+	if _, err := empty.ParseGroup("extensions"); err != nil {
 		t.Error("the umbrella group must be valid without any extension")
 	}
 	if len(empty.Groups()) != len(AllGroups())+1 {
@@ -132,17 +132,12 @@ func TestCatalog_ToolsByGroup(t *testing.T) {
 		t.Error("core groups must keep their generated tools")
 	}
 
-	all := c.AllTools()
-	if len(all) != len(AllTools())+3 {
-		t.Fatalf("AllTools has %d tools, want %d", len(all), len(AllTools())+3)
-	}
-	last := all[len(all)-1]
+	pr := byGroup["ext-pr"]
 	want := ToolDescriptor{Name: "pr_list", Description: "List PRs.", Group: "ext-pr", Extension: "pr", ExtensionVersion: "v1.2.0"}
-	if last != want {
-		t.Errorf("last tool = %+v, want %+v", last, want)
+	if pr[1] != want {
+		t.Errorf("pr_list = %+v, want %+v", pr[1], want)
 	}
-	link := all[len(all)-2]
-	if !link.Writes || link.Description != "Link a PR. Requires --enable-writes." {
+	if link := pr[0]; !link.Writes || link.Description != "Link a PR. Requires --enable-writes." {
 		t.Errorf("pr_link = %+v", link)
 	}
 }

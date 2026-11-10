@@ -148,7 +148,7 @@ redmine --read-only triage nudge 12      # PUT 被拒绝
 
 ## 清单参考
 
-清单使用 YAML 格式。未知的键会被拒绝，每个问题都会带行号报告，例如 `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`。
+清单使用 YAML 格式。`schema_version` 和 `min_cli_version` 最先检查，因此为更新版 redmine-cli 编写的清单会报告所需的版本，而不是报告其中的新字段。之后，未知的键会被拒绝，每个问题都会带行号报告，例如 `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`。
 
 ### 顶层
 
@@ -164,12 +164,12 @@ redmine --read-only triage nudge 12      # PUT 被拒绝
 
 | 字段 | 默认值 | 描述 |
 |------|--------|------|
-| `name` | | 以 `redmine <ext> <name>` 调用。小写字母、数字、`_` 和 `-`，以字母开头。不可重复 |
+| `name` | | 以 `redmine <ext> <name>` 调用。小写字母、数字和 `-`，以字母开头。不可重复 |
 | `description` | | 用于 CLI 帮助和 MCP 工具描述的一行说明。必填 |
 | `writes` | `false` | 该命令会修改 Redmine 数据。未设置时命令以 `REDMINE_READ_ONLY=1` 运行 |
 | `destructive` | `false` | 会删除数据或做出不可逆的修改。为 CLI 命令添加 `--yes` 和确认提示，并把 MCP 工具标记为破坏性。要求 `writes: true` |
 | `mcp` | `true` | `false` 表示仅限 CLI |
-| `timeout` | `60s` | 最长运行时间，使用 Go 时长格式（`30s`、`2m`），最多 `5m` |
+| `timeout` | `60s` | 最长运行时间，从 `1ms` 到 `5m`，写作整毫秒（`500ms`）、秒（`30s`）、分钟（`2m`）或分钟加秒（`1m30s`） |
 | `raw` | `false` | 透传命令：argv 和终端直接交给可执行文件。不能有 `params` 或 `output`，永远不是 MCP 工具 |
 | `params` | | 输入参数，见下文 |
 | `output` | | 表格渲染，见下文 |
@@ -178,29 +178,30 @@ redmine --read-only triage nudge 12      # PUT 被拒绝
 
 | 字段 | 默认值 | 描述 |
 |------|--------|------|
-| `name` | | 输入对象中的键。小写字母、数字、`_` 和 `-`，以字母开头。在同一命令中不可重复。CLI 标志为把 `_` 换成 `-` 后的名称（`due_date` → `--due-date`） |
+| `name` | | 输入对象中的键。小写字母、数字和 `_`，以字母开头。在同一命令中不可重复。CLI 标志为把 `_` 换成 `-` 后的名称（`due_date` → `--due-date`） |
 | `type` | | `string`、`integer`、`number`、`boolean` 或 `json` |
 | `description` | | 标志和 MCP 参数的帮助文本 |
-| `required` | `false` | 必须提供该参数 |
+| `required` | `false` | 必须提供该参数。不能与 `default` 同时使用 |
 | `positional` | `false` | 从位置参数而不是标志中取值 |
-| `array` | `false` | 接受一个值列表 |
-| `enum` | | 允许的值。仅用于 `string` 和 `integer` |
-| `default` | | 未提供参数时使用的值。必须与 `type` 匹配（设置 `array` 时为列表），并在 `enum` 范围内 |
+| `array` | `false` | 接受一个值列表。不能用于 `boolean` |
+| `enum` | | 允许的值，每个值只能出现一次。仅用于 `string` 和 `integer` |
+| `default` | | 未提供参数时使用的值。必须与 `type` 匹配（设置 `array` 时为列表），并在 `enum` 范围内。必填参数不能有默认值 |
 
 各类型的传递方式：
 
 | 类型 | CLI | MCP 参数 | stdin 中的值 |
 |------|-----|----------|--------------|
 | `string` | `--state open` | 字符串 | 字符串 |
-| `integer` | `--days 30` | 整数（无小数） | 整数 |
+| `integer` | `--days 30`（十进制：`010` 即 10，`0x10` 会被拒绝） | 64 位范围内的整数（无小数） | 整数 |
 | `number` | `--ratio 0.5` | 数字 | 数字 |
 | `boolean` | `--draft`、`--draft=false` | 布尔值 | `true` / `false` |
 | `json` | `--extra '{"a": 1}'`、`--extra @file.json`、`--extra @-`（stdin） | 任意 JSON 值 | 解码后的值 |
 
-- **数组**是可重复的标志：`--label a --label b`。整数、数字和布尔数组也接受逗号分隔的值（`--id 1,2`）；字符串数组不会拆分，因此值中可以包含逗号。数组位置参数接收其余所有参数，显示为 `<name...>`。
+- **数组**是可重复的标志：`--label a --label b`。整数和数字数组也接受逗号分隔的值（`--id 1,2`）；字符串数组不会拆分，因此值中可以包含逗号。数组位置参数接收其余所有参数，显示为 `<name...>`。
 - **位置参数**按声明顺序排列，显示为 `<issue-id>`，可选时显示为 `[issue-id]`。必填位置参数必须位于可选位置参数之前，数组位置参数必须是最后一个。
-- **保留的标志名。** 标志参数不能映射到全局标志（`server`、`api-key`、`api-key-file`、`profile`、`config`、`header`、`output`、`jq`、`no-color`、`verbose`、`read-only`），也不能映射到 `help`、`yes` 或 `force`。请重命名或改为位置参数。两个参数也不能映射到同一个标志（如 `due_date` 和 `due-date`）。
-- 通过 MCP 调用时，`null` 视为未提供，命令未声明的属性会被拒绝。
+- **保留的标志名。** 标志参数不能映射到全局标志（`server`、`api-key`、`api-key-file`、`profile`、`config`、`header`、`output`、`jq`、`no-color`、`verbose`、`read-only`），也不能映射到 `help`、`yes` 或 `force`。请重命名或改为位置参数。
+- **`null`** 视为未提供：通过 MCP 时适用于所有参数，在 CLI 中适用于 `json` 参数（`--extra null`）。以 `null` 提供的必填参数视为缺失，可选参数则使用其默认值。
+- 通过 MCP 调用时，命令未声明的属性会被拒绝。
 
 ### 输出
 
@@ -287,7 +288,7 @@ output:
   </TabItem>
 </Tabs>
 
-在其他编辑器中，请在其 JSON Schema 设置里把该 URL 映射到 `redmine-extension.yml`。schema 涵盖类型、枚举、默认值和条件规则（例如 `enum` 只能用于字符串和整数参数）。其余规则由 `redmine extension check` 检查：名称唯一、位置参数顺序、默认值在 `enum` 范围内、jq 表达式能否编译、工具名长度，以及文本中不含终端控制字符（转义序列、回车、双向控制字符；换行和制表符可以）。发布前请运行它。
+在其他编辑器中，请在其 JSON Schema 设置里把该 URL 映射到 `redmine-extension.yml`。schema 涵盖类型、枚举、默认值和条件规则（例如 `enum` 只能用于字符串和整数参数）。其余规则由 `redmine extension check` 检查：名称唯一、保留名称、位置参数顺序、默认值在 `enum` 范围内、jq 表达式能否编译、工具名长度及唯一性，以及文本中不含终端控制字符（转义序列、回车、双向控制字符；换行和制表符可以）。发布前请运行它。
 
 ## MCP 工具
 

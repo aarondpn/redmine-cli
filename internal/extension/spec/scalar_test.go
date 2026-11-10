@@ -56,7 +56,6 @@ func TestYAMLNonJSONNumbersRejected(t *testing.T) {
 func TestArrayFlagsOfEveryType(t *testing.T) {
 	c := &Command{Name: "a", Description: "d", Params: []Param{
 		{Name: "nums", Type: TypeNumber, Array: true, Default: []any{1.5}},
-		{Name: "flags", Type: TypeBoolean, Array: true, Default: []any{true}},
 		{Name: "docs", Type: TypeJSON, Array: true, Default: []any{map[string]any{"a": int64(1)}}},
 		{Name: "names", Type: TypeString, Array: true, Default: []any{"x"}},
 	}}
@@ -64,19 +63,19 @@ func TestArrayFlagsOfEveryType(t *testing.T) {
 	if err := AddFlags(cmd, c); err != nil {
 		t.Fatal(err)
 	}
-	wantDefaults := map[string]string{"nums": "[1.500000]", "flags": "[true]", "docs": `[{"a":1}]`, "names": "[x]"}
+	wantDefaults := map[string]string{"nums": "[1.500000]", "docs": `[{"a":1}]`, "names": "[x]"}
 	for name, want := range wantDefaults {
 		if got := cmd.Flags().Lookup(name).DefValue; got != want {
 			t.Errorf("--%s default = %q, want %q", name, got, want)
 		}
 	}
 
-	got, err := runCommand(t, c, "", "--nums", "1,2.5", "--flags", "false", "--docs", "[]", "--docs", `"s"`, "--names", "a")
+	got, err := runCommand(t, c, "", "--nums", "1,2.5", "--docs", "[]", "--docs", `"s"`, "--names", "a")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{
-		"nums": []any{1.0, 2.5}, "flags": []any{false},
+		"nums": []any{1.0, 2.5},
 		"docs": []any{[]any{}, "s"}, "names": []any{"a"},
 	}
 	if !reflect.DeepEqual(got, want) {

@@ -148,7 +148,7 @@ redmine --read-only triage nudge 12      # the PUT is refused
 
 ## Manifest reference
 
-The manifest is YAML. Unknown keys are rejected, and every problem is reported with its line, for example `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`.
+The manifest is YAML. `schema_version` and `min_cli_version` are checked first, so a manifest written for a newer redmine-cli reports which version it needs rather than its new fields. After that, unknown keys are rejected and every problem is reported with its line, for example `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`.
 
 ### Top level
 
@@ -164,12 +164,12 @@ The manifest is YAML. Unknown keys are rejected, and every problem is reported w
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `name` | | Invoked as `redmine <ext> <name>`. Lowercase letters, digits, `_` and `-`, starting with a letter. Unique |
+| `name` | | Invoked as `redmine <ext> <name>`. Lowercase letters, digits and `-`, starting with a letter. Unique |
 | `description` | | One line for CLI help and the MCP tool description. Required |
 | `writes` | `false` | The command changes Redmine data. Without it the command runs with `REDMINE_READ_ONLY=1` |
 | `destructive` | `false` | Deletes or irreversibly changes data. Adds `--yes` and a confirmation prompt to the CLI command and marks the MCP tool destructive. Requires `writes: true` |
 | `mcp` | `true` | `false` makes the command CLI only |
-| `timeout` | `60s` | Maximum run time as a Go duration (`30s`, `2m`), at most `5m` |
+| `timeout` | `60s` | Maximum run time from `1ms` to `5m`, in whole milliseconds (`500ms`), seconds (`30s`), minutes (`2m`) or minutes and seconds (`1m30s`) |
 | `raw` | `false` | Passthrough command: argv and the terminal go straight to the executable. No `params` or `output`, never an MCP tool |
 | `params` | | Input parameters, see below |
 | `output` | | Table rendering, see below |
@@ -178,29 +178,30 @@ The manifest is YAML. Unknown keys are rejected, and every problem is reported w
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `name` | | Key in the input object. Lowercase letters, digits, `_` and `-`, starting with a letter. Unique within the command. The CLI flag is the name with `_` replaced by `-` (`due_date` → `--due-date`) |
+| `name` | | Key in the input object. Lowercase letters, digits and `_`, starting with a letter. Unique within the command. The CLI flag is the name with `_` replaced by `-` (`due_date` → `--due-date`) |
 | `type` | | `string`, `integer`, `number`, `boolean` or `json` |
 | `description` | | Help text for the flag and the MCP parameter |
-| `required` | `false` | The parameter must be given |
+| `required` | `false` | The parameter must be given. Cannot be combined with `default` |
 | `positional` | `false` | Taken from a positional argument instead of a flag |
-| `array` | `false` | Accepts a list of values |
-| `enum` | | Allowed values. Only for `string` and `integer` |
-| `default` | | Used when the parameter is not given. Must match `type` (a list when `array` is set) and `enum` |
+| `array` | `false` | Accepts a list of values. Not for `boolean` |
+| `enum` | | Allowed values, each listed once. Only for `string` and `integer` |
+| `default` | | Used when the parameter is not given. Must match `type` (a list when `array` is set) and `enum`. Not allowed on a required parameter |
 
 How each type is passed:
 
 | Type | CLI | MCP argument | Value on stdin |
 |------|-----|--------------|----------------|
 | `string` | `--state open` | string | string |
-| `integer` | `--days 30` | integer (no fraction) | integer |
+| `integer` | `--days 30` (decimal: `010` is 10, `0x10` is rejected) | integer (no fraction) within the 64-bit range | integer |
 | `number` | `--ratio 0.5` | number | number |
 | `boolean` | `--draft`, `--draft=false` | boolean | `true` / `false` |
 | `json` | `--extra '{"a": 1}'`, `--extra @file.json`, `--extra @-` (stdin) | any JSON value | the decoded value |
 
-- **Arrays** are repeatable flags: `--label a --label b`. Integer, number and boolean arrays also accept comma-separated values (`--id 1,2`); string arrays don't split, so values may contain commas. An array positional takes all remaining arguments and is shown as `<name...>`.
+- **Arrays** are repeatable flags: `--label a --label b`. Integer and number arrays also accept comma-separated values (`--id 1,2`); string arrays don't split, so values may contain commas. An array positional takes all remaining arguments and is shown as `<name...>`.
 - **Positionals** are ordered as declared and shown as `<issue-id>`, or `[issue-id]` when optional. Required positionals must come before optional ones, and an array positional must be the last.
-- **Reserved flag names.** A flag parameter must not map to a global flag (`server`, `api-key`, `api-key-file`, `profile`, `config`, `header`, `output`, `jq`, `no-color`, `verbose`, `read-only`) or to `help`, `yes` or `force`. Rename it or make it positional. Two parameters must not map to the same flag (`due_date` and `due-date`).
-- Over MCP, `null` counts as not given, and properties the command doesn't declare are rejected.
+- **Reserved flag names.** A flag parameter must not map to a global flag (`server`, `api-key`, `api-key-file`, `profile`, `config`, `header`, `output`, `jq`, `no-color`, `verbose`, `read-only`) or to `help`, `yes` or `force`. Rename it or make it positional.
+- **`null`** counts as not given: over MCP for every parameter, and on the CLI for a `json` parameter (`--extra null`). A required parameter given as `null` is missing, and an optional one gets its default.
+- Over MCP, properties the command doesn't declare are rejected.
 
 ### Output
 
@@ -287,7 +288,7 @@ The JSON Schema of the manifest is published at `https://redmine-cli.dev/schema/
   </TabItem>
 </Tabs>
 
-In other editors, map the URL to `redmine-extension.yml` in their JSON Schema settings. The schema covers types, enums, defaults and the conditional rules (for example `enum` only on string and integer parameters). The rest is checked by `redmine extension check`: unique names, positional order, defaults within `enum`, jq expressions that compile, tool name length, and texts without terminal control characters (escape sequences, carriage returns, bidi controls; newlines and tabs are fine). Run it before you publish.
+In other editors, map the URL to `redmine-extension.yml` in their JSON Schema settings. The schema covers types, enums, defaults and the conditional rules (for example `enum` only on string and integer parameters). The rest is checked by `redmine extension check`: unique names, reserved names, positional order, defaults within `enum`, jq expressions that compile, tool name length and uniqueness, and texts without terminal control characters (escape sequences, carriage returns, bidi controls; newlines and tabs are fine). Run it before you publish.
 
 ## MCP tools
 

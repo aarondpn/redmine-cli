@@ -25,9 +25,7 @@ profiles:
 	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	orig := Executable
-	Executable = func() (string, error) { return "/usr/local/bin/redmine", nil }
-	t.Cleanup(func() { Executable = orig })
+	exe := func() (string, error) { return "/usr/local/bin/redmine", nil }
 
 	boolPtr := func(b bool) *bool { return &b }
 	tests := []struct {
@@ -66,7 +64,7 @@ profiles:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(EnvReadOnly, tt.envReadOnly)
 			t.Setenv(EnvHeaders, tt.envHeaders)
-			env, err := FromFactory(tt.f)
+			env, err := fromFactory(tt.f, exe)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected an error")

@@ -36,6 +36,14 @@ type Options struct {
 	// needs the extension groups to resolve the "extensions" group and
 	// disable-only filters.
 	ExtensionTools []ExtensionTool
+
+	// ExtensionRuns, when set, tracks the extension processes the tools of
+	// ExtensionTools start, so the caller can stop them with
+	// ExtensionRuns.Stop before it exits. Every server that serves
+	// extension tools in a process that may exit while a call is in flight
+	// should set it: an extension runs in its own process group and would
+	// otherwise outlive the server. Nil tracks nothing.
+	ExtensionRuns *ExtensionRuns
 }
 
 // groupEnabled reports whether tools or resources belonging to g should be

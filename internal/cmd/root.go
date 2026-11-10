@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -71,14 +73,45 @@ type RootOptions struct {
 // DiscoverExtensions returns a RootOptions.Extensions that lists the
 // extensions in the default extensions directory. It only reads the local
 // disk; a missing or unreadable directory yields no extensions.
-func DiscoverExtensions(version string) func() ([]*extmgr.Extension, error) {
+//
+// Unknown manifest fields (from a newer redmine-cli) do not stop an
+// extension from loading; each is reported to warnings once, however often
+// the extensions are listed during the invocation. Pass io.Discard where
+// nothing may be printed, such as shell completion.
+func DiscoverExtensions(version string, warnings io.Writer) func() ([]*extmgr.Extension, error) {
+	var (
+		mu      sync.Mutex
+		printed = map[string]bool{}
+	)
 	return func() ([]*extmgr.Extension, error) {
 		m, err := extmgr.NewManager(version)
 		if err != nil {
 			return nil, err
 		}
-		return m.List()
+		exts, err := m.List()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, ext := range exts {
+			if ext.Err != nil {
+				continue
+			}
+			for _, w := range ext.Warnings {
+				msg := fmt.Sprintf("Warning: extension %s: %s", ext.Name, w.Error())
+				if !printed[msg] {
+					printed[msg] = true
+					fmt.Fprintln(warnings, output.SanitizeTerminal(msg))
+				}
+			}
+		}
+		return exts, err
 	}
+}
+
+// IsShellCompletion reports whether args (without the program name) are a
+// shell completion request, during which nothing but completions may be
+// printed.
+func IsShellCompletion(args []string) bool {
+	return len(args) > 0 && (args[0] == cobra.ShellCompRequestCmd || args[0] == cobra.ShellCompNoDescRequestCmd)
 }
 
 // AttachesTerminal reports whether args run an extension with the terminal

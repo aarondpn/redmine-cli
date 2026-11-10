@@ -46,8 +46,14 @@ func main() {
 		}()
 	}
 
+	// Manifest warnings go to stderr, never stdout, and not into shell
+	// completion output.
+	var extWarnings io.Writer = os.Stderr
+	if cmd.IsShellCompletion(os.Args[1:]) {
+		extWarnings = io.Discard
+	}
 	rootCmd, factory := cmd.NewRootCmdWithOptions(version, cmd.RootOptions{
-		Extensions: cmd.DiscoverExtensions(version),
+		Extensions: cmd.DiscoverExtensions(version, extWarnings),
 	})
 	// An extension run with the terminal attached gets Ctrl-C from the
 	// terminal itself and decides when to exit; redmine waits for it and

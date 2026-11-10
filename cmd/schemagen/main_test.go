@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/aarondpn/redmine-cli/v2/internal/extension/spec"
 )
 
 func TestWriteCreatesBothSchemas(t *testing.T) {
@@ -14,7 +12,7 @@ func TestWriteCreatesBothSchemas(t *testing.T) {
 	if err := write(root); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	want, err := spec.GenerateSchema()
+	want, err := generateSchema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +22,7 @@ func TestWriteCreatesBothSchemas(t *testing.T) {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		if !bytes.Equal(got, want) {
-			t.Errorf("%s differs from spec.GenerateSchema()", rel)
+			t.Errorf("%s differs from generateSchema()", rel)
 		}
 	}
 }
@@ -36,7 +34,7 @@ func TestCommittedSchemasAreFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := spec.GenerateSchema()
+	want, err := generateSchema()
 	if err != nil {
 		t.Fatal(err)
 	}

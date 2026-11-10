@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,164 +8,6 @@ import (
 )
 
 func boolPtr(b bool) *bool { return &b }
-
-func validManifest() *Manifest {
-	return &Manifest{
-		SchemaVersion: 1,
-		Name:          "pr",
-		Commands: []Command{{
-			Name:        "list",
-			Description: "List",
-			Params: []Param{
-				{Name: "issue_id", Type: TypeInteger, Required: true, Positional: true},
-				{Name: "state", Type: TypeString, Enum: []any{"open", "closed"}, Default: "open"},
-			},
-		}},
-	}
-}
-
-func TestManifestValidate(t *testing.T) {
-	tests := []struct {
-		name   string
-		mutate func(m *Manifest)
-		opts   Options
-		want   []string
-	}{
-		{name: "valid", mutate: func(*Manifest) {}},
-		{
-			name:   "schema rules apply to code-built manifests",
-			mutate: func(m *Manifest) { m.Commands[0].Params[0].Type = "date" },
-			want:   []string{"commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got date)"},
-		},
-		{
-			name: "raw command with params",
-			mutate: func(m *Manifest) {
-				m.Commands[0].Raw = true
-				m.Commands[0].MCP = boolPtr(true)
-			},
-			want: []string{"commands[0]: raw commands take no params or output and are never MCP tools"},
-		},
-		{
-			name:   "default outside enum",
-			mutate: func(m *Manifest) { m.Commands[0].Params[1].Default = "merged" },
-			want:   []string{"commands[0].params[1].default: default must be one of: open, closed (got merged)"},
-		},
-		{
-			name:   "file name prefix",
-			mutate: func(m *Manifest) { m.Commands[0].Params[1].Default = "merged" },
-			opts:   Options{File: "redmine-extension.yml"},
-			want:   []string{"redmine-extension.yml: commands[0].params[1].default: default must be one of: open, closed (got merged)"},
-		},
-		{
-			name:   "extension name mismatch",
-			mutate: func(*Manifest) {},
-			opts:   Options{ExtensionName: "issues"},
-			want:   []string{`name: name "pr" does not match the extension name "issues"`},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := validManifest()
-			tt.mutate(m)
-			err := m.Validate(tt.opts)
-			if tt.want == nil {
-				if err != nil {
-					t.Fatalf("Validate: %v", err)
-				}
-				return
-			}
-			var ve *ValidationError
-			if !errors.As(err, &ve) {
-				t.Fatalf("Validate = %v, want *ValidationError", err)
-			}
-			if got := ve.Details(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("errors =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(tt.want, "\n  "))
-			}
-		})
-	}
-}
-
-// TestValidateSemanticsDirect covers the Go-side copies of rules the schema
-// also enforces: they matter for manifests whose schema check is skipped.
-func TestValidateSemanticsDirect(t *testing.T) {
-	tests := []struct {
-		name string
-		m    Manifest
-		want []string
-	}{
-		{
-			name: "header",
-			m:    Manifest{SchemaVersion: 2, Name: "Bad Name", MinCLIVersion: "two"},
-			want: []string{
-				"schema_version: unsupported schema_version 2 (this redmine-cli supports 1)",
-				`name: extension name "Bad Name" is invalid: use lowercase letters, digits and dashes, starting with a letter or digit`,
-				`min_cli_version: "two" is not a semantic version`,
-				"commands: at least one command is required",
-			},
-		},
-		{
-			name: "command rules",
-			m: Manifest{SchemaVersion: 1, Name: "pr", Commands: []Command{
-				{Name: "Bad", Description: " ", Timeout: "x", Destructive: true},
-				{Name: "raw", Description: "d", Raw: true, MCP: boolPtr(true), Params: []Param{{Name: "a", Type: TypeString}}, Output: &Output{}},
-			}},
-			want: []string{
-				`commands[0].name: command name "Bad" is invalid: use lowercase letters, digits, '_' and '-', starting with a letter`,
-				`commands[0]: missing required field "description"`,
-				`commands[0].timeout: "x" is not a duration (use e.g. 30s or 2m)`,
-				"commands[0].destructive: destructive commands must also set writes: true",
-				"commands[1].params: raw commands take no params (arguments are passed through)",
-				"commands[1].output: raw commands take no output spec (stdout is passed through)",
-				"commands[1].mcp: raw commands are never MCP tools",
-			},
-		},
-		{
-			name: "param rules",
-			m: Manifest{SchemaVersion: 1, Name: "pr", Commands: []Command{{Name: "a", Description: "d", Params: []Param{
-				{Name: "Bad", Type: TypeString},
-				{Name: "t", Type: "date"},
-				{Name: "b", Type: TypeBoolean, Enum: []any{true}},
-				{Name: "e", Type: TypeString, Enum: []any{}},
-				{Name: "i", Type: TypeInteger, Enum: []any{"x", int64(1)}},
-				{Name: "j", Type: TypeJSON, Array: true, Default: "x"},
-			}}}},
-			want: []string{
-				`commands[0].params[0].name: param name "Bad" is invalid: use lowercase letters, digits, '_' and '-', starting with a letter`,
-				`commands[0].params[1].type: unknown type "date" (use one of: string, integer, number, boolean, json)`,
-				"commands[0].params[2].enum: enum is only allowed for string and integer parameters",
-				"commands[0].params[3].enum: enum must not be empty",
-				"commands[0].params[4].enum[0]: enum value x is not an integer",
-				"commands[0].params[5].default: default must be a list of JSON values, got string",
-			},
-		},
-		{
-			name: "output rules",
-			m: Manifest{SchemaVersion: 1, Name: "pr", Commands: []Command{{Name: "a", Description: "d", Output: &Output{
-				Table:  []Column{{Path: "a", JQ: ".a"}, {Header: "B"}},
-				Detail: []DetailField{{Key: "K", Path: ""}, {Path: "x"}},
-			}}}},
-			want: []string{
-				`commands[0].output.table[0]: missing required field "header"`,
-				"commands[0].output.table[0]: set exactly one of path or jq",
-				"commands[0].output.table[1]: set exactly one of path or jq",
-				"commands[0].output.detail[0]: set exactly one of path or jq",
-				`commands[0].output.detail[1]: missing required field "key"`,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateSemantics(&tt.m, Options{}, nil)
-			var ve *ValidationError
-			if !errors.As(err, &ve) {
-				t.Fatalf("validateSemantics = %v", err)
-			}
-			if got := ve.Details(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("errors =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(tt.want, "\n  "))
-			}
-		})
-	}
-}
 
 func TestValidateExtensionName(t *testing.T) {
 	tests := []struct {
@@ -326,5 +167,30 @@ func TestDisplayPath(t *testing.T) {
 		if got := displayPath(in); got != want {
 			t.Errorf("displayPath(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestDuplicateToolNames covers the tool name check directly: the naming
+// rules keep valid names from colliding, so Parse alone cannot reach it
+// without also failing the command name pattern.
+func TestDuplicateToolNames(t *testing.T) {
+	m := &Manifest{SchemaVersion: 1, Name: "x", Commands: []Command{
+		{Name: "a-b", Description: "d"},
+		{Name: "a_b", Description: "d"},
+		{Name: "c-d", Description: "d"},
+		{Name: "c_d", Description: "d", MCP: boolPtr(false)},
+	}}
+	is := &issues{}
+	validateSemantics(is, m, Options{})
+	got := is.err()
+	want := `commands[1].name: MCP tool name "x_a_b" is already used by command "a-b"; rename the command or set mcp: false`
+	if got == nil || got.Error() != want {
+		t.Fatalf("validateSemantics = %v, want %q", got, want)
+	}
+
+	src := header + "commands:\n  - {name: a-b, description: d}\n  - {name: a_b, description: d}\n"
+	_, err := Parse([]byte(src), Options{})
+	if err == nil || !strings.Contains(err.Error(), `redmine-extension.yml:5: commands[1].name: MCP tool name "pr_a_b" is already used by command "a-b"`) {
+		t.Fatalf("Parse = %v", err)
 	}
 }

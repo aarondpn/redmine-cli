@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,6 +29,12 @@ func TestRedactSecretText(t *testing.T) {
 		{"several", `{"api_key":"A"} {"api_key":"B"}`, `{"api_key":"[REDACTED]"} {"api_key":"[REDACTED]"}`},
 		{"other keys kept", `{"api_keys":"x","monkey":"y"} key: z`, `{"api_keys":"x","monkey":"y"} key: z`},
 		{"prose kept", "the api key was rotated", "the api key was rotated"},
+		{"prose with a separator later kept", "api_key is required: pass --api-key", "api_key is required: pass --api-key"},
+		{"xml element", "<user><api_key>SECRETKEY</api_key></user>", "<user><api_key>[REDACTED]</api_key></user>"},
+		{"xml element with attribute and case", `<API_KEY type="string">SECRETKEY</API_KEY>`, `<API_KEY type="string">[REDACTED]</API_KEY>`},
+		{"ruby hash arrow", "api_key => SECRETKEY", "api_key => [REDACTED]"},
+		{"ruby hash arrow quoted", `{:api_key=>"SECRETKEY", "api_key" => "SECRETKEY"}`, `{:api_key=>"[REDACTED]", "api_key" => "[REDACTED]"}`},
+		{"http header", "X-Redmine-API-Key: SECRETKEY\r\nAccept: */*", "X-Redmine-API-Key: [REDACTED]\r\nAccept: */*"},
 		{"nothing to do", "plain text", "plain text"},
 	}
 	for _, tt := range tests {
@@ -70,6 +77,41 @@ func TestExtensionToolResult_RedactsEveryShape(t *testing.T) {
 			name:   "plain text quoting a response",
 			stdout: "got user a (api_key: SECRETKEY)\n",
 			want:   "got user a (api_key: [REDACTED])\n",
+		},
+		{
+			name:   "json quoted in a string value",
+			stdout: `{"raw":"{\"user\":{\"api_key\":\"SECRETKEY\"}}"}`,
+			want:   `{"raw":"{\"user\":{\"api_key\":\"[REDACTED]\"}}"}`,
+		},
+		{
+			name:   "detail output in an array of strings",
+			stdout: `{"lines":["Login: a","API Key: SECRETKEY"]}`,
+			want:   `{"lines":["Login: a","API Key: [REDACTED]"]}`,
+		},
+		{
+			name:   "secret keys in any spelling",
+			stdout: `{"headers":{"X-Redmine-API-Key":"SECRETKEY","Authorization":"Basic SECRETKEY","Accept":"*/*"},"apiKey":"SECRETKEY","REDMINE_API_KEY":"SECRETKEY","password":"SECRETKEY","auth_token":"SECRETKEY","token":"SECRETKEY"}`,
+			want:   `{"headers":{"Accept":"*/*"}}`,
+		},
+		{
+			name:   "secret keys in ndjson",
+			stdout: "{\"Api-Key\":\"SECRETKEY\"}\n{\"msg\":\"api_key => SECRETKEY\"}\n",
+			want:   "{}\n{\"msg\":\"api_key =\\u003e [REDACTED]\"}\n",
+		},
+		{
+			name:   "top-level string",
+			stdout: `"API Key: SECRETKEY"`,
+			want:   `"API Key: [REDACTED]"`,
+		},
+		{
+			name:   "plain xml",
+			stdout: "<user><login>a</login><api_key>SECRETKEY</api_key></user>\n",
+			want:   "<user><login>a</login><api_key>[REDACTED]</api_key></user>\n",
+		},
+		{
+			name:   "ordinary values and keys kept",
+			stdout: `{"message":"api_key is required","api_keys_count":2,"next_page_token":"abc","password_changed_on":"2026-01-01"}`,
+			want:   `{"api_keys_count":2,"message":"api_key is required","next_page_token":"abc","password_changed_on":"2026-01-01"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -120,5 +162,32 @@ func TestExtensionTools_RedactsErrorMessages(t *testing.T) {
 	text = resultText(t, res)
 	if res.IsError || strings.Contains(text, "SECRETKEY") || !strings.Contains(text, `{"done":true}`) {
 		t.Fatalf("isError=%v text=%q", res.IsError, text)
+	}
+}
+
+func TestIsExtensionSecretKey(t *testing.T) {
+	secret := []string{"api_key", "API_KEY", "apiKey", "api-key", "API Key", "X-Redmine-API-Key", "REDMINE_API_KEY", "password", "Password", "redmine_password", "token", "auth_token", "accessToken", "Authorization"}
+	plain := []string{"api_keys", "key", "monkey", "login", "next_page_token", "tokens", "password_changed_on", "must_change_passwd", "authorized"}
+	for _, k := range secret {
+		if !isExtensionSecretKey(k) {
+			t.Errorf("isExtensionSecretKey(%q) = false, want true", k)
+		}
+	}
+	for _, k := range plain {
+		if isExtensionSecretKey(k) {
+			t.Errorf("isExtensionSecretKey(%q) = true, want false", k)
+		}
+	}
+}
+
+// The structuredContent of an object result is redacted like its text.
+func TestExtensionToolResult_RedactsStructuredContent(t *testing.T) {
+	res := extensionToolResult([]byte(`{"headers":{"X-Redmine-API-Key":"SECRETKEY"},"lines":["API Key: SECRETKEY"]}`))
+	body, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "SECRETKEY") {
+		t.Errorf("structuredContent leaks the key: %s", body)
 	}
 }

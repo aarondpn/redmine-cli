@@ -85,10 +85,10 @@ type Env struct {
 // extension calling another one) cannot leak into this one.
 var managedKeys = []string{EnvCLIBin, EnvExtName, EnvExtCommand, EnvExtSurface, EnvMCP, EnvMCPTool, EnvNoUpdateCheck}
 
-// Vars returns the contract variables for e as KEY=value entries, in a
+// vars returns the contract variables for e as KEY=value entries, in a
 // stable order. Variables of the "if set" kind are only included when e
 // sets them.
-func (e Env) Vars() []string {
+func (e Env) vars() []string {
 	surface := e.Surface
 	if surface == "" {
 		surface = SurfaceCLI
@@ -133,16 +133,16 @@ func (e Env) Vars() []string {
 }
 
 // Environ returns base (usually os.Environ()) with the contract applied:
-// every variable from Vars replaces an inherited one of the same name, and
+// every variable from vars replaces an inherited one of the same name, and
 // managed variables this invocation does not set are removed. Everything
 // else, including REDMINE_API_KEY and friends, is inherited unchanged.
 //
-// One inherited value is overridden although Vars does not set it: when
+// One inherited value is overridden although vars does not set it: when
 // read-only mode is off for this invocation but base enables it, the
 // invocation turned it off explicitly (--read-only=false), so the nested
 // call gets REDMINE_READ_ONLY=0 instead of the stale value.
 func (e Env) Environ(base []string) []string {
-	vars := e.Vars()
+	vars := e.vars()
 	if !e.ReadOnly && !e.ReadOnlyDisabled {
 		if v, ok := lookup(base, EnvReadOnly); ok && config.ParseBoolEnv(v) {
 			vars = append(vars, EnvReadOnly+"=0")

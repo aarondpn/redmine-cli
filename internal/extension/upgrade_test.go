@@ -299,3 +299,64 @@ func TestSearch(t *testing.T) {
 		t.Errorf("empty query q = %q", fg.lastSearch)
 	}
 }
+
+// TestUpgradeKeepsChecksumVerification refuses an upgrade from a verified
+// release to one that cannot be verified, unless forced.
+func TestUpgradeKeepsChecksumVerification(t *testing.T) {
+	asset := BinaryAssetName("pr", "linux", "amd64")
+	one, two := []byte("one"), []byte("two")
+	tests := []struct {
+		name         string
+		verified     bool
+		newAssets    map[string][]byte
+		force        bool
+		wantErr      string
+		wantWarnings int
+		wantVerified bool
+	}{
+		{name: "verified to unverified fails", verified: true, newAssets: map[string][]byte{asset: two}, wantErr: "has no checksums file, but the installed version was checksum-verified; use --force"},
+		{name: "manifest no longer listed fails", verified: true, newAssets: map[string][]byte{
+			asset: two, spec.FileName: []byte(manifestFor("pr")), "checksums.txt": checksumsFor(map[string][]byte{asset: two}),
+		}, wantErr: "does not list redmine-extension.yml"},
+		{name: "forced", verified: true, newAssets: map[string][]byte{asset: two}, force: true, wantWarnings: 2},
+		{name: "verified to verified", verified: true, newAssets: map[string][]byte{asset: two, "checksums.txt": checksumsFor(map[string][]byte{asset: two})}, wantWarnings: 1, wantVerified: true},
+		{name: "unverified to unverified", newAssets: map[string][]byte{asset: two}, wantWarnings: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, fg, _ := testManager(t)
+			first := map[string][]byte{asset: one}
+			if tt.verified {
+				first["checksums.txt"] = checksumsFor(map[string][]byte{asset: one})
+			}
+			fg.addRelease("octo/redmine-cli-pr", "v1.0.0", first)
+			if _, err := m.Install(context.Background(), Source{Owner: "octo", Repo: "redmine-cli-pr", Name: "pr"}, InstallOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			fg.addRelease("octo/redmine-cli-pr", "v1.1.0", tt.newAssets)
+			res, err := m.Upgrade(context.Background(), "pr", UpgradeOptions{Force: tt.force})
+			ext, getErr := m.Get("pr")
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				if ext.Version() != "v1.0.0" || !ext.Install.ChecksumVerified {
+					t.Fatalf("a refused upgrade changed the install: %+v", ext.Install)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Status != StatusUpgraded || ext.Version() != "v1.1.0" || ext.Install.ChecksumVerified != tt.wantVerified {
+				t.Fatalf("result = %+v, install = %+v", res, ext.Install)
+			}
+			if len(res.Warnings) != tt.wantWarnings {
+				t.Errorf("warnings = %q, want %d", res.Warnings, tt.wantWarnings)
+			}
+		})
+	}
+}

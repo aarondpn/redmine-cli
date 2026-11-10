@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -546,4 +547,171 @@ func TestCheckCommandDestructiveAndNumbers(t *testing.T) {
 			t.Fatalf("issue_id lost its digits: %s", te.stdout)
 		}
 	})
+}
+
+// TestInstallAndUpgradePrintWarnings: a binary installed without checksum
+// verification or without a manifest asset is reported on stderr.
+func TestInstallAndUpgradePrintWarnings(t *testing.T) {
+	te := newTestEnv(t)
+	asset := extmgr.BinaryAssetName("pr", "linux", "amd64")
+	te.gh.set("octo/redmine-cli-pr", "v1.0.0", map[string][]byte{asset: []byte("#!/bin/sh\n")})
+	if err := te.run("extension", "install", "octo/redmine-cli-pr", "--yes"); err != nil {
+		t.Fatalf("%v\n%s", err, te.stderr)
+	}
+	for _, want := range []string{
+		"has no checksums file: " + asset + " was installed without checksum verification",
+		"has no redmine-extension.yml asset: installed as a passthrough extension, without declarative commands or MCP tools",
+	} {
+		if !strings.Contains(te.stderr.String(), want) {
+			t.Errorf("install stderr lacks %q:\n%s", want, te.stderr)
+		}
+	}
+
+	te.gh.set("octo/redmine-cli-pr", "v1.1.0", map[string][]byte{asset: []byte("#!/bin/sh\n# new\n")})
+	if err := te.run("extension", "upgrade", "pr", "-o", "json"); err != nil {
+		t.Fatalf("%v\n%s", err, te.stderr)
+	}
+	if !strings.Contains(te.stderr.String(), "pr: release v1.1.0 of octo/redmine-cli-pr has no checksums file") {
+		t.Errorf("upgrade stderr lacks the warning:\n%s", te.stderr)
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(te.stdout.Bytes(), &results); err != nil || len(results) != 1 || results[0]["warnings"] == nil {
+		t.Errorf("upgrade JSON lacks the warnings: %s (%v)", te.stdout, err)
+	}
+}
+
+// TestCheckRejectsWhatInstallRejects: check must not pass an extension that
+// install would refuse, for its name or its executable.
+func TestCheckRejectsWhatInstallRejects(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses shell scripts and the executable bit")
+	}
+	manifest := func(name string) string {
+		return "schema_version: 1\nname: " + name + "\ndescription: x\ncommands:\n  - name: a\n    description: b\n"
+	}
+	tests := []struct {
+		name    string
+		ext     string
+		exe     os.FileMode // 0: no executable
+		goMod   bool
+		wantErr string
+	}{
+		{name: "core alias", ext: "issue", exe: 0o755, wantErr: `extension name "issue" is already taken by the core command`},
+		{name: "core name", ext: "issues", exe: 0o755, wantErr: "already taken by the core command"},
+		{name: "missing executable", ext: "nobin", wantErr: "executable redmine-cli-nobin not found in"},
+		{name: "missing go build", ext: "gobin", goMod: true, wantErr: "build it first: go build -o redmine-cli-gobin"},
+		{name: "not executable", ext: "noexec", exe: 0o644, wantErr: "is not executable"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			te := newTestEnv(t)
+			dir := filepath.Join(t.TempDir(), "redmine-cli-"+tt.ext)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, spec.FileName), []byte(manifest(tt.ext)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if tt.exe != 0 {
+				if err := os.WriteFile(filepath.Join(dir, "redmine-cli-"+tt.ext), []byte("#!/bin/sh\n"), tt.exe); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.goMod {
+				if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := te.run("extension", "check", dir)
+			wantCode(t, err, output.ErrCodeValidationFailed)
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("check: err = %q, want %q", err, tt.wantErr)
+			}
+			if !strings.Contains(tt.name, "core") {
+				// install says the same.
+				err := te.run("extension", "install", dir)
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("install: err = %v, want %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+// TestScaffoldHelpSaysRepeatableOnce guards the scaffold's param
+// description against repeating what the flag help adds by itself.
+func TestScaffoldHelpSaysRepeatableOnce(t *testing.T) {
+	for _, f := range scaffoldFiles("hello", "") {
+		if f.Path == spec.FileName && strings.Contains(f.Content, "(repeatable)") {
+			t.Fatalf("the scaffold manifest says (repeatable) itself:\n%s", f.Content)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	te := newTestEnv(t)
+	t.Chdir(t.TempDir())
+	if err := te.run("extension", "create", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := filepath.Abs("redmine-cli-hello")
+	if err := te.run("extension", "install", dir); err != nil {
+		t.Fatalf("%v\n%s", err, te.stderr)
+	}
+	ext, err := te.manager().Get("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := te.root()
+	Register(root, te.f, []*extmgr.Extension{ext}, te.opts)
+	var help strings.Builder
+	root.SetOut(&help)
+	root.SetErr(&help)
+	root.SetArgs([]string{"hello", "echo", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(help.String(), "(repeatable)"); n != 1 || !strings.Contains(help.String(), "Tags to attach (repeatable)") {
+		t.Fatalf("help mentions (repeatable) %d times:\n%s", n, help.String())
+	}
+}
+
+// TestCreatedGoScaffoldBuilds vets and builds the Go scaffold with the go
+// tool, then runs its echo command through check.
+func TestCreatedGoScaffoldBuilds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a Go program")
+	}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go is not on PATH")
+	}
+	te := newTestEnv(t)
+	t.Chdir(t.TempDir())
+	if err := te.run("extension", "create", "hello", "--precompiled=go"); err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := filepath.Abs("redmine-cli-hello")
+
+	// Before the build, install points at the missing step.
+	if err := te.run("extension", "install", dir); err == nil || !strings.Contains(err.Error(), "build it first: go build -o redmine-cli-hello") {
+		t.Fatalf("install before go build: err = %v, want the build hint", err)
+	}
+
+	gocache := t.TempDir()
+	for _, args := range [][]string{{"vet", "./..."}, {"build", "-o", extmgr.ExecutablePath(dir, "hello"), "."}} {
+		cmd := exec.Command(goBin, args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=", "GOTOOLCHAIN=local", "CGO_ENABLED=0", "GOCACHE="+gocache)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	if err := te.run("extension", "check", dir, "--command", "echo", "--input", `{"message": "hi", "tag": ["a"]}`, "-o", "json"); err != nil {
+		t.Fatalf("%v\nstderr: %s", err, te.stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(te.stdout.Bytes(), &got); err != nil || got["message"] != "hi" {
+		t.Fatalf("result = %s (%v)", te.stdout, err)
+	}
 }

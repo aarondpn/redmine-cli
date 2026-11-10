@@ -91,6 +91,15 @@ A destructive command asks for confirmation, as it does on the CLI, unless
 				ext.Path = extmgr.ExecutablePath(ext.Dir, man.Name)
 			}
 			ext.Manifest = man
+			// The checks install makes beyond the manifest, so that a
+			// manifest check passes does not pass what install rejects.
+			rules := &extmgr.Manager{CoreNames: CoreCommandNames(cmd.Root())}
+			if err := rules.ValidateName(ext.Name); err != nil {
+				return &cmdutil.CodedError{Code: output.ErrCodeValidationFailed, Message: err.Error(), Err: err}
+			}
+			if err := rules.CheckExecutable(ext.Dir, ext.Name); err != nil {
+				return &cmdutil.CodedError{Code: output.ErrCodeValidationFailed, Message: err.Error(), Err: err}
+			}
 
 			if command == "" {
 				printCheck(f.Printer(""), ext, path)
@@ -127,9 +136,6 @@ A destructive command asks for confirmation, as it does on the CLI, unless
 			prepared, err := spec.PrepareInput(c, spec.NormalizeArguments(c, obj))
 			if err != nil {
 				return inputError(err)
-			}
-			if _, err := os.Stat(ext.Path); err != nil {
-				return fmt.Errorf("executable %s not found (build it first)", ext.Path)
 			}
 			label := "redmine " + ext.Name + " " + c.Name
 			// check runs the command for real: a destructive one needs the

@@ -231,3 +231,64 @@ func TestCheckValue(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegersMustBeExact: JSON integers beyond int64 used to pass the
+// schema (they are integral) and reach the extension as a rounded float.
+func TestIntegersMustBeExact(t *testing.T) {
+	c := &Command{Name: "a", Description: "d", Params: []Param{
+		{Name: "id", Type: TypeInteger},
+		{Name: "ids", Type: TypeInteger, Array: true},
+	}}
+	prepare := func(raw string) (map[string]any, error) {
+		args, err := DecodeArguments([]byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return PrepareInput(c, NormalizeArguments(c, args))
+	}
+
+	for raw, want := range map[string]string{
+		`{"id": 12345678901234567890}`:       "id: must be an exact 64-bit integer (got 1.2345678901234567e+19)",
+		`{"id": -9223372036854775809}`:       "id: must be an exact 64-bit integer (got -9.223372036854776e+18)",
+		`{"id": 1e300}`:                      "id: must be an exact 64-bit integer (got 1e+300)",
+		`{"ids": [1, 12345678901234567890]}`: "ids[1]: must be an exact 64-bit integer (got 1.2345678901234567e+19)",
+	} {
+		if _, err := prepare(raw); err == nil || err.Error() != want {
+			t.Errorf("%s: error = %v, want %q", raw, err, want)
+		}
+	}
+
+	got, err := prepare(`{"id": 9223372036854775807, "ids": [-9223372036854775808, 9007199254740993, 1e3, 2.0]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"id": int64(9223372036854775807), "ids": []any{int64(-9223372036854775808), int64(9007199254740993), int64(1000), int64(2)}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("PrepareInput = %#v, want %#v", got, want)
+	}
+
+	// A float64 at or beyond 2^53 cannot tell which integer was meant.
+	if err := ValidateInput(c, map[string]any{"id": float64(1 << 53)}); err == nil {
+		t.Error("ValidateInput accepted 2^53 as a float64")
+	}
+	if err := ValidateInput(c, map[string]any{"id": float64(1<<53 - 1)}); err != nil {
+		t.Errorf("ValidateInput(2^53-1) = %v", err)
+	}
+}
+
+// TestJSONArrayItemsSchemaIsObject: an item schema of `true` is valid JSON
+// Schema, but some MCP clients reject boolean schemas.
+func TestJSONArrayItemsSchemaIsObject(t *testing.T) {
+	for _, p := range []Param{
+		{Name: "docs", Type: TypeJSON, Array: true},
+		{Name: "docs", Type: TypeJSON, Array: true, Description: "Documents"},
+	} {
+		data, err := json.Marshal(InputSchema(&Command{Params: []Param{p}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), `"items":{"description":"Any JSON value."}`) || strings.Contains(string(data), "true") {
+			t.Errorf("InputSchema = %s", data)
+		}
+	}
+}

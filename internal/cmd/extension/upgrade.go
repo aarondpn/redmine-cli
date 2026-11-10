@@ -24,7 +24,10 @@ func newCmdUpgrade(f *cmdutil.Factory, opts Options) *cobra.Command {
 
 A binary extension is reinstalled from its latest release when the tag
 differs from the installed one; a git extension is fast-forwarded to its
-upstream with 'git pull --ff-only'. Pinned and local extensions are skipped.`,
+upstream with 'git pull --ff-only'. Pinned and local extensions are skipped.
+
+A binary extension installed from a checksum-verified release is only
+upgraded to a release that can be verified too, unless --force is given.`,
 		Example: `  redmine extension upgrade pr
   redmine extension upgrade --all --dry-run`,
 		Args:              cobra.MaximumNArgs(1),
@@ -70,6 +73,9 @@ upstream with 'git pull --ff-only'. Pinned and local extensions are skipped.`,
 				if r.Status == extmgr.StatusFailed {
 					failed++
 				}
+				for _, w := range r.Warnings {
+					printer.Warning(r.Name + ": " + w)
+				}
 			}
 			if printer.Format() == output.FormatJSON {
 				printer.JSON(results)
@@ -88,7 +94,7 @@ upstream with 'git pull --ff-only'. Pinned and local extensions are skipped.`,
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Upgrade every installed extension")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Only report available upgrades")
-	cmd.Flags().BoolVar(&upForce, "force", false, "Reinstall binaries even when current; reset git extensions to upstream, discarding local changes")
+	cmd.Flags().BoolVar(&upForce, "force", false, "Reinstall binaries even when current or no longer checksum-verified; reset git extensions to upstream, discarding local changes")
 	return cmd
 }
 

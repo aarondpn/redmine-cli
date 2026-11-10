@@ -37,7 +37,9 @@ func DecodeArguments(raw []byte) (map[string]any, error) {
 
 // NormalizeArguments converts the json.Number values DecodeArguments keeps
 // into int64 (when the number is an integer in range) or float64, the types
-// the input validation knows, for every argument except json params. Those
+// the input validation knows, for every argument except json params. An
+// integer outside the int64 range becomes a float64, which PrepareInput
+// then rejects for integer params instead of forwarding a rounded value. Those
 // keep json.Number, as the CLI does for a json flag, so an arbitrary JSON
 // value reaches the extension with its exact digits on both surfaces.
 func NormalizeArguments(c *Command, args map[string]any) map[string]any {

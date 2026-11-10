@@ -2,16 +2,20 @@ package spec
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,48 +49,162 @@ func (o Options) file() string {
 // ParseFile reads and validates the manifest at path. Errors name the file
 // by its base name, matching how authors refer to redmine-extension.yml.
 func ParseFile(path string, opts Options) (*Manifest, error) {
+	m, _, err := parseFile(path, opts, false)
+	return m, err
+}
+
+// ParseFileLenient is ParseFile in lenient mode; see ParseLenient.
+func ParseFileLenient(path string, opts Options) (*Manifest, []*Error, error) {
+	return parseFile(path, opts, true)
+}
+
+func parseFile(path string, opts Options, lenient bool) (*Manifest, []*Error, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, MaxManifestSize+1))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if opts.File == "" {
 		opts.File = filepath.Base(path)
 	}
-	return Parse(data, opts)
+	return parse(data, opts, lenient)
 }
 
-// Parse decodes and validates a manifest: YAML syntax, the embedded JSON
-// Schema, then the semantic rules. Validation problems are returned as a
-// *ValidationError whose entries carry file:line positions.
+// Parse decodes and validates a manifest strictly: YAML syntax, then
+// schema_version and min_cli_version (so a manifest written for a newer
+// redmine-cli is reported as such rather than as a list of unknown fields),
+// then the embedded JSON Schema and the semantic rules together. Validation
+// problems are returned as a *ValidationError whose entries carry file:line
+// positions, ordered by line. Unknown fields are errors; this is the mode
+// for `redmine extension check`, install and the published schema.
 func Parse(data []byte, opts Options) (*Manifest, error) {
+	m, _, err := parse(data, opts, false)
+	return m, err
+}
+
+// ParseLenient is Parse except that unknown fields are not errors: they are
+// dropped before validation and returned as warnings (one *Error per field,
+// ordered by line), so a manifest using fields added by a newer redmine-cli
+// with the same schema_version still loads. Warnings are returned even when
+// err is non-nil. Every other rule is enforced exactly as by Parse.
+func ParseLenient(data []byte, opts Options) (*Manifest, []*Error, error) {
+	return parse(data, opts, true)
+}
+
+func parse(data []byte, opts Options, lenient bool) (*Manifest, []*Error, error) {
 	file := opts.file()
 	if len(data) > MaxManifestSize {
-		return nil, &ValidationError{Errors: []*Error{{File: file, Message: fmt.Sprintf("manifest is larger than %d bytes", MaxManifestSize)}}}
+		return nil, nil, &ValidationError{Errors: []*Error{{File: file, Message: fmt.Sprintf("manifest is larger than %d bytes", MaxManifestSize)}}}
 	}
 	doc, pos, err := decodeYAML(data, file)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if err := checkCompatibility(doc, pos, opts); err != nil {
+		return nil, nil, err
 	}
 
-	if err := validateAgainstSchema(doc, pos, file); err != nil {
-		return nil, err
+	root, err := manifestSchema()
+	if err != nil {
+		return nil, nil, err
+	}
+	var warnings []*Error
+	if lenient {
+		warnings = dropUnknownFields(doc, root, pos, file)
+	}
+	is := &issues{file: file, pos: pos}
+	if err := newSchemaChecker().check(is, "", doc, root); err != nil {
+		return nil, warnings, err
 	}
 
+	// Semantic rules run whenever the document fits the structs, even if
+	// the schema found problems, so one pass reports everything.
 	m, err := fromTree(doc)
 	if err != nil {
-		// The schema admits only shapes the structs can hold, so this is
-		// an internal inconsistency rather than an author mistake.
-		return nil, &ValidationError{Errors: []*Error{{File: file, Message: err.Error()}}}
+		if len(is.list) == 0 {
+			// The schema admits only shapes the structs can hold, so this
+			// is an internal inconsistency rather than an author mistake.
+			is.list = append(is.list, &Error{File: file, Message: err.Error()})
+		}
+		return nil, warnings, is.err()
 	}
-	if err := validateSemantics(m, opts, pos); err != nil {
-		return nil, err
+	validateSemantics(is, m, opts)
+	if err := is.err(); err != nil {
+		return nil, warnings, err
 	}
-	return m, nil
+	return m, warnings, nil
+}
+
+// checkCompatibility enforces schema_version and min_cli_version before
+// anything else. A manifest for a newer schema or redmine-cli may use
+// fields this build does not know; reporting those would hide the real
+// fix, upgrading. Values of the wrong shape are left to the schema.
+func checkCompatibility(doc any, pos positions, opts Options) error {
+	obj, ok := doc.(map[string]any)
+	if !ok {
+		return nil
+	}
+	is := &issues{file: opts.file(), pos: pos}
+	if v, ok := obj["schema_version"]; ok && jsonTypeOf(v) == "integer" {
+		if n, ok := coerceScalar(TypeInteger, v); ok && n != int64(CurrentSchemaVersion) {
+			is.addf("/schema_version", "unsupported schema_version %d (this redmine-cli supports %d)", n, CurrentSchemaVersion)
+		} else if !ok {
+			is.addf("/schema_version", "unsupported schema_version %s (this redmine-cli supports %d)", formatValue(v), CurrentSchemaVersion)
+		}
+	}
+	if v, ok := obj["min_cli_version"].(string); ok {
+		want, ok := parseVersion(v)
+		if running, release := parseVersion(opts.CLIVersion); ok && release && compareVersions(running, want) < 0 {
+			is.addf("/min_cli_version", "requires redmine-cli %s or newer (running %s)", v, opts.CLIVersion)
+		}
+	}
+	return is.err()
+}
+
+// dropUnknownFields removes, in place, every object member the schema does
+// not declare where it forbids additional properties, and returns one
+// warning per removed member.
+func dropUnknownFields(doc any, root *jsonschema.Schema, pos positions, file string) []*Error {
+	var out []*Error
+	var walk func(ptr string, v any, s *jsonschema.Schema)
+	walk = func(ptr string, v any, s *jsonschema.Schema) {
+		if s == nil {
+			return
+		}
+		switch val := v.(type) {
+		case map[string]any:
+			if s.Properties == nil {
+				return
+			}
+			for _, k := range slices.Sorted(maps.Keys(val)) {
+				sub, ok := s.Properties[k]
+				if !ok {
+					if isFalseSchema(s.AdditionalProperties) {
+						out = append(out, &Error{
+							File:    file,
+							Line:    pos.line(pointer(ptr, k)),
+							Path:    displayPath(ptr),
+							Message: fmt.Sprintf("unknown field %q ignored", k),
+						})
+						delete(val, k)
+					}
+					continue
+				}
+				walk(pointer(ptr, k), val[k], sub)
+			}
+		case []any:
+			for i, item := range val {
+				walk(pointer(ptr, i), item, s.Items)
+			}
+		}
+	}
+	walk("", doc, root)
+	slices.SortStableFunc(out, func(a, b *Error) int { return cmp.Compare(a.Line, b.Line) })
+	return out
 }
 
 // fromTree converts the JSON-compatible document into the typed manifest.

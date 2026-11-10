@@ -14,6 +14,7 @@ import (
 // sleeping subshell).
 func startInGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setParentDeathSignal(cmd.SysProcAttr)
 }
 
 // killGroup kills the process group of cmd.

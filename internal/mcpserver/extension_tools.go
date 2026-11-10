@@ -85,6 +85,33 @@ func (t ExtensionTool) usable() bool {
 	return t.Extension != "" && t.Command != nil && !t.Command.Raw && t.Command.MCPEnabled()
 }
 
+// SkippedTool is an extension tool left out because another tool has its
+// name. `mcp tools` lists it, so the clash is visible there and not only
+// in a warning.
+type SkippedTool struct {
+	ToolDescriptor
+	// ClashesWith is the extension whose tool has the name, empty when it
+	// is a core tool.
+	ClashesWith string
+}
+
+// Reason describes the clash, e.g. "name clash with extension a".
+func (s SkippedTool) Reason() string {
+	if s.ClashesWith == "" {
+		return "name clash with a core tool"
+	}
+	return "name clash with extension " + s.ClashesWith
+}
+
+// warning is the message an operator sees for s.
+func (s SkippedTool) warning(command string) string {
+	what := "a core tool has the same name"
+	if s.ClashesWith != "" {
+		what = "extension " + s.ClashesWith + " already provides a tool of that name"
+	}
+	return fmt.Sprintf("extension %s: skipping MCP tool %s (command %s): %s", s.Extension, s.Name, command, what)
+}
+
 // ResolveExtensionTools drops the tools that cannot be registered: a tool
 // whose name is taken by a generated tool or by an earlier extension tool
 // (extensions are taken in name order, so the result does not depend on
@@ -92,6 +119,17 @@ func (t ExtensionTool) usable() bool {
 // remaining tools and one warning per tool skipped because of a name clash.
 // The server still starts; the warnings tell the operator what is missing.
 func ResolveExtensionTools(tools []ExtensionTool) ([]ExtensionTool, []string) {
+	kept, skipped, commands := resolveExtensionTools(tools)
+	var warnings []string
+	for i, s := range skipped {
+		warnings = append(warnings, s.warning(commands[i]))
+	}
+	return kept, warnings
+}
+
+// resolveExtensionTools is ResolveExtensionTools, returning the skipped
+// tools and, at the same index, the command each one runs.
+func resolveExtensionTools(tools []ExtensionTool) (kept []ExtensionTool, skipped []SkippedTool, commands []string) {
 	ordered := make([]ExtensionTool, 0, len(tools))
 	for _, t := range tools {
 		if t.usable() {
@@ -104,24 +142,17 @@ func ResolveExtensionTools(tools []ExtensionTool) ([]ExtensionTool, []string) {
 	for _, d := range generatedToolDescriptors() {
 		owner[d.Name] = ""
 	}
-	var (
-		kept     []ExtensionTool
-		warnings []string
-	)
 	for _, t := range ordered {
 		name := t.Name()
 		if by, taken := owner[name]; taken {
-			what := "a core tool has the same name"
-			if by != "" {
-				what = "extension " + by + " already provides a tool of that name"
-			}
-			warnings = append(warnings, fmt.Sprintf("extension %s: skipping MCP tool %s (command %s): %s", t.Extension, name, t.Command.Name, what))
+			skipped = append(skipped, SkippedTool{ToolDescriptor: t.descriptor(), ClashesWith: by})
+			commands = append(commands, t.Command.Name)
 			continue
 		}
 		owner[name] = t.Extension
 		kept = append(kept, t)
 	}
-	return kept, warnings
+	return kept, skipped, commands
 }
 
 // registerExtensionTools registers opts.ExtensionTools after the generated
@@ -149,15 +180,16 @@ func registerExtensionTools(srv *mcp.Server, opts Options) {
 			Description: t.Description(),
 			InputSchema: spec.InputSchema(t.Command),
 			Annotations: annotations,
-		}, extensionToolHandler(t))
+		}, extensionToolHandler(t, opts.ExtensionRuns))
 	}
 }
 
 // extensionToolHandler validates the arguments against the command's
 // params, runs the extension and turns its output into the tool result.
 // Every failure is a tool error (isError), never a protocol error, so the
-// model sees the message and can correct its call.
-func extensionToolHandler(t ExtensionTool) mcp.ToolHandler {
+// model sees the message and can correct its call. runs, when set, tracks
+// the run so a server that shuts down can stop it.
+func extensionToolHandler(t ExtensionTool, runs *ExtensionRuns) mcp.ToolHandler {
 	name := t.Name()
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var raw json.RawMessage
@@ -182,7 +214,12 @@ func extensionToolHandler(t ExtensionTool) mcp.ToolHandler {
 		// `redmine api` with a mutating method by mistake.
 		env.ReadOnly = env.ReadOnly || !t.Command.Writes
 
-		res, err := runner.RunCommand(ctx, t.Path, t.Command, input, env.Environ(os.Environ()), nil)
+		runCtx, done, ok := runs.begin(ctx)
+		if !ok {
+			return extensionToolError(name + ": " + errShuttingDown.Error()), nil
+		}
+		res, err := runner.RunCommand(runCtx, t.Path, t.Command, input, env.Environ(os.Environ()), nil)
+		done()
 		if err != nil {
 			// The message carries the extension's stderr, which may quote
 			// a response it got from Redmine.
@@ -253,8 +290,9 @@ func extensionToolError(msg string) *mcp.CallToolResult {
 // structuredContent must be an object; output that is not JSON is passed
 // on as text. Every shape is redacted before it leaves the server, so an
 // extension relaying /my/account.json cannot hand the API key to the
-// client: JSON documents (one, or several in a row as NDJSON) through the
-// structured redaction, anything else by masking keys in the text.
+// client: JSON documents (one, or several in a row as NDJSON) by dropping
+// secret keys and masking keys in every string (redactExtensionJSON),
+// anything else by masking keys in the text.
 func extensionToolResult(stdout []byte) *mcp.CallToolResult {
 	v, ok := runner.DecodeOutput(stdout)
 	if !ok {
@@ -264,7 +302,7 @@ func extensionToolResult(stdout []byte) *mcp.CallToolResult {
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}
 	}
-	redactSecrets(&v)
+	v = redactExtensionJSON(v)
 	body, err := json.Marshal(v)
 	if err != nil {
 		return extensionToolError("failed to encode response: " + err.Error())
@@ -294,7 +332,7 @@ func redactJSONStream(stdout []byte) (text string, ok bool) {
 		if err != nil {
 			return "", false
 		}
-		redactSecrets(&v)
+		v = redactExtensionJSON(v)
 		line, err := json.Marshal(v)
 		if err != nil {
 			return "", false

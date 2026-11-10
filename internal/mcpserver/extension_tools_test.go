@@ -467,6 +467,38 @@ func TestResolveExtensionTools_NameClash(t *testing.T) {
 	if strings.Join(warnings, "\n") != strings.Join(wantWarnings, "\n") {
 		t.Errorf("warnings =\n%s\nwant\n%s", strings.Join(warnings, "\n"), strings.Join(wantWarnings, "\n"))
 	}
+
+	// The input order does not matter.
+	reversed := make([]ExtensionTool, len(tools))
+	for i, tool := range tools {
+		reversed[len(tools)-1-i] = tool
+	}
+	keptRev, warningsRev := ResolveExtensionTools(reversed)
+	if len(keptRev) != len(kept) || keptRev[0].Extension != "a" || strings.Join(warningsRev, "\n") != strings.Join(wantWarnings, "\n") {
+		t.Errorf("reversed input: kept %v, warnings %v", keptRev, warningsRev)
+	}
+}
+
+func TestCatalog_SkippedTools(t *testing.T) {
+	c := NewCatalog([]ExtensionTool{clashTool("list", "issues"), clashTool("a-b", "c"), clashTool("a", "b-c")})
+	skipped := c.SkippedTools()
+	if len(skipped) != 2 {
+		t.Fatalf("SkippedTools() = %+v, want 2", skipped)
+	}
+	if s := skipped[0]; s.Name != "a_b_c" || s.Group != "ext-a-b" || s.ClashesWith != "a" || s.Reason() != "name clash with extension a" {
+		t.Errorf("skipped[0] = %+v (%s)", s, s.Reason())
+	}
+	if s := skipped[1]; s.Name != "list_issues" || s.Group != "ext-list" || s.ClashesWith != "" || s.Reason() != "name clash with a core tool" {
+		t.Errorf("skipped[1] = %+v (%s)", s, s.Reason())
+	}
+	// A skipped tool is not a tool of the catalog, and an extension
+	// without another tool has no group.
+	if _, err := c.ParseGroup("ext-a-b"); err == nil {
+		t.Error("ext-a-b has no tool left and must not be a group")
+	}
+	if !c.IsKnownTool("a_b_c") {
+		t.Error("a_b_c is served by extension a")
+	}
 }
 
 // A clashing extension tool must not replace the core tool even when the

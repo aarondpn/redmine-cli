@@ -41,16 +41,21 @@ JSON to stdout, call Redmine through `redmine api`.
   `$XDG_DATA_HOME/redmine-cli/extensions`, else `~/.local/share/redmine-cli/extensions`;
   on Windows `%LOCALAPPDATA%\redmine-cli\extensions`.
 - One directory per extension: `<root>/redmine-cli-<name>/`.
-  - **binary**: `redmine-cli-<name>[.exe]`, `install.yml` (owner, repo, tag,
-    sha256, pinned, installed_at, kind), optional `redmine-extension.yml`.
+  - **binary**: `redmine-cli-<name>[.exe]`, optional `redmine-extension.yml`.
   - **git** (script): a git clone; executable `redmine-cli-<name>` at repo root;
-    optional `redmine-extension.yml` at repo root. `install.yml` is not inside the
-    clone; git metadata lives in `<root>/.meta/<name>.yml` (or equivalent outside
-    the worktree) so `git pull` stays clean.
+    optional `redmine-extension.yml` at repo root.
+  - Install metadata for every kind (owner, repo, tag, sha256, pinned,
+    installed_at, kind, checksum_verified) lives in `<root>/.meta/<name>.yml`,
+    never inside the extension directory: a file there could come from the
+    repository and forge the extension's origin.
   - **local**: `<root>/redmine-cli-<name>` is a symlink to a local directory
     (Windows: a small link file containing the path). The manifest is re-read on
     every start.
 - Writes are atomic (temp dir + rename). Removal deletes the directory / link only.
+- Checksums: verified when the release publishes a checksums file. Otherwise
+  the install warns. Upgrading from a checksum-verified version to one that
+  cannot be verified fails unless `--force`. A release without a manifest asset
+  installs as passthrough with a warning.
 
 ## Commands (`redmine extension`, alias `ext`)
 
@@ -87,7 +92,7 @@ commands:
     writes: false               # default false
     destructive: false          # default false; implies confirmation in CLI
     mcp: true                   # default true; false = CLI only
-    timeout: 30s                # default 60s, max 5m
+    timeout: 30s                # default 60s; > 0 and ≤ 5m (ms, s, m, or NmMs)
     params:
       - { name: issue_id, type: integer, required: true, positional: true, description: Redmine issue ID }
       - { name: state, type: string, enum: [open, merged, closed], default: open }
@@ -112,12 +117,23 @@ positional may only be last). `json` accepts a JSON string or `@file` in the CLI
 and any JSON value over MCP.
 
 Semantic rules (enforced in Go, beyond the JSON Schema):
-unique command names and param names; names match `^[a-z][a-z0-9_-]*$`;
+unique command names and param names; command names match
+`^[a-z][a-z0-9-]*$`, param names `^[a-z][a-z0-9_]*$`; no two MCP-enabled
+commands map to the same tool name;
 `default` within `enum` and of the right type; positional ordering rules; raw
 commands have no `params`/`output` and are never MCP tools; MCP tool name ≤ 64
 chars; `output` paths non-empty and `jq` expressions compile;
 `schema_version` supported; `min_cli_version` ≤ running version (dev builds
-skip this check); `name` equals the extension name.
+skip this check); `name` equals the extension name; `required` is not combined
+with `default`; boolean params are not arrays; enum values are unique.
+`schema_version` and `min_cli_version` are checked first, so an older CLI
+reports the version it needs rather than unknown fields. Schema and semantic
+errors are reported together, sorted by line.
+
+Strict vs lenient: `install`, `upgrade` and `extension check` reject unknown
+fields. Loading an installed extension at runtime (dispatch, MCP) ignores them
+with one warning per invocation, so an extension written for a newer v1 keeps
+working on older CLIs.
 
 Extensions **without** a manifest are pure passthrough (`gh`-style): `redmine
 <name> args...` runs the executable with the args, CLI only.
@@ -144,6 +160,9 @@ Declarative command:
 - stdout: JSON (object/array/scalar). Non-JSON stdout is shown as text.
 - exit ≠ 0: failure; stderr is the error message (sanitized via
   `output.SanitizeTerminal`/`textsafe`, truncated).
+- signals: SIGINT, SIGTERM and (Unix) SIGHUP kill the process group; on Linux
+  `Pdeathsig` is a backstop. `mcp serve` stops in-flight extension runs before
+  it exits.
 - limits: timeout per command (process group killed; Windows: process),
   stdout ≤ 10 MiB, captured stderr ≤ 64 KiB, context cancellation kills.
 
@@ -196,7 +215,9 @@ propagated. Same env contract otherwise.
   block) for JSON objects, text otherwise; failure → `isError` result.
 - `writes: true` tools only with `--enable-writes`; `writes: false` tools run with
   `REDMINE_READ_ONLY=1`. `destructive` adds "Destructive." to the description.
-- Results go through the existing secret redaction.
+- Results go through secret redaction: keys naming secrets (`*apikey`,
+  `*password`, `token` variants, `Authorization`) are dropped
+  case-insensitively, and every string value goes through text redaction.
 - Enablement: `--enable-extensions` flag / `mcp.enable_extensions` (*bool) /
   `REDMINE_MCP_ENABLE_EXTENSIONS`. Unset: stdio on, HTTP off. Explicit false:
   off everywhere. The setup server (unconfigured Redmine) has no extension tools.

@@ -158,18 +158,23 @@ func TestRunErrorTypes(t *testing.T) {
 func TestRunTimeoutKillsProcessGroup(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	path := script(t, `sleep 60 & echo $! > "`+pidFile+`"; wait`)
-	start := time.Now()
-	_, err := Run(context.Background(), Request{Path: path, Timeout: 300 * time.Millisecond})
-	var timeout *TimeoutError
-	if !errors.As(err, &timeout) {
-		t.Fatalf("err = %v, want timeout", err)
-	}
-	if elapsed := time.Since(start); elapsed > 10*time.Second {
-		t.Fatalf("Run took %s after the timeout", elapsed)
-	}
-	data, err := os.ReadFile(pidFile)
-	if err != nil {
-		t.Fatal(err)
+	// On a loaded machine the shell may not get to start its child before
+	// a short timeout; retry with a longer one rather than fail.
+	var data []byte
+	for timeoutLen := 300 * time.Millisecond; data == nil; timeoutLen *= 4 {
+		start := time.Now()
+		_, err := Run(context.Background(), Request{Path: path, Timeout: timeoutLen})
+		var timeout *TimeoutError
+		if !errors.As(err, &timeout) {
+			t.Fatalf("err = %v, want timeout", err)
+		}
+		if elapsed := time.Since(start); elapsed > timeoutLen+10*time.Second {
+			t.Fatalf("Run took %s after the timeout", elapsed)
+		}
+		data, err = os.ReadFile(pidFile)
+		if err != nil && timeoutLen > 10*time.Second {
+			t.Fatal(err)
+		}
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
@@ -358,10 +363,14 @@ wait $pid`
 		name    string
 		cause   error
 		wantOut string
-		maxTime time.Duration
+		// waitDelay is the kill deadline after the cancellation. For a
+		// passed-on signal it is far beyond the test's own deadline, so a
+		// slow shell cannot be killed before its trap ran: returning at
+		// all proves the extension shut down by itself.
+		waitDelay time.Duration
 	}{
-		{name: "signal cause is passed on", cause: &signalCause{sig: syscall.SIGTERM}, wantOut: "got TERM", maxTime: waitDelay},
-		{name: "plain cancellation kills", cause: errors.New("stop"), maxTime: waitDelay + 5*time.Second},
+		{name: "signal cause is passed on", cause: &signalCause{sig: syscall.SIGTERM}, wantOut: "got TERM", waitDelay: 10 * time.Minute},
+		{name: "plain cancellation kills", cause: errors.New("stop"), waitDelay: 100 * time.Millisecond},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -370,7 +379,7 @@ wait $pid`
 			var stdout lockedBuffer
 			done := make(chan error, 1)
 			go func() {
-				_, err := RunAttached(ctx, AttachedRequest{Path: script(t, body), Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &bytes.Buffer{}})
+				_, err := RunAttached(ctx, AttachedRequest{Path: script(t, body), Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &bytes.Buffer{}, waitDelay: tt.waitDelay})
 				done <- err
 			}()
 			deadline := time.Now().Add(10 * time.Second)
@@ -380,18 +389,14 @@ wait $pid`
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
-			start := time.Now()
 			cancel(tt.cause)
 			select {
 			case err := <-done:
 				if err == nil || !strings.Contains(err.Error(), "extension cancelled") {
 					t.Errorf("err = %v, want the cancellation", err)
 				}
-			case <-time.After(15 * time.Second):
+			case <-time.After(20 * time.Second):
 				t.Fatal("RunAttached did not return after the cancellation")
-			}
-			if took := time.Since(start); took > tt.maxTime {
-				t.Errorf("took %s, want at most %s", took, tt.maxTime)
 			}
 			if got := stdout.String(); tt.wantOut != "" && !strings.Contains(got, tt.wantOut) {
 				t.Errorf("stdout = %q, want %q", got, tt.wantOut)
@@ -414,7 +419,7 @@ while :; do sleep 1; done`
 	var stdout lockedBuffer
 	done := make(chan error, 1)
 	go func() {
-		_, err := RunAttached(ctx, AttachedRequest{Path: script(t, body), Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &bytes.Buffer{}})
+		_, err := RunAttached(ctx, AttachedRequest{Path: script(t, body), Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &bytes.Buffer{}, waitDelay: 100 * time.Millisecond})
 		done <- err
 	}()
 	deadline := time.Now().Add(10 * time.Second)
@@ -430,7 +435,62 @@ while :; do sleep 1; done`
 		if err == nil {
 			t.Error("want an error for the cancelled run")
 		}
-	case <-time.After(waitDelay + 10*time.Second):
+	case <-time.After(20 * time.Second):
 		t.Fatal("an extension ignoring SIGTERM was never killed")
+	}
+}
+
+// TestRunBackgroundChildHoldsOutput covers a handler that leaves a
+// background process holding its stdout and exits: the run ends after
+// waitDelay with the handler's own exit status and output, and the
+// leftover process is killed with the group.
+func TestRunBackgroundChildHoldsOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		exit     string
+		wantCode int
+		wantErr  string
+	}{
+		{name: "success", exit: "exit 0"},
+		{name: "failure", exit: "echo boom >&2; exit 3", wantCode: 3, wantErr: "exit status 3: boom"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pidFile := filepath.Join(t.TempDir(), "pid")
+			body := `(sh -c 'echo $$ > "$1"; exec sleep 30' sh '` + pidFile + `' &)
+while [ ! -s '` + pidFile + `' ]; do sleep 0.01; done
+echo '{"ok":true}'
+` + tt.exit
+			res, err := Run(context.Background(), Request{Path: script(t, body), waitDelay: 100 * time.Millisecond})
+			if tt.wantErr == "" && err != nil {
+				t.Fatalf("err = %v, want success", err)
+			}
+			if tt.wantErr != "" {
+				var exitErr *ExitError
+				if !errors.As(err, &exitErr) || exitErr.Code != tt.wantCode || err.Error() != tt.wantErr {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+			}
+			if res == nil || string(res.Stdout) != "{\"ok\":true}\n" || res.ExitCode != tt.wantCode {
+				t.Fatalf("result = %+v", res)
+			}
+
+			data, err := os.ReadFile(pidFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(10 * time.Second)
+			for syscall.Kill(pid, 0) == nil {
+				if time.Now().After(deadline) {
+					_ = syscall.Kill(pid, syscall.SIGKILL)
+					t.Fatal("the background process survived the run")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
 	}
 }

@@ -2,6 +2,10 @@
 // from the manifest structs in internal/extension/spec, to the embedded copy
 // next to that package and to the published copy served by the docs site.
 // Run it through `go generate ./internal/extension/spec/...`.
+//
+// The generator lives here rather than in the spec package so it is not
+// linked into redmine-cli, which only embeds and validates against the
+// generated file.
 package main
 
 import (
@@ -34,7 +38,7 @@ func main() {
 }
 
 func write(root string) error {
-	data, err := spec.GenerateSchema()
+	data, err := generateSchema()
 	if err != nil {
 		return err
 	}

@@ -243,8 +243,9 @@ extensions
 - **分组。** 在 `--enable-groups` / `--disable-groups` 以及配置块中，`ext-<name>` 选择一个扩展的工具，`extensions` 选择所有扩展的工具。工具名可用于 `--enable-tools` / `--disable-tools`。即使本次运行关闭了扩展工具，过滤条件也会对照所有已安装的扩展进行检查，因此如果配置中仍引用已被移除的扩展，启动时会失败并给出明确的错误。
 - **写入控制。** 声明了 `writes: true` 的工具只在传入 `--enable-writes` 时注册。其他所有扩展工具都以 `REDMINE_READ_ONLY=1` 运行；服务器上的只读身份验证配置文件或 `REDMINE_READ_ONLY=1` 对所有扩展工具生效。破坏性工具会在描述中注明 "Destructive."。
 - **与服务器相同的连接。** 扩展通过 `redmine api` 调用 Redmine，后者获得服务器的身份验证配置文件、配置文件路径、`--server` 和请求头。传给 `mcp serve` 的 `--api-key` / `--api-key-file` 不会被传递（服务器会警告一次）；扩展的调用使用身份验证配置文件中的凭据或 `REDMINE_API_KEY`。
-- **结果。** 参数在扩展启动前按工具的输入 schema 校验。JSON 对象结果以 `structuredContent` 加文本返回，其他结果以文本返回，均经过常规的密钥脱敏。扩展失败、超时（默认 60 秒，除非清单另行设置，最长 5 分钟）或输出超过 10 MiB 时，返回 `isError` 结果，并附上扩展 stderr 的末尾部分。
-- **名称冲突。** 名称已被核心工具或更早的扩展（按名称顺序）占用的工具会被跳过，并在 stderr 打印警告。核心工具永远不会被替换。
+- **结果。** 参数在扩展启动前按工具的输入 schema 校验。JSON 对象结果以 `structuredContent` 加文本返回，其他结果以文本返回。返回前会先脱敏：在 JSON 输出中，键名表示任何写法的 API 密钥（`api_key`、`apiKey`、`X-Redmine-API-Key` 等）、密码、令牌或 `Authorization` 头的条目会被删除，字符串值中引用的 API 密钥（原始响应、日志行）会被遮盖，纯文本和 XML 输出同样如此。扩展失败、超时（默认 60 秒，除非清单另行设置，最长 5 分钟）或输出超过 10 MiB 时，返回 `isError` 结果，并附上扩展 stderr 的末尾部分。
+- **名称冲突。** 名称已被核心工具或更早的扩展（按名称顺序）占用的工具会被跳过，并在 stderr 打印警告。`redmine mcp tools` 会在其所属组中列出该工具，并标记为例如 `skipped: name clash with extension a`。核心工具永远不会被替换。
+- **关闭。** 服务器被停止时（Ctrl-C 或 SIGTERM），仍在运行的扩展工具调用会连同其启动的所有进程一起被终止，这些调用以错误结束。
 
 ```bash
 redmine mcp serve --enable-groups issues,ext-pr      # 核心 issues 工具加一个扩展
@@ -283,7 +284,7 @@ profiles:
 
 6. **使用 `--http` 或 `--profile` 时启动报错。** 使用 `--http`（包括通过 `REDMINE_MCP_HTTP` 或 `mcp.http`）时，缺少凭据会让命令直接报错退出，而不是进入设置模式；`--profile <name>` 指向不存在的配置文件时同样会失败。运行 `redmine auth list` 确认配置文件名称。
 
-7. **缺少扩展工具。** 使用 `--http` 时，除非传入 `--enable-extensions`（或设置 `mcp.enable_extensions` / `REDMINE_MCP_ENABLE_EXTENSIONS`），扩展工具是关闭的。写入工具还需要 `--enable-writes`。请检查服务器 stderr 中关于损坏扩展或名称冲突的警告，并运行 `redmine extension list` 查看扩展是否被标记为损坏。以不同环境启动服务器的 MCP 宿主也可能看到不同的扩展目录（`REDMINE_EXTENSIONS_DIR`、`XDG_DATA_HOME`）。
+7. **缺少扩展工具。** 使用 `--http` 时，除非传入 `--enable-extensions`（或设置 `mcp.enable_extensions` / `REDMINE_MCP_ENABLE_EXTENSIONS`），扩展工具是关闭的。写入工具还需要 `--enable-writes`。请检查服务器 stderr 中关于损坏扩展或名称冲突的警告（`redmine mcp tools` 会把冲突的工具标记为 skipped），并运行 `redmine extension list` 查看扩展是否被标记为损坏。以不同环境启动服务器的 MCP 宿主也可能看到不同的扩展目录（`REDMINE_EXTENSIONS_DIR`、`XDG_DATA_HOME`）。
 
 </Steps>
 

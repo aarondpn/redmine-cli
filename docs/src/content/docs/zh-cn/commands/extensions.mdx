@@ -32,7 +32,7 @@ redmine pr list 1234                          # 像其他命令一样使用
 
 ## install
 
-<Badge text="校验和验证" variant="success" />
+<Badge text="发布校验和时验证" variant="success" />
 
 <Tabs syncKey="ext-install">
   <TabItem label="从 GitHub">
@@ -65,7 +65,7 @@ redmine pr list 1234                          # 像其他命令一样使用
 
 从 GitHub 安装的方式取决于其 release（最新的 release，或 `--pin` 指定的标签）：
 
-1. **二进制。** 如果 release 中有名为 `redmine-cli-<name>-<os>-<arch>`（Windows 上带 `.exe`）的资产，就下载该文件。如果 release 还带有校验和文件（`checksums.txt`、任何以 `checksums.txt` 结尾的文件、`SHA256SUMS` 或 `sha256sums.txt`），会用它校验二进制文件；如果该文件列出了清单，清单也会被校验。校验不一致会中止安装。清单取自 release 资产 `redmine-extension.yml`。
+1. **二进制。** 如果 release 中有名为 `redmine-cli-<name>-<os>-<arch>`（Windows 上带 `.exe`）的资产，就下载该文件。如果 release 还带有校验和文件（`checksums.txt`、任何以 `checksums.txt` 结尾的文件、`SHA256SUMS` 或 `sha256sums.txt`），会用它校验二进制文件；如果该文件列出了清单，清单也会被校验。校验不一致会中止安装。没有校验和文件（或它没有列出清单）时，安装照常进行，但会警告这些文件未经校验。清单取自 release 资产 `redmine-extension.yml`；没有该资产的 release 会作为透传扩展安装（没有声明式命令，也没有 MCP 工具），并给出警告。
 2. **报错。** 如果 release 中有其他平台的二进制文件，却没有你的平台的，安装会失败而不是改为克隆，因为预编译扩展的源码无法直接运行。
 3. **git 克隆。** 其他情况下（没有 release、没有该标签，或根本没有二进制文件），使用 `git` 克隆仓库，因此必须安装 git。`--pin` 会检出该标签。克隆下来的仓库根目录必须有可执行文件 `redmine-cli-<name>`。
 
@@ -134,17 +134,17 @@ redmine extension upgrade --all --dry-run
 
 给出扩展名或 `--all` 二者之一。
 
-- **二进制**扩展在最新 release 的标签与已安装的不同时，会从该 release 重新安装，校验方式与 `install` 相同。
+- **二进制**扩展在最新 release 的标签与已安装的不同时，会从该 release 重新安装，校验方式与 `install` 相同。从经过校验和验证的 release 安装的扩展，只会升级到同样能通过校验的 release；`--force` 可以接受无法校验的 release。
 - **git** 扩展通过 `git pull --ff-only` 更新。
 - **固定版本**和**本地**扩展会被跳过并附带说明。要把固定版本的扩展换成其他版本，请用 `install --pin <tag> --force` 重新安装；不带 `--pin` 重新安装则取消固定。
 
-二进制升级时，如果新 release 未通过某项检查（校验和、清单无效），升级失败并保留旧版本。git pull 无法以同样方式撤销：拉取下来的清单无效时，结果中会附带说明，运行该扩展时也会报告问题。结果是一张表（`Name`、`Status`、`From`、`To`、`Note`）。使用 `-o json` 时是对象数组，包含 `name`、`status`（`upgraded`、`up_to_date`、`available`、`skipped` 或 `failed`）、`from`、`to` 和 `note`。只要有扩展升级失败，命令就以非零状态退出。
+二进制升级时，如果新 release 未通过某项检查（校验和、清单无效），升级失败并保留旧版本。git pull 无法以同样方式撤销：拉取下来的清单无效时，结果中会附带说明，运行该扩展时也会报告问题。结果是一张表（`Name`、`Status`、`From`、`To`、`Note`）。使用 `-o json` 时是对象数组，包含 `name`、`status`（`upgraded`、`up_to_date`、`available`、`skipped` 或 `failed`）、`from`、`to`、`note` 和 `warnings`（升级后的二进制的安装警告，也会打印到 stderr）。只要有扩展升级失败，命令就以非零状态退出。
 
 | 标志 | 描述 |
 |------|------|
 | `--all`     | 升级所有已安装的扩展 |
 | `--dry-run` | 只报告可用的升级（`available`），不安装 |
-| `--force`   | 即使已是最新也重新安装二进制；把 git 扩展重置到上游，丢弃本地修改 |
+| `--force`   | 即使已是最新或无法再通过校验和验证，也重新安装二进制；把 git 扩展重置到上游，丢弃本地修改 |
 
 `redmine extension upgrade` 不会运行 redmine-cli 自身的[启动时更新检查](/zh-cn/commands/other/#启动时更新检查)。
 
@@ -224,7 +224,7 @@ redmine extension check . --command list --input '{"issue_id": 123}'
 redmine extension check . --command list --input @input.json --mcp -o json
 ```
 
-按照 JSON Schema 和语义规则校验某个目录（默认为 `.`）或已安装扩展的 `redmine-extension.yml`，并列出它定义的 CLI 命令和 MCP 工具。看起来像路径的参数（包含 `/` 或以 `.` 开头）视为目录；否则先查找同名的已安装扩展，找不到再当作同名目录。
+按照 JSON Schema 和语义规则校验某个目录（默认为 `.`）或已安装扩展的 `redmine-extension.yml`，并列出它定义的 CLI 命令和 MCP 工具。看起来像路径的参数（包含 `/` 或以 `.` 开头）视为目录；否则先查找同名的已安装扩展，找不到再当作同名目录。与 `install` 一样，`check` 也会拒绝保留的或已被核心命令占用的扩展名，以及缺失或不可执行的可执行文件 `redmine-cli-<name>`；对于 Go 项目，会提示如何构建（`go build -o redmine-cli-<name>`）。schema 不认识的字段在这里以及 `install` 和 `upgrade` 中都是错误；但已安装扩展的清单中如果有这样的字段（为更新版本的 redmine-cli 编写），扩展仍可运行，`redmine` 会为每个未知字段向 stderr 打印一条警告。
 
 ```text
 Command                      │ Mode │ MCP Tool
@@ -288,7 +288,7 @@ Error: invalid value for --state: must be one of: open, merged, closed (got foo)
 Error: redmine pr unlink is destructive and needs confirmation; pass --yes (there is no terminal to ask on)
 ```
 
-**失败。** 扩展的 stderr 会在运行时实时显示（在终端中，除颜色外的控制序列会像 redmine-cli 显示的其他文本一样被中和）。扩展以非零状态退出时，`redmine` 以相同状态退出。JSON 模式下，stderr 的最后一行是常规的[错误信封](/zh-cn/guides/output-formats/#json-错误信封)，错误码为 `extension_failed`。命令运行超过超时时间（默认 60 秒，除非清单另行设置，最长 5 分钟）时，会连同它启动的所有进程一起被终止，并以错误码 `timeout` 失败。
+**失败。** 扩展的 stderr 会在运行时实时显示（在终端中，除颜色外的控制序列会像 redmine-cli 显示的其他文本一样被中和）。扩展以非零状态退出时，`redmine` 以相同状态退出。JSON 模式下，stderr 的最后一行是常规的[错误信封](/zh-cn/guides/output-formats/#json-错误信封)，错误码为 `extension_failed`。命令运行超过超时时间（默认 60 秒，除非清单另行设置，最长 5 分钟）时，会连同它启动的所有进程一起被终止，并以错误码 `timeout` 失败。`redmine` 被中断或终端关闭（SIGHUP）时也是如此。
 
 ### 透传命令
 
@@ -299,7 +299,7 @@ redmine pr --profile work shell   # --profile 属于 redmine-cli
 redmine pr shell --profile work   # --profile 交给扩展
 ```
 
-Ctrl-C 会交给扩展处理，`redmine` 会等待它退出。只发送给 `redmine` 的信号（`kill`、`timeout`、CI 停止作业）会转发给扩展；如果两秒后扩展仍在运行，则会被终止。透传命令不支持 `--jq`。
+Ctrl-C 会交给扩展处理，`redmine` 会等待它退出。只发送给 `redmine` 的信号（`kill`、`timeout`、CI 停止作业）以及终端关闭时的挂断信号会转发给扩展；如果两秒后扩展仍在运行，则会被终止。透传命令不支持 `--jq`。
 
 ### 全局标志与凭据
 
@@ -323,13 +323,15 @@ Run "redmine extension upgrade pr" to upgrade
   - redmine-cli-pr/ 二进制安装
     - redmine-cli-pr
     - redmine-extension.yml
-    - install.yml owner、repo、tag、sha256、pinned
   - redmine-cli-deploy/ git 克隆
   - redmine-cli-hello 指向本地目录的链接
-  - .meta/ git 安装的元数据和更新检查缓存
+  - .meta/
+    - pr.yml 安装元数据：owner、repo、tag、sha256、checksum_verified、pinned
+    - deploy.yml
+    - pr.update-check.json 更新检查缓存
 </FileTree>
 
-设置了 `XDG_DATA_HOME` 时目录为 `$XDG_DATA_HOME/redmine-cli/extensions`，否则为 `~/.local/share/redmine-cli/extensions`。Windows 上为 `%LOCALAPPDATA%\redmine-cli\extensions`。设置 `REDMINE_EXTENSIONS_DIR` 可使用其他目录。git 安装的元数据放在克隆之外的 `.meta/` 中，因此工作区保持干净。
+设置了 `XDG_DATA_HOME` 时目录为 `$XDG_DATA_HOME/redmine-cli/extensions`，否则为 `~/.local/share/redmine-cli/extensions`。Windows 上为 `%LOCALAPPDATA%\redmine-cli\extensions`。设置 `REDMINE_EXTENSIONS_DIR` 可使用其他目录。安装元数据放在扩展目录之外的 `.meta/` 中：git 克隆中的文件来自其仓库，永远不会被当作元数据读取，工作区也保持干净。
 
 | 变量 | 作用 |
 |------|------|

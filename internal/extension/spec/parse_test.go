@@ -134,10 +134,20 @@ func TestParseErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "schema_version, name and min version",
-			src:  "schema_version: 2\nname: Pr\nmin_cli_version: latest\ncommands: []\n",
+			name: "newer schema_version is reported alone",
+			src:  "schema_version: 2\nname: Pr\nmin_cli_version: latest\ncommands: []\nnew_field: x\n",
+			want: []string{"redmine-extension.yml:1: schema_version: unsupported schema_version 2 (this redmine-cli supports 1)"},
+		},
+		{
+			name: "newer min_cli_version is reported before unknown fields",
+			src:  header + "min_cli_version: 3.1.0\ncommands:\n  - name: a\n    description: d\n    added_in_3_1: true\nhooks: {}\n",
+			opts: Options{CLIVersion: "3.0.0"},
+			want: []string{"redmine-extension.yml:3: min_cli_version: requires redmine-cli 3.1.0 or newer (running 3.0.0)"},
+		},
+		{
+			name: "name and min version",
+			src:  "schema_version: 1\nname: Pr\nmin_cli_version: latest\ncommands: []\n",
 			want: []string{
-				"redmine-extension.yml:1: schema_version: must be one of: 1 (got 2)",
 				`redmine-extension.yml:2: name: "Pr" is invalid: use lowercase letters, digits and dashes, starting with a letter or digit`,
 				`redmine-extension.yml:3: min_cli_version: "latest" is invalid: use a semantic version such as 2.9.0`,
 				"redmine-extension.yml:4: commands: must not be empty",
@@ -165,6 +175,8 @@ func TestParseErrors(t *testing.T) {
 				`redmine-extension.yml:3: unknown field "colour"`,
 				`redmine-extension.yml:7: commands[0]: unknown field "alias"`,
 				`redmine-extension.yml:9: commands[0].params[0]: unknown field "flag"`,
+				// Semantic rules still run when the schema fails.
+				"redmine-extension.yml:10: commands[0].output: output must define table or detail",
 				`redmine-extension.yml:11: commands[0].output: unknown field "list"`,
 			},
 		},
@@ -172,9 +184,9 @@ func TestParseErrors(t *testing.T) {
 			name: "command name, description and timeout",
 			src:  header + "commands:\n  - name: List\n    description: \"\"\n    timeout: soon\n",
 			want: []string{
-				`redmine-extension.yml:4: commands[0].name: "List" is invalid: use lowercase letters, digits, '_' and '-', starting with a letter`,
+				`redmine-extension.yml:4: commands[0].name: "List" is invalid: use lowercase letters, digits and '-', starting with a letter`,
 				"redmine-extension.yml:5: commands[0].description: must not be empty",
-				`redmine-extension.yml:6: commands[0].timeout: "soon" is invalid: use a duration such as 30s or 2m`,
+				`redmine-extension.yml:6: commands[0].timeout: "soon" is invalid: use a duration from 1ms to 5m such as 500ms, 30s, 2m or 1m30s`,
 			},
 		},
 		{
@@ -220,8 +232,8 @@ func TestParseErrors(t *testing.T) {
 				"  - name: b\n    description: d\n    raw: true\n    mcp: true\n" +
 				"  - name: c\n    description: d\n    destructive: true\n",
 			want: []string{
-				"redmine-extension.yml:4: commands[0]: raw commands take no params or output and are never MCP tools",
-				"redmine-extension.yml:8: commands[1]: raw commands take no params or output and are never MCP tools",
+				"redmine-extension.yml:7: commands[0].params: raw commands take no params (arguments are passed through)",
+				"redmine-extension.yml:11: commands[1].mcp: raw commands are never MCP tools",
 				"redmine-extension.yml:12: commands[2]: destructive commands must also set writes: true",
 			},
 		},
@@ -277,21 +289,20 @@ func TestParseErrors(t *testing.T) {
 				"      - {name: output, type: string}\n" +
 				"      - {name: api_key, type: string}\n" +
 				"      - {name: output, type: string, positional: true}\n" +
-				"      - {name: due_date, type: string}\n" +
 				"      - {name: due-date, type: string}\n",
 			want: []string{
 				"redmine-extension.yml:7: commands[0].params[0].name: flag --output is reserved by redmine-cli; rename the param or make it positional",
 				"redmine-extension.yml:8: commands[0].params[1].name: flag --api-key is reserved by redmine-cli; rename the param or make it positional",
 				`redmine-extension.yml:9: commands[0].params[2].name: duplicate param name "output" (first defined on line 7)`,
-				`redmine-extension.yml:11: commands[0].params[4].name: params "due_date" and "due-date" both map to the flag --due-date`,
+				`redmine-extension.yml:10: commands[0].params[3].name: "due-date" is invalid: use lowercase letters, digits and '_', starting with a letter`,
 			},
 		},
 		{
-			name: "semantic: timeout bounds",
+			name: "timeout bounds",
 			src:  header + "commands:\n  - name: a\n    description: d\n    timeout: 10m\n  - name: b\n    description: d\n    timeout: 0s\n",
 			want: []string{
-				"redmine-extension.yml:6: commands[0].timeout: timeout 10m exceeds the maximum of 5m",
-				"redmine-extension.yml:9: commands[1].timeout: timeout must be positive",
+				`redmine-extension.yml:6: commands[0].timeout: "10m" is invalid: use a duration from 1ms to 5m such as 500ms, 30s, 2m or 1m30s`,
+				`redmine-extension.yml:9: commands[1].timeout: "0s" is invalid: use a duration from 1ms to 5m such as 500ms, 30s, 2m or 1m30s`,
 			},
 		},
 		{
@@ -348,7 +359,7 @@ func TestParseErrors(t *testing.T) {
 			name: "custom file name",
 			src:  "schema_version: 2\nname: pr\ncommands: [{name: a, description: d}]\n",
 			opts: Options{File: "x/manifest.yml"},
-			want: []string{"x/manifest.yml:1: schema_version: must be one of: 1 (got 2)"},
+			want: []string{"x/manifest.yml:1: schema_version: unsupported schema_version 2 (this redmine-cli supports 1)"},
 		},
 	}
 	for _, tt := range tests {
@@ -462,7 +473,94 @@ func TestParseFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := ParseFile(path, Options{})
-	if err == nil || err.Error() != "redmine-extension.yml:1: schema_version: must be one of: 1 (got 2)" {
+	if err == nil || err.Error() != "redmine-extension.yml:1: schema_version: unsupported schema_version 2 (this redmine-cli supports 1)" {
 		t.Fatalf("ParseFile = %v", err)
+	}
+}
+
+// TestParseMergesSchemaAndSemanticErrors checks that semantic problems are
+// reported even when the schema fails, interleaved by line.
+func TestParseMergesSchemaAndSemanticErrors(t *testing.T) {
+	src := header + "colour: red\ncommands:\n  - name: a\n    description: d\n    params:\n" +
+		"      - {name: p, type: string}\n      - {name: p, type: string}\n" +
+		"  - name: b\n    description: d\n    timeout: 0s\n"
+	_, err := Parse([]byte(src), Options{})
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("Parse = %v", err)
+	}
+	want := []string{
+		`redmine-extension.yml:3: unknown field "colour"`,
+		`redmine-extension.yml:9: commands[0].params[1].name: duplicate param name "p" (first defined on line 8)`,
+		`redmine-extension.yml:12: commands[1].timeout: "0s" is invalid: use a duration from 1ms to 5m such as 500ms, 30s, 2m or 1m30s`,
+	}
+	if got := ve.Details(); !reflect.DeepEqual(got, want) {
+		t.Errorf("errors =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+}
+
+func TestParseLenient(t *testing.T) {
+	src := header + "colour: red\ncommands:\n  - name: a\n    description: d\n    alias: b\n    params:\n" +
+		"      - {name: p, type: string, flag: x}\n    output:\n      table: [{header: A, path: a, width: 3}]\n"
+
+	if _, err := Parse([]byte(src), Options{}); err == nil {
+		t.Fatal("strict Parse accepted unknown fields")
+	}
+
+	m, warnings, err := ParseLenient([]byte(src), Options{})
+	if err != nil {
+		t.Fatalf("ParseLenient: %v", err)
+	}
+	if c := m.Command("a"); c == nil || c.Param("p") == nil || len(c.Output.Table) != 1 {
+		t.Fatalf("manifest = %+v", m)
+	}
+	var got []string
+	for _, w := range warnings {
+		got = append(got, w.Error())
+	}
+	want := []string{
+		`redmine-extension.yml:3: unknown field "colour" ignored`,
+		`redmine-extension.yml:7: commands[0]: unknown field "alias" ignored`,
+		`redmine-extension.yml:9: commands[0].params[0]: unknown field "flag" ignored`,
+		`redmine-extension.yml:11: commands[0].output.table[0]: unknown field "width" ignored`,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("warnings =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+}
+
+func TestParseLenientStillValidates(t *testing.T) {
+	// Other problems stay errors, and warnings come back alongside them.
+	src := header + "colour: red\ncommands:\n  - name: a\n    descripton: d\n"
+	_, warnings, err := ParseLenient([]byte(src), Options{})
+	if err == nil || err.Error() != `redmine-extension.yml:5: commands[0]: missing required field "description"` {
+		t.Fatalf("ParseLenient error = %v", err)
+	}
+	if len(warnings) != 2 || warnings[1].Message != `unknown field "descripton" ignored` {
+		t.Errorf("warnings = %v", warnings)
+	}
+
+	// The compatibility gate still comes first.
+	src = header + "min_cli_version: 9.0.0\ncommands: [{name: a, description: d}]\n"
+	_, _, err = ParseLenient([]byte(src), Options{CLIVersion: "2.9.0"})
+	if err == nil || !strings.Contains(err.Error(), "requires redmine-cli 9.0.0 or newer") {
+		t.Fatalf("ParseLenient = %v", err)
+	}
+}
+
+func TestParseFileLenient(t *testing.T) {
+	path := filepath.Join(t.TempDir(), FileName)
+	if err := os.WriteFile(path, []byte(header+"future: 1\ncommands: [{name: a, description: d}]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, warnings, err := ParseFileLenient(path, Options{})
+	if err != nil || m == nil {
+		t.Fatalf("ParseFileLenient = %v, %v", m, err)
+	}
+	if len(warnings) != 1 || warnings[0].Error() != `redmine-extension.yml:3: unknown field "future" ignored` {
+		t.Errorf("warnings = %v", warnings)
+	}
+	if _, _, err := ParseFileLenient(filepath.Join(t.TempDir(), FileName), Options{}); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("missing file: %v", err)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -145,5 +146,18 @@ func TestInterruptEndsBlockedPrompt(t *testing.T) {
 	}
 	if code := waitExit(t, cmd, stderr); code != 130 {
 		t.Fatalf("exit code = %d, want 130; stderr:\n%s", code, stderr)
+	}
+}
+
+// TestHangupSignalsRespectNohup: a SIGHUP that redmine was started with
+// ignored (nohup) must stay ignored, so it is not caught. The process's own
+// signal state is not touched: an ignored SIGHUP would be inherited by the
+// CLI processes other tests start.
+func TestHangupSignalsRespectNohup(t *testing.T) {
+	if got := hangupSignalsUnless(func(os.Signal) bool { return false }); len(got) != 1 || got[0] != syscall.SIGHUP {
+		t.Fatalf("hangupSignals() = %v, want SIGHUP", got)
+	}
+	if got := hangupSignalsUnless(func(s os.Signal) bool { return s == syscall.SIGHUP }); len(got) != 0 {
+		t.Fatalf("hangupSignals() = %v with SIGHUP ignored, want none", got)
 	}
 }

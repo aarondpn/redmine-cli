@@ -3,6 +3,7 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -91,8 +92,10 @@ func TestBuildInput(t *testing.T) {
 			cmd:  "link-pr",
 			args: []string{"7", "u1", "u2", "--limit", "50", "--ratio", "1.25", "--draft=false", "--ids", "3,4", "--ids", "5", "--meta", "null"},
 			want: map[string]any{
+				// --meta null counts as not given, as over MCP, so the
+				// default applies.
 				"issue_id": int64(7), "urls": []any{"u1", "u2"}, "limit": int64(50), "ratio": 1.25,
-				"draft": false, "ids": []any{int64(3), int64(4), int64(5)}, "meta": nil,
+				"draft": false, "ids": []any{int64(3), int64(4), int64(5)}, "meta": map[string]any{"source": "cli"},
 			},
 		},
 		{
@@ -320,5 +323,148 @@ func TestCompletion(t *testing.T) {
 	}
 	if _, ok := plain.GetFlagCompletionFunc("label"); ok {
 		t.Error("--label should have no fixed completion")
+	}
+}
+
+// TestIntegerFlagsAreBase10 keeps flags, positionals and MCP on one integer
+// syntax: pflag's own integer flags would read 010 as 8 and accept 0x2.
+func TestIntegerFlagsAreBase10(t *testing.T) {
+	c := &Command{Name: "a", Description: "d", Params: []Param{
+		{Name: "pos", Type: TypeInteger, Positional: true},
+		{Name: "n", Type: TypeInteger, Default: int64(5)},
+		{Name: "ids", Type: TypeInteger, Array: true, Default: []any{int64(1)}},
+	}}
+	got, err := runCommand(t, c, "", "010", "--n", "010", "--ids", "010,-3", "--ids", "+7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"pos": int64(10), "n": int64(10), "ids": []any{int64(10), int64(-3), int64(7)}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("input = %#v, want %#v", got, want)
+	}
+
+	got, err = runCommand(t, c, "")
+	if err != nil || !reflect.DeepEqual(got, map[string]any{"n": int64(5), "ids": []any{int64(1)}}) {
+		t.Errorf("defaults = %#v, %v", got, err)
+	}
+
+	for _, tt := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--n", "0x2"}, `invalid argument "0x2" for "--n" flag: must be an integer`},
+		{[]string{"--n", "1_000"}, `invalid argument "1_000" for "--n" flag: must be an integer`},
+		{[]string{"--ids", "1,0o7"}, `invalid argument "1,0o7" for "--ids" flag: must be an integer`},
+		{[]string{"--n", "9223372036854775808"}, "must be an integer between -9223372036854775808 and 9223372036854775807"},
+		{[]string{"0x2"}, `invalid value "0x2" for <pos>: must be an integer`},
+	} {
+		if _, err := runCommand(t, c, "", tt.args...); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("args %v: error = %v, want containing %q", tt.args, err, tt.want)
+		}
+	}
+
+	cmd := &cobra.Command{Use: "a"}
+	if err := AddFlags(cmd, c); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]string{"n": "5", "ids": "[1]"} {
+		if f := cmd.Flags().Lookup(name); f.DefValue != want {
+			t.Errorf("--%s default = %q, want %q", name, f.DefValue, want)
+		}
+	}
+	if typ := cmd.Flags().Lookup("n").Value.Type(); typ != "int64" {
+		t.Errorf("--n type = %q", typ)
+	}
+}
+
+// TestJSONNullIsAbsent: a json param given as null counts as not given on
+// the CLI, as it does over MCP.
+func TestJSONNullIsAbsent(t *testing.T) {
+	c := &Command{Name: "a", Description: "d", Params: []Param{
+		{Name: "req", Type: TypeJSON, Required: true},
+		{Name: "opt", Type: TypeJSON, Default: map[string]any{"d": true}},
+		{Name: "pos", Type: TypeJSON, Positional: true},
+	}}
+	if _, err := runCommand(t, c, "", "--req", "null"); err == nil || err.Error() != "missing required flag --req" {
+		t.Fatalf("required null: %v", err)
+	}
+	cli, err := runCommand(t, c, "", "null", "--req", "1", "--opt", "null")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"req": json.Number("1"), "opt": map[string]any{"d": true}}
+	if !reflect.DeepEqual(cli, want) {
+		t.Errorf("CLI input = %#v, want %#v", cli, want)
+	}
+
+	args, err := DecodeArguments([]byte(`{"req":1,"opt":null,"pos":null}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp, err := PrepareInput(c, NormalizeArguments(c, args))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(mcp, cli) {
+		t.Errorf("MCP input = %#v, CLI input = %#v", mcp, cli)
+	}
+	if _, err := PrepareInput(c, map[string]any{"req": nil}); err == nil || !strings.Contains(err.Error(), `missing required field "req"`) {
+		t.Errorf("MCP required null: %v", err)
+	}
+}
+
+func TestBooleanArrayFlagsRejected(t *testing.T) {
+	c := &Command{Params: []Param{{Name: "b", Type: TypeBoolean, Array: true}}}
+	if err := AddFlags(&cobra.Command{Use: "x"}, c); err == nil || !strings.Contains(err.Error(), "boolean parameters cannot be arrays") {
+		t.Fatalf("AddFlags = %v", err)
+	}
+}
+
+func TestNumberFlagsUseJSONGrammar(t *testing.T) {
+	c := &Command{Name: "a", Description: "d", Params: []Param{
+		{Name: "pos", Type: TypeNumber, Positional: true},
+		{Name: "x", Type: TypeNumber, Default: 1.5},
+		{Name: "xs", Type: TypeNumber, Array: true},
+	}}
+	got, err := runCommand(t, c, "", "0.25", "--x", "2e3", "--xs", "1,2.5", "--xs", "-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"pos": 0.25, "x": 2000.0, "xs": []any{1.0, 2.5, -3.0}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("input = %#v, want %#v", got, want)
+	}
+
+	for _, tt := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--x", "NaN"}, `invalid argument "NaN" for "--x" flag: must be a number`},
+		{[]string{"--x", "Inf"}, `invalid argument "Inf" for "--x" flag: must be a number`},
+		{[]string{"--x", "0x1p-2"}, `invalid argument "0x1p-2" for "--x" flag: must be a number`},
+		{[]string{"--x", "1_000"}, `invalid argument "1_000" for "--x" flag: must be a number`},
+		{[]string{"--xs", "1,nan"}, `invalid argument "1,nan" for "--xs" flag: must be a number`},
+		{[]string{"--x", "1e400"}, "must be a finite number"},
+		{[]string{"+Inf"}, `invalid value "+Inf" for <pos>: must be a number`},
+	} {
+		if _, err := runCommand(t, c, "", tt.args...); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("args %v: error = %v, want containing %q", tt.args, err, tt.want)
+		}
+	}
+
+	cmd := &cobra.Command{Use: "a"}
+	if err := AddFlags(cmd, c); err != nil {
+		t.Fatal(err)
+	}
+	if f := cmd.Flags().Lookup("x"); f.DefValue != "1.5" || f.Value.Type() != "float64" {
+		t.Errorf("--x default/type = %q/%q, want 1.5/float64", f.DefValue, f.Value.Type())
+	}
+}
+
+func TestCoerceNumberRejectsNonFinite(t *testing.T) {
+	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, ok := coerceScalar(TypeNumber, v); ok {
+			t.Errorf("coerceScalar(number, %v) accepted a non-finite value", v)
+		}
 	}
 }

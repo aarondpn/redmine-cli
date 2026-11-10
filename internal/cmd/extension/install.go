@@ -30,8 +30,10 @@ which adds the command 'redmine <name>'.
 
 If the latest release (or the one given with --pin) has a binary for this
 platform (redmine-cli-<name>-<os>-<arch>), it is downloaded and verified
-against the release's checksums file when there is one. Otherwise the
-repository is cloned with git and its executable redmine-cli-<name> is run.
+against the release's checksums file when there is one; without one, or
+without a redmine-extension.yml asset (the extension then has no declarative
+commands or MCP tools), install prints a warning. Otherwise the repository
+is cloned with git and its executable redmine-cli-<name> is run.
 
 "." installs the current directory, which must be named redmine-cli-<name>,
 as a local extension: it is linked, not copied, so changes take effect
@@ -66,10 +68,17 @@ confirmation (--yes skips it; without a terminal it is required).`,
 			}
 
 			stop := printer.Spinner("Installing " + src.String() + "...")
-			ext, err := m.Install(cmdutil.Context(cmd), src, extmgr.InstallOptions{Pin: pin, Force: force})
+			var warnings []string
+			ext, err := m.Install(cmdutil.Context(cmd), src, extmgr.InstallOptions{
+				Pin: pin, Force: force,
+				Warn: func(w string) { warnings = append(warnings, w) },
+			})
 			stop()
 			if err != nil {
 				return installError(err)
+			}
+			for _, w := range warnings {
+				printer.Warning(w)
 			}
 			printInstalled(printer, ext)
 			return nil

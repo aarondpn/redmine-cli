@@ -33,11 +33,11 @@ const (
 	Prefix = "redmine-cli-"
 	// Topic is the GitHub topic extension repositories are tagged with.
 	Topic = "redmine-cli-extension"
-	// InstallFile holds the install metadata of a binary extension, next to
-	// its executable.
-	InstallFile = "install.yml"
-	// metaDirName holds metadata that must not live inside a git clone (so
-	// `git pull` stays clean) and the update-notice cache.
+	// metaDirName holds the install metadata of every extension and the
+	// update-notice cache. It lives outside the extension directories: the
+	// content of a git clone comes from its repository, so a file in it
+	// must never be able to supply the provenance (owner, repo, tag,
+	// pinned) of the extension. It also keeps `git pull` clean.
 	metaDirName = ".meta"
 	// maxMetadataFile bounds metadata and link files, which are a few
 	// hundred bytes.
@@ -64,10 +64,14 @@ type InstallInfo struct {
 	// git extension.
 	Tag string `yaml:"tag,omitempty"`
 	// SHA256 is the digest of the installed binary.
-	SHA256      string    `yaml:"sha256,omitempty"`
-	Pinned      bool      `yaml:"pinned"`
-	InstalledAt time.Time `yaml:"installed_at"`
-	Kind        Kind      `yaml:"kind"`
+	SHA256 string `yaml:"sha256,omitempty"`
+	// ChecksumVerified is set when the binary, and the manifest if the
+	// release has one, were verified against the release's checksums
+	// file. An upgrade refuses to drop it without --force.
+	ChecksumVerified bool      `yaml:"checksum_verified,omitempty"`
+	Pinned           bool      `yaml:"pinned"`
+	InstalledAt      time.Time `yaml:"installed_at"`
+	Kind             Kind      `yaml:"kind"`
 }
 
 // Extension is an installed extension as found on disk.
@@ -79,14 +83,18 @@ type Extension struct {
 	Dir string
 	// Path is the executable.
 	Path string
-	// Install is the install metadata; nil for local extensions (and for
-	// a git clone whose metadata is missing).
+	// Install is the install metadata, read from <root>/.meta; nil for
+	// local extensions and when the metadata is missing.
 	Install *InstallInfo
 	// Revision is the checked-out commit of a git extension.
 	Revision string
 	// Manifest is the parsed redmine-extension.yml, nil when the extension
 	// has none (a passthrough extension) or it is invalid.
 	Manifest *spec.Manifest
+	// Warnings are the unknown fields of the manifest, which loading
+	// skips (a manifest written for a newer redmine-cli still runs);
+	// install, upgrade and `extension check` reject them.
+	Warnings []*spec.Error
 	// Err is set when the extension cannot be used: its executable is
 	// missing, its link is broken or its manifest is invalid.
 	Err error
@@ -150,6 +158,9 @@ type Manager struct {
 	Now func() time.Time
 	// CloneURL builds the git URL of a repository; nil means github.com.
 	CloneURL func(owner, repo string) string
+
+	// renameFunc replaces os.Rename in tests that make a swap fail.
+	renameFunc func(from, to string) error
 }
 
 // NewManager returns a Manager for the default extensions directory.
@@ -241,9 +252,9 @@ func (m *Manager) metaDir() string {
 	return filepath.Join(m.Root, metaDirName)
 }
 
-// gitMetaPath is where a git extension's InstallInfo lives, outside the
-// clone.
-func (m *Manager) gitMetaPath(name string) string {
+// installMetaPath is where the InstallInfo of a binary or git extension
+// lives, outside its directory.
+func (m *Manager) installMetaPath(name string) string {
 	return filepath.Join(m.metaDir(), name+".yml")
 }
 
@@ -348,14 +359,18 @@ func (m *Manager) load(name string) (*Extension, error) {
 		}
 	case info.IsDir():
 		ext.Dir = entry
-		if meta, err := readInstallInfo(filepath.Join(entry, InstallFile)); err == nil {
-			ext.Kind = KindBinary
+		// Only the metadata redmine wrote itself counts; nothing inside
+		// the directory (a clone's install.yml, say) is consulted.
+		meta, err := readInstallInfo(m.installMetaPath(name))
+		if err == nil && (meta.Kind == KindBinary || meta.Kind == KindGit) {
+			ext.Kind = meta.Kind
 			ext.Install = meta
-		} else {
+		} else if _, statErr := os.Stat(filepath.Join(entry, ".git")); statErr == nil {
 			ext.Kind = KindGit
-			if meta, err := readInstallInfo(m.gitMetaPath(name)); err == nil {
-				ext.Install = meta
-			}
+		} else {
+			ext.Kind = KindBinary
+		}
+		if ext.Kind == KindGit {
 			if rev, err := readGitHead(entry); err == nil {
 				ext.Revision = rev
 			}
@@ -369,17 +384,28 @@ func (m *Manager) load(name string) (*Extension, error) {
 		ext.Err = fmt.Errorf("extension %q has no executable %s", name, ext.Path)
 		return ext, nil
 	}
-	ext.Manifest, ext.Err = m.loadManifest(ext.Dir, name)
+	ext.Manifest, ext.Warnings, ext.Err = m.loadManifestLenient(ext.Dir, name)
 	return ext, nil
 }
 
-// loadManifest parses the manifest in dir; (nil, nil) when there is none.
+// loadManifest parses the manifest in dir strictly, as install and upgrade
+// do; (nil, nil) when there is none.
 func (m *Manager) loadManifest(dir, name string) (*spec.Manifest, error) {
 	path := filepath.Join(dir, spec.FileName)
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	return spec.ParseFile(path, spec.Options{ExtensionName: name, CLIVersion: m.CLIVersion})
+}
+
+// loadManifestLenient parses the manifest in dir for running the
+// extension: unknown fields are skipped and returned as warnings.
+func (m *Manager) loadManifestLenient(dir, name string) (*spec.Manifest, []*spec.Error, error) {
+	path := filepath.Join(dir, spec.FileName)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return nil, nil, nil
+	}
+	return spec.ParseFileLenient(path, spec.Options{ExtensionName: name, CLIVersion: m.CLIVersion})
 }
 
 // ExecutablePath returns the executable of extension name in dir on the

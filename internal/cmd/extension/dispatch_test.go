@@ -74,7 +74,7 @@ func markPinned(t *testing.T, te *testEnv) {
 		t.Fatal(err)
 	}
 	ext.Install.Pinned = true
-	if err := writeYAML(filepath.Join(ext.Dir, extmgr.InstallFile), ext.Install); err != nil {
+	if err := writeYAML(filepath.Join(te.extRoot, ".meta", ext.Name+".yml"), ext.Install); err != nil {
 		t.Fatal(err)
 	}
 }

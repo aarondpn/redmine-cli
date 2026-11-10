@@ -62,8 +62,8 @@ func TestEnvVars(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.env.Vars(); !slices.Equal(got, tt.want) {
-				t.Fatalf("Vars() =\n%q\nwant\n%q", got, tt.want)
+			if got := tt.env.vars(); !slices.Equal(got, tt.want) {
+				t.Fatalf("vars() =\n%q\nwant\n%q", got, tt.want)
 			}
 		})
 	}

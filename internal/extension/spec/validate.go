@@ -8,15 +8,16 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/textsafe"
 )
 
+// The name patterns, as in the struct tags the schema is generated from.
 var (
 	extensionNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	identifierRe    = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+	commandNameRe   = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+	paramNameRe     = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 )
 
 // ReservedExtensionNames can never be extension names: they are the
@@ -51,55 +52,29 @@ func ValidateExtensionName(name string) error {
 	return nil
 }
 
-// Validate checks a manifest built in code: the same JSON Schema and
-// semantic rules Parse applies, without line positions.
-func (m *Manifest) Validate(opts Options) error {
-	data, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	var doc any
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return err
-	}
-	file := opts.File
-	if err := validateAgainstSchema(doc, nil, file); err != nil {
-		return err
-	}
-	return validateSemantics(m, opts, nil)
-}
-
-// validateSemantics enforces the rules JSON Schema cannot express (and,
-// for manifests built in code, repeats the ones it can).
-func validateSemantics(m *Manifest, opts Options, pos positions) error {
-	is := &issues{file: opts.File, pos: pos}
-	if pos != nil {
-		is.file = opts.file()
-	}
-
-	if m.SchemaVersion != CurrentSchemaVersion {
-		is.addf("/schema_version", "unsupported schema_version %d (this redmine-cli supports %d)", m.SchemaVersion, CurrentSchemaVersion)
-	}
-	if err := ValidateExtensionName(m.Name); err != nil {
-		is.addf("/name", "%v", err)
-	} else if opts.ExtensionName != "" && m.Name != opts.ExtensionName {
+// validateSemantics records the rules JSON Schema cannot express: unique
+// names, reserved names, derived MCP tool names, positional ordering,
+// defaults within enum, selectors that compile and terminal-safe texts.
+// Rules the schema expresses are enforced by the schema alone (see
+// cmd/schemagen), so each problem is reported once. It runs on every
+// document that decodes into the structs, including ones the schema
+// rejected, and therefore skips values of the wrong shape.
+func validateSemantics(is *issues, m *Manifest, opts Options) {
+	if slices.Contains(ReservedExtensionNames, m.Name) {
+		is.addf("/name", "extension name %q is reserved", m.Name)
+	} else if opts.ExtensionName != "" && m.Name != opts.ExtensionName && ValidateExtensionName(m.Name) == nil {
 		is.addf("/name", "name %q does not match the extension name %q", m.Name, opts.ExtensionName)
 	}
-	if m.MinCLIVersion != "" {
-		want, ok := parseVersion(m.MinCLIVersion)
-		if !ok {
-			is.addf("/min_cli_version", "%q is not a semantic version", m.MinCLIVersion)
-		} else if running, release := parseVersion(opts.CLIVersion); release && compareVersions(running, want) < 0 {
-			is.addf("/min_cli_version", "requires redmine-cli %s or newer (running %s)", m.MinCLIVersion, opts.CLIVersion)
+	if m.MinCLIVersion != "" && semverRe.MatchString(m.MinCLIVersion) {
+		if _, ok := parseVersion(m.MinCLIVersion); !ok {
+			is.addf("/min_cli_version", "%q has a version number that is too large", m.MinCLIVersion)
 		}
-	}
-	if len(m.Commands) == 0 {
-		is.addf("/commands", "at least one command is required")
 	}
 
 	validateText(is, m)
 
 	seen := map[string]string{}
+	tools := map[string]string{}
 	for i := range m.Commands {
 		c := &m.Commands[i]
 		ptr := pointer("", "commands", i)
@@ -107,10 +82,10 @@ func validateSemantics(m *Manifest, opts Options, pos positions) error {
 			is.addf(ptr+"/name", "duplicate command name %q (first defined on line %d)", c.Name, is.pos.line(first))
 		} else {
 			seen[c.Name] = ptr + "/name"
+			validateToolName(is, tools, m.Name, c, ptr)
 		}
 		validateCommand(is, m.Name, c, ptr)
 	}
-	return is.err()
 }
 
 // validateText rejects terminal control characters in every string of the
@@ -165,47 +140,37 @@ func unsafeRune(s string) (rune, bool) {
 	return 0, false
 }
 
-func validateCommand(is *issues, ext string, c *Command, ptr string) {
-	if !identifierRe.MatchString(c.Name) {
-		is.addf(ptr+"/name", "command name %q is invalid: use lowercase letters, digits, '_' and '-', starting with a letter", c.Name)
-	}
-	if strings.TrimSpace(c.Description) == "" {
-		is.addf(ptr, "missing required field %q", "description")
-	}
-	if c.Timeout != "" {
-		d, err := time.ParseDuration(c.Timeout)
-		switch {
-		case err != nil:
-			is.addf(ptr+"/timeout", "%q is not a duration (use e.g. 30s or 2m)", c.Timeout)
-		case d <= 0:
-			is.addf(ptr+"/timeout", "timeout must be positive")
-		case d > MaxTimeout:
-			is.addf(ptr+"/timeout", "timeout %s exceeds the maximum of %s", c.Timeout, fmtDuration(MaxTimeout))
-		}
-	}
-	if c.Destructive && !c.Writes {
-		is.addf(ptr+"/destructive", "destructive commands must also set writes: true")
-	}
-	if c.Raw {
-		if len(c.Params) > 0 {
-			is.addf(ptr+"/params", "raw commands take no params (arguments are passed through)")
-		}
-		if c.Output != nil {
-			is.addf(ptr+"/output", "raw commands take no output spec (stdout is passed through)")
-		}
-		if c.MCP != nil && *c.MCP {
-			is.addf(ptr+"/mcp", "raw commands are never MCP tools")
-		}
+// validateToolName rejects two MCP tools of one manifest with the same
+// name. Valid command names cannot contain '_', so distinct valid names give
+// distinct tools; the check keeps that true if the naming rules or ToolName
+// change, and explains why an invalid name such as a_b next to a-b matters.
+// tools maps tool names to the first command using them.
+func validateToolName(is *issues, tools map[string]string, ext string, c *Command, ptr string) {
+	if !c.MCPEnabled() || c.Name == "" {
 		return
 	}
-	if c.MCPEnabled() {
+	tool := ToolName(ext, c.Name)
+	if first, dup := tools[tool]; dup {
+		is.addf(ptr+"/name", "MCP tool name %q is already used by command %q; rename the command or set mcp: false", tool, first)
+		return
+	}
+	tools[tool] = c.Name
+}
+
+func validateCommand(is *issues, ext string, c *Command, ptr string) {
+	if c.Description != "" && strings.TrimSpace(c.Description) == "" {
+		is.addf(ptr+"/description", "must not be blank")
+	}
+	if c.Raw {
+		return
+	}
+	if c.MCPEnabled() && commandNameRe.MatchString(c.Name) && ValidateExtensionName(ext) == nil {
 		if name := ToolName(ext, c.Name); len(name) > MaxToolNameLength {
 			is.addf(ptr+"/name", "MCP tool name %q is longer than %d characters; shorten the extension or command name, or set mcp: false", name, MaxToolNameLength)
 		}
 	}
 
 	names := map[string]string{}
-	flags := map[string]string{}
 	for i := range c.Params {
 		p := &c.Params[i]
 		pp := pointer(ptr, "params", i)
@@ -215,17 +180,6 @@ func validateCommand(is *issues, ext string, c *Command, ptr string) {
 			names[p.Name] = pp + "/name"
 		}
 		validateParam(is, p, pp)
-		if p.Positional || !identifierRe.MatchString(p.Name) {
-			continue
-		}
-		flag := FlagName(p.Name)
-		if slices.Contains(ReservedFlagNames, flag) {
-			is.addf(pp+"/name", "flag --%s is reserved by redmine-cli; rename the param or make it positional", flag)
-		} else if other, clash := flags[flag]; clash && other != p.Name {
-			is.addf(pp+"/name", "params %q and %q both map to the flag --%s", other, p.Name, flag)
-		} else {
-			flags[flag] = p.Name
-		}
 	}
 	validatePositionals(is, c, ptr)
 
@@ -235,29 +189,20 @@ func validateCommand(is *issues, ext string, c *Command, ptr string) {
 }
 
 func validateParam(is *issues, p *Param, ptr string) {
-	if !identifierRe.MatchString(p.Name) {
-		is.addf(ptr+"/name", "param name %q is invalid: use lowercase letters, digits, '_' and '-', starting with a letter", p.Name)
-	}
-	if !slices.Contains(ParamTypes, p.Type) {
-		is.addf(ptr+"/type", "unknown type %q (use one of: string, integer, number, boolean, json)", p.Type)
-		return
-	}
-	if p.Enum != nil {
-		if p.Type != TypeString && p.Type != TypeInteger {
-			is.addf(ptr+"/enum", "enum is only allowed for string and integer parameters")
-		} else if len(p.Enum) == 0 {
-			is.addf(ptr+"/enum", "enum must not be empty")
-		} else {
-			for i, v := range p.Enum {
-				if _, ok := coerceScalar(p.Type, v); !ok {
-					is.addf(pointer(ptr, "enum", i), "enum value %s is not %s", formatValue(v), article(p.Type))
-				}
-			}
+	if !p.Positional && paramNameRe.MatchString(p.Name) {
+		if flag := FlagName(p.Name); slices.Contains(ReservedFlagNames, flag) {
+			is.addf(ptr+"/name", "flag --%s is reserved by redmine-cli; rename the param or make it positional", flag)
 		}
 	}
-	if p.Default != nil {
-		if err := checkValue(p, p.Default); err != nil {
-			is.addf(ptr+"/default", "default %v", err)
+	// The schema checks the type of default and of the enum values; only
+	// membership is left, for a default of the right type.
+	if p.Default != nil && len(p.Enum) > 0 && (p.Type == TypeString || p.Type == TypeInteger) {
+		typed := *p
+		typed.Enum = nil
+		if checkValue(&typed, p.Default) == nil {
+			if err := checkValue(p, p.Default); err != nil {
+				is.addf(ptr+"/default", "default %v", err)
+			}
 		}
 	}
 }
@@ -265,14 +210,12 @@ func validateParam(is *issues, p *Param, ptr string) {
 // validatePositionals enforces the ordering that keeps positional
 // arguments unambiguous: required before optional, an array only last.
 func validatePositionals(is *issues, c *Command, ptr string) {
-	positionals := 0
 	sawOptional := ""
 	for i := range c.Params {
 		p := &c.Params[i]
 		if !p.Positional {
 			continue
 		}
-		positionals++
 		pp := pointer(ptr, "params", i)
 		if p.Required && sawOptional != "" {
 			is.addf(pp+"/required", "required positional %q cannot follow optional positional %q", p.Name, sawOptional)
@@ -292,48 +235,37 @@ func validatePositionals(is *issues, c *Command, ptr string) {
 }
 
 func validateOutput(is *issues, o *Output, ptr string) {
-	if len(o.Table) == 0 && len(o.Detail) == 0 {
+	// An empty list is the schema's "must not be empty".
+	if o.Table == nil && o.Detail == nil {
 		is.addf(ptr, "output must define table or detail")
 	}
 	for i, col := range o.Table {
 		cp := pointer(ptr, "table", i)
-		if strings.TrimSpace(col.Header) == "" {
-			is.addf(cp, "missing required field %q", "header")
+		if col.Header != "" && strings.TrimSpace(col.Header) == "" {
+			is.addf(cp+"/header", "must not be blank")
 		}
 		validateSelector(is, col.Path, col.JQ, cp)
 	}
 	for i, f := range o.Detail {
 		fp := pointer(ptr, "detail", i)
-		if strings.TrimSpace(f.Key) == "" {
-			is.addf(fp, "missing required field %q", "key")
+		if f.Key != "" && strings.TrimSpace(f.Key) == "" {
+			is.addf(fp+"/key", "must not be blank")
 		}
 		validateSelector(is, f.Path, f.JQ, fp)
 	}
 }
 
+// validateSelector checks a path or jq selector compiles. That exactly one
+// of them is set is a schema rule.
 func validateSelector(is *issues, path, jq, ptr string) {
-	switch {
-	case path != "" && jq != "":
-		is.addf(ptr, "set exactly one of path or jq")
-	case path == "" && jq == "":
-		is.addf(ptr, "set exactly one of path or jq")
-	case jq != "":
+	if jq != "" {
 		if _, err := compileJQ(jq); err != nil {
 			is.addf(ptr+"/jq", "invalid jq expression: %v", err)
 		}
-	default:
+	}
+	if path != "" {
 		if _, err := splitPath(path); err != nil {
 			is.addf(ptr+"/path", "%v", err)
 		}
 	}
-}
-
-// fmtDuration renders 5m0s as 5m.
-func fmtDuration(d time.Duration) string {
-	s := d.String()
-	s = strings.TrimSuffix(s, "0s")
-	if strings.HasSuffix(s, "m") && strings.Contains(s, "h") {
-		s = strings.TrimSuffix(s, "0m")
-	}
-	return s
 }

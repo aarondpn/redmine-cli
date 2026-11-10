@@ -8,10 +8,9 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
 
-// Executable returns the absolute path of the running redmine binary, the
-// value of REDMINE_CLI_BIN. It is a variable so tests can point it at a
-// fixture.
-var Executable = func() (string, error) {
+// executable returns the absolute path of the running redmine binary, the
+// value of REDMINE_CLI_BIN.
+func executable() (string, error) {
 	path, err := os.Executable()
 	if err != nil {
 		return "", err
@@ -29,7 +28,12 @@ var Executable = func() (string, error) {
 // that are never forwarded, and fail for extensions that work without a
 // configured Redmine.
 func FromFactory(f *cmdutil.Factory) (Env, error) {
-	bin, err := Executable()
+	return fromFactory(f, executable)
+}
+
+// fromFactory implements FromFactory; exe returns the redmine binary.
+func fromFactory(f *cmdutil.Factory, exe func() (string, error)) (Env, error) {
+	bin, err := exe()
 	if err != nil {
 		return Env{}, err
 	}

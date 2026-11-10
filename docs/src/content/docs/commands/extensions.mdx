@@ -32,7 +32,7 @@ redmine pr list 1234                          # use it like any other command
 
 ## install
 
-<Badge text="checksum verified" variant="success" />
+<Badge text="checksums verified when published" variant="success" />
 
 <Tabs syncKey="ext-install">
   <TabItem label="From GitHub">
@@ -65,7 +65,7 @@ The argument is `owner/redmine-cli-<name>`, an `https://github.com/owner/redmine
 
 How a GitHub extension is installed depends on its release (the latest one, or the tag given with `--pin`):
 
-1. **Binary.** If the release has an asset named `redmine-cli-<name>-<os>-<arch>` (with `.exe` on Windows), that file is downloaded. When the release also has a checksums file (`checksums.txt`, any name ending in `checksums.txt`, `SHA256SUMS` or `sha256sums.txt`), the binary is checked against it, and so is the manifest if the file lists it. A mismatch stops the install. The manifest comes from the release asset `redmine-extension.yml`.
+1. **Binary.** If the release has an asset named `redmine-cli-<name>-<os>-<arch>` (with `.exe` on Windows), that file is downloaded. When the release also has a checksums file (`checksums.txt`, any name ending in `checksums.txt`, `SHA256SUMS` or `sha256sums.txt`), the binary is checked against it, and so is the manifest if the file lists it. A mismatch stops the install. Without a checksums file (or when it does not list the manifest) the install goes ahead with a warning that the files were not verified. The manifest comes from the release asset `redmine-extension.yml`; a release without one is installed as a passthrough extension (no declarative commands, no MCP tools), with a warning.
 2. **Error.** If the release has binaries for other platforms but not for yours, the install fails rather than cloning, because the source of a precompiled extension would not run.
 3. **Git clone.** Otherwise (no release, no such tag, or no binaries at all) the repository is cloned with `git`, which must be installed. `--pin` checks out that tag. The clone needs an executable `redmine-cli-<name>` at the repository root.
 
@@ -134,17 +134,17 @@ redmine extension upgrade --all --dry-run
 
 Give either an extension name or `--all`.
 
-- **Binary** extensions are reinstalled from the latest release when its tag differs from the installed one, with the same checksum checks as `install`.
+- **Binary** extensions are reinstalled from the latest release when its tag differs from the installed one, with the same checksum checks as `install`. An extension installed from a checksum-verified release is only upgraded to a release that can be verified as well; `--force` accepts one that cannot.
 - **Git** extensions are updated with `git pull --ff-only`.
 - **Pinned** and **local** extensions are skipped with a note. To move a pinned extension to another version, reinstall it with `install --pin <tag> --force`, or without `--pin` to unpin it.
 
-A binary upgrade whose new release fails a check (checksum, invalid manifest) fails and keeps the old version. A git pull cannot be undone that way: when the pulled manifest is invalid, the result has a note saying so, and the extension reports the problem when you run it. The result is a table (`Name`, `Status`, `From`, `To`, `Note`). With `-o json` it is an array of objects with `name`, `status` (`upgraded`, `up_to_date`, `available`, `skipped` or `failed`), `from`, `to` and `note`. If any extension fails, the command exits with a non-zero status.
+A binary upgrade whose new release fails a check (checksum, invalid manifest) fails and keeps the old version. A git pull cannot be undone that way: when the pulled manifest is invalid, the result has a note saying so, and the extension reports the problem when you run it. The result is a table (`Name`, `Status`, `From`, `To`, `Note`). With `-o json` it is an array of objects with `name`, `status` (`upgraded`, `up_to_date`, `available`, `skipped` or `failed`), `from`, `to`, `note` and `warnings` (the install warnings of an upgraded binary, also printed to stderr). If any extension fails, the command exits with a non-zero status.
 
 | Flag | Description |
 |------|-------------|
 | `--all`     | Upgrade every installed extension |
 | `--dry-run` | Only report available upgrades (`available`) without installing them |
-| `--force`   | Reinstall binaries even when current; reset git extensions to their upstream, discarding local changes |
+| `--force`   | Reinstall binaries even when current or no longer checksum-verified; reset git extensions to their upstream, discarding local changes |
 
 `redmine extension upgrade` does not run the [startup update check](/commands/other/#startup-update-check) for redmine-cli itself.
 
@@ -224,7 +224,7 @@ redmine extension check . --command list --input '{"issue_id": 123}'
 redmine extension check . --command list --input @input.json --mcp -o json
 ```
 
-Validates the `redmine-extension.yml` of a directory (default `.`) or an installed extension against the JSON Schema and the semantic rules, and lists the CLI commands and MCP tools it defines. An argument that looks like a path (contains `/` or starts with `.`) is a directory; otherwise an installed extension with that name is checked, or else a directory of that name.
+Validates the `redmine-extension.yml` of a directory (default `.`) or an installed extension against the JSON Schema and the semantic rules, and lists the CLI commands and MCP tools it defines. An argument that looks like a path (contains `/` or starts with `.`) is a directory; otherwise an installed extension with that name is checked, or else a directory of that name. Like `install`, `check` also rejects an extension name that is reserved or taken by a core command, and an executable `redmine-cli-<name>` that is missing or not executable; for a Go project it says how to build it (`go build -o redmine-cli-<name>`). Fields the schema does not know are errors here and in `install` and `upgrade`; an installed extension whose manifest has some (written for a newer redmine-cli) still runs, and `redmine` prints a warning for each unknown field to stderr.
 
 ```text
 Command                      │ Mode │ MCP Tool
@@ -288,7 +288,7 @@ Array parameters are repeatable flags (`--label a --label b`). `json` parameters
 Error: redmine pr unlink is destructive and needs confirmation; pass --yes (there is no terminal to ask on)
 ```
 
-**Failures.** The extension's stderr is shown as it runs (in a terminal with control sequences other than colors neutralized, like any text redmine-cli shows). If the extension exits with a non-zero status, `redmine` exits with the same status. In JSON mode the last line of stderr is the usual [error envelope](/guides/output-formats/#json-error-envelope) with code `extension_failed`. A command that runs past its timeout (60 seconds unless the manifest sets one, at most 5 minutes) is stopped together with every process it started, and fails with code `timeout`.
+**Failures.** The extension's stderr is shown as it runs (in a terminal with control sequences other than colors neutralized, like any text redmine-cli shows). If the extension exits with a non-zero status, `redmine` exits with the same status. In JSON mode the last line of stderr is the usual [error envelope](/guides/output-formats/#json-error-envelope) with code `extension_failed`. A command that runs past its timeout (60 seconds unless the manifest sets one, at most 5 minutes) is stopped together with every process it started, and fails with code `timeout`. The same happens when `redmine` is interrupted or the terminal closes (SIGHUP).
 
 ### Passthrough commands
 
@@ -299,7 +299,7 @@ redmine pr --profile work shell   # --profile is redmine-cli's
 redmine pr shell --profile work   # --profile goes to the extension
 ```
 
-Ctrl-C goes to the extension, and `redmine` waits for it to exit. A signal sent to `redmine` alone (`kill`, `timeout`, a CI runner stopping the job) is passed on to the extension, which is stopped if it is still running two seconds later. `--jq` is not supported for passthrough commands.
+Ctrl-C goes to the extension, and `redmine` waits for it to exit. A signal sent to `redmine` alone (`kill`, `timeout`, a CI runner stopping the job), or a hangup when the terminal closes, is passed on to the extension, which is stopped if it is still running two seconds later. `--jq` is not supported for passthrough commands.
 
 ### Global flags and credentials
 
@@ -323,13 +323,15 @@ The result is cached for 24 hours per extension, and the check waits at most one
   - redmine-cli-pr/ binary install
     - redmine-cli-pr
     - redmine-extension.yml
-    - install.yml owner, repo, tag, sha256, pinned
   - redmine-cli-deploy/ git clone
   - redmine-cli-hello link to a local directory
-  - .meta/ git install metadata and update-check cache
+  - .meta/
+    - pr.yml install metadata: owner, repo, tag, sha256, checksum_verified, pinned
+    - deploy.yml
+    - pr.update-check.json update-check cache
 </FileTree>
 
-The directory is `$XDG_DATA_HOME/redmine-cli/extensions` when `XDG_DATA_HOME` is set, otherwise `~/.local/share/redmine-cli/extensions`. On Windows it is `%LOCALAPPDATA%\redmine-cli\extensions`. Set `REDMINE_EXTENSIONS_DIR` to use another directory. The metadata of git installs lives in `.meta/`, outside the clone, so the working tree stays clean.
+The directory is `$XDG_DATA_HOME/redmine-cli/extensions` when `XDG_DATA_HOME` is set, otherwise `~/.local/share/redmine-cli/extensions`. On Windows it is `%LOCALAPPDATA%\redmine-cli\extensions`. Set `REDMINE_EXTENSIONS_DIR` to use another directory. The install metadata lives in `.meta/`, outside the extension directories: files in a git clone come from its repository and are never read as metadata, and the working tree stays clean.
 
 | Variable | Effect |
 |----------|--------|

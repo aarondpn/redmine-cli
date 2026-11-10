@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -127,19 +128,20 @@ func addFlag(fs *pflag.FlagSet, p *Param, name, usage string) error {
 				}
 			}
 		case TypeInteger:
-			fs.Int64Slice(name, typedList(def, func(v any) (int64, bool) {
+			fs.Var(newInt64ListValue(typedList(def, func(v any) (int64, bool) {
 				c, ok := coerceScalar(TypeInteger, v)
 				i, _ := c.(int64)
 				return i, ok
-			}), usage)
+			})), name, usage)
 		case TypeNumber:
-			fs.Float64Slice(name, typedList(def, func(v any) (float64, bool) {
+			fs.Var(newFloat64ListValue(typedList(def, func(v any) (float64, bool) {
 				c, ok := coerceScalar(TypeNumber, v)
 				f, _ := c.(float64)
 				return f, ok
-			}), usage)
+			})), name, usage)
 		case TypeBoolean:
-			fs.BoolSlice(name, typedList(def, func(v any) (bool, bool) { b, ok := v.(bool); return b, ok }), usage)
+			// Validation rejects these: --x --x=false would be a list.
+			return errors.New("boolean parameters cannot be arrays")
 		default:
 			return fmt.Errorf("unknown type %q", p.Type)
 		}
@@ -152,11 +154,11 @@ func addFlag(fs *pflag.FlagSet, p *Param, name, usage string) error {
 	case TypeInteger:
 		c, _ := coerceScalar(TypeInteger, p.Default)
 		def, _ := c.(int64)
-		fs.Int64(name, def, usage)
+		fs.Var(newInt64Value(def), name, usage)
 	case TypeNumber:
 		c, _ := coerceScalar(TypeNumber, p.Default)
 		def, _ := c.(float64)
-		fs.Float64(name, def, usage)
+		fs.Var(newFloat64Value(def), name, usage)
 	case TypeBoolean:
 		def, _ := p.Default.(bool)
 		fs.Bool(name, def, usage)
@@ -259,7 +261,8 @@ func positionalCompletion(c *Command) cobra.CompletionFunc {
 
 // BuildInput converts parsed flags and positional args into the input
 // object: param names as keys, values typed per the manifest, defaults
-// applied, absent optionals omitted. The result is validated against
+// applied, absent optionals omitted. A json param given as null counts as
+// not given, the same as a null MCP argument. The result is validated against
 // InputSchema(c), the same contract MCP input must meet. json params read
 // @file from disk and @- from cmd's stdin.
 func BuildInput(cmd *cobra.Command, c *Command, args []string) (map[string]any, error) {
@@ -297,7 +300,9 @@ func BuildInput(cmd *cobra.Command, c *Command, args []string) (map[string]any, 
 		if err != nil {
 			return nil, err
 		}
-		in[p.Name] = v
+		if v != nil { // a json null counts as not given, as over MCP
+			in[p.Name] = v
+		}
 	}
 	if len(args) > len(pos) && (len(pos) == 0 || !pos[len(pos)-1].Array) {
 		return nil, fmt.Errorf("too many arguments: expected at most %d, received %d", len(pos), len(args))
@@ -317,7 +322,9 @@ func BuildInput(cmd *cobra.Command, c *Command, args []string) (map[string]any, 
 		if err != nil {
 			return nil, err
 		}
-		in[p.Name] = v
+		if v != nil { // a json null counts as not given, as over MCP
+			in[p.Name] = v
+		}
 	}
 
 	for i := range c.Params {
@@ -373,14 +380,17 @@ func flagValue(fs *pflag.FlagSet, p *Param, name string, readStdin func() ([]byt
 			}
 			return out, nil
 		case TypeInteger:
-			v, err := fs.GetInt64Slice(name)
-			return toAnySlice(v), err
+			v, ok := fs.Lookup(name).Value.(*int64ListValue)
+			if !ok {
+				return nil, fmt.Errorf("flag --%s is not an integer list", name)
+			}
+			return toAnySlice(v.list), nil
 		case TypeNumber:
-			v, err := fs.GetFloat64Slice(name)
-			return toAnySlice(v), err
-		case TypeBoolean:
-			v, err := fs.GetBoolSlice(name)
-			return toAnySlice(v), err
+			v, ok := fs.Lookup(name).Value.(*float64ListValue)
+			if !ok {
+				return nil, fmt.Errorf("flag --%s is not a number list", name)
+			}
+			return toAnySlice(v.list), nil
 		}
 		return nil, fmt.Errorf("unknown type %q", p.Type)
 	}
@@ -394,9 +404,17 @@ func flagValue(fs *pflag.FlagSet, p *Param, name string, readStdin func() ([]byt
 		}
 		return parseJSONArg(raw, label, readStdin)
 	case TypeInteger:
-		return fs.GetInt64(name)
+		v, ok := fs.Lookup(name).Value.(*int64Value)
+		if !ok {
+			return nil, fmt.Errorf("flag --%s is not an integer", name)
+		}
+		return int64(*v), nil
 	case TypeNumber:
-		return fs.GetFloat64(name)
+		v, ok := fs.Lookup(name).Value.(*float64Value)
+		if !ok {
+			return nil, fmt.Errorf("flag --%s is not a number", name)
+		}
+		return float64(*v), nil
 	case TypeBoolean:
 		return fs.GetBool(name)
 	}
@@ -409,15 +427,15 @@ func parseText(p *Param, s, label string, readStdin func() ([]byte, error)) (any
 	case TypeString:
 		return s, nil
 	case TypeInteger:
-		n, err := strconv.ParseInt(s, 10, 64)
+		n, err := parseInteger(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value %q for %s: must be an integer", s, label)
+			return nil, fmt.Errorf("invalid value %q for %s: %v", s, label, err)
 		}
 		return n, nil
 	case TypeNumber:
-		f, err := strconv.ParseFloat(s, 64)
+		f, err := parseNumber(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value %q for %s: must be a number", s, label)
+			return nil, fmt.Errorf("invalid value %q for %s: %v", s, label, err)
 		}
 		return f, nil
 	case TypeBoolean:
@@ -485,4 +503,151 @@ func readLimited(r io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("input is larger than %d bytes", MaxJSONArgSize)
 	}
 	return data, nil
+}
+
+// parseInteger parses a base-10 integer, the one syntax for integer flags
+// and positionals. pflag's own integer flags accept 0x10, 0o10 and 010
+// (as 8), which the MCP surface (JSON numbers) does not.
+func parseInteger(s string) (int64, error) {
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		if errors.Is(err, strconv.ErrRange) {
+			return 0, errors.New("must be an integer between -9223372036854775808 and 9223372036854775807")
+		}
+		return 0, errors.New("must be an integer")
+	}
+	return n, nil
+}
+
+// int64Value is an integer flag parsed with parseInteger. Type and String
+// match pflag's Int64 so help output is unchanged.
+type int64Value int64
+
+func newInt64Value(def int64) *int64Value { v := int64Value(def); return &v }
+
+func (v *int64Value) Set(s string) error {
+	n, err := parseInteger(s)
+	if err != nil {
+		return err
+	}
+	*v = int64Value(n)
+	return nil
+}
+
+func (v *int64Value) Type() string   { return "int64" }
+func (v *int64Value) String() string { return strconv.FormatInt(int64(*v), 10) }
+
+// int64ListValue is a repeatable integer flag parsed with parseInteger.
+// Like pflag's Int64Slice it accepts comma-separated values, and the first
+// use replaces the default.
+type int64ListValue struct {
+	list    []int64
+	changed bool
+}
+
+func newInt64ListValue(def []int64) *int64ListValue { return &int64ListValue{list: def} }
+
+func (v *int64ListValue) Set(s string) error {
+	parts := strings.Split(s, ",")
+	out := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		n, err := parseInteger(part)
+		if err != nil {
+			return err
+		}
+		out = append(out, n)
+	}
+	if !v.changed {
+		v.list = nil
+		v.changed = true
+	}
+	v.list = append(v.list, out...)
+	return nil
+}
+
+func (v *int64ListValue) Type() string { return "int64Slice" }
+
+func (v *int64ListValue) String() string {
+	parts := make([]string, len(v.list))
+	for i, n := range v.list {
+		parts[i] = strconv.FormatInt(n, 10)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// jsonNumber is the JSON number grammar (RFC 8259, section 6).
+var jsonNumber = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
+
+// parseNumber parses a number written the way JSON writes one, the one
+// syntax for number flags and positionals. strconv.ParseFloat (and so
+// pflag's Float64) also takes NaN, Inf, hex floats and underscores: NaN and
+// Inf cannot be encoded as JSON at all, and the others are not accepted
+// over MCP either.
+func parseNumber(s string) (float64, error) {
+	if !jsonNumber.MatchString(s) {
+		return 0, errors.New("must be a number")
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, errors.New("must be a finite number")
+	}
+	return f, nil
+}
+
+// float64Value is a number flag parsed with parseNumber. Type and String
+// match pflag's Float64 so help output is unchanged.
+type float64Value float64
+
+func newFloat64Value(def float64) *float64Value { v := float64Value(def); return &v }
+
+func (v *float64Value) Set(s string) error {
+	f, err := parseNumber(s)
+	if err != nil {
+		return err
+	}
+	*v = float64Value(f)
+	return nil
+}
+
+func (v *float64Value) Type() string { return "float64" }
+func (v *float64Value) String() string {
+	return strconv.FormatFloat(float64(*v), 'g', -1, 64)
+}
+
+// float64ListValue is a repeatable number flag parsed with parseNumber.
+// Like pflag's Float64Slice it accepts comma-separated values, and the
+// first use replaces the default.
+type float64ListValue struct {
+	list    []float64
+	changed bool
+}
+
+func newFloat64ListValue(def []float64) *float64ListValue { return &float64ListValue{list: def} }
+
+func (v *float64ListValue) Set(s string) error {
+	parts := strings.Split(s, ",")
+	out := make([]float64, 0, len(parts))
+	for _, part := range parts {
+		f, err := parseNumber(part)
+		if err != nil {
+			return err
+		}
+		out = append(out, f)
+	}
+	if !v.changed {
+		v.list = nil
+		v.changed = true
+	}
+	v.list = append(v.list, out...)
+	return nil
+}
+
+func (v *float64ListValue) Type() string { return "float64Slice" }
+
+func (v *float64ListValue) String() string {
+	parts := make([]string, len(v.list))
+	for i, f := range v.list {
+		parts[i] = fmt.Sprintf("%f", f)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
 }

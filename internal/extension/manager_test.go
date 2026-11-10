@@ -288,7 +288,7 @@ func TestInstallGit(t *testing.T) {
 				if _, err := os.Lstat(m.entryPath("sh")); !errors.Is(err, os.ErrNotExist) {
 					t.Errorf("failed install left %s behind", m.entryPath("sh"))
 				}
-				if _, err := os.Stat(m.gitMetaPath("sh")); !errors.Is(err, os.ErrNotExist) {
+				if _, err := os.Stat(m.installMetaPath("sh")); !errors.Is(err, os.ErrNotExist) {
 					t.Errorf("failed install left metadata behind")
 				}
 				assertNoLeftovers(t, m)
@@ -311,10 +311,10 @@ func TestInstallGit(t *testing.T) {
 				t.Errorf("version = %q, want the short HEAD", ext.Version())
 			}
 			// Metadata lives outside the clone.
-			if _, err := os.Stat(filepath.Join(ext.Dir, InstallFile)); !errors.Is(err, os.ErrNotExist) {
+			if _, err := os.Stat(filepath.Join(ext.Dir, "install.yml")); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("install metadata inside the clone")
 			}
-			if _, err := os.Stat(m.gitMetaPath("sh")); err != nil {
+			if _, err := os.Stat(m.installMetaPath("sh")); err != nil {
 				t.Errorf("git metadata missing: %v", err)
 			}
 		})
@@ -482,7 +482,7 @@ func TestRemove(t *testing.T) {
 			t.Errorf("%s still on disk", name)
 		}
 	}
-	if _, err := os.Stat(m.gitMetaPath("scr")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(m.installMetaPath("scr")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("git metadata not removed")
 	}
 	if err := m.Remove("bin"); !errors.Is(err, ErrNotInstalled) {
@@ -631,27 +631,25 @@ func TestInstallGitForceKeepsMetadataOnFailedSwap(t *testing.T) {
 	if _, err := m.Install(context.Background(), src, InstallOptions{Pin: "v0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.ReadFile(m.gitMetaPath("sh"))
+	before, err := os.ReadFile(m.installMetaPath("sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	final := m.entryPath("sh")
-	orig := rename
-	t.Cleanup(func() { rename = orig })
-	rename = func(from, to string) error {
+	m.renameFunc = func(from, to string) error {
 		// Only moving the new clone in fails; restoring the old one works.
 		if to == final && strings.HasPrefix(filepath.Base(from), ".tmp-") {
 			return errors.New("swap failed")
 		}
-		return orig(from, to)
+		return os.Rename(from, to)
 	}
 	if _, err := m.Install(context.Background(), src, InstallOptions{Force: true}); err == nil || !strings.Contains(err.Error(), "swap failed") {
 		t.Fatalf("err = %v, want the swap failure", err)
 	}
-	rename = orig
+	m.renameFunc = nil
 
-	after, err := os.ReadFile(m.gitMetaPath("sh"))
+	after, err := os.ReadFile(m.installMetaPath("sh"))
 	if err != nil {
 		t.Fatalf("metadata gone after a failed reinstall: %v", err)
 	}
@@ -663,4 +661,171 @@ func TestInstallGitForceKeepsMetadataOnFailedSwap(t *testing.T) {
 		t.Fatalf("ext = %+v, %v; want the old pinned clone", ext, err)
 	}
 	assertNoLeftovers(t, m)
+}
+
+// TestCloneInstallFileIsIgnored installs a git extension whose repository
+// ships an install.yml claiming another repository, a release tag and a
+// pin: none of it may be trusted. The extension stays a git extension of
+// the repository it was cloned from, unpinned and upgradable.
+func TestCloneInstallFileIsIgnored(t *testing.T) {
+	m, _, git := testManager(t)
+	forged := "owner: evil\nrepo: redmine-cli-other\ntag: v9.9.9\npinned: true\nkind: binary\nchecksum_verified: true\n"
+	git.repos["fake://octo/redmine-cli-sh"] = map[string]string{"redmine-cli-sh*": "#!/bin/sh\n", "install.yml": forged}
+	src := Source{Owner: "octo", Repo: "redmine-cli-sh", Name: "sh"}
+	if _, err := m.Install(context.Background(), src, InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	check := func(when string) {
+		t.Helper()
+		ext, err := m.Get("sh")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ext.Kind != KindGit || ext.Repo() != "octo/redmine-cli-sh" || ext.Pinned() || ext.Version() != shortRevision(ext.Revision) || ext.Install.ChecksumVerified {
+			t.Fatalf("%s: ext = %+v, install %+v; the clone's install.yml was trusted", when, ext, ext.Install)
+		}
+	}
+	check("after install")
+
+	res, err := m.Upgrade(context.Background(), "sh", UpgradeOptions{})
+	if err != nil || res.Status != StatusUpgraded {
+		t.Fatalf("upgrade = %+v, %v; want an upgraded git extension", res, err)
+	}
+	check("after upgrade")
+
+	// Even without any metadata, the file is not read.
+	if err := os.Remove(m.installMetaPath("sh")); err != nil {
+		t.Fatal(err)
+	}
+	ext, err := m.Get("sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ext.Kind != KindGit || ext.Install != nil || ext.Repo() != "" || ext.Pinned() {
+		t.Fatalf("without metadata: ext = %+v", ext)
+	}
+}
+
+// TestInstallMetadataOutsideExtensionDir checks that no kind of install
+// writes metadata into the extension directory.
+func TestInstallMetadataOutsideExtensionDir(t *testing.T) {
+	m, fg, git := testManager(t)
+	fg.addRelease("octo/redmine-cli-bin", "v1.0.0", map[string][]byte{BinaryAssetName("bin", "linux", "amd64"): []byte("x")})
+	git.repos["fake://octo/redmine-cli-scr"] = map[string]string{"redmine-cli-scr*": "#!/bin/sh\n"}
+	ctx := context.Background()
+	for _, src := range []Source{
+		{Owner: "octo", Repo: "redmine-cli-bin", Name: "bin"},
+		{Owner: "octo", Repo: "redmine-cli-scr", Name: "scr"},
+	} {
+		ext, err := m.Install(ctx, src, InstallOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, err := os.ReadDir(ext.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range entries {
+			if e.Name() != filepath.Base(ext.Path) && e.Name() != ".git" {
+				t.Errorf("%s: unexpected %s in the extension directory", src.Name, e.Name())
+			}
+		}
+		meta, err := readInstallInfo(m.installMetaPath(src.Name))
+		if err != nil || meta.Owner != "octo" || meta.Kind != ext.Kind {
+			t.Errorf("%s: metadata = %+v, %v", src.Name, meta, err)
+		}
+	}
+}
+
+// TestInstallBinaryWarnings covers the install warnings and the recorded
+// checksum verification.
+func TestInstallBinaryWarnings(t *testing.T) {
+	bin := []byte("bin")
+	manifest := []byte(manifestFor("pr"))
+	asset := BinaryAssetName("pr", "linux", "amd64")
+	tests := []struct {
+		name         string
+		assets       map[string][]byte
+		wantWarnings []string
+		wantVerified bool
+	}{
+		{name: "verified with manifest", assets: map[string][]byte{
+			asset: bin, spec.FileName: manifest, "checksums.txt": checksumsFor(map[string][]byte{asset: bin, spec.FileName: manifest}),
+		}, wantVerified: true},
+		{name: "no checksums", assets: map[string][]byte{asset: bin, spec.FileName: manifest}, wantWarnings: []string{
+			"release v1.0.0 of octo/redmine-cli-pr has no checksums file: " + asset + " and redmine-extension.yml were installed without checksum verification",
+		}},
+		{name: "manifest not in checksums", assets: map[string][]byte{
+			asset: bin, spec.FileName: manifest, "checksums.txt": checksumsFor(map[string][]byte{asset: bin}),
+		}, wantWarnings: []string{
+			"the checksums file of release v1.0.0 of octo/redmine-cli-pr does not list redmine-extension.yml: it was installed without checksum verification",
+		}},
+		{name: "no manifest", assets: map[string][]byte{
+			asset: bin, "checksums.txt": checksumsFor(map[string][]byte{asset: bin}),
+		}, wantVerified: true, wantWarnings: []string{
+			"release v1.0.0 of octo/redmine-cli-pr has no redmine-extension.yml asset: installed as a passthrough extension, without declarative commands or MCP tools",
+		}},
+		{name: "nothing verified, no manifest", assets: map[string][]byte{asset: bin}, wantWarnings: []string{
+			"release v1.0.0 of octo/redmine-cli-pr has no checksums file: " + asset + " was installed without checksum verification",
+			"release v1.0.0 of octo/redmine-cli-pr has no redmine-extension.yml asset: installed as a passthrough extension, without declarative commands or MCP tools",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, fg, _ := testManager(t)
+			fg.addRelease("octo/redmine-cli-pr", "v1.0.0", tt.assets)
+			var warnings []string
+			ext, err := m.Install(context.Background(), Source{Owner: "octo", Repo: "redmine-cli-pr", Name: "pr"}, InstallOptions{
+				Warn: func(w string) { warnings = append(warnings, w) },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(warnings, "\n") != strings.Join(tt.wantWarnings, "\n") {
+				t.Errorf("warnings:\n%s\nwant:\n%s", strings.Join(warnings, "\n"), strings.Join(tt.wantWarnings, "\n"))
+			}
+			if ext.Install.ChecksumVerified != tt.wantVerified {
+				t.Errorf("checksum verified = %v, want %v", ext.Install.ChecksumVerified, tt.wantVerified)
+			}
+		})
+	}
+}
+
+// TestLoadSkipsUnknownManifestFields: an installed extension whose manifest
+// has a field this redmine-cli does not know still loads, with a warning,
+// while installing it is refused.
+func TestLoadSkipsUnknownManifestFields(t *testing.T) {
+	m, _, _ := testManager(t)
+	dir := filepath.Join(t.TempDir(), "redmine-cli-dev")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "redmine-cli-dev"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, spec.FileName), []byte(manifestFor("dev")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Install(context.Background(), Source{Name: "dev", LocalDir: dir}, InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, spec.FileName), []byte(manifestFor("dev")+"    future_field: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ext, err := m.Get("dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ext.Err != nil || ext.Manifest == nil || ext.Manifest.Command("list") == nil {
+		t.Fatalf("ext = %+v (err %v), want the manifest loaded", ext, ext.Err)
+	}
+	if len(ext.Warnings) != 1 || !strings.Contains(ext.Warnings[0].Error(), "future_field") {
+		t.Fatalf("warnings = %v, want one for future_field", ext.Warnings)
+	}
+
+	var invalid *InvalidManifestError
+	if _, err := m.Install(context.Background(), Source{Name: "dev", LocalDir: dir}, InstallOptions{Force: true}); !errors.As(err, &invalid) {
+		t.Fatalf("install err = %v, want the strict manifest check to fail", err)
+	}
 }

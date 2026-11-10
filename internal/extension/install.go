@@ -95,6 +95,10 @@ type InstallOptions struct {
 	Pin string
 	// Force replaces an installed extension of the same name.
 	Force bool
+	// Warn, when set, receives the warnings of a successful install: a
+	// binary installed without checksum verification, or a release
+	// without a manifest asset.
+	Warn func(string)
 }
 
 // Install installs src. A GitHub extension is installed as a binary when the
@@ -125,7 +129,7 @@ func (m *Manager) Install(ctx context.Context, src Source, opts InstallOptions) 
 	case err == nil:
 		assetName := BinaryAssetName(src.Name, m.goos(), m.goarch())
 		if asset, ok := release.FindAsset(assetName); ok {
-			return m.installBinary(ctx, src, release, asset, opts.Pin != "")
+			return m.installBinary(ctx, src, release, asset, binaryInstall{pinned: opts.Pin != "", warn: opts.Warn})
 		}
 		if hasBinaryAssets(release, src.Name) {
 			return nil, fmt.Errorf("release %s of %s has no binary for %s/%s (expected asset %s)", release.TagName, src, m.goos(), m.goarch(), assetName)
@@ -160,13 +164,29 @@ func checksumsAsset(r *ghrelease.Release) (ghrelease.Asset, bool) {
 	return ghrelease.Asset{}, false
 }
 
-func (m *Manager) installBinary(ctx context.Context, src Source, release *ghrelease.Release, asset ghrelease.Asset, pinned bool) (*Extension, error) {
+// binaryInstall controls installBinary.
+type binaryInstall struct {
+	pinned bool
+	// requireVerified fails the install unless the binary (and manifest)
+	// can be verified against the release's checksums file: an upgrade
+	// of a verified install must not silently lose verification.
+	requireVerified bool
+	// warn receives the warnings of a successful install.
+	warn func(string)
+}
+
+func (m *Manager) installBinary(ctx context.Context, src Source, release *ghrelease.Release, asset ghrelease.Asset, opts binaryInstall) (*Extension, error) {
 	gh := m.github()
+	label := "release " + release.TagName + " of " + src.String()
 	data, err := gh.Download(ctx, asset.BrowserDownloadURL, MaxBinarySize)
 	if err != nil {
 		return nil, fmt.Errorf("downloading %s: %w", asset.Name, err)
 	}
-	var checksums []byte
+	var (
+		checksums  []byte
+		warnings   []string
+		unverified string
+	)
 	if cs, ok := checksumsAsset(release); ok {
 		if checksums, err = gh.Download(ctx, cs.BrowserDownloadURL, ghrelease.MaxChecksumsBytes); err != nil {
 			return nil, fmt.Errorf("downloading %s: %w", cs.Name, err)
@@ -174,6 +194,8 @@ func (m *Manager) installBinary(ctx context.Context, src Source, release *ghrele
 		if err := ghrelease.VerifySHA256(data, checksums, asset.Name); err != nil {
 			return nil, fmt.Errorf("checksum verification of %s failed: %w", asset.Name, err)
 		}
+	} else {
+		unverified = label + " has no checksums file"
 	}
 
 	var manifest []byte
@@ -185,11 +207,28 @@ func (m *Manager) installBinary(ctx context.Context, src Source, release *ghrele
 			if err := ghrelease.VerifySHA256(manifest, checksums, spec.FileName); err != nil {
 				return nil, fmt.Errorf("checksum verification of %s failed: %w", spec.FileName, err)
 			}
+		} else if checksums != nil {
+			unverified = "the checksums file of " + label + " does not list " + spec.FileName
+			warnings = append(warnings, fmt.Sprintf("%s: it was installed without checksum verification", unverified))
 		}
-		opts := spec.Options{File: spec.FileName, ExtensionName: src.Name, CLIVersion: m.CLIVersion}
-		if _, err := spec.Parse(manifest, opts); err != nil {
+		parseOpts := spec.Options{File: spec.FileName, ExtensionName: src.Name, CLIVersion: m.CLIVersion}
+		if _, err := spec.Parse(manifest, parseOpts); err != nil {
 			return nil, &InvalidManifestError{Source: src.String() + "@" + release.TagName, Err: err}
 		}
+	} else {
+		warnings = append(warnings, fmt.Sprintf("%s has no %s asset: installed as a passthrough extension, without declarative commands or MCP tools", label, spec.FileName))
+	}
+	if checksums == nil {
+		files := asset.Name
+		if manifest != nil {
+			files += " and " + spec.FileName + " were"
+		} else {
+			files += " was"
+		}
+		warnings = append([]string{fmt.Sprintf("%s: %s installed without checksum verification", unverified, files)}, warnings...)
+	}
+	if opts.requireVerified && unverified != "" {
+		return nil, fmt.Errorf("%s, but the installed version was checksum-verified; use --force to upgrade anyway", unverified)
 	}
 
 	stage, err := os.MkdirTemp(m.Root, ".tmp-"+src.Name+"-")
@@ -207,22 +246,23 @@ func (m *Manager) installBinary(ctx context.Context, src Source, release *ghrele
 		}
 	}
 	info := &InstallInfo{
-		Owner:       src.Owner,
-		Repo:        src.Repo,
-		Tag:         release.TagName,
-		SHA256:      ghrelease.SHA256Hex(data),
-		Pinned:      pinned,
-		InstalledAt: m.now().UTC(),
-		Kind:        KindBinary,
+		Owner:            src.Owner,
+		Repo:             src.Repo,
+		Tag:              release.TagName,
+		SHA256:           ghrelease.SHA256Hex(data),
+		ChecksumVerified: unverified == "",
+		Pinned:           opts.pinned,
+		InstalledAt:      m.now().UTC(),
+		Kind:             KindBinary,
 	}
-	if err := writeInstallInfo(filepath.Join(stage, InstallFile), info); err != nil {
+	if err := m.swapIn(stage, src.Name, info); err != nil {
 		return nil, err
 	}
-	if err := m.replace(stage, m.entryPath(src.Name)); err != nil {
-		return nil, err
+	if opts.warn != nil {
+		for _, w := range warnings {
+			opts.warn(w)
+		}
 	}
-	_ = os.Remove(m.gitMetaPath(src.Name))
-	m.clearNotice(src.Name)
 	return m.load(src.Name)
 }
 
@@ -249,25 +289,41 @@ func (m *Manager) installGit(ctx context.Context, src Source, pin string) (*Exte
 		InstalledAt: m.now().UTC(),
 		Kind:        KindGit,
 	}
-	// The metadata lives outside the clone, so it is not part of the swap:
-	// keep the previous one to put back if the swap fails and the old
-	// clone stays (a reinstall with --force must not leave the old clone
-	// without metadata, which would make it impossible to upgrade).
-	metaPath := m.gitMetaPath(src.Name)
-	prevMeta, prevErr := os.ReadFile(metaPath)
-	if err := writeInstallInfo(metaPath, info); err != nil {
+	if err := m.swapIn(stage, src.Name, info); err != nil {
 		return nil, err
 	}
-	if err := m.replace(stage, m.entryPath(src.Name)); err != nil {
-		if prevErr == nil {
-			_ = writeFileAtomic(metaPath, prevMeta, 0o644)
-		} else {
-			_ = os.Remove(metaPath)
-		}
-		return nil, err
-	}
-	m.clearNotice(src.Name)
 	return m.load(src.Name)
+}
+
+// swapIn moves stage into place as extension name with the metadata info;
+// nil (a local extension) removes the metadata. The metadata lives outside
+// the extension directory, so it is not part of the swap: the previous one
+// is put back if the swap fails and the old extension stays (a reinstall
+// with --force must not leave the old one without metadata, which would
+// make it impossible to upgrade).
+func (m *Manager) swapIn(stage, name string, info *InstallInfo) error {
+	metaPath := m.installMetaPath(name)
+	if info != nil {
+		prevMeta, prevErr := readLimited(metaPath, maxMetadataFile)
+		if err := writeInstallInfo(metaPath, info); err != nil {
+			return err
+		}
+		if err := m.replace(stage, m.entryPath(name)); err != nil {
+			if prevErr == nil {
+				_ = writeFileAtomic(metaPath, prevMeta, 0o644)
+			} else {
+				_ = os.Remove(metaPath)
+			}
+			return err
+		}
+	} else {
+		if err := m.replace(stage, m.entryPath(name)); err != nil {
+			return err
+		}
+		_ = os.Remove(metaPath)
+	}
+	m.clearNotice(name)
+	return nil
 }
 
 // installLocal links the directory of src into the extensions directory.
@@ -281,7 +337,7 @@ func (m *Manager) installLocal(src Source, force bool) (*Extension, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%s is not a directory", src.LocalDir)
 	}
-	if err := checkExecutable(src.LocalDir, src.Name, m.goos()); err != nil {
+	if err := m.CheckExecutable(src.LocalDir, src.Name); err != nil {
 		return nil, err
 	}
 	if _, err := m.loadManifest(src.LocalDir, src.Name); err != nil {
@@ -310,11 +366,9 @@ func (m *Manager) installLocal(src Source, force bool) (*Extension, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.replace(link, entry); err != nil {
+	if err := m.swapIn(link, src.Name, nil); err != nil {
 		return nil, err
 	}
-	_ = os.Remove(m.gitMetaPath(src.Name))
-	m.clearNotice(src.Name)
 	return m.load(src.Name)
 }
 
@@ -331,6 +385,19 @@ func checkExecutable(dir, name, goos string) error {
 	return nil
 }
 
+// CheckExecutable verifies that the local directory dir has the executable
+// of extension name. For a Go project (a go.mod in dir) a missing
+// executable comes with the command that builds it.
+func (m *Manager) CheckExecutable(dir, name string) error {
+	err := checkExecutable(dir, name, m.goos())
+	if err != nil && fileExists(filepath.Join(dir, "go.mod")) {
+		if _, statErr := os.Stat(findExecutable(dir, name, m.goos())); statErr != nil {
+			return fmt.Errorf("%w; build it first: go build -o %s", err, ExecutableName(name, m.goos()))
+		}
+	}
+	return err
+}
+
 // InvalidManifestError reports an extension whose manifest failed
 // validation; Err is usually a *spec.ValidationError.
 type InvalidManifestError struct {
@@ -344,8 +411,14 @@ func (e *InvalidManifestError) Error() string {
 
 func (e *InvalidManifestError) Unwrap() error { return e.Err }
 
-// rename is os.Rename; tests replace it to make a swap fail.
-var rename = os.Rename
+// rename is os.Rename unless a test set Manager.renameFunc to make a swap
+// fail.
+func (m *Manager) rename(from, to string) error {
+	if m.renameFunc != nil {
+		return m.renameFunc(from, to)
+	}
+	return os.Rename(from, to)
+}
 
 // oldPrefix starts the name of the directory replace moves a replaced
 // entry into.
@@ -361,19 +434,19 @@ const oldPrefix = ".old-"
 func (m *Manager) replace(stage, final string) error {
 	m.sweepOld(final)
 	if _, err := os.Lstat(final); err != nil {
-		return rename(stage, final)
+		return m.rename(stage, final)
 	}
 	old, err := os.MkdirTemp(m.Root, oldPrefix+filepath.Base(final)+"-")
 	if err != nil {
 		return err
 	}
 	aside := filepath.Join(old, "entry")
-	if err := rename(final, aside); err != nil {
+	if err := m.rename(final, aside); err != nil {
 		_ = os.Remove(old)
 		return err
 	}
-	if err := rename(stage, final); err != nil {
-		_ = rename(aside, final)
+	if err := m.rename(stage, final); err != nil {
+		_ = m.rename(aside, final)
 		_ = os.RemoveAll(old)
 		return err
 	}
@@ -421,7 +494,7 @@ func (m *Manager) Remove(name string) error {
 	if err := removeEntry(entry); err != nil {
 		return err
 	}
-	_ = os.Remove(m.gitMetaPath(name))
+	_ = os.Remove(m.installMetaPath(name))
 	m.clearNotice(name)
 	return nil
 }
