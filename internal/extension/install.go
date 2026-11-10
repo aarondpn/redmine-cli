@@ -379,7 +379,9 @@ func checkExecutable(dir, name, goos string) error {
 	if err != nil || !info.Mode().IsRegular() {
 		return fmt.Errorf("executable %s not found in %s", filepath.Base(path), dir)
 	}
-	if goos != "windows" && info.Mode().Perm()&0o111 == 0 {
+	// The execute bit is a property of the host file system: Windows has
+	// none, whatever extension platform goos stands for.
+	if goos != "windows" && runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		return fmt.Errorf("%s is not executable (run chmod +x %s)", path, path)
 	}
 	return nil

@@ -14,7 +14,10 @@ import (
 )
 
 func TestDefaultRoot(t *testing.T) {
-	home := func() (string, error) { return "/home/u", nil }
+	// Absolute paths on the host: "/xdg" is not absolute on Windows.
+	root := filepath.VolumeName(os.TempDir()) + string(filepath.Separator)
+	abs := func(elem ...string) string { return filepath.Join(append([]string{root}, elem...)...) }
+	home := func() (string, error) { return abs("home", "u"), nil }
 	noHome := func() (string, error) { return "", errors.New("no home") }
 	tests := []struct {
 		name    string
@@ -24,11 +27,11 @@ func TestDefaultRoot(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "override", goos: "linux", env: map[string]string{DirEnv: "/tmp/ext", "XDG_DATA_HOME": "/xdg"}, home: home, want: "/tmp/ext"},
-		{name: "xdg", goos: "linux", env: map[string]string{"XDG_DATA_HOME": "/xdg"}, home: home, want: filepath.Join("/xdg", "redmine-cli", "extensions")},
-		{name: "relative xdg ignored", goos: "linux", env: map[string]string{"XDG_DATA_HOME": "rel"}, home: home, want: filepath.Join("/home/u", ".local", "share", "redmine-cli", "extensions")},
-		{name: "home", goos: "darwin", home: home, want: filepath.Join("/home/u", ".local", "share", "redmine-cli", "extensions")},
-		{name: "windows local appdata", goos: "windows", env: map[string]string{"LOCALAPPDATA": "/appdata", "XDG_DATA_HOME": "/xdg"}, home: home, want: filepath.Join("/appdata", "redmine-cli", "extensions")},
+		{name: "override", goos: "linux", env: map[string]string{DirEnv: abs("tmp", "ext"), "XDG_DATA_HOME": abs("xdg")}, home: home, want: abs("tmp", "ext")},
+		{name: "xdg", goos: "linux", env: map[string]string{"XDG_DATA_HOME": abs("xdg")}, home: home, want: abs("xdg", "redmine-cli", "extensions")},
+		{name: "relative xdg ignored", goos: "linux", env: map[string]string{"XDG_DATA_HOME": "rel"}, home: home, want: abs("home", "u", ".local", "share", "redmine-cli", "extensions")},
+		{name: "home", goos: "darwin", home: home, want: abs("home", "u", ".local", "share", "redmine-cli", "extensions")},
+		{name: "windows local appdata", goos: "windows", env: map[string]string{"LOCALAPPDATA": abs("appdata"), "XDG_DATA_HOME": abs("xdg")}, home: home, want: abs("appdata", "redmine-cli", "extensions")},
 		{name: "no home", goos: "linux", home: noHome, wantErr: true},
 	}
 	for _, tt := range tests {
