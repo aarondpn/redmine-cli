@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -23,18 +25,19 @@ import (
 // depending on the process's real stdin.
 var newStdioTransport = func() sdk.Transport { return &sdk.StdioTransport{} }
 
-func newCmdServe(f *cmdutil.Factory) *cobra.Command {
+func newCmdServe(f *cmdutil.Factory, cmdOpts Options) *cobra.Command {
 	var (
-		enableWrites  bool
-		name          string
-		httpAddr      string
-		authToken     string
-		authTokenFile string
-		noAuth        bool
-		enableGroups  []string
-		disableGroups []string
-		enableTools   []string
-		disableTools  []string
+		enableWrites     bool
+		enableExtensions bool
+		name             string
+		httpAddr         string
+		authToken        string
+		authTokenFile    string
+		noAuth           bool
+		enableGroups     []string
+		disableGroups    []string
+		enableTools      []string
+		disableTools     []string
 	)
 
 	cmd := &cobra.Command{
@@ -63,7 +66,15 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 			"To narrow the set of tools exposed to MCP clients, use " +
 			"--enable-groups / --disable-groups (allow- and deny-list of tool " +
 			"groups) and --enable-tools / --disable-tools (per-tool overrides). " +
-			"Run `redmine mcp tools` to see the available groups and tools.",
+			"Run `redmine mcp tools` to see the available groups and tools.\n\n" +
+			"Installed extensions add their commands as tools, in one group per " +
+			"extension (ext-<name>; the group \"extensions\" selects all of them). " +
+			"They are served by default on stdio and not over --http; " +
+			"--enable-extensions, mcp.enable_extensions or " +
+			"REDMINE_MCP_ENABLE_EXTENSIONS turn them on or off explicitly. " +
+			"Extension tools that write also need --enable-writes, and the " +
+			"others run with REDMINE_READ_ONLY=1. Extensions run with your " +
+			"user's permissions: only install extensions you trust.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			version := cmd.Root().Version
@@ -73,8 +84,10 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 
 			cfg, cfgErr := f.Config()
 			// Filter flags are the user's explicit input, so invalid ones fail
-			// even when the server runs unconfigured.
-			spec, err := buildFilterSpec(cfg, cmd, enableGroups, disableGroups, enableTools, disableTools)
+			// even when the server runs unconfigured. They may name the
+			// groups and tools of any installed extension.
+			exts, extErr := installedExtensions(cmdOpts)
+			spec, err := buildFilterSpecFor(extensionCatalog(exts), cfg, cmd, enableGroups, disableGroups, enableTools, disableTools)
 			if err != nil {
 				return err
 			}
@@ -103,20 +116,34 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 					fix = "run 'redmine auth switch' (or pass --profile <name>)"
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "redmine mcp: Redmine is not configured (%v). Serving without Redmine tools; %s, then restart the MCP server.\n", err, fix)
+				// Extension tools stay off as well: they call Redmine
+				// through the same missing configuration.
 				srv := mcpserver.BuildSetupServer(err.Error(), mcpserver.Options{Name: name, Version: version})
 				return srv.Run(ctx, newStdioTransport())
 			}
 
+			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
+			// Extensions run in their own process group: a tool call still
+			// in flight when serve returns must be stopped, or the
+			// extension keeps running after the server is gone.
+			runs := mcpserver.NewExtensionRuns()
 			opts := mcpserver.Options{
-				EnableWrites: resolveEnableWrites(cmd, enableWrites, cfg),
-				Name:         name,
-				Version:      version,
+				EnableWrites:  resolveEnableWrites(cmd, enableWrites, cfg),
+				Name:          name,
+				Version:       version,
+				ExtensionRuns: runs,
 			}
+			if resolveEnableExtensions(cmd, enableExtensions, cfg, httpAddr != "") {
+				opts.ExtensionTools, err = serveExtensionTools(f, exts, extErr)
+				if err != nil {
+					return err
+				}
+			}
+			// After ExtensionTools: the group filter needs their groups.
 			opts = mcpserver.ResolveOptions(opts, spec)
 
 			startCredentialCheck(ctx, f, cfg, client)
 
-			httpAddr = resolveHTTPAddr(cmd, httpAddr, cfg)
 			if httpAddr != "" {
 				normalized, isLoopback := mcpserver.NormalizeBindAddr(httpAddr)
 				token, generated, err := resolveHTTPAuth(f, cmd, cfg, isLoopback, httpAuthFlags{
@@ -136,29 +163,28 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				go func() {
-					<-ctx.Done()
-					_ = server.Close()
-				}()
 				// Only announce a generated token once the bind succeeded, so a
 				// bad address doesn't print a token that is never used.
 				if generated {
 					printGeneratedToken(cmd.ErrOrStderr(), token)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "MCP server listening on http://%s\n", listenAddr(normalized, ln.Addr()))
-				err = server.Serve(ln)
-				if errors.Is(err, http.ErrServerClosed) {
-					return nil
-				}
-				return err
+				return serveHTTP(ctx, f, server, ln, runs)
 			}
 
 			srv := mcpserver.BuildServer(client, opts)
-			return srv.Run(ctx, newStdioTransport())
+			// Run returns only once the tool calls in flight are done, so
+			// the extension runs must be stopped as soon as ctx is
+			// cancelled, not after Run.
+			stopExtensions := stopExtensionsOnDone(ctx, f, runs)
+			err = srv.Run(ctx, newStdioTransport())
+			stopExtensions()
+			return err
 		},
 	}
 
 	cmd.Flags().BoolVar(&enableWrites, "enable-writes", false, "Register tools that create, update, or delete Redmine data")
+	cmd.Flags().BoolVar(&enableExtensions, enableExtensionsFlag, false, "Register the MCP tools of installed extensions (default: on for stdio, off for --http). Also settable via mcp.enable_extensions or REDMINE_MCP_ENABLE_EXTENSIONS.")
 	cmd.Flags().StringVar(&httpAddr, "http", "", "Serve MCP over streamable HTTP on the given address instead of stdio (e.g. :8080 binds 127.0.0.1; pass 0.0.0.0:8080 to expose externally). Also settable via REDMINE_MCP_HTTP.")
 	cmd.Flags().StringVar(&authToken, "auth-token", "", "Require this bearer token in the Authorization header for every HTTP request. When no token is set, one is generated at startup for an --http bind outside of loopback. Visible in the process list; prefer --auth-token-file, REDMINE_MCP_AUTH_TOKEN, or mcp.auth_token.")
 	cmd.Flags().StringVar(&authTokenFile, "auth-token-file", "", "Read the --auth-token value from a file, or from standard input with \"-\", so it never appears in the process list.")
@@ -172,6 +198,69 @@ func newCmdServe(f *cmdutil.Factory) *cobra.Command {
 
 	cmdutil.MarkNoJSONOutput(cmd)
 	return cmd
+}
+
+// httpShutdownTimeout is how long an HTTP server that is shutting down
+// gives the requests in flight to finish before it closes their
+// connections.
+const httpShutdownTimeout = 5 * time.Second
+
+// extensionsStillRunningWarning is printed when extension runs did not end
+// within mcpserver.ExtensionShutdownTimeout of being stopped.
+const extensionsStillRunningWarning = "some extension tool calls had not finished when the MCP server stopped; their processes were killed"
+
+// serveHTTP serves server on ln until ctx is cancelled, then shuts it down:
+// the extension runs in flight are stopped (which kills their process
+// groups, so their calls end with an error), the other requests get
+// httpShutdownTimeout to finish, and serveHTTP returns only after both.
+func serveHTTP(ctx context.Context, f *cmdutil.Factory, server *http.Server, ln net.Listener, runs *mcpserver.ExtensionRuns) error {
+	stopExtensions := stopExtensionsOnDone(ctx, f, runs)
+	serveDone := make(chan struct{})
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		select {
+		case <-ctx.Done():
+		case <-serveDone:
+			return
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+		}
+	}()
+	err := server.Serve(ln)
+	close(serveDone)
+	<-shutdownDone
+	stopExtensions()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+// stopExtensionsOnDone stops the extension runs in flight as soon as ctx is
+// cancelled. The returned function stops them if that has not happened yet
+// (the transport ended by itself) and returns once they finished, or after
+// mcpserver.ExtensionShutdownTimeout with a warning.
+func stopExtensionsOnDone(ctx context.Context, f *cmdutil.Factory, runs *mcpserver.ExtensionRuns) func() {
+	served := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		select {
+		case <-ctx.Done():
+		case <-served:
+		}
+		if !runs.Stop(mcpserver.ExtensionShutdownTimeout) {
+			f.Warn(extensionsStillRunningWarning)
+		}
+	}()
+	return func() {
+		close(served)
+		<-stopped
+	}
 }
 
 // isSetupProblem reports whether the failure to build a client means Redmine
@@ -199,10 +288,16 @@ func httpRequested(cmd *cobra.Command, flagVal string, cfg *config.Config, cfgEr
 	return os.Getenv("REDMINE_MCP_HTTP") != "" || config.KeyringSecretMCPHTTP(cfgErr) != ""
 }
 
-// buildFilterSpec merges config-file values with the CLI flag values. CLI
-// flags take precedence: when a flag is explicitly set, the corresponding
-// config value is ignored entirely (rather than appended).
+// buildFilterSpec is buildFilterSpecFor with the generated tools only.
 func buildFilterSpec(cfg *config.Config, cmd *cobra.Command, enableGroupsFlag, disableGroupsFlag, enableToolsFlag, disableToolsFlag []string) (mcpserver.FilterSpec, error) {
+	return buildFilterSpecFor(mcpserver.NewCatalog(nil), cfg, cmd, enableGroupsFlag, disableGroupsFlag, enableToolsFlag, disableToolsFlag)
+}
+
+// buildFilterSpecFor merges config-file values with the CLI flag values and
+// validates them against catalog. CLI flags take precedence: when a flag is
+// explicitly set, the corresponding config value is ignored entirely
+// (rather than appended).
+func buildFilterSpecFor(catalog *mcpserver.Catalog, cfg *config.Config, cmd *cobra.Command, enableGroupsFlag, disableGroupsFlag, enableToolsFlag, disableToolsFlag []string) (mcpserver.FilterSpec, error) {
 	pick := func(flagName string, fromFlag, fromCfg []string) []string {
 		if cmd.Flags().Changed(flagName) {
 			return fromFlag
@@ -223,19 +318,19 @@ func buildFilterSpec(cfg *config.Config, cmd *cobra.Command, enableGroupsFlag, d
 	et := pick("enable-tools", enableToolsFlag, cfgET)
 	dt := pick("disable-tools", disableToolsFlag, cfgDT)
 
-	parsedEnable, err := mcpserver.ParseGroups(eg)
+	parsedEnable, err := catalog.ParseGroups(eg)
 	if err != nil {
 		return mcpserver.FilterSpec{}, err
 	}
-	parsedDisable, err := mcpserver.ParseGroups(dg)
+	parsedDisable, err := catalog.ParseGroups(dg)
 	if err != nil {
 		return mcpserver.FilterSpec{}, err
 	}
-	parsedEnableTools, err := mcpserver.ParseTools(et)
+	parsedEnableTools, err := catalog.ParseTools(et)
 	if err != nil {
 		return mcpserver.FilterSpec{}, err
 	}
-	parsedDisableTools, err := mcpserver.ParseTools(dt)
+	parsedDisableTools, err := catalog.ParseTools(dt)
 	if err != nil {
 		return mcpserver.FilterSpec{}, err
 	}

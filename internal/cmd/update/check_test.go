@@ -34,6 +34,13 @@ func TestShouldCheck(t *testing.T) {
 		{name: "update after flags", version: "1.0.0", args: []string{"--verbose", "update"}, tty: true, want: false},
 		{name: "update after flag with value", version: "1.0.0", args: []string{"--config", "cfg.yaml", "update"}, tty: true, want: false},
 		{name: "update after short flag", version: "1.0.0", args: []string{"-v", "update"}, tty: true, want: false},
+		{name: "extension upgrade", version: "1.0.0", args: []string{"extension", "upgrade", "pr"}, tty: true, want: false},
+		{name: "ext upgrade alias", version: "1.0.0", args: []string{"ext", "upgrade", "--all"}, tty: true, want: false},
+		{name: "extension upgrade after flags", version: "1.0.0", args: []string{"--profile", "work", "extension", "--verbose", "upgrade"}, tty: true, want: false},
+		{name: "extension list", version: "1.0.0", args: []string{"extension", "list"}, tty: true, want: true},
+		{name: "upgrade without extension", version: "1.0.0", args: []string{"upgrade"}, tty: true, want: true},
+		{name: "upgrade before extension", version: "1.0.0", args: []string{"upgrade", "extension"}, tty: true, want: true},
+		{name: "extension upgrade after --", version: "1.0.0", args: []string{"api", "--", "extension", "upgrade"}, tty: true, want: true},
 		{name: "no tty", version: "1.0.0", args: nil, tty: false, want: false},
 		{name: "no args", version: "1.0.0", args: nil, tty: true, want: true},
 	}

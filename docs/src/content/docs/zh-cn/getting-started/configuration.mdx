@@ -45,6 +45,7 @@ import { Steps, Tabs, TabItem, Aside, FileTree, LinkCard, CardGrid, Badge } from
   <TabItem label="临时使用">
     ```bash
     redmine --profile work issues list
+    REDMINE_PROFILE=work redmine issues list   # 效果相同，通过环境变量指定
     ```
   </TabItem>
   <TabItem label="状态">
@@ -128,9 +129,21 @@ export REDMINE_NO_KEYRING=1
 
 # 在系统根证书之外，额外信任此 PEM 文件中的 CA 证书
 export REDMINE_CA_CERT=/etc/ssl/certs/company-ca.crt
+
+# 使用其他配置文件路径和身份验证配置文件，等同于 --config 和 --profile
+export REDMINE_CONFIG=~/work/redmine-cli.yaml
+export REDMINE_PROFILE=work
+
+# 额外的 HTTP 请求头，每行一个 "Name: value"，等同于多次传入 --header
+export REDMINE_HEADERS=$'User-Agent: Mozilla/5.0\nX-Proxy-Token: your-proxy-token'
+
+# 把已安装的扩展放在其他目录
+export REDMINE_EXTENSIONS_DIR=$HOME/redmine-extensions
 ```
 
-参见 [自动更新](/zh-cn/commands/other/#启动时更新检查) 了解更新检查的详细信息。
+`REDMINE_CONFIG`、`REDMINE_PROFILE` 和 `REDMINE_HEADERS` 分别对应 `--config`、`--profile` 和 `--header` 标志；命令行上给出的标志优先。所有命令都会读取它们，包括 `redmine mcp serve` 和 shell 补全。`REDMINE_HEADERS` 的合并方式参见 [自定义 HTTP 请求头](#自定义-http-请求头)。
+
+参见 [自动更新](/zh-cn/commands/other/#启动时更新检查) 了解更新检查的详细信息，参见 [扩展](/zh-cn/commands/extensions/#扩展的存储位置) 了解扩展目录。MCP 服务器的变量（`REDMINE_MCP_*`）列在 [AI 代理](/zh-cn/guides/ai-agents/#收窄暴露的工具范围) 中。
 
 ## 全局标志
 
@@ -140,11 +153,11 @@ export REDMINE_CA_CERT=/etc/ssl/certs/company-ca.crt
 |------|------|
 | `-s, --server`  | Redmine 服务器 URL |
 | `-k, --api-key` | 用于身份验证的 API 密钥 |
-| `--profile`     | 使用指定的身份验证配置文件 |
-| `--config`      | 配置文件路径（默认为 `~/.redmine-cli.yaml`） |
+| `--profile`     | 使用指定的身份验证配置文件（或 `REDMINE_PROFILE`） |
+| `--config`      | 配置文件路径（默认为 `~/.redmine-cli.yaml`，或 `REDMINE_CONFIG`） |
 | `--no-color`    | 禁用彩色输出 |
 | `--read-only`   | 拒绝所有修改服务器数据的请求 |
-| `--header`      | 额外的 HTTP 请求头，格式为 `"Name: value"`（可重复） |
+| `--header`      | 额外的 HTTP 请求头，格式为 `"Name: value"`（可重复；另见 `REDMINE_HEADERS`） |
 | `-v, --verbose` | 启用调试日志 |
 
 ## 只读模式
@@ -168,6 +181,8 @@ profiles:
 ```
 
 传入 `--read-only=false` 可在单次调用中覆盖环境变量或配置文件中的 `read_only: true`。
+
+只读模式同样适用于[扩展](/zh-cn/commands/extensions/)：它们的 `redmine api` 调用会继承只读模式。未声明 `writes: true` 的扩展命令总是以只读方式运行。
 
 <Aside type="note" title="MCP 服务器">
   MCP 服务器有自己的开关：只有传入 `--enable-writes` 时才会注册写入类工具（参见 [AI 代理](/zh-cn/guides/ai-agents/)）。配置文件中的 `read_only: true` 会额外在 HTTP 层阻止写入，即使已传入 `--enable-writes`。
@@ -194,11 +209,20 @@ profiles:
 redmine --header "User-Agent: Mozilla/5.0" issues list
 ```
 
+如需为整个 shell 会话、CI 任务或容器设置请求头，可将其写入 `REDMINE_HEADERS`，每行一个 `"Name: value"`。空行会被忽略，无效条目会直接报错而不会被跳过。按请求头名称的优先级：`--header` > `REDMINE_HEADERS` > 配置文件中的 `headers`。
+
+```bash
+export REDMINE_HEADERS=$'User-Agent: Mozilla/5.0\nX-Proxy-Token: your-proxy-token'
+redmine issues list
+```
+
 传给 `redmine auth login` 时，这些请求头会用于连接测试并保存到配置文件中，因此需要它们的服务器在首次登录时即可使用：
 
 ```bash
 redmine auth login --header "User-Agent: Mozilla/5.0"
 ```
+
+`REDMINE_HEADERS` 同样用于该连接测试，但与 `REDMINE_CA_CERT` 一样不会保存到配置文件中。
 
 再次登录时，只要服务器主机不变，配置文件中的请求头会被保留。若将配置文件指向其他服务器，这些请求头会被丢弃，因为它们可能是属于旧服务器的机密信息。如需删除某个请求头，请直接在配置文件中将其删除。
 

@@ -117,6 +117,14 @@ var commandOutputContracts = map[string]commandContract{
 	"redmine priorities list":          {Mode: outputContractStructured},
 	"redmine activities list":          {Mode: outputContractStructured},
 	"redmine document-categories list": {Mode: outputContractStructured},
+	"redmine extension check":          {Mode: outputContractStructured},
+	"redmine extension create":         {Mode: outputContractStructured},
+	"redmine extension exec":           {Mode: outputContractRawPassthrough, Reason: "runs an installed extension; its output is that of the extension command (rendered like 'redmine <name>' for declarative commands, passed through for raw ones)"},
+	"redmine extension install":        {Mode: outputContractStructured},
+	"redmine extension list":           {Mode: outputContractStructured},
+	"redmine extension remove":         {Mode: outputContractStructured},
+	"redmine extension search":         {Mode: outputContractStructured},
+	"redmine extension upgrade":        {Mode: outputContractStructured},
 	"redmine time delete":              {Mode: outputContractStructured},
 	"redmine time get":                 {Mode: outputContractStructured},
 	"redmine time list":                {Mode: outputContractStructured},
@@ -174,6 +182,8 @@ func TestRunnableCommandsHaveDeclaredOutputContracts(t *testing.T) {
 func TestDirectStdoutWritesAreAllowlisted(t *testing.T) {
 	allowed := map[string]string{
 		"completion/completion.go": "shell completion generator streams directly to stdout",
+		"extension/dispatch.go":    "non-JSON stdout of a declarative extension command is shown as text",
+		"extension/scaffold.go":    "the Go extension template writes to its own stdout",
 		"issue/get.go":             "human journal rendering still prints directly after detail output",
 		"news/get.go":              "section headings between the detail block and the comment/attachment tables",
 		"wiki/get.go":              "section heading between the detail block and the attachment table",

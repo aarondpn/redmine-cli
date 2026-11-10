@@ -408,3 +408,19 @@ func TestErrorsGoToStderrWithEmptyStdout(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectedOutputFormat_HonorsConfigEnvBeforePersistentPreRun(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "env.yaml")
+	content := "server: https://example.invalid\napi_key: test\nauth_method: apikey\noutput_format: json\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REDMINE_CONFIG", cfgPath)
+	t.Setenv("REDMINE_OUTPUT_FORMAT", "")
+
+	root, factory := cmd.NewRootCmdWithFactory("test")
+	got := selectedOutputFormat(root, factory, []string{"versions", "list"})
+	if got != output.FormatJSON {
+		t.Fatalf("selectedOutputFormat() = %q, want %q from the REDMINE_CONFIG file", got, output.FormatJSON)
+	}
+}

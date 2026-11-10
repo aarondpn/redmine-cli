@@ -128,3 +128,41 @@ func TestRedactSecrets_ToolAndResourceExits(t *testing.T) {
 		}
 	})
 }
+
+// TestRedactSecrets_DecodedJSON covers the untyped values extension tools
+// return: whatever encoding/json decodes into an interface, with
+// json.Number for numbers.
+func TestRedactSecrets_DecodedJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"top-level object", `{"api_key":"secret","id":1}`, `{"id":1}`},
+		{"nested object", `{"user":{"api_key":"secret","login":"a"}}`, `{"user":{"login":"a"}}`},
+		{"array of objects", `[{"api_key":"secret"},{"id":12345678901234567890}]`, `[{},{"id":12345678901234567890}]`},
+		{"arrays in arrays", `[[{"x":[{"api_key":"secret"}]}]]`, `[[{"x":[{}]}]]`},
+		{"non-string secret value", `{"api_key":{"nested":true},"n":null}`, `{"n":null}`},
+		{"other keys kept", `{"API_KEY":"kept","api_keys":["kept"]}`, `{"API_KEY":"kept","api_keys":["kept"]}`},
+		{"scalar", `"api_key"`, `"api_key"`},
+		{"null", `null`, `null`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dec := json.NewDecoder(strings.NewReader(tt.in))
+			dec.UseNumber()
+			var v any
+			if err := dec.Decode(&v); err != nil {
+				t.Fatal(err)
+			}
+			redactSecrets(&v)
+			got, err := json.Marshal(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("redacted = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}

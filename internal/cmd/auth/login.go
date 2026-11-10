@@ -329,6 +329,19 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	if err != nil {
 		return err
 	}
+	// REDMINE_HEADERS applies to the connection test, as for every other
+	// command, but is not saved; like REDMINE_CA_CERT it describes this
+	// environment, not the profile. --header still wins over it.
+	envHeaders, err := config.EnvHeaders()
+	if err != nil {
+		return err
+	}
+	testHeaders := headers
+	if len(envHeaders) > 0 {
+		if testHeaders, err = config.MergeHeaders(existingHeaders, append(envHeaders, f.Headers...)); err != nil {
+			return err
+		}
+	}
 
 	// Step 5: Test connection
 	cfg := &config.Config{
@@ -341,9 +354,10 @@ func runLogin(ctx context.Context, f *cmdutil.Factory, opts loginOptions, nonInt
 	}
 	cfg.CACert = caCert
 	testCfg := cfg
-	if testCACert != caCert {
+	if testCACert != caCert || len(envHeaders) > 0 {
 		withEnv := *cfg
 		withEnv.CACert = testCACert
+		withEnv.Headers = testHeaders
 		testCfg = &withEnv
 	}
 	if testCACertLabel != "" {

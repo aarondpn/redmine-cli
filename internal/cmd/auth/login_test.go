@@ -302,3 +302,47 @@ func TestLoginIgnoresActiveProfileHeadersAndFormat(t *testing.T) {
 		t.Fatalf("active profile output_format leaked:\n%s", testutil.Stdout(f))
 	}
 }
+
+func TestLoginUsesEnvHeadersForTestButDoesNotSaveThem(t *testing.T) {
+	var gotTeam, gotProxy string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTeam = r.Header.Get("X-Team")
+		gotProxy = r.Header.Get("X-Proxy")
+		fmt.Fprint(w, `{"user":{"id":1,"login":"jdoe","firstname":"Jane","lastname":"Doe"}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	f, cfgPath := loginFactory(t, "")
+	f.ServerOverride = srv.URL
+	f.APIKeyOverride = "k"
+	f.Headers = []string{"X-Proxy: from-flag"}
+	t.Setenv(config.HeadersEnv, "X-Team: from-env\nX-Proxy: from-env")
+
+	if err := runLoginCmd(f, "--name", "work"); err != nil {
+		t.Fatal(err)
+	}
+	if gotTeam != "from-env" || gotProxy != "from-flag" {
+		t.Fatalf("connection test sent X-Team=%q X-Proxy=%q, want env header and the flag winning", gotTeam, gotProxy)
+	}
+	pc, err := config.LoadProfiles(cfgPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := pc.Profiles["work"].Headers
+	if len(got) != 1 || got["X-Proxy"] != "from-flag" {
+		t.Fatalf("saved headers = %v, want only the --header value", got)
+	}
+}
+
+func TestLoginRejectsInvalidEnvHeaders(t *testing.T) {
+	srv := loginServer(t)
+	f, _ := loginFactory(t, "")
+	f.ServerOverride = srv.URL
+	f.APIKeyOverride = "k"
+	t.Setenv(config.HeadersEnv, "broken")
+
+	err := runLoginCmd(f, "--name", "work")
+	if err == nil || !strings.Contains(err.Error(), config.HeadersEnv) {
+		t.Fatalf("error = %v, want it to name %s", err, config.HeadersEnv)
+	}
+}

@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/completion"
 	customfield "github.com/aarondpn/redmine-cli/v2/internal/cmd/custom_field"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/enumeration"
+	extcmd "github.com/aarondpn/redmine-cli/v2/internal/cmd/extension"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/files"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/group"
 	"github.com/aarondpn/redmine-cli/v2/internal/cmd/installskill"
@@ -38,6 +41,7 @@ import (
 	"github.com/aarondpn/redmine-cli/v2/internal/cmdutil"
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 	"github.com/aarondpn/redmine-cli/v2/internal/debug"
+	extmgr "github.com/aarondpn/redmine-cli/v2/internal/extension"
 	"github.com/aarondpn/redmine-cli/v2/internal/output"
 )
 
@@ -49,8 +53,77 @@ func NewRootCmd(version string) *cobra.Command {
 
 // NewRootCmdWithFactory creates the root command and returns the shared
 // Factory so callers (e.g. main.go) can inspect runtime-resolved state like
-// the selected output format after execution.
+// the selected output format after execution. It registers no installed
+// extensions; see NewRootCmdWithOptions.
 func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
+	return NewRootCmdWithOptions(version, RootOptions{})
+}
+
+// RootOptions configures NewRootCmdWithOptions.
+type RootOptions struct {
+	// Extensions returns the installed extensions to register as top-level
+	// commands (see DiscoverExtensions). `mcp serve` and `mcp tools` call
+	// it again when they run, for the extensions' MCP tools. nil registers
+	// none: tests build
+	// the root through NewRootCmd and must not depend on the extensions
+	// installed on the developer's machine.
+	Extensions func() ([]*extmgr.Extension, error)
+}
+
+// DiscoverExtensions returns a RootOptions.Extensions that lists the
+// extensions in the default extensions directory. It only reads the local
+// disk; a missing or unreadable directory yields no extensions.
+//
+// Unknown manifest fields (from a newer redmine-cli) do not stop an
+// extension from loading; each is reported to warnings once, however often
+// the extensions are listed during the invocation. Pass io.Discard where
+// nothing may be printed, such as shell completion.
+func DiscoverExtensions(version string, warnings io.Writer) func() ([]*extmgr.Extension, error) {
+	var (
+		mu      sync.Mutex
+		printed = map[string]bool{}
+	)
+	return func() ([]*extmgr.Extension, error) {
+		m, err := extmgr.NewManager(version)
+		if err != nil {
+			return nil, err
+		}
+		exts, err := m.List()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, ext := range exts {
+			if ext.Err != nil {
+				continue
+			}
+			for _, w := range ext.Warnings {
+				msg := fmt.Sprintf("Warning: extension %s: %s", ext.Name, w.Error())
+				if !printed[msg] {
+					printed[msg] = true
+					fmt.Fprintln(warnings, output.SanitizeTerminal(msg))
+				}
+			}
+		}
+		return exts, err
+	}
+}
+
+// IsShellCompletion reports whether args (without the program name) are a
+// shell completion request, during which nothing but completions may be
+// printed.
+func IsShellCompletion(args []string) bool {
+	return len(args) > 0 && (args[0] == cobra.ShellCompRequestCmd || args[0] == cobra.ShellCompNoDescRequestCmd)
+}
+
+// AttachesTerminal reports whether args run an extension with the terminal
+// attached (a raw command or an extension without manifest). main lets such
+// an extension handle Ctrl-C itself instead of ending the process.
+func AttachesTerminal(root *cobra.Command, args []string, version string) bool {
+	return extcmd.AttachesTerminal(root, args, extcmd.Options{Version: version})
+}
+
+// NewRootCmdWithOptions creates the root command like NewRootCmdWithFactory
+// and registers the extensions opts provides.
+func NewRootCmdWithOptions(version string, opts RootOptions) (*cobra.Command, *cmdutil.Factory) {
 	f := cmdutil.NewFactory()
 
 	var (
@@ -145,11 +218,21 @@ func NewRootCmdWithFactory(version string) (*cobra.Command, *cmdutil.Factory) {
 	cmd.AddCommand(files.NewCmdFiles(f))
 	cmd.AddCommand(search.NewCmdSearch(f))
 	cmd.AddCommand(wiki.NewCmdWiki(f))
-	cmd.AddCommand(mcpcmd.NewCmdMCP(f))
+	cmd.AddCommand(mcpcmd.NewCmdMCP(f, mcpcmd.Options{Extensions: opts.Extensions}))
 	cmd.AddCommand(completion.NewCmdCompletion())
 	cmd.AddCommand(installskill.NewCmdInstallSkill(f))
 	cmd.AddCommand(update.NewCmdUpdate(f, version))
 	cmd.AddCommand(newCmdConfig(f))
+
+	extOpts := extcmd.Options{Version: version}
+	cmd.AddCommand(extcmd.NewCmdExtension(f, extOpts))
+	// Extensions come last so every core command name is known: a core
+	// command always wins over an extension of the same name.
+	if opts.Extensions != nil {
+		if exts, err := opts.Extensions(); err == nil {
+			extcmd.Register(cmd, f, exts, extOpts)
+		}
+	}
 
 	return cmd, f
 }

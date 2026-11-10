@@ -31,7 +31,8 @@
 <p align="center">
   <a href="#安装">安装</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#ai-agents">AI 代理</a>
+  <a href="#ai-agents">AI 代理</a> ·
+  <a href="#扩展">扩展</a>
 </p>
 
 ## 安装
@@ -92,6 +93,18 @@ redmine-cli 同时附带 [Agent Skill](https://agentskills.io)（35 多个代理
 skill 教代理掌握 CLI 中不显然的部分（输出格式、名称解析、分页、常见工作流）。MCP 服务器以类型化工具调用的形式暴露相同的操作，默认只读，并支持按 group / tool 的允许列表与拒绝列表。
 
 完整配置、各宿主专属代码片段（Claude Desktop、Cursor、Zed、VS Code）以及写入工具的开关，请参阅 [AI 代理集成指南](https://redmine-cli.dev/guides/ai-agents/)。
+
+## 扩展
+
+与 `gh extension` 类似，可以从名为 `<owner>/redmine-cli-<name>` 的 GitHub 仓库添加顶层命令。扩展在 `redmine-extension.yml` 清单中声明其命令，redmine-cli 会把每个命令变成一个 CLI 命令（标志、帮助、补全、校验、表格输出）和一个 MCP 工具。扩展本身从 stdin 读取 JSON，并通过 `redmine api` 调用 Redmine，因此永远接触不到你的凭据。
+
+```bash
+redmine extension search                       # 查找扩展（GitHub 主题 redmine-cli-extension）
+redmine extension install octo/redmine-cli-pr  # 之后以 redmine pr ... 运行
+redmine extension create hello                 # 创建自己的扩展骨架（脚本，或 --precompiled=go）
+```
+
+redmine-cli 不会验证扩展，扩展以你的用户权限运行（作为 MCP 工具时也是如此），因此只安装你信任的扩展。参见 [扩展命令](https://redmine-cli.dev/zh-cn/commands/extensions/) 和 [编写扩展指南](https://redmine-cli.dev/zh-cn/guides/writing-extensions/)。
 
 ## 开发
 

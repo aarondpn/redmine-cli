@@ -28,6 +28,22 @@ type Options struct {
 	// DisabledTools is a deny-list applied after the group and allow-list
 	// filters. Names listed here are never registered.
 	DisabledTools map[string]bool
+
+	// ExtensionTools are the tools contributed by installed extensions,
+	// registered after the generated ones. Each belongs to the group
+	// ext-<extension>. A tool whose name is already taken is skipped (see
+	// ResolveExtensionTools). Set it before calling ResolveOptions, which
+	// needs the extension groups to resolve the "extensions" group and
+	// disable-only filters.
+	ExtensionTools []ExtensionTool
+
+	// ExtensionRuns, when set, tracks the extension processes the tools of
+	// ExtensionTools start, so the caller can stop them with
+	// ExtensionRuns.Stop before it exits. Every server that serves
+	// extension tools in a process that may exit while a call is in flight
+	// should set it: an extension runs in its own process group and would
+	// otherwise outlive the server. Nil tracks nothing.
+	ExtensionRuns *ExtensionRuns
 }
 
 // groupEnabled reports whether tools or resources belonging to g should be
@@ -85,22 +101,25 @@ type FilterSpec struct {
 //   - DisableGroups subtracts from whatever EnableGroups produced.
 //   - EnableTools, when non-empty, becomes the tool allow-list.
 //   - DisableTools is the tool deny-list, applied last.
+//   - GroupExtensions in either group list stands for the ext-<name> group
+//     of every tool in opts.ExtensionTools.
 //
 // Passing an empty FilterSpec is a no-op, preserving the default behavior of
 // "all groups enabled, no per-tool filter".
 func ResolveOptions(opts Options, spec FilterSpec) Options {
 	if len(spec.EnableGroups) > 0 || len(spec.DisableGroups) > 0 {
-		enabled := make(map[Group]bool, len(AllGroups()))
+		all := selectableGroups(opts.ExtensionTools)
+		enabled := make(map[Group]bool, len(all))
 		if len(spec.EnableGroups) == 0 {
-			for _, g := range AllGroups() {
+			for _, g := range all {
 				enabled[g] = true
 			}
 		} else {
-			for _, g := range spec.EnableGroups {
+			for _, g := range expandGroups(spec.EnableGroups, opts.ExtensionTools) {
 				enabled[g] = true
 			}
 		}
-		for _, g := range spec.DisableGroups {
+		for _, g := range expandGroups(spec.DisableGroups, opts.ExtensionTools) {
 			delete(enabled, g)
 		}
 		opts.EnabledGroups = enabled

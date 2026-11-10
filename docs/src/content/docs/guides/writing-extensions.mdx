@@ -1,0 +1,346 @@
+---
+title: Writing Extensions
+description: Build a redmine-cli extension. Covers the manifest reference, a complete example, the execution protocol and environment, editor schema setup, MCP behaviour and publishing.
+---
+
+import { Steps, Aside, Tabs, TabItem, FileTree, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+An extension adds a command `redmine <name>` to redmine-cli. You write two things:
+
+- **A manifest**, `redmine-extension.yml`, that declares each command: its parameters, whether it writes, and how its result is shown as a table. From that one definition redmine-cli builds the CLI command (flags, positional arguments, help, completion, validation, output) and an MCP tool (input schema, validation, write gating).
+- **A handler**, the executable `redmine-cli-<name>`, in any language. It reads its input as JSON on stdin, calls Redmine through `$REDMINE_CLI_BIN api ...`, and prints its result as JSON on stdout.
+
+The handler never sees credentials. `redmine api` resolves them from the same profile, config file, server and headers as the command that started the extension.
+
+To install and manage extensions, see the [`redmine extension` command reference](/commands/extensions/).
+
+## Quick start
+
+<Steps>
+
+1. Create a working extension:
+
+   ```bash
+   redmine extension create hello            # shell script
+   redmine extension create hello --precompiled=go   # or Go
+   ```
+
+2. Link it for development. Linked extensions are read again on every run, so edits take effect right away:
+
+   ```bash
+   cd redmine-cli-hello
+   redmine extension install .    # for Go, run go build first
+   ```
+
+3. Try it:
+
+   ```bash
+   redmine hello --help
+   redmine hello whoami
+   redmine hello echo hi --tag a --tag b
+   redmine extension check . --command echo --input '{"message": "hi"}'
+   ```
+
+</Steps>
+
+## Naming
+
+| What | Name |
+|------|------|
+| Repository | `<owner>/redmine-cli-<name>` |
+| Command | `redmine <name>` |
+| Executable | `redmine-cli-<name>` at the repository root (`redmine-cli-<name>.exe` for a Windows binary) |
+| Release binaries | `redmine-cli-<name>-<goos>-<goarch>`, plus `.exe` on Windows, as raw files (not archives) |
+| GitHub topic | `redmine-cli-extension`, so that `redmine extension search` finds it |
+
+`<name>` must match `^[a-z0-9][a-z0-9-]*$`, be at most 32 characters, and must not be `extension`, `ext`, `help`, `completion` or the name or alias of a core command.
+
+## A complete example
+
+`redmine-cli-triage` adds two commands: `redmine triage stale <project>` lists open issues nobody has updated for a while, and `redmine triage nudge <ids...>` adds a comment asking for news.
+
+<FileTree>
+- redmine-cli-triage/
+  - redmine-cli-triage the handler (`chmod +x`)
+  - redmine-extension.yml
+</FileTree>
+
+```yaml title="redmine-extension.yml"
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: triage
+description: Find and follow up on stale issues
+commands:
+  - name: stale
+    description: List open issues that have not been updated for a while
+    params:
+      - { name: project, type: string, required: true, positional: true, description: Project identifier or ID }
+      - { name: days, type: integer, default: 30, description: Minimum number of days since the last update }
+    output:
+      table:
+        - { header: ID, path: id }
+        - { header: Subject, path: subject }
+        - { header: Assignee, path: assignee }
+        - { header: Updated, jq: '.updated_on[0:10]' }
+  - name: nudge
+    description: Ask for a status update on one or more issues
+    writes: true
+    timeout: 2m
+    params:
+      - { name: issue_ids, type: integer, array: true, required: true, positional: true, description: Issues to comment on }
+      - { name: message, type: string, default: 'Any news on this?', description: Comment to add }
+    output:
+      detail:
+        - { key: Nudged, path: nudged }
+        - { key: Comment, path: message }
+```
+
+The handler is a bash script. It uses [jq](https://jqlang.org) to read the input object:
+
+```bash title="redmine-cli-triage"
+#!/usr/bin/env bash
+# redmine-cli-triage: find and follow up on stale issues.
+# Needs jq (https://jqlang.org) to read the input object.
+set -euo pipefail
+
+input=$(cat)                                 # the validated input object
+param() { jq -r --arg k "$1" '.[$k]' <<<"$input"; }
+redmine() { "$REDMINE_CLI_BIN" "$@"; }       # the redmine that started us
+
+case "${REDMINE_EXT_COMMAND:-}" in
+stale)
+  # Oldest updates first; keep the open issues untouched for at least $days.
+  redmine api /issues.json -f project_id="$(param project)" \
+      -f status_id=open -f sort=updated_on -f limit=100 |
+    jq --argjson days "$(param days)" '[.issues[]
+      | select((.updated_on | fromdateiso8601) < now - $days * 86400)
+      | {id, subject, assignee: .assigned_to.name, updated_on}]'
+  ;;
+nudge)
+  message=$(param message)
+  for id in $(jq -r '.issue_ids[]' <<<"$input"); do
+    redmine api -X PUT "/issues/$id.json" --silent \
+      -F "issue=$(jq -cn --arg notes "$message" '{notes: $notes}')"
+  done
+  jq '{nudged: .issue_ids, message}' <<<"$input"
+  ;;
+*)
+  echo "unknown command: ${REDMINE_EXT_COMMAND:-<none>}" >&2
+  exit 2
+  ;;
+esac
+```
+
+What redmine-cli makes of it:
+
+```bash
+redmine extension install .
+redmine triage stale web                 # table: ID, Subject, Assignee, Updated
+redmine triage stale web --days 90 -o json
+redmine triage nudge 12 15 --message "Still blocked?"
+redmine --read-only triage nudge 12      # the PUT is refused
+```
+
+- `stale` declares no `writes`, so it always runs with `REDMINE_READ_ONLY=1`. Its `redmine api` calls can read but not change data.
+- `days` is validated as an integer before the handler starts and defaults to `30`, so `param days` always has a value. Optional parameters without a default are left out of the input; with `jq -r`, a missing key reads as `null`.
+- `nudge` has `writes: true`. As an MCP tool it only exists with `--enable-writes`, and its description says so.
+- Both commands become MCP tools, `triage_stale` and `triage_nudge`, in the group `ext-triage`.
+
+## Manifest reference
+
+The manifest is YAML. `schema_version` and `min_cli_version` are checked first, so a manifest written for a newer redmine-cli reports which version it needs rather than its new fields. After that, unknown keys are rejected and every problem is reported with its line, for example `redmine-extension.yml:10: commands[0].params[0].type: must be one of: string, integer, number, boolean, json (got int)`.
+
+### Top level
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `schema_version` | yes | Manifest format version. Only `1` is supported |
+| `name` | yes | Extension name. Must equal `<name>` in `redmine-cli-<name>` |
+| `description` | no | Shown in `redmine --help` and `redmine extension list` |
+| `min_cli_version` | no | Lowest redmine-cli version that can run the extension (e.g. `2.9.0`). Older versions refuse the manifest; development builds skip the check |
+| `commands` | yes | At least one command |
+
+### Commands
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | | Invoked as `redmine <ext> <name>`. Lowercase letters, digits and `-`, starting with a letter. Unique |
+| `description` | | One line for CLI help and the MCP tool description. Required |
+| `writes` | `false` | The command changes Redmine data. Without it the command runs with `REDMINE_READ_ONLY=1` |
+| `destructive` | `false` | Deletes or irreversibly changes data. Adds `--yes` and a confirmation prompt to the CLI command and marks the MCP tool destructive. Requires `writes: true` |
+| `mcp` | `true` | `false` makes the command CLI only |
+| `timeout` | `60s` | Maximum run time from `1ms` to `5m`, in whole milliseconds (`500ms`), seconds (`30s`), minutes (`2m`) or minutes and seconds (`1m30s`) |
+| `raw` | `false` | Passthrough command: argv and the terminal go straight to the executable. No `params` or `output`, never an MCP tool |
+| `params` | | Input parameters, see below |
+| `output` | | Table rendering, see below |
+
+### Parameters
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | | Key in the input object. Lowercase letters, digits and `_`, starting with a letter. Unique within the command. The CLI flag is the name with `_` replaced by `-` (`due_date` → `--due-date`) |
+| `type` | | `string`, `integer`, `number`, `boolean` or `json` |
+| `description` | | Help text for the flag and the MCP parameter |
+| `required` | `false` | The parameter must be given. Cannot be combined with `default` |
+| `positional` | `false` | Taken from a positional argument instead of a flag |
+| `array` | `false` | Accepts a list of values. Not for `boolean` |
+| `enum` | | Allowed values, each listed once. Only for `string` and `integer` |
+| `default` | | Used when the parameter is not given. Must match `type` (a list when `array` is set) and `enum`. Not allowed on a required parameter |
+
+How each type is passed:
+
+| Type | CLI | MCP argument | Value on stdin |
+|------|-----|--------------|----------------|
+| `string` | `--state open` | string | string |
+| `integer` | `--days 30` (decimal: `010` is 10, `0x10` is rejected) | integer (no fraction) within the 64-bit range | integer |
+| `number` | `--ratio 0.5` | number | number |
+| `boolean` | `--draft`, `--draft=false` | boolean | `true` / `false` |
+| `json` | `--extra '{"a": 1}'`, `--extra @file.json`, `--extra @-` (stdin) | any JSON value | the decoded value |
+
+- **Arrays** are repeatable flags: `--label a --label b`. Integer and number arrays also accept comma-separated values (`--id 1,2`); string arrays don't split, so values may contain commas. An array positional takes all remaining arguments and is shown as `<name...>`.
+- **Positionals** are ordered as declared and shown as `<issue-id>`, or `[issue-id]` when optional. Required positionals must come before optional ones, and an array positional must be the last.
+- **Reserved flag names.** A flag parameter must not map to a global flag (`server`, `api-key`, `api-key-file`, `profile`, `config`, `header`, `output`, `jq`, `no-color`, `verbose`, `read-only`) or to `help`, `yes` or `force`. Rename it or make it positional.
+- **`null`** counts as not given: over MCP for every parameter, and on the CLI for a `json` parameter (`--extra null`). A required parameter given as `null` is missing, and an optional one gets its default.
+- Over MCP, properties the command doesn't declare are rejected.
+
+### Output
+
+`output` only affects the CLI's table format. `-o json`, `--jq` and MCP results always get the handler's JSON unchanged.
+
+```yaml
+output:
+  table:                        # used when the result is an array: one row per element
+    - { header: ID, path: id }
+    - { header: Author, path: author.login }
+    - { header: Labels, jq: '[.labels[].name] | join(" ")' }
+  detail:                       # used when the result is an object: one line per field
+    - { key: State, path: state }
+    - { key: First reviewer, path: reviewers.0.login }
+```
+
+- Each column or field sets exactly one of `path` and `jq`.
+- `path` is a dot path into the element or object. Numeric segments index arrays (`reviewers.0.login`).
+- `jq` is a jq expression evaluated against the element or object. It is checked when the manifest is loaded. Multiple results are joined with `, `.
+- Strings, numbers and booleans are shown as text and lists of them are joined with `, `. Other values are shown as compact JSON, and missing values as an empty cell.
+- A result that doesn't match (an object with only a `table` spec, a scalar, or no `output` at all) is printed as JSON.
+
+## Execution protocol
+
+Declarative commands (everything except `raw`) behave the same from the CLI and from the MCP server, and `redmine extension check --command` runs this exact protocol too.
+
+| | Declarative command | Raw command / no manifest |
+|---|---|---|
+| **argv** | none | `<command> args...` for a raw command, `args...` without a manifest |
+| **stdin** | The validated input object as JSON: parameter names as keys, defaults applied, optional parameters that were not given left out | The terminal |
+| **stdout** | The result as JSON (object, array or scalar), at most 10 MiB; output that isn't JSON is shown as text | The terminal |
+| **stderr** | Error message. Shown live in the CLI; the last 4 KiB (sanitized) become the error message in JSON mode and over MCP | The terminal |
+| **exit status** | `0` is success. Anything else is a failure, and `redmine` exits with the same status | Passed through |
+| **timeout** | `timeout`, default 60 s, at most 5 min | Only when the manifest sets `timeout` |
+
+- On timeout or cancellation (Ctrl-C, or the MCP client cancelling the call) the handler is killed together with every process it started (its process group; on Windows the process). A declarative command that prints more than 10 MiB is killed too.
+- One executable serves all commands. Dispatch on `REDMINE_EXT_COMMAND`.
+- Declarative commands can't prompt: stdin is the input and stdout is captured. Use a `raw` command for anything interactive.
+- On Windows, a script extension (an executable without `.exe`) runs through `sh` from [Git for Windows](https://git-scm.com/download/win).
+
+### Environment
+
+The handler inherits the environment of `redmine`, with these variables set:
+
+| Variable | Value |
+|----------|-------|
+| `REDMINE_CLI_BIN` | Absolute path of the running `redmine` binary. Call this instead of `redmine` from `PATH` |
+| `REDMINE_EXT_NAME` | The extension name |
+| `REDMINE_EXT_COMMAND` | The manifest command (declarative and raw commands; unset without a manifest) |
+| `REDMINE_EXT_SURFACE` | `cli` or `mcp` |
+| `REDMINE_MCP`, `REDMINE_MCP_TOOL` | `1` and the tool name, on the MCP surface only |
+| `REDMINE_PROFILE` | The effective profile, when there is one |
+| `REDMINE_CONFIG` | Absolute path of the config file, if `--config` or `REDMINE_CONFIG` was given |
+| `REDMINE_SERVER` | The `--server` value, if given |
+| `REDMINE_HEADERS` | If `--header` was given: the inherited `REDMINE_HEADERS` entries followed by the `--header` values, one `Name: value` per line |
+| `REDMINE_READ_ONLY` | `1` when read-only mode is on or the command doesn't declare `writes: true`; `0` when `--read-only=false` turned an inherited read-only mode off |
+| `REDMINE_NO_COLOR` | `1` with `--no-color` |
+| `REDMINE_NO_UPDATE_CHECK` | Always `1`, so nested `redmine` calls never check for updates |
+
+Because these are the regular redmine-cli variables, a nested `"$REDMINE_CLI_BIN" api ...` call targets the same Redmine as the command that started the extension, with the same headers and read-only mode, without any extension-specific code. `--api-key` and `--api-key-file` are never forwarded; nested calls use the profile's credentials, or `REDMINE_API_KEY` if it is in the environment already. Everything else, including `REDMINE_API_KEY`, is inherited unchanged.
+
+Extensions without a manifest are never forced read-only. They only follow the invocation's own read-only mode.
+
+## Editor support
+
+The JSON Schema of the manifest is published at `https://redmine-cli.dev/schema/redmine-extension.v1.json`. It provides completion, hover documentation and validation in any editor that uses the [YAML language server](https://github.com/redhat-developer/yaml-language-server), such as VS Code with the Red Hat YAML extension, Neovim or Zed. `redmine extension create` sets up both of the following.
+
+<Tabs>
+  <TabItem label="Modeline">
+    The first line of the manifest points the language server at the schema:
+
+    ```yaml
+    # yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+    ```
+  </TabItem>
+  <TabItem label=".vscode/settings.json">
+    ```json
+    {
+      "yaml.schemas": {
+        "https://redmine-cli.dev/schema/redmine-extension.v1.json": "redmine-extension.yml"
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+In other editors, map the URL to `redmine-extension.yml` in their JSON Schema settings. The schema covers types, enums, defaults and the conditional rules (for example `enum` only on string and integer parameters). The rest is checked by `redmine extension check`: unique names, reserved names, positional order, defaults within `enum`, jq expressions that compile, tool name length and uniqueness, and texts without terminal control characters (escape sequences, carriage returns, bidi controls; newlines and tabs are fine). Run it before you publish.
+
+## MCP tools
+
+`redmine mcp serve` turns every declarative command into an MCP tool, unless the command sets `mcp: false`:
+
+- **Name:** `<extension>_<command>` with `-` replaced by `_` (`triage_stale`). Tool names may be at most 64 characters. A tool whose name a core tool or another extension already uses is skipped with a warning on stderr, and the server still starts.
+- **Input schema:** derived from `params`, with types, `enum`, `default`, descriptions and required fields. Unknown properties are rejected. Arguments are validated before the handler starts.
+- **Groups:** one group per extension, `ext-<name>`, plus `extensions` for all of them. They work with `--enable-groups` / `--disable-groups` like the core groups.
+- **Writes:** tools with `writes: true` are only registered with `--enable-writes`. All others run with `REDMINE_READ_ONLY=1`. `destructive: true` adds "Destructive." to the description.
+- **Results:** a JSON object is returned as `structuredContent` plus a text block. Other JSON values and non-JSON output are returned as text. Results go through the same secret redaction as core tools. A non-zero exit, a timeout or too much output becomes an `isError` result with the end of stderr.
+- **Enablement:** extension tools are on by default for stdio and off for `--http`. `--enable-extensions`, `mcp.enable_extensions` in the profile and `REDMINE_MCP_ENABLE_EXTENSIONS` turn them on or off explicitly; `false` turns them off on both transports. The setup server (no Redmine configured yet) never has extension tools.
+
+The handler can check `REDMINE_EXT_SURFACE` or `REDMINE_MCP` to tell the two surfaces apart, for example to keep its stderr short. On MCP, stderr is not shown live, only as part of an error. `redmine mcp tools` lists the extension tools with their origin:
+
+```text
+ext-triage
+  triage_nudge  (write, extension triage)  Ask for a status update on one or more issues. Requires --enable-writes.
+  triage_stale  (read, extension triage)   List open issues that have not been updated for a while.
+```
+
+See [Extension tools](/guides/ai-agents/#extension-tools) in the AI agent guide for the server side.
+
+## Publishing
+
+Push the repository to GitHub as `<owner>/redmine-cli-<name>` and add the topic `redmine-cli-extension`.
+
+<Tabs>
+  <TabItem label="Script">
+    `redmine extension install` clones the repository when it has no binary releases. Commit the executable with its executable bit set. On Windows, run `git update-index --chmod=+x redmine-cli-<name>`. A tag can be installed with `--pin <tag>`; otherwise users get the default branch, and `upgrade` runs `git pull --ff-only`.
+  </TabItem>
+  <TabItem label="Precompiled (Go)">
+    Publish a GitHub release with one raw binary per platform, named `redmine-cli-<name>-<goos>-<goarch>` (`.exe` for Windows), plus `redmine-extension.yml` and a `checksums.txt` in `sha256sum` format. `install` verifies the binary and the manifest against it. The workflow `redmine extension create --precompiled=go` generates (`.github/workflows/release.yml`) does all of this when you push a `v*` tag. Users on a platform without a binary get an error rather than a clone.
+  </TabItem>
+</Tabs>
+
+Users of a binary extension get an update notice once you publish a newer release; users of a git extension get one when the default branch moves on.
+
+## Security
+
+<Aside type="caution" title="Read-only mode is not a sandbox">
+  `REDMINE_READ_ONLY=1` and MCP write gating protect against **buggy** extensions that call Redmine through `redmine api`. They do not stop a **malicious** one: an extension is a program running with the user's permissions, and it can read files, open network connections or talk to Redmine on its own. The trust prompt at install time is the security boundary. That is why `redmine extension install` asks, and why the prompt mentions MCP: an installed extension also runs when an AI agent calls its tool.
+</Aside>
+
+As an author:
+
+- Call Redmine through `$REDMINE_CLI_BIN api`. Never ask for, store or print API keys. Credentials are not passed to your extension on purpose.
+- Declare `writes: true` only on commands that write, and `destructive: true` on those that delete. This is what keeps read-only profiles and MCP write gating meaningful.
+- Treat input as data. Parameters are type-checked, but strings are still user (or model) input: pass them as arguments or through `jq --arg`, never through `eval` or by building shell commands from them.
+
+## Related
+
+<CardGrid>
+  <LinkCard title="Extension commands" href="/commands/extensions/" description="install, list, upgrade, remove, exec, search, create, check." />
+  <LinkCard title="AI agent integration" href="/guides/ai-agents/" description="Serving extension tools over MCP." />
+</CardGrid>

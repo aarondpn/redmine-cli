@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: fixture
+description: Dispatch test fixture
+commands:
+  - name: show
+    description: Read command that echoes what it received
+    params:
+      - { name: issue_id, type: integer, required: true, positional: true, description: Issue ID }
+      - { name: state, type: string, enum: [open, closed], default: open }
+      - { name: label, type: string, array: true }
+    output:
+      table:
+        - { header: ID, path: id }
+        - { header: Name, jq: .name }
+      detail:
+        - { key: Issue, path: stdin.issue_id }
+        - { key: State, path: stdin.state }
+        - { key: Command, path: env.REDMINE_EXT_COMMAND }
+  - name: write
+    description: Write command
+    writes: true
+  - name: wipe
+    description: Destructive command
+    writes: true
+    destructive: true
+    mcp: false
+  - name: slow
+    description: Command with a short timeout
+    timeout: 300ms
+  - name: shell
+    description: Raw passthrough command
+    raw: true

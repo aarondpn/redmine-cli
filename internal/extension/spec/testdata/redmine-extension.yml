@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://redmine-cli.dev/schema/redmine-extension.v1.json
+schema_version: 1
+name: pr
+description: Work with linked pull requests
+min_cli_version: 2.9.0
+commands:
+  - name: list
+    description: List PRs/MRs linked to a Redmine issue
+    writes: false
+    destructive: false
+    mcp: true
+    timeout: 30s
+    params:
+      - { name: issue_id, type: integer, required: true, positional: true, description: Redmine issue ID }
+      - { name: state, type: string, enum: [open, merged, closed], default: open }
+      - { name: label, type: string, array: true }
+      - { name: extra, type: json }
+    output:
+      table:
+        - { header: ID, path: id }
+        - { header: Title, path: title }
+        - { header: Author, jq: '.author.login' }
+      detail:
+        - { key: State, path: state }
+  - name: link-pr
+    description: Link a pull request to an issue
+    writes: true
+    params:
+      - { name: issue_id, type: integer, required: true, positional: true }
+      - { name: urls, type: string, required: true, positional: true, array: true }
+      - { name: limit, type: integer, default: 10, enum: [10, 20, 50] }
+      - { name: ratio, type: number, default: 0.5 }
+      - { name: draft, type: boolean, default: true }
+      - { name: ids, type: integer, array: true, default: [1, 2] }
+      - { name: meta, type: json, default: { source: cli } }
+  - name: unlink
+    description: Remove every link from an issue
+    writes: true
+    destructive: true
+    mcp: false
+    params:
+      - { name: issue_id, type: integer, required: true, positional: true }
+  - name: shell
+    raw: true
+    description: Interactive shell

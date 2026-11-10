@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/aarondpn/redmine-cli/v2/internal/config"
 )
@@ -16,13 +17,12 @@ import (
 // flags for `redmine __complete`, but never runs PersistentPreRunE for the
 // command being completed, so without it completion would ignore e.g.
 // --config and --profile. Flags the root command does not define are
-// skipped. An invalid --header is an error, so a typo fails before any
-// interactive prompt.
+// skipped. An invalid --header or REDMINE_HEADERS entry is an error, so a
+// typo fails before any interactive prompt.
 func ApplyGlobalFlags(f *Factory, cmd *cobra.Command) error {
 	flags := cmd.Root().PersistentFlags()
+	ApplyConfigSelection(f, flags)
 	for name, dst := range map[string]*string{
-		"config":       &f.ConfigPath,
-		"profile":      &f.ProfileOverride,
 		"server":       &f.ServerOverride,
 		"api-key":      &f.APIKeyOverride,
 		"api-key-file": &f.APIKeyFile,
@@ -43,6 +43,10 @@ func ApplyGlobalFlags(f *Factory, cmd *cobra.Command) error {
 		readOnly, _ := flags.GetBool("read-only")
 		f.ReadOnly = &readOnly
 	}
+	// REDMINE_HEADERS is merged by Config; it is only validated here.
+	if _, err := config.EnvHeaders(); err != nil {
+		return err
+	}
 	// The slice is read from the flag value itself: GetStringArray would
 	// round-trip it through its CSV string form.
 	if fl := flags.Lookup("header"); fl != nil && fl.Changed {
@@ -59,4 +63,31 @@ func ApplyGlobalFlags(f *Factory, cmd *cobra.Command) error {
 		f.Headers = headers
 	}
 	return nil
+}
+
+// ApplyConfigSelection sets f.ConfigPath and f.ProfileOverride from the
+// --config and --profile flags in flags, falling back to a non-empty
+// REDMINE_CONFIG and REDMINE_PROFILE when a flag was not given. Without
+// either, or when the flag set does not define the flag, the field is left
+// as it is. It is separate from ApplyGlobalFlags so code that runs when
+// PersistentPreRunE did not (e.g. rendering an argument error in main)
+// resolves the same config file and profile.
+func ApplyConfigSelection(f *Factory, flags *pflag.FlagSet) {
+	for name, sel := range map[string]struct {
+		dst *string
+		env string
+	}{
+		"config":  {&f.ConfigPath, config.ConfigEnv},
+		"profile": {&f.ProfileOverride, config.ProfileEnv},
+	} {
+		fl := flags.Lookup(name)
+		if fl == nil {
+			continue
+		}
+		if fl.Changed {
+			*sel.dst = fl.Value.String()
+		} else if v := os.Getenv(sel.env); v != "" {
+			*sel.dst = v
+		}
+	}
 }

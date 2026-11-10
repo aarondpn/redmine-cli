@@ -31,7 +31,10 @@ const (
 func main() {
 	// Start background update check. It is detached from the command
 	// context on purpose: it has its own deadline and its result is only
-	// printed after the command has finished.
+	// printed after the command has finished. ShouldCheck skips it for
+	// `update` and `extension upgrade`, which talk to GitHub themselves, and
+	// when REDMINE_NO_UPDATE_CHECK is set (as for commands run by an
+	// extension).
 	var updateDone chan *update.CheckResult
 	var cancelUpdateCheck context.CancelFunc
 	if update.ShouldCheck(version, os.Args[1:]) {
@@ -43,8 +46,23 @@ func main() {
 		}()
 	}
 
-	rootCmd, factory := cmd.NewRootCmdWithFactory(version)
-	ctx, stopInterrupt := notifyInterrupt(context.Background())
+	// Manifest warnings go to stderr, never stdout, and not into shell
+	// completion output.
+	var extWarnings io.Writer = os.Stderr
+	if cmd.IsShellCompletion(os.Args[1:]) {
+		extWarnings = io.Discard
+	}
+	rootCmd, factory := cmd.NewRootCmdWithOptions(version, cmd.RootOptions{
+		Extensions: cmd.DiscoverExtensions(version, extWarnings),
+	})
+	// An extension run with the terminal attached gets Ctrl-C from the
+	// terminal itself and decides when to exit; redmine waits for it and
+	// exits with its status. Signals sent to redmine alone are passed on.
+	interruptCtx := notifyInterrupt
+	if cmd.AttachesTerminal(rootCmd, os.Args[1:], version) {
+		interruptCtx = passInterrupt
+	}
+	ctx, stopInterrupt := interruptCtx(context.Background())
 	err := rootCmd.ExecuteContext(ctx)
 	interruptCode, interrupted := interruptExitCode(ctx)
 	stopInterrupt()
@@ -186,12 +204,9 @@ func selectedOutputFormat(rootCmd *cobra.Command, factory *cmdutil.Factory, args
 
 	if factory != nil {
 		if rootCmd != nil {
-			if cfgFile := rootCmd.PersistentFlags().Lookup("config"); cfgFile != nil && cfgFile.Value.String() != "" {
-				factory.ConfigPath = cfgFile.Value.String()
-			}
-			if profile := rootCmd.PersistentFlags().Lookup("profile"); profile != nil && profile.Value.String() != "" {
-				factory.ProfileOverride = profile.Value.String()
-			}
+			// --config / --profile, or REDMINE_CONFIG / REDMINE_PROFILE, as
+			// PersistentPreRunE would have resolved them.
+			cmdutil.ApplyConfigSelection(factory, rootCmd.PersistentFlags())
 		}
 		if cfg, err := factory.Config(); err == nil {
 			return cfg.OutputFormat
