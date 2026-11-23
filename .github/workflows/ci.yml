@@ -130,7 +130,7 @@ jobs:
         with:
           # Same exact version as release.yml.
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: "v2.19.0"
+          version: "v2.20.3"
           args: release --snapshot --clean --skip=sbom,homebrew
 
       - name: Smoke-test MCP image

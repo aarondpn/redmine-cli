@@ -80,7 +80,7 @@ jobs:
           # compromised) GoReleaser release mid-flight. Keep in sync with
           # ci.yml; Renovate bumps both via the custom manager.
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: "v2.19.0"
+          version: "v2.20.3"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
